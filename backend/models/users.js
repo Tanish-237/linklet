@@ -18,6 +18,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      validate: {
+        validator: function(v) {
+          return v.endsWith('@mnnit.ac.in');
+        },
+        message: props => 'Only @mnnit.ac.in email addresses are allowed'
+      }
     },
     fullName: {
       type: String,
@@ -25,7 +31,7 @@ const userSchema = new mongoose.Schema(
     },
     avatar: {
       type: String,
-      default: "/images/avatar.jpg",
+      default: "https://cdn-icons-png.flaticon.com/512/1326/1326382.png",
     },
     bio: {
       type: String,

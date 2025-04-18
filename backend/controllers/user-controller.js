@@ -15,6 +15,11 @@ const registerUser = wrapAsync(async (req, res) => {
     if (!username || !email || !password) {
         throw new apiError(400, "All fields are required")
     }
+    
+    // Validate email domain to only allow @mnnit.ac.in
+    if (!email.endsWith('@mnnit.ac.in')) {
+        throw new apiError(403, "Only @mnnit.ac.in email addresses are allowed")
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ $or: [ { username }, { email }] });
@@ -65,9 +70,19 @@ const loginUser = wrapAsync(async (req, res) => {
         throw new apiError(400, "Username or Email is required")
     }
 
+    // If email is provided, validate that it's from mnnit.ac.in domain
+    if (email && !email.endsWith('@mnnit.ac.in')) {
+        throw new apiError(403, "Only @mnnit.ac.in email addresses are allowed")
+    }
+
     const user = await User.findOne({ $or: [ { username }, { email }] });
     if (!user) {
         throw new apiError(401, "User does not exist");
+    }
+
+    // Even if they used username to login, check if their stored email is from mnnit.ac.in
+    if (!user.email.endsWith('@mnnit.ac.in')) {
+        throw new apiError(403, "Only @mnnit.ac.in email addresses are allowed")
     }
 
     const validpass = await user.matchPassword(password);
