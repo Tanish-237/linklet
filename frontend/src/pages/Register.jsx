@@ -4,6 +4,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { handleApiError } from "../utlis/ErrorHandler";
+import { useAuth } from "../context/AuthContext";
 
 const RegisterContainer = styled.div`
   max-width: 400px;

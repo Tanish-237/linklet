@@ -1,33 +1,28 @@
 import apiError from "../utils/apiError.js";
-import wrapAsync from "../utils/wrapAsync.js";
 import jwt from "jsonwebtoken";
 import { User } from "../models/users.js";
 
-export const isLoggedIn = wrapAsync(async (req, _, next) => {
-  try {
-    const token =
-      req.cookies?.accesstoken ||
-      req.header("Authorization")?.replace("Bearer ", "");
+export const isLoggedIn = async (req, res, next) => {
+    const token = req.cookies?.accesstoken || 
+                 req.header("Authorization")?.replace("Bearer ", "");
 
-    // console.log(token);
     if (!token) {
-      throw new apiError(401, "Unauthorized request");
+        return next(new apiError(401, "Unauthorized request"));
     }
 
-    const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    try {
+        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-    const user = await User.findById(decodedToken.id).select(
-      "-password -refreshtoken"
-    );
-    // console.log(user);
+        const user = await User.findById(decodedToken.id)
+                             .select("-password -refreshtoken");
 
-    if (!user) {
-      throw new apiError(401, "Invalid Access Token");
+        if (!user) {
+            return next(new apiError(401, "Invalid Access Token"));
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+        return next(new apiError(401, error?.message || "Invalid access token"));
     }
-
-    req.user = user;
-    next();
-  } catch (error) {
-    throw new apiError(401, error?.message || "Invalid access token");
-  }
-});
+};

@@ -6,12 +6,11 @@ import cookieParser from "cookie-parser";
 import { router as userRouter } from "./router/user-routes.js";
 import { router as postRouter } from "./router/post-routes.js";
 import { connectDb } from "./utils/db.js";
-import { User } from "./models/users.js";
-import { errorHandler } from "./utils/errorHandler.js";
-import { setupSocket } from "./socket/index.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
+import { initializeSocket } from "./socket.js";
+import { chatRouter } from "./router/chat-routes.js";
 
 const app = express();
-const server = http.createServer(app);
 
 app.use(
   cors({
@@ -29,15 +28,39 @@ app.use(cookieParser());
 
 app.use("/", userRouter);
 app.use("/", postRouter);
+app.use("/api/chat", chatRouter);
 
-app.use(errorHandler);
+// 404 handler
+app.use((req, res, next) => {
+    const error = new Error("Not Found");
+    error.status = 404;
+    next(error);
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    
+    const statusCode = err.statusCode || err.status || 500;
+    const message = err.message || "Internal Server Error";
+    
+    res.status(statusCode).json({
+        success: false,
+        status: statusCode,
+        message: message,
+        errors: err.errors || []
+    });
+});
 
 const PORT = 5000;
 
 connectDb().then(() => {
-  app.listen(PORT, (req, res) => {
-    console.log(`Server is running on port ${PORT}`);
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
   });
-
-  setupSocket(server);
+  
+  initializeSocket(server);
+}).catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
