@@ -13,6 +13,9 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import './App.css';
 import Dashboard from './dashboard';
+import HelpForum from "./pages/HelpForum";
+import Resource from "./pages/Resource";
+import AskQuestion from "./pages/AskQuestion";
 
 // Import static pages
 import AboutPage from './pages/static/AboutPage';
@@ -55,6 +58,16 @@ function App() {
           
           {/* Dashboard Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
+
+          <Route path="/help-forum" element={<HelpForum />} />
+          <Route path="/resources" element={<Resource />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/posts" element={<Posts />} />
+          <Route path="/posts/:postId" element={<PostDetail />} />
+          <Route path="/ask-question" element={<AskQuestion />} />
+
           <Route path="/dashboard/resources" element={<Dashboard />} />
           <Route path="/dashboard/clubs" element={<Dashboard />} />
           <Route path="/dashboard/forums" element={<Dashboard />} />
@@ -72,6 +85,7 @@ function App() {
           <Route path="/security" element={<><Navbar /><SecurityInfo /></>} />
           <Route path="/pricing" element={<><Navbar /><PricingPage /></>} />
           <Route path="/faq" element={<><Navbar /><FAQPage /></>} />
+
         </Routes>
       </Router>
     </HelmetProvider>

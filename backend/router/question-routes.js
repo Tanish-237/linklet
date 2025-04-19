@@ -31,4 +31,4 @@ router.delete('/api/questions/:questionId', isLoggedIn, deleteQuestion);
 router.post('/api/questions/:questionId/vote', isLoggedIn, voteQuestion);
 
 
-export { router as questionRouter }; 
+export { router }; 
