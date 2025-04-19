@@ -11,5 +11,40 @@ const storage = multer.diskStorage({
       cb(null, file.fieldname + '-' + uniqueSuffix + ext); // Unique filename
     }
   });
+
+// File filter function to only allow specific document types
+const fileFilter = (req, file, cb) => {
+  // Define the allowed file types
+  const allowedFileTypes = [
+    'application/pdf', // PDF
+    'application/msword', // DOC
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // DOCX
+    'application/vnd.ms-powerpoint', // PPT
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // PPTX
+    'application/vnd.ms-excel', // XLS
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // XLSX
+    'text/plain' // TXT
+  ];
   
-export const upload = multer({ storage: storage });
+  if (allowedFileTypes.includes(file.mimetype)) {
+    cb(null, true); // Accept the file
+  } else {
+    cb(new Error('Unsupported file type. Only PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, and TXT are allowed.'), false);
+  }
+};
+  
+export const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB file size limit
+  }
+});
+
+// Special upload middleware for document files
+export const documentUploadMiddleware = multer({ 
+  storage: storage,
+  fileFilter: fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB file size limit
+  }
+});

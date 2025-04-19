@@ -1,13 +1,8 @@
 import React, { useState } from "react";
-import styled from "styled-components";
 import ChatSidebar from "../components/ChatSidebar";
 import ChatWindow from "../components/ChatWindow";
 import NewGroupModal from "../components/NewGroupModal";
-
-const ChatPageContainer = styled.div`
-  display: flex;
-  height: calc(100vh - 60px); // Subtract navbar height
-`;
+import { Navbar } from "../components/Navbar";
 
 const ChatPage = () => {
   const [activeChat, setActiveChat] = useState(null);
@@ -19,25 +14,22 @@ const ChatPage = () => {
   };
 
   return (
-    <>
-      <ChatPageContainer>
-        <ChatSidebar onSelectChat={setActiveChat} activeChat={activeChat} />
-        {activeChat ? (
-          <ChatWindow chatId={activeChat} />
-        ) : (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              color: "white",
-            }}
-          >
-            <h2>Select a chat to start messaging</h2>
-          </div>
-        )}
-      </ChatPageContainer>
+    <div className="fixed inset-0 flex flex-col bg-gradient-to-b from-gray-900 to-gray-800">
+      <Navbar />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="w-1/4 h-full border-r border-gray-700 overflow-y-auto">
+          <ChatSidebar onSelectChat={setActiveChat} activeChat={activeChat} />
+        </div>
+        <div className="w-3/4 h-full">
+          {activeChat ? (
+            <ChatWindow chatId={activeChat} />
+          ) : (
+            <div className="flex items-center justify-center h-full text-white">
+              <h2 className="text-xl font-semibold">Select a chat to start messaging</h2>
+            </div>
+          )}
+        </div>
+      </div>
 
       {showNewGroupModal && (
         <NewGroupModal
@@ -45,7 +37,7 @@ const ChatPage = () => {
           onCreate={handleNewGroupCreated}
         />
       )}
-    </>
+    </div>
   );
 };
 

@@ -1,98 +1,16 @@
 import React, { useState, useEffect } from "react";
-import styled from "styled-components";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
+import { useSocket } from "../context/SocketContext";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
-
-const SidebarContainer = styled.div`
-  width: 300px;
-  height: 100vh;
-  background-color: #1a1a1a;
-  color: white;
-  padding: 20px;
-  overflow-y: auto;
-`;
-
-const SearchBar = styled.input`
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 20px;
-  border-radius: 5px;
-  border: none;
-  background-color: #333;
-  color: white;
-`;
-
-const ChatItem = styled.div`
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 5px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  background-color: ${(props) => (props.$active ? "#333" : "transparent")};
-  &:hover {
-    background-color: #333;
-  }
-`;
-
-const Avatar = styled.img`
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  margin-right: 10px;
-`;
-
-const ChatInfo = styled.div`
-  flex: 1;
-`;
-
-const ChatName = styled.div`
-  font-weight: bold;
-`;
-
-const LastMessage = styled.div`
-  font-size: 12px;
-  color: #aaa;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-`;
-
-const NewChatButton = styled.button`
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 20px;
-  background-color: #1db954;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  &:hover {
-    background-color: #1ed760;
-  }
-`;
-
-const UnreadCount = styled.div`
-  background-color: #1db954;
-  color: white;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  margin-left: auto;
-`;
 
 const ChatSidebar = ({ onSelectChat, activeChat }) => {
   const [chats, setChats] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
-  const [unreadCounts, setUnreadCounts] = useState({});
   const { user } = useAuth();
+  const socket = useSocket();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -107,22 +25,31 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
       }
     };
 
-    const fetchUnreadCounts = async () => {
-      try {
-        const res = await axios.get("http://localhost:5000/api/chat/unread-count", {
-          withCredentials: true,
-        });
-        setUnreadCounts(res.data);
-      } catch (error) {
-        console.error("Failed to fetch unread counts:", error);
-      }
-    };
-
     if (user) {
       fetchChats();
-      fetchUnreadCounts();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!socket || !user) return;
+
+    const handleMessageReceived = (message) => {
+      // Update chat list with new message
+      setChats((prevChats) =>
+        prevChats.map((chat) =>
+          chat._id === message.chatId
+            ? { ...chat, lastMessage: message }
+            : chat
+        )
+      );
+    };
+
+    socket.on("message received", handleMessageReceived);
+
+    return () => {
+      socket.off("message received", handleMessageReceived);
+    };
+  }, [socket, user]);
 
   const handleSearch = async (e) => {
     const query = e.target.value;
@@ -161,86 +88,85 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
     }
   };
 
+  const handleChatSelect = (chatId) => {
+    onSelectChat(chatId);
+  };
+
   return (
-    <SidebarContainer>
-      <NewChatButton onClick={() => navigate("/chat/new-group")}>
+    <div className="w-80 h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white p-6 overflow-y-auto border-r border-purple-500/10">
+      <button
+        onClick={() => navigate("/chat/new-group")}
+        className="w-full p-3 mb-6 bg-purple-500/20 text-white rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30 hover:scale-105"
+      >
         New Group
-      </NewChatButton>
-      <SearchBar
+      </button>
+      <input
         type="text"
         placeholder="Search users..."
         value={searchQuery}
         onChange={handleSearch}
+        className="w-full p-3 mb-6 rounded-lg bg-black/50 backdrop-blur-md border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-white placeholder-gray-400"
       />
 
       {searchResults.length > 0 && (
-        <div>
+        <div className="space-y-2">
           {searchResults.map((user) => (
-            <ChatItem key={user._id} onClick={() => startNewChat(user._id)}>
-              <Avatar
-                src={
-                  user.avatar ||
-                  "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
-                }
+            <div
+              key={user._id}
+              onClick={() => startNewChat(user._id)}
+              className="flex items-center p-3 rounded-lg cursor-pointer hover:bg-purple-500/20 transition-colors border border-purple-500/10 hover:scale-105"
+            >
+              <img
+                src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+                alt={user.username}
+                className="w-10 h-10 rounded-full border border-purple-500/10"
               />
-              <ChatInfo>
-                <ChatName>{user.username}</ChatName>
-                <LastMessage>{user.fullName}</LastMessage>
-              </ChatInfo>
-            </ChatItem>
+              <div className="ml-3 flex-1">
+                <div className="font-bold text-purple-500">{user.username}</div>
+                <div className="text-sm text-gray-400 truncate">{user.fullName}</div>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      {chats.map((chat) => (
-        <ChatItem
-          key={chat._id}
-          $active={activeChat === chat._id}
-          onClick={() => {
-            onSelectChat(chat._id);
-            if (unreadCounts[chat._id] > 0) {
-              const lastMessage = chat.messages[chat.messages.length - 1];
-              if (lastMessage) {
-                axios.post(
-                  "http://localhost:5000/api/chat/mark-read",
-                  {
-                    chatId: chat._id,
-                    messageId: lastMessage._id,
-                  },
-                  { withCredentials: true }
-                );
+      <div className="space-y-2">
+        {chats.map((chat) => (
+          <div
+            key={chat._id}
+            onClick={() => handleChatSelect(chat._id)}
+            className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors border ${
+              activeChat === chat._id
+                ? "bg-purple-500/20 border-purple-500/30"
+                : "border-purple-500/10 hover:bg-purple-500/20"
+            } hover:scale-105`}
+          >
+            <img
+              src={
+                chat.isGroup
+                  ? chat.groupImage || "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
+                  : chat.participants.find((p) => p._id !== user?._id)?.avatar ||
+                    "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
               }
-            }
-          }}
-        >
-          <Avatar
-            src={
-              chat.isGroup
-                ? chat.groupImage ||
-                  "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
-                : chat.participants.find((p) => p._id !== user?._id)?.avatar ||
-                  "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
-            }
-          />
-          <ChatInfo>
-            <ChatName>
-              {chat.isGroup
-                ? chat.groupName
-                : chat.participants.find((p) => p._id !== user?._id)?.username}
-            </ChatName>
-            <LastMessage>
-              {chat.lastMessage
-                ? chat.lastMessage.content ||
-                  (chat.lastMessage.media ? "Media" : "")
-                : "No messages yet"}
-            </LastMessage>
-          </ChatInfo>
-          {unreadCounts[chat._id] > 0 && (
-            <UnreadCount>{unreadCounts[chat._id]}</UnreadCount>
-          )}
-        </ChatItem>
-      ))}
-    </SidebarContainer>
+              alt={chat.isGroup ? chat.groupName : "User"}
+              className="w-10 h-10 rounded-full border border-purple-500/10"
+            />
+            <div className="ml-3 flex-1">
+              <div className="font-bold text-purple-500">
+                {chat.isGroup
+                  ? chat.groupName
+                  : chat.participants.find((p) => p._id !== user?._id)?.username}
+              </div>
+              {/* <div className="text-sm text-gray-400 truncate">
+                {chat.lastMessage
+                  ? chat.lastMessage.content || (chat.lastMessage.media ? "Media" : "")
+                  : "No messages yet"}
+              </div> */}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 

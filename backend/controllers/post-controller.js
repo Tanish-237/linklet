@@ -272,78 +272,7 @@ const toggleUpvote = wrapAsync(async (req, res) => {
   });
 });
 
-// Add a comment to a post
-const addComment = wrapAsync(async (req, res) => {
-  const { postId } = req.params;
-  const { content } = req.body;
-  const userId = req.user.id;
 
-  if (!content) {
-    throw new apiError(400, "Comment content is required");
-  }
-
-  const post = await Post.findById(postId);
-
-  if (!post) {
-    throw new apiError(404, "Post not found");
-  }
-
-  const comment = {
-    userId,
-    content,
-  };
-
-  post.comments.push(comment);
-
-  await post.save();
-
-  // Get the updated post with populated comments
-  const updatedPost = await Post.findById(postId)
-    .populate("userId", "username avatar")
-    .populate("comments.userId", "username avatar");
-
-  res.status(201).json({
-    success: true,
-    post: updatedPost,
-  });
-});
-
-// Delete a comment
-const deleteComment = wrapAsync(async (req, res) => {
-  const { postId, commentId } = req.params;
-  const userId = req.user.id;
-
-  const post = await Post.findById(postId);
-
-  if (!post) {
-    throw new apiError(404, "Post not found");
-  }
-
-  // Find the comment
-  const comment = post.comments.id(commentId);
-
-  if (!comment) {
-    throw new apiError(404, "Comment not found");
-  }
-
-  // Check if user is the owner of the comment or the post
-  if (
-    comment.userId.toString() !== userId &&
-    post.userId.toString() !== userId
-  ) {
-    throw new apiError(403, "You don't have permission to delete this comment");
-  }
-
-  // Remove the comment
-  post.comments.pull(commentId);
-
-  await post.save();
-
-  res.status(200).json({
-    success: true,
-    message: "Comment deleted successfully",
-  });
-});
 
 export {
   createPost,
@@ -353,6 +282,4 @@ export {
   updatePost,
   deletePost,
   toggleUpvote,
-  addComment,
-  deleteComment,
 };

@@ -20,12 +20,7 @@ const messageSchema = new mongoose.Schema({
     enum: ["image", "video", "document", null],
     default: null,
   },
-  readBy: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-  ],
+
   createdAt: {
     type: Date,
     default: Date.now,

@@ -1,194 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import styled from "styled-components";
 import axios from "axios";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { useSocket } from "../context/SocketContext";
 import { format } from "timeago.js";
-
-const ChatContainer = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background-color: #121212;
-`;
-
-const MessagesContainer = styled.div`
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-  background-color: #121212;
-`;
-
-const Message = styled.div`
-  display: flex;
-  margin-bottom: 15px;
-  justify-content: ${(props) => (props.$isMe ? "flex-end" : "flex-start")};
-  position: relative;
-`;
-
-const MessageActions = styled.div`
-  position: absolute;
-  top: 0;
-  right: ${(props) => (props.$isMe ? "100%" : "auto")};
-  left: ${(props) => (props.$isMe ? "auto" : "100%")};
-  display: flex;
-  gap: 5px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  background-color: #333;
-  padding: 5px;
-  border-radius: 5px;
-
-  ${Message}:hover & {
-    opacity: 1;
-  }
-`;
-
-const ActionButton = styled.button`
-  background: none;
-  border: none;
-  color: #aaa;
-  cursor: pointer;
-  padding: 5px;
-  font-size: 14px;
-
-  &:hover {
-    color: white;
-  }
-`;
-
-const EditInput = styled.input`
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #333;
-  border-radius: 5px;
-  background-color: #333;
-  color: white;
-  margin-bottom: 5px;
-`;
-
-const MessageContent = styled.div`
-  max-width: 70%;
-  padding: 10px 15px;
-  border-radius: ${(props) =>
-    props.$isMe ? "15px 15px 0 15px" : "15px 15px 15px 0"};
-  background-color: ${(props) => (props.$isMe ? "#1db954" : "#333")};
-  color: white;
-  word-wrap: break-word;
-`;
-
-const MessageInfo = styled.div`
-  display: flex;
-  flex-direction: column;
-  margin-left: ${(props) => (props.$isMe ? "0" : "10px")};
-  margin-right: ${(props) => (props.$isMe ? "10px" : "0")};
-`;
-
-const SenderName = styled.span`
-  font-size: 12px;
-  color: #aaa;
-  margin-bottom: 5px;
-`;
-
-const MessageTime = styled.span`
-  font-size: 10px;
-  color: #aaa;
-  margin-top: 5px;
-  text-align: ${(props) => (props.$isMe ? "right" : "left")};
-`;
-
-const MediaMessage = styled.div`
-  margin-top: 10px;
-  img,
-  video {
-    max-width: 100%;
-    max-height: 300px;
-    border-radius: 10px;
-  }
-`;
-
-const InputContainer = styled.div`
-  display: flex;
-  padding: 15px;
-  background-color: #1a1a1a;
-  align-items: center;
-  gap: 10px;
-  border-top: 1px solid #333;
-`;
-
-const MessageInput = styled.input`
-  flex: 1;
-  padding: 12px 20px;
-  border-radius: 25px;
-  border: 1px solid #333;
-  background-color: #333;
-  color: white;
-  font-size: 14px;
-  transition: all 0.3s ease;
-
-  &:focus {
-    outline: none;
-    border-color: #1db954;
-    box-shadow: 0 0 0 2px rgba(29, 185, 84, 0.2);
-  }
-
-  &::placeholder {
-    color: #aaa;
-  }
-`;
-
-const SendButton = styled.button`
-  padding: 12px;
-  background-color: #1db954;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-  width: 40px;
-  height: 40px;
-
-  &:hover {
-    background-color: #1ed760;
-    transform: scale(1.05);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-`;
-
-const FileInput = styled.input`
-  display: none;
-`;
-
-const FileButton = styled.label`
-  padding: 12px;
-  background-color: #333;
-  color: white;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-  width: 40px;
-  height: 40px;
-
-  &:hover {
-    background-color: #444;
-    transform: scale(1.05);
-  }
-
-  &:active {
-    transform: scale(0.95);
-  }
-`;
 
 const ChatWindow = ({ chatId }) => {
   const [messages, setMessages] = useState([]);
@@ -217,63 +32,22 @@ const ChatWindow = ({ chatId }) => {
     return () => clearTimeout(typingTimeout);
   }, [newMessage]);
 
-  // Add these effects
-  useEffect(() => {
-    if (!socket || !chatId) return;
 
-    const typingTimeout = setTimeout(() => {
-      socket.emit("stop typing", chatId);
-      setIsTyping(false);
-    }, 3000);
-
-    return () => clearTimeout(typingTimeout);
-  }, [newMessage]);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on("typing", (chatId) => {
-      if (chatId === chatId) {
-        setTypingUsers((prev) => [...new Set([...prev, "Someone"])]);
-      }
-    });
-
-    socket.on("stop typing", (chatId) => {
-      if (chatId === chatId) {
-        setTypingUsers((prev) => prev.filter((u) => u !== "Someone"));
-      }
-    });
-
-    return () => {
-      socket.off("typing");
-      socket.off("stop typing");
-    };
-  }, [socket, chatId]);
 
   useEffect(() => {
     if (!chatId || !user) return;
 
-    // Fetch previous messages
     const fetchMessages = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/chat/message/${chatId}`, {
-          withCredentials: true
-        });
-        console.log("Fetched messages:", res.data);
+        const res = await axios.get(
+          `http://localhost:5000/api/chat/message/${chatId}`,
+          {
+            withCredentials: true,
+          }
+        );
         setMessages(res.data || []);
 
-        // Mark messages as read when chat is opened
-        if (res.data && res.data.length > 0) {
-          const lastMessage = res.data[res.data.length - 1];
-          await axios.post(
-            "http://localhost:5000/api/chat/mark-read",
-            {
-              chatId,
-              messageId: lastMessage._id,
-            },
-            { withCredentials: true }
-          );
-        }
+        
       } catch (error) {
         console.error("Failed to fetch messages:", error);
         toast.error("Failed to load messages");
@@ -283,65 +57,7 @@ const ChatWindow = ({ chatId }) => {
     fetchMessages();
   }, [chatId, user]);
 
-  useEffect(() => {
-    if (!chatId || !user) return;
-
-    const unreadMessages = messages.filter(
-      (msg) => msg.sender._id !== user._id && !msg.readBy.includes(user._id)
-    );
-
-    if (unreadMessages.length > 0) {
-      const markAsRead = async () => {
-        try {
-          await axios.post(
-            "http://localhost:5000/api/chat/mark-read",
-            {
-              chatId,
-              messageId: unreadMessages[unreadMessages.length - 1]._id,
-            },
-            { withCredentials: true }
-          );
-        } catch (error) {
-          console.error("Failed to mark as read", error);
-        }
-      };
-
-      markAsRead();
-    }
-  }, [messages, chatId, user]);
-
-  useEffect(() => {
-    if (!socket || !chatId) return;
-
-    // Join the chat room
-    socket.emit("join chat", chatId);
-
-    // Listen for new messages
-    socket.on("message received", async (message) => {
-      console.log("Received new message:", message);
-      setMessages((prevMessages) => [...prevMessages, message]);
-
-      // Mark new message as read
-      try {
-        await axios.post(
-          "http://localhost:5000/api/chat/mark-read",
-          {
-            chatId,
-            messageId: message._id,
-          },
-          { withCredentials: true }
-        );
-      } catch (error) {
-        console.error("Failed to mark message as read:", error);
-      }
-    });
-
-    // Cleanup on unmount
-    return () => {
-      socket.off("join chat");
-      socket.off("message received");
-    };
-  }, [socket, chatId]);
+  
 
   useEffect(() => {
     if (!socket || !chatId) return;
@@ -386,12 +102,6 @@ const ChatWindow = ({ chatId }) => {
     if (file) formData.append("media", file);
     formData.append("chatId", chatId);
 
-    console.log("Sending message:", {
-      content: newMessage,
-      chatId,
-      hasFile: !!file
-    });
-
     try {
       const res = await axios.post(
         "http://localhost:5000/api/chat/message",
@@ -404,28 +114,13 @@ const ChatWindow = ({ chatId }) => {
         }
       );
 
-      console.log("Message sent successfully:", res.data);
-
-      // Emit socket event
       socket.emit("new message", res.data);
-
       setMessages([...messages, res.data]);
       setNewMessage("");
       setFile(null);
     } catch (error) {
-      console.error("Failed to send message:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message
-      });
-      
-      if (error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      } else if (error.response?.status === 500) {
-        toast.error("Server error. Please try again later.");
-      } else {
-        toast.error("Failed to send message. Please try again.");
-      }
+      console.error("Failed to send message:", error);
+      toast.error("Failed to send message");
     }
   };
 
@@ -440,6 +135,8 @@ const ChatWindow = ({ chatId }) => {
   };
 
   const handleEditMessage = async (message) => {
+    if (!editContent.trim()) return;
+
     try {
       const res = await axios.put(
         "http://localhost:5000/api/chat/message/edit",
@@ -449,6 +146,10 @@ const ChatWindow = ({ chatId }) => {
           content: editContent,
         },
         { withCredentials: true }
+      );
+
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) => (msg._id === message._id ? res.data : msg))
       );
       setEditingMessage(null);
       setEditContent("");
@@ -460,13 +161,10 @@ const ChatWindow = ({ chatId }) => {
 
   const handleDeleteMessage = async (messageId) => {
     try {
-      await axios.delete(
-        "http://localhost:5000/api/chat/message/delete",
-        {
-          data: { chatId, messageId },
-          withCredentials: true,
-        }
-      );
+      await axios.delete("http://localhost:5000/api/chat/message/delete", {
+        data: { chatId, messageId },
+        withCredentials: true,
+      });
     } catch (error) {
       console.error("Failed to delete message:", error);
       toast.error("Failed to delete message");
@@ -474,32 +172,47 @@ const ChatWindow = ({ chatId }) => {
   };
 
   return (
-    <ChatContainer>
-      <MessagesContainer>
+    <div className="h-full flex flex-col bg-gradient-to-b from-gray-900 to-gray-800">
+      <div className="flex-1 overflow-y-auto p-6">
         {messages.map((message) => (
-          <Message key={message._id} $isMe={message.sender._id === user?._id}>
+          <div
+            key={message._id}
+            className={`flex mb-6 group relative ${
+              message.sender._id === user?._id ? "justify-end" : "justify-start"
+            }`}
+          >
             {message.sender._id === user?._id && (
-              <MessageActions $isMe={message.sender._id === user?._id}>
-                <ActionButton
+              <div className="absolute top-0 right-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 backdrop-blur-md p-2 rounded-lg border border-purple-500/10 z-10">
+                <button
                   onClick={() => {
                     setEditingMessage(message._id);
                     setEditContent(message.content);
                   }}
+                  className="text-gray-400 hover:text-purple-500 transition-colors"
                 >
                   Edit
-                </ActionButton>
-                <ActionButton onClick={() => handleDeleteMessage(message._id)}>
+                </button>
+                <button
+                  onClick={() => handleDeleteMessage(message._id)}
+                  className="text-gray-400 hover:text-red-500 transition-colors"
+                >
                   Delete
-                </ActionButton>
-              </MessageActions>
+                </button>
+              </div>
             )}
-            <MessageInfo $isMe={message.sender._id === user?._id}>
+            <div
+              className={`flex flex-col ${
+                message.sender._id === user?._id ? "items-end" : "items-start"
+              }`}
+            >
               {message.sender._id !== user?._id && (
-                <SenderName>{message.sender.username}</SenderName>
+                <span className="text-sm text-purple-500 mb-1">
+                  {message.sender.username}
+                </span>
               )}
               {editingMessage === message._id ? (
-                <div>
-                  <EditInput
+                <div className="w-full">
+                  <input
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
                     onKeyDown={(e) => {
@@ -510,86 +223,144 @@ const ChatWindow = ({ chatId }) => {
                         setEditContent("");
                       }
                     }}
+                    className="w-full p-2 rounded-lg bg-black/50 backdrop-blur-md border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-white"
                   />
-                  <div>
-                    <ActionButton onClick={() => handleEditMessage(message)}>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => handleEditMessage(message)}
+                      className="px-3 py-1 bg-purple-500/20 text-white rounded-lg hover:bg-purple-500/30 transition-colors"
+                    >
                       Save
-                    </ActionButton>
-                    <ActionButton
+                    </button>
+                    <button
                       onClick={() => {
                         setEditingMessage(null);
                         setEditContent("");
                       }}
+                      className="px-3 py-1 bg-gray-500/20 text-white rounded-lg hover:bg-gray-500/30 transition-colors"
                     >
                       Cancel
-                    </ActionButton>
+                    </button>
                   </div>
                 </div>
               ) : (
-                <MessageContent $isMe={message.sender._id === user?._id}>
-                  {message.content}
-                  {message.media && (
-                    <MediaMessage>
-                      {message.mediaType === "image" ? (
-                        <img src={message.media} alt="Media" />
-                      ) : message.mediaType === "video" ? (
-                        <video controls>
-                          <source src={message.media} type="video/mp4" />
-                          Your browser does not support the video tag.
-                        </video>
-                      ) : (
-                        <a
-                          href={message.media}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                <div
+                  className={`max-w-[70%] p-4 rounded-lg ${
+                    message.sender._id === user?._id
+                      ? "bg-purple-500/20 rounded-tr-none"
+                      : "bg-black/50 rounded-tl-none"
+                  } backdrop-blur-md border ${
+                    message.sender._id === user?._id
+                      ? "border-purple-500/30"
+                      : "border-purple-500/10"
+                  } transition-transform hover:scale-105`}
+                >
+                  <div className="text-white text-base mb-2">
+                {message.content}
+                  </div>
+                {message.media && (
+                    <div className="mt-2">
+                    {message.mediaType === "image" ? (
+                        <img
+                          src={message.media}
+                          alt="Media"
+                          className="max-w-full rounded-lg border border-purple-500/10"
+                        />
+                    ) : message.mediaType === "video" ? (
+                        <video
+                          controls
+                          className="max-w-full rounded-lg border border-purple-500/10"
                         >
-                          View File
-                        </a>
-                      )}
-                    </MediaMessage>
+                        <source src={message.media} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    ) : (
+                      <a
+                        href={message.media}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                          className="text-purple-500 hover:underline"
+                      >
+                        View File
+                      </a>
+                    )}
+                    </div>
                   )}
-                  <MessageTime $isMe={message.sender._id === user?._id}>
-                    {format(message.createdAt)}
-                  </MessageTime>
-                </MessageContent>
+                  <div
+                    className={`flex items-center gap-2 mt-2 ${
+                      message.sender._id === user?._id
+                        ? "justify-end"
+                        : "justify-start"
+                    }`}
+                  >
+                    {message.updatedAt &&
+                    message.updatedAt !== message.createdAt ? (
+                      <span className="text-xs text-gray-400">
+                        edited {format(message.updatedAt)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                  {format(message.createdAt)}
+                      </span>
+                    )}
+                  </div>
+                </div>
               )}
-            </MessageInfo>
-          </Message>
+            </div>
+          </div>
         ))}
         <div ref={messagesEndRef} />
-      </MessagesContainer>
+      </div>
 
       {typingUsers.length > 0 && (
-        <div
-          style={{ color: "#aaa", fontStyle: "italic", marginBottom: "10px" }}
-        >
+        <div className="px-6 py-2 text-gray-400 italic">
           {typingUsers.join(", ")} {typingUsers.length > 1 ? "are" : "is"}{" "}
           typing...
         </div>
       )}
 
-      <InputContainer>
-        <FileButton htmlFor="file-upload">
-          <i className="fas fa-paperclip"></i>
-          <FileInput
-            id="file-upload"
-            type="file"
-            onChange={handleFileChange}
-            accept="image/*,video/*"
-          />
-        </FileButton>
-        <MessageInput
+      <div className="p-4 border-t border-gray-700 bg-gray-800/50">
+        <div className="flex items-center gap-4">
+          <label className="cursor-pointer text-gray-400 hover:text-purple-500">
+            <input
+              type="file"
+              onChange={handleFileChange}
+              className="hidden"
+              accept="image/*,video/*"
+            />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+              />
+            </svg>
+          </label>
+          <input
           type="text"
+            value={newMessage}
+            onChange={handleInputChange}
+            onKeyPress={handleKeyPress}
           placeholder="Type a message..."
-          value={newMessage}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyPress}
-        />
-        <SendButton onClick={handleSendMessage} disabled={!newMessage && !file}>
-          <i className="fas fa-paper-plane"></i>
-        </SendButton>
-      </InputContainer>
-    </ChatContainer>
+            className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+          <button
+            onClick={handleSendMessage}
+            disabled={!newMessage && !file}
+            className="bg-purple-500 text-white rounded-lg px-4 py-2 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 

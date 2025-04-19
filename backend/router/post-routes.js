@@ -9,9 +9,9 @@ import {
     updatePost,
     deletePost,
     toggleUpvote,
-    addComment,
-    deleteComment
 } from "../controllers/post-controller.js";
+
+import { addComment, editComment, deleteComment } from "../controllers/comment-controller.js";
 
 const router = Router();
 
@@ -39,6 +39,7 @@ router.route("/api/posts/:postId/comments")
     .post(isLoggedIn, addComment);  // Add a comment
 
 router.route("/api/posts/:postId/comments/:commentId")
+    .put(isLoggedIn, editComment)  // Edit a comment
     .delete(isLoggedIn, deleteComment);  // Delete a comment
 
 export { router };

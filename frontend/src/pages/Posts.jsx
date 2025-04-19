@@ -12,7 +12,7 @@ const PostsContainer = styled.div`
 `;
 
 const PostCard = styled.div`
-  background-color: #000;
+  background-color: #fff;
   border: 1px solid #e1e1e1;
   padding: 20px;
   margin-bottom: 25px;
@@ -143,8 +143,9 @@ const Posts = () => {
   const handleUpvote = async (postId, e) => {
     e.stopPropagation();
     try {
-      const res = await axios.put(
-        `http://localhost:5000/api/posts/${postId}/upvote`
+      const res = await axios.post(
+        `http://localhost:5000/api/posts/${postId}/upvote`,
+        { withCredentials: true }
       );
       const updatedPosts = posts.map((post) =>
         post._id === postId
@@ -197,7 +198,7 @@ const Posts = () => {
 
               <PostActions>
                 <button onClick={(e) => handleUpvote(post._id, e)}>
-                  ▲ {post.upvotes?.length || 0} Upvotes
+                  👍 {post.upvotes?.length || 0} Upvotes
                 </button>
                 <button>💬 {post.comments?.length || 0} Comments</button>
               </PostActions>

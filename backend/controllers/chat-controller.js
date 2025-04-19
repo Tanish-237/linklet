@@ -285,18 +285,20 @@ export const searchUsers = wrapAsync(async (req, res) => {
   res.status(200).json(users);
 });
 
-export const markAsRead = wrapAsync(async (req, res) => {
-  const { chatId, messageId } = req.body;
 
-  if (!chatId || !messageId) {
-    throw new apiError(400, "Chat ID and Message ID are required");
+
+export const editMessage = wrapAsync(async (req, res) => {
+  const { chatId, messageId, content } = req.body;
+
+  if (!chatId || !messageId || !content) {
+    throw new apiError(400, "Chat ID, message ID, and content are required");
   }
 
-  // First find the chat and message
+  // Find the chat and message
   const chat = await Chat.findOne({
     _id: chatId,
     "messages._id": messageId
-  });
+  }).populate("messages.sender", "username avatar email");
 
   if (!chat) {
     throw new apiError(404, "Chat or message not found");
@@ -308,91 +310,56 @@ export const markAsRead = wrapAsync(async (req, res) => {
     throw new apiError(404, "Message not found");
   }
 
-  // If message is already read by this user, just return success
-  if (message.readBy.includes(req.user._id)) {
-    return res.status(200).json({ success: true });
+  // Check if the user is the sender of the message
+  if (message.sender._id.toString() !== req.user._id.toString()) {
+    throw new apiError(403, "You can only edit your own messages");
   }
 
-  // Update the message's readBy array
+  // Update the message content and set updatedAt
   const updatedChat = await Chat.findOneAndUpdate(
     {
       _id: chatId,
       "messages._id": messageId
     },
     {
-      $addToSet: { "messages.$.readBy": req.user._id }
-    },
-    { new: true }
-  );
-
-  if (!updatedChat) {
-    throw new apiError(500, "Failed to update message read status");
-  }
-
-  res.status(200).json({ success: true });
-});
-
-export const getUnreadCount = wrapAsync(async (req, res) => {
-  if (!req.user?._id) {
-    throw new apiError(401, "User not authenticated");
-  }
-
-  const chats = await Chat.find({
-    participants: req.user._id
-  }).select('messages');
-
-  let count = 0;
-  
-  for (const chat of chats) {
-    if (!chat.messages) continue;
-    
-    for (const msg of chat.messages) {
-      if (!msg.sender || !msg.readBy) continue;
-      
-      const senderStr = msg.sender.toString();
-      const userStr = req.user._id.toString();
-      
-      if (senderStr !== userStr && 
-        !msg.readBy.some(id => id.toString() === userStr)) {
-        count++;
+      $set: {
+        "messages.$.content": content,
+        "messages.$.updatedAt": new Date()
       }
-    }
-  }
-
-  return res.status(200).json({ count });
-});
-
-export const editMessage = wrapAsync(async (req, res) => {
-  const { chatId, messageId, content } = req.body;
-
-  if (!chatId || !messageId || !content) {
-    throw new apiError(400, "Chat ID, Message ID, and content are required");
-  }
-
-  const updatedChat = await Chat.findOneAndUpdate(
-    {
-      _id: chatId,
-      "messages._id": messageId,
-      "messages.sender": req.user._id // Only allow sender to edit
-    },
-    {
-      $set: { "messages.$.content": content }
     },
     { new: true }
   ).populate("messages.sender", "username avatar email");
 
   if (!updatedChat) {
-    throw new apiError(404, "Message not found or you don't have permission to edit");
+    throw new apiError(500, "Failed to update message");
   }
 
+  // Find the updated message
   const updatedMessage = updatedChat.messages.find(msg => msg._id.toString() === messageId);
-  
+
+  // Format the message for socket emission
+  const formattedMessage = {
+    _id: updatedMessage._id,
+    sender: {
+      _id: updatedMessage.sender._id,
+      username: updatedMessage.sender.username,
+      email: updatedMessage.sender.email,
+      avatar: updatedMessage.sender.avatar
+    },
+    content: updatedMessage.content,
+    media: updatedMessage.media,
+    mediaType: updatedMessage.mediaType,
+    readBy: updatedMessage.readBy,
+    createdAt: updatedMessage.createdAt,
+    updatedAt: updatedMessage.updatedAt
+  };
+
   // Emit the updated message to all participants
   if (io) {
-    io.to(chatId).emit("message updated", updatedMessage);
+    io.to(chatId).emit("message updated", formattedMessage);
   }
 
-  res.status(200).json(updatedMessage);
+  res.status(200).json(formattedMessage);
 });
 
 export const deleteMessage = wrapAsync(async (req, res) => {

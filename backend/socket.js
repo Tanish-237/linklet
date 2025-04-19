@@ -34,8 +34,19 @@ export const initializeSocket = (server) => {
       io.to(chat._id).emit("message received", newMessage);
     });
 
-    socket.on("typing", (room) => socket.in(room).emit("typing"));
-    socket.on("stop typing", (room) => socket.in(room).emit("stop typing"));
+    socket.on("typing", (data) => {
+      socket.to(data.chatId).emit("typing", {
+        chatId: data.chatId,
+        username: data.username
+      });
+    });
+
+    socket.on("stop typing", (data) => {
+      socket.to(data.chatId).emit("stop typing", {
+        chatId: data.chatId,
+        username: data.username
+      });
+    });
 
     socket.on("disconnect", () => {
       console.log("User disconnected");
