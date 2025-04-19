@@ -40,7 +40,7 @@ export default function Dashboard() {
 
   const menuItems = [
     { icon: "dynamic_feed", label: "Feed", path: "/dashboard" },
-    { icon: "library_books", label: "Resources", path: "/dashboard/resources" },
+    { icon: "library_books", label: "Resource Library", path: "/dashboard/resources" },
     { icon: "groups", label: "Clubs", path: "/dashboard/clubs" },
     { icon: "forum", label: "Forums", path: "/dashboard/forums" },
     { icon: "chat", label: "Chat", path: "/dashboard/chat" }
