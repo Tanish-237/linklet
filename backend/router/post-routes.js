@@ -39,6 +39,7 @@ router.route("/api/posts/:postId/comments")
     .post(isLoggedIn, addComment);  // Add a comment
 
 router.route("/api/posts/:postId/comments/:commentId")
+    .put(isLoggedIn, editComment)  // Edit a comment
     .delete(isLoggedIn, deleteComment);  // Delete a comment
 
 export { router };
