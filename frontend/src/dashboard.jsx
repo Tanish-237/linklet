@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import defaultAvatar from './assets/default-avatar.png';
 import linkletLogo from './assets/linklet-logo.png';
+import AttendanceTracker from './components/AttendanceTracker';
 
 export default function Dashboard() {
   const [dropdownStates, setDropdownStates] = useState({
@@ -140,6 +141,10 @@ export default function Dashboard() {
                 <p className="text-4xl font-bold mt-4 text-right">{count}</p>
               </div>
             ))}
+          </div>
+          
+          <div className="mt-8">
+            <AttendanceTracker />
           </div>
         </main>
       </div>
