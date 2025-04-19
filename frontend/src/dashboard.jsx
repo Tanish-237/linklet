@@ -45,9 +45,18 @@ export default function Dashboard() {
         </div>
         <nav className="flex-1 overflow-y-auto no-scrollbar">
           <ul className="space-y-4 p-6">
-            {["Feed", "Resources", "Clubs", "Forums", "Chat"].map((item) => (
-              <li key={item} className="p-4 bg-gray-800/50 rounded-lg hover:bg-violet-900/30 transition-all duration-300 cursor-pointer border border-violet-500/10 hover:border-violet-500/30 group">
-                <span className="group-hover:text-violet-400 transition-colors">{item}</span>
+            {[
+              { icon: "dynamic_feed", label: "Feed" },
+              { icon: "library_books", label: "Resources" },
+              { icon: "groups", label: "Clubs" },
+              { icon: "forum", label: "Forums" },
+              { icon: "chat", label: "Chat" }
+            ].map((item) => (
+              <li key={item.label} className="p-4 bg-gray-800/50 rounded-lg hover:bg-violet-900/30 transition-all duration-300 cursor-pointer border border-violet-500/10 hover:border-violet-500/30 group">
+                <div className="flex items-center gap-3">
+                  <span className="material-icons text-2xl group-hover:text-violet-400 transition-colors">{item.icon}</span>
+                  <span className="group-hover:text-violet-400 transition-colors">{item.label}</span>
+                </div>
               </li>
             ))}
           </ul>
