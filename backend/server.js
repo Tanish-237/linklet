@@ -8,8 +8,10 @@ import { router as postRouter } from "./router/post-routes.js";
 import { connectDb } from "./utils/db.js";
 import { User } from "./models/users.js";
 import { errorHandler } from "./utils/errorHandler.js";
+import { setupSocket } from "./socket/index.js";
 
 const app = express();
+const server = http.createServer(app);
 
 app.use(
   cors({
@@ -36,4 +38,6 @@ connectDb().then(() => {
   app.listen(PORT, (req, res) => {
     console.log(`Server is running on port ${PORT}`);
   });
+
+  setupSocket(server);
 });
