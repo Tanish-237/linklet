@@ -14,7 +14,6 @@ import "react-toastify/dist/ReactToastify.css";
 import './App.css';
 import Dashboard from './dashboard';
 import HelpForum from "./pages/HelpForum";
-import Resource from "./pages/Resource";
 import AskQuestion from "./pages/AskQuestion";
 
 // Import static pages
@@ -52,7 +51,6 @@ function App() {
           <Route path="/home" element={<><Navbar /><Home /></>} />
           <Route path="/login" element={<><Navbar /><Login /></>} />
           <Route path="/register" element={<><Navbar /><Register /></>} />
-          <Route path="/signup" element={<><Navbar /><Register /></>} />
           <Route path="/posts" element={<><Navbar /><Posts /></>} />
           <Route path="/posts/:postId" element={<><Navbar /><PostDetail /></>} />
           

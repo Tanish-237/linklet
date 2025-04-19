@@ -34,10 +34,20 @@ app.use("/", answerRouter);
 
 app.use(errorHandler);
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 connectDb().then(() => {
-  app.listen(PORT, (req, res) => {
-    console.log(`Server is running on port ${PORT}`);
-  });
+  const server = app.listen(PORT)
+    .on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${PORT} is in use, trying ${PORT + 1}...`);
+        server.listen(PORT + 1);
+      } else {
+        console.error('Server error:', err);
+      }
+    })
+    .on('listening', () => {
+      const address = server.address();
+      console.log(`Server is running on port ${address.port}`);
+    });
 });
