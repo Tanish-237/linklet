@@ -9,7 +9,6 @@ const addComment = wrapAsync(async (req, res) => {
   const userId = req.user.id;
 
   const post = await Post.findById(postId);
-  console.log(post);
   if (!post) throw new apiError(404, "Post not found");
 
   post.comments.push({ userId, text });
