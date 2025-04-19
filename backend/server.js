@@ -1,13 +1,13 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import bcrypt from "bcryptjs";
 import cookieParser from "cookie-parser";
 import { router as userRouter } from "./router/user-routes.js";
 import { router as postRouter } from "./router/post-routes.js";
 import { router as resourceRouter } from "./router/resource-routes.js";
+import { router as questionRouter } from "./router/question-routes.js";
+import { router as answerRouter } from "./router/answer-routes.js"; 
 import { connectDb } from "./utils/db.js";
-import { User } from "./models/users.js";
 import { errorHandler } from "./utils/errorHandler.js";
 
 const app = express();
@@ -29,6 +29,8 @@ app.use(cookieParser());
 app.use("/", userRouter);
 app.use("/", postRouter);
 app.use("/", resourceRouter);
+app.use("/", questionRouter);
+app.use("/", answerRouter);
 
 app.use(errorHandler);
 
