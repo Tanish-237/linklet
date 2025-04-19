@@ -28,46 +28,68 @@ export const createQuestion = wrapAsync(async (req, res) => {
 export const getAllQuestions = wrapAsync(async (req, res) => {
     const { page = 1, limit = 10, tags, search, sort = 'newest' } = req.query;
 
+    // Create the base aggregation pipeline
+    const aggregate = Question.aggregate([]);
+    
+    // Match stage for filtering
+    const matchStage = {};
+    
+    if (tags) {
+        matchStage.tags = { $in: tags.split(',').map(tag => tag.trim().toLowerCase()) };
+    }
+    
+    if (search) {
+        const regex = new RegExp(search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
+        matchStage.$or = [{ title: regex }, { body: regex }];
+    }
+    
+    if (sort === 'unanswered') {
+        // For the unanswered case, we want to filter questions with empty answers array
+        matchStage.$expr = { $eq: [{ $size: "$answers" }, 0] };
+    }
+    
+    // Add the match stage if there are any filters
+    if (Object.keys(matchStage).length > 0) {
+        aggregate.match(matchStage);
+    }
+    
+    // Add a projection stage to calculate vote counts
+    aggregate.addFields({
+        netVotes: {
+            $subtract: [
+                { $size: "$upvotes" },
+                { $size: "$downvotes" }
+            ]
+        },
+        answerCount: { $size: "$answers" }
+    });
+    
+    // Sort based on criteria
+    switch (sort) {
+        case 'votes':
+            aggregate.sort({ netVotes: -1, createdAt: -1 });
+            break;
+        case 'unanswered':
+        case 'newest':
+        default:
+            aggregate.sort({ createdAt: -1 });
+            break;
+    }
+    
+    // Set up pagination options
     const options = {
         page: parseInt(page, 10),
         limit: parseInt(limit, 10),
-        populate: { path: 'userId', select: 'username avatar' }, // Populate user details
+        populate: [
+            { path: 'userId', select: 'username avatar' }
+        ]
     };
-
-    // Determine sort order
-    switch (sort) {
-        case 'votes':
-            // For simplicity, sorting by upvotes count for now
-             options.sort = { $expr: { $subtract: [ { $size: "$upvotes" }, { $size: "$downvotes" } ] }, createdAt: -1 }; // Sort by net votes desc, then newest
-            break;
-        case 'unanswered':
-            options.sort = { createdAt: -1 }; // Sort by newest first
-            break;
-        case 'newest':
-        default:
-            options.sort = { createdAt: -1 }; // Default sort by newest
-            break;
-    }
-
-
-    const query = {};
-    if (tags) {
-        query.tags = { $in: tags.split(',').map(tag => tag.trim().toLowerCase()) };
-    }
-     if (search) {
-        const regex = new RegExp(search.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i'); // Escape regex special chars
-        query.$or = [{ title: regex }, { body: regex }];
-    }
-     if (sort === 'unanswered') {
-        query.answers = { $size: 0 }; // Filter for questions with no answers
-    }
-
-
-    const questions = await Question.paginate(query, options);
-
+    
+    // Execute the paginated aggregation
+    const questions = await Question.aggregatePaginate(aggregate, options);
+    
     res.status(200).json({ success: true, questions });
 });
-
 
 // Get a specific question by ID
 export const getQuestionById = wrapAsync(async (req, res) => {

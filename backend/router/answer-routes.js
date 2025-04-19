@@ -32,4 +32,4 @@ router.post('/api/answers/:answerId/vote', isLoggedIn, voteAnswer);
 router.post('/api/answers/:answerId/accept', isLoggedIn, acceptAnswer);
 
 
-export { router as answerRouter }; // Use a distinct name
+export { router }; // Use a distinct name

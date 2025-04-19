@@ -58,10 +58,11 @@ const getAllPosts = wrapAsync(async (req, res) => {
   const aggregateQuery = Post.aggregate([
     { $sort: { createdAt: -1 } },
     {
-      $lookup: {
-        from: "users",
-        localField: "userId",
-        foreignField: "_id",
+      $lookup: {  //to perform left join with user collection
+        from: "users", //post ko user se join karna hai
+        localField: "userId",  //jo field dono collection me same hai
+        // userId is the field in Post collection that references the User collection
+        foreignField: "_id", //_id is the field in User collection
         as: "user",
       },
     },
