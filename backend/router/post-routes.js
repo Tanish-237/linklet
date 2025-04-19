@@ -9,9 +9,9 @@ import {
     updatePost,
     deletePost,
     toggleUpvote,
-    addComment,
-    deleteComment
 } from "../controllers/post-controller.js";
+
+import { addComment, editComment, deleteComment } from "../controllers/comment-controller.js";
 
 const router = Router();
 
