@@ -14,6 +14,8 @@ import {
   searchUsers,
   markAsRead,
   getUnreadCount,
+  editMessage,
+  deleteMessage,
 } from "../controllers/chat-controller.js";
 
 const router = Router();
@@ -33,5 +35,7 @@ router.route("/message/:chatId").get(isLoggedIn, wrapAsync(allMessages));
 router.route("/search").get(isLoggedIn, wrapAsync(searchUsers));
 router.route("/mark-read").post(isLoggedIn, wrapAsync(markAsRead));
 router.route("/unread-count").get(isLoggedIn, wrapAsync(getUnreadCount));
+router.route("/message/edit").put(isLoggedIn, wrapAsync(editMessage));
+router.route("/message/delete").delete(isLoggedIn, wrapAsync(deleteMessage));
 
 export { router as chatRouter };

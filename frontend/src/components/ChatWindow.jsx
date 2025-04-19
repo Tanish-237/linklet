@@ -25,6 +25,48 @@ const Message = styled.div`
   display: flex;
   margin-bottom: 15px;
   justify-content: ${(props) => (props.$isMe ? "flex-end" : "flex-start")};
+  position: relative;
+`;
+
+const MessageActions = styled.div`
+  position: absolute;
+  top: 0;
+  right: ${(props) => (props.$isMe ? "100%" : "auto")};
+  left: ${(props) => (props.$isMe ? "auto" : "100%")};
+  display: flex;
+  gap: 5px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  background-color: #333;
+  padding: 5px;
+  border-radius: 5px;
+
+  ${Message}:hover & {
+    opacity: 1;
+  }
+`;
+
+const ActionButton = styled.button`
+  background: none;
+  border: none;
+  color: #aaa;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 14px;
+
+  &:hover {
+    color: white;
+  }
+`;
+
+const EditInput = styled.input`
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #333;
+  border-radius: 5px;
+  background-color: #333;
+  color: white;
+  margin-bottom: 5px;
 `;
 
 const MessageContent = styled.div`
@@ -157,6 +199,8 @@ const ChatWindow = ({ chatId }) => {
   const socket = useSocket();
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [editingMessage, setEditingMessage] = useState(null);
+  const [editContent, setEditContent] = useState("");
 
   useEffect(() => {
     scrollToBottom();
@@ -299,6 +343,29 @@ const ChatWindow = ({ chatId }) => {
     };
   }, [socket, chatId]);
 
+  useEffect(() => {
+    if (!socket || !chatId) return;
+
+    socket.on("message updated", (updatedMessage) => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg._id === updatedMessage._id ? updatedMessage : msg
+        )
+      );
+    });
+
+    socket.on("message deleted", (deletedMessageId) => {
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => msg._id !== deletedMessageId)
+      );
+    });
+
+    return () => {
+      socket.off("message updated");
+      socket.off("message deleted");
+    };
+  }, [socket, chatId]);
+
   const handleInputChange = (e) => {
     setNewMessage(e.target.value);
     if (!isTyping) {
@@ -372,41 +439,120 @@ const ChatWindow = ({ chatId }) => {
     setFile(e.target.files[0]);
   };
 
+  const handleEditMessage = async (message) => {
+    try {
+      const res = await axios.put(
+        "http://localhost:5000/api/chat/message/edit",
+        {
+          chatId,
+          messageId: message._id,
+          content: editContent,
+        },
+        { withCredentials: true }
+      );
+      setEditingMessage(null);
+      setEditContent("");
+    } catch (error) {
+      console.error("Failed to edit message:", error);
+      toast.error("Failed to edit message");
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    try {
+      await axios.delete(
+        "http://localhost:5000/api/chat/message/delete",
+        {
+          data: { chatId, messageId },
+          withCredentials: true,
+        }
+      );
+    } catch (error) {
+      console.error("Failed to delete message:", error);
+      toast.error("Failed to delete message");
+    }
+  };
+
   return (
     <ChatContainer>
       <MessagesContainer>
         {messages.map((message) => (
           <Message key={message._id} $isMe={message.sender._id === user?._id}>
+            {message.sender._id === user?._id && (
+              <MessageActions $isMe={message.sender._id === user?._id}>
+                <ActionButton
+                  onClick={() => {
+                    setEditingMessage(message._id);
+                    setEditContent(message.content);
+                  }}
+                >
+                  Edit
+                </ActionButton>
+                <ActionButton onClick={() => handleDeleteMessage(message._id)}>
+                  Delete
+                </ActionButton>
+              </MessageActions>
+            )}
             <MessageInfo $isMe={message.sender._id === user?._id}>
               {message.sender._id !== user?._id && (
                 <SenderName>{message.sender.username}</SenderName>
               )}
-              <MessageContent $isMe={message.sender._id === user?._id}>
-                {message.content}
-                {message.media && (
-                  <MediaMessage>
-                    {message.mediaType === "image" ? (
-                      <img src={message.media} alt="Media" />
-                    ) : message.mediaType === "video" ? (
-                      <video controls>
-                        <source src={message.media} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
-                    ) : (
-                      <a
-                        href={message.media}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        View File
-                      </a>
-                    )}
-                  </MediaMessage>
-                )}
-                <MessageTime $isMe={message.sender._id === user?._id}>
-                  {format(message.createdAt)}
-                </MessageTime>
-              </MessageContent>
+              {editingMessage === message._id ? (
+                <div>
+                  <EditInput
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleEditMessage(message);
+                      } else if (e.key === "Escape") {
+                        setEditingMessage(null);
+                        setEditContent("");
+                      }
+                    }}
+                  />
+                  <div>
+                    <ActionButton onClick={() => handleEditMessage(message)}>
+                      Save
+                    </ActionButton>
+                    <ActionButton
+                      onClick={() => {
+                        setEditingMessage(null);
+                        setEditContent("");
+                      }}
+                    >
+                      Cancel
+                    </ActionButton>
+                  </div>
+                </div>
+              ) : (
+                <MessageContent $isMe={message.sender._id === user?._id}>
+                  {message.content}
+                  {message.media && (
+                    <MediaMessage>
+                      {message.mediaType === "image" ? (
+                        <img src={message.media} alt="Media" />
+                      ) : message.mediaType === "video" ? (
+                        <video controls>
+                          <source src={message.media} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                      ) : (
+                        <a
+                          href={message.media}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          View File
+                        </a>
+                      )}
+                    </MediaMessage>
+                  )}
+                  <MessageTime $isMe={message.sender._id === user?._id}>
+                    {format(message.createdAt)}
+                  </MessageTime>
+                </MessageContent>
+              )}
             </MessageInfo>
           </Message>
         ))}

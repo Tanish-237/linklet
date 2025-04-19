@@ -288,20 +288,45 @@ export const searchUsers = wrapAsync(async (req, res) => {
 export const markAsRead = wrapAsync(async (req, res) => {
   const { chatId, messageId } = req.body;
 
+  if (!chatId || !messageId) {
+    throw new apiError(400, "Chat ID and Message ID are required");
+  }
+
+  // First find the chat and message
+  const chat = await Chat.findOne({
+    _id: chatId,
+    "messages._id": messageId
+  });
+
+  if (!chat) {
+    throw new apiError(404, "Chat or message not found");
+  }
+
+  // Find the specific message
+  const message = chat.messages.find(msg => msg._id.toString() === messageId);
+  if (!message) {
+    throw new apiError(404, "Message not found");
+  }
+
+  // If message is already read by this user, just return success
+  if (message.readBy.includes(req.user._id)) {
+    return res.status(200).json({ success: true });
+  }
+
+  // Update the message's readBy array
   const updatedChat = await Chat.findOneAndUpdate(
     {
       _id: chatId,
-      "messages._id": messageId,
-      "messages.readBy": { $ne: req.user._id },
+      "messages._id": messageId
     },
     {
-      $addToSet: { "messages.$.readBy": req.user._id },
+      $addToSet: { "messages.$.readBy": req.user._id }
     },
     { new: true }
   );
 
   if (!updatedChat) {
-    throw new apiError(404, "Message not found or already read");
+    throw new apiError(500, "Failed to update message read status");
   }
 
   res.status(200).json({ success: true });
@@ -335,4 +360,68 @@ export const getUnreadCount = wrapAsync(async (req, res) => {
   }
 
   return res.status(200).json({ count });
+});
+
+export const editMessage = wrapAsync(async (req, res) => {
+  const { chatId, messageId, content } = req.body;
+
+  if (!chatId || !messageId || !content) {
+    throw new apiError(400, "Chat ID, Message ID, and content are required");
+  }
+
+  const updatedChat = await Chat.findOneAndUpdate(
+    {
+      _id: chatId,
+      "messages._id": messageId,
+      "messages.sender": req.user._id // Only allow sender to edit
+    },
+    {
+      $set: { "messages.$.content": content }
+    },
+    { new: true }
+  ).populate("messages.sender", "username avatar email");
+
+  if (!updatedChat) {
+    throw new apiError(404, "Message not found or you don't have permission to edit");
+  }
+
+  const updatedMessage = updatedChat.messages.find(msg => msg._id.toString() === messageId);
+  
+  // Emit the updated message to all participants
+  if (io) {
+    io.to(chatId).emit("message updated", updatedMessage);
+  }
+
+  res.status(200).json(updatedMessage);
+});
+
+export const deleteMessage = wrapAsync(async (req, res) => {
+  const { chatId, messageId } = req.body;
+
+  if (!chatId || !messageId) {
+    throw new apiError(400, "Chat ID and Message ID are required");
+  }
+
+  const updatedChat = await Chat.findOneAndUpdate(
+    {
+      _id: chatId,
+      "messages._id": messageId,
+      "messages.sender": req.user._id // Only allow sender to delete
+    },
+    {
+      $pull: { messages: { _id: messageId } }
+    },
+    { new: true }
+  );
+
+  if (!updatedChat) {
+    throw new apiError(404, "Message not found or you don't have permission to delete");
+  }
+
+  // Emit the deleted message ID to all participants
+  if (io) {
+    io.to(chatId).emit("message deleted", messageId);
+  }
+
+  res.status(200).json({ success: true });
 });
