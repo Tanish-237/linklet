@@ -1,6 +1,6 @@
 import { Post } from "../models/posts.js";
-import { apiError } from "../utils/apiError.js";
-import { wrapAsync } from "../utils/wrapAsync.js";
+import apiError  from "../utils/apiError.js";
+import wrapAsync  from "../utils/wrapAsync.js";
 
 // Add a comment
 const addComment = wrapAsync(async (req, res) => {
@@ -68,6 +68,7 @@ const addReply = wrapAsync(async (req, res) => {
   if (!comment) throw new apiError(404, "Comment not found");
 
   comment.replies.push({ userId, text });
+
   await post.save();
 
   res.status(201).json({ success: true, message: "Reply added", post });
