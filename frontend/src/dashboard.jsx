@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import defaultAvatar from './assets/default-avatar.png';
 import linkletLogo from './assets/linklet-logo.png';
 import AttendanceTracker from './components/AttendanceTracker';
+import DailySchedule from './components/DailySchedule';
 
 export default function Dashboard() {
   const [dropdownStates, setDropdownStates] = useState({
@@ -143,7 +144,8 @@ export default function Dashboard() {
             ))}
           </div>
           
-          <div className="mt-8">
+          <div className="mt-8 space-y-8">
+            <DailySchedule />
             <AttendanceTracker />
           </div>
         </main>
