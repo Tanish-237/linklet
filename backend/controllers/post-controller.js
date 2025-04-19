@@ -67,6 +67,7 @@ const getAllPosts = wrapAsync(async (req, res) => {
 
 // Get a specific post by ID
 const getPostById = wrapAsync(async (req, res) => {
+<<<<<<< Updated upstream
     const { postId } = req.params;
     
     const post = await Post.findById(postId)
@@ -81,6 +82,26 @@ const getPostById = wrapAsync(async (req, res) => {
         success: true,
         post
     });
+=======
+  const { postId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    throw new apiError(400, "Invalid post ID format");
+  }
+
+  const post = await Post.findById(postId)
+    .populate("userId", "username avatar")
+    .populate("comments.userId", "username avatar");
+
+  if (!post) {
+    throw new apiError(404, "Post not found");
+  }
+
+  res.status(200).json({
+    success: true,
+    post,
+  });
+>>>>>>> Stashed changes
 });
 
 // Get posts by a specific user
