@@ -15,6 +15,7 @@ import './App.css';
 import Dashboard from './dashboard';
 import HelpForum from "./pages/HelpForum";
 import AskQuestion from "./pages/AskQuestion";
+import QuestionDetail from "./pages/QuestionDetail";
 
 // Import static pages
 import AboutPage from './pages/static/AboutPage';
@@ -46,31 +47,25 @@ function App() {
           theme="dark"
         />
         <Routes>
-          {/* Only show Navbar on non-dashboard routes */}
+          {/* Public routes with Navbar */}
           <Route path="/" element={<><Navbar /><LandingPage /></>} />
           <Route path="/home" element={<><Navbar /><Home /></>} />
           <Route path="/login" element={<><Navbar /><Login /></>} />
           <Route path="/register" element={<><Navbar /><Register /></>} />
           <Route path="/posts" element={<><Navbar /><Posts /></>} />
           <Route path="/posts/:postId" element={<><Navbar /><PostDetail /></>} />
-          
+          <Route path="/ask-question" element={<><Navbar /><AskQuestion /></>} />
+          <Route path="/question/:questionId" element={<><Navbar /><QuestionDetail /></>} />
+
           {/* Dashboard Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
-
-          <Route path="/help-forum" element={<HelpForum />} />
-          <Route path="/resources" element={<Resource />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/posts" element={<Posts />} />
-          <Route path="/posts/:postId" element={<PostDetail />} />
-          <Route path="/ask-question" element={<AskQuestion />} />
-
           <Route path="/dashboard/resources" element={<Dashboard />} />
+          <Route path="/dashboard/help/*" element={<Dashboard />} />
+          <Route path="/dashboard/question/:questionId" element={<Dashboard />} />
           <Route path="/dashboard/clubs" element={<Dashboard />} />
           <Route path="/dashboard/forums" element={<Dashboard />} />
           <Route path="/dashboard/chat" element={<Dashboard />} />
-          
+
           {/* Static Pages */}
           <Route path="/about" element={<><Navbar /><AboutPage /></>} />
           <Route path="/blog" element={<><Navbar /><BlogPage /></>} />
@@ -83,7 +78,6 @@ function App() {
           <Route path="/security" element={<><Navbar /><SecurityInfo /></>} />
           <Route path="/pricing" element={<><Navbar /><PricingPage /></>} />
           <Route path="/faq" element={<><Navbar /><FAQPage /></>} />
-
         </Routes>
       </Router>
     </HelmetProvider>

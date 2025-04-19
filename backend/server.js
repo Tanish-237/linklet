@@ -34,20 +34,17 @@ app.use("/", answerRouter);
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
 connectDb().then(() => {
-  const server = app.listen(PORT)
-    .on('error', (err) => {
-      if (err.code === 'EADDRINUSE') {
-        console.log(`Port ${PORT} is in use, trying ${PORT + 1}...`);
-        server.listen(PORT + 1);
-      } else {
-        console.error('Server error:', err);
-      }
-    })
-    .on('listening', () => {
-      const address = server.address();
-      console.log(`Server is running on port ${address.port}`);
-    });
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  }).on('error', (err) => {
+    if (err.code === 'EADDRINUSE') {
+      console.error(`Error: Port ${PORT} is already in use. Please free up port ${PORT} and try again.`);
+      process.exit(1);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
 });

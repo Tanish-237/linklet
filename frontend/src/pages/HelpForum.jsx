@@ -1,373 +1,617 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
-import { handleApiError } from '../utlis/ErrorHandler';
 import defaultAvatar from '../assets/default-avatar.png';
+import AskQuestion from './AskQuestion';
 
-// --- Styled Components (using Tailwind classes) ---
-const Container = "container mx-auto px-4 py-8 text-gray-200 font-['Poppins',sans-serif]";
-const Header = "flex justify-between items-center mb-8 bg-gradient-to-r from-purple-900/60 to-indigo-900/40 p-6 rounded-xl backdrop-blur-sm border border-purple-500/20 shadow-lg";
-const Title = "text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-violet-500";
-const AskButton = "bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white font-bold py-3 px-6 rounded-lg transition duration-300 flex items-center gap-2 shadow-md hover:shadow-purple-500/20";
-const FiltersContainer = "mb-8 flex flex-wrap gap-4 items-center bg-gray-900/60 p-6 rounded-xl backdrop-blur-md border border-purple-800/30 shadow-lg";
-const SearchInput = "bg-gray-800 border border-purple-700/30 text-gray-200 text-sm rounded-lg focus:ring-violet-600 focus:border-violet-500 block w-full md:w-1/3 p-3 placeholder-gray-400";
-const Select = "bg-gray-800 border border-purple-700/30 text-gray-200 text-sm rounded-lg focus:ring-violet-600 focus:border-violet-500 block p-3";
-const QuestionList = "space-y-6";
-const QuestionCard = "bg-gradient-to-b from-gray-800/80 to-gray-900/80 backdrop-blur-sm border border-purple-500/20 rounded-xl p-6 shadow-lg hover:shadow-purple-500/10 hover:border-purple-500/40 transition duration-300";
-const VoteContainer = "flex items-center justify-center gap-2 mt-3";
-const VoteButton = "flex items-center justify-center p-2 rounded-full transition-all duration-300 hover:bg-purple-900/30";
-const ActiveVoteButton = "text-purple-400 bg-purple-900/30";
-const VoteCount = "text-lg font-bold mx-1 text-purple-300";
-const QuestionTitleLink = "text-2xl font-bold text-purple-300 hover:text-purple-200 transition duration-200 mb-3 block";
-const QuestionBodyExcerpt = "text-gray-300 text-base mb-4 leading-relaxed";
-const Tag = "inline-block bg-purple-900/40 text-purple-200 text-xs font-medium px-3 py-1 rounded-full border border-purple-700/30 mr-2 mb-2";
-const QuestionMeta = "flex flex-wrap items-center justify-between text-sm text-gray-400 mt-4";
-const UserInfo = "flex items-center gap-2";
-const Avatar = "w-8 h-8 rounded-full object-cover border-2 border-purple-500/40";
-const Username = "text-gray-300 hover:text-purple-300 font-medium";
-const PaginationContainer = "mt-10 flex justify-center items-center gap-4";
-const PageButton = "bg-gray-800 hover:bg-purple-900/50 text-gray-200 font-medium py-2 px-5 rounded-lg transition duration-300 disabled:opacity-50 disabled:cursor-not-allowed border border-purple-700/30";
-const LoadingMessage = "text-center py-12 text-gray-300 text-xl";
-const ErrorMessage = "text-center py-12 text-red-400 text-xl";
-const NoQuestionsMessage = "text-center py-20 text-gray-400 text-xl";
-const AnswerButton = "bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white text-sm font-medium py-2 px-4 rounded-lg transition duration-300 flex items-center gap-2 shadow-md";
-const QuestionActions = "flex flex-wrap items-center justify-between gap-3 mt-5 pt-4 border-t border-purple-900/30";
+// Style constants - updated for dashboard integration
+const Container = "w-full";
+const Title = "text-2xl font-semibold text-violet-300 flex items-center gap-3 mb-2";
+const SearchInput = "w-full p-3 pl-10 bg-gray-800/50 border border-violet-500/30 rounded-lg text-white placeholder-gray-400 focus:border-violet-500 transition-colors";
+const FilterContainer = "flex items-center gap-4 mb-6 flex-wrap";
+const FilterButton = "px-4 py-2 rounded-lg bg-gray-800/50 border border-violet-500/30 text-gray-300 hover:border-violet-500 hover:text-violet-400 transition-all";
+const QuestionCard = "bg-gray-800/30 backdrop-blur border border-violet-500/20 rounded-lg p-6 hover:border-violet-500/40 transition-all group";
+const QuestionTitle = "text-xl font-semibold text-violet-300 hover:text-violet-200 transition-colors mb-2";
+const QuestionBody = "text-gray-300 mb-3 line-clamp-2";
+const UserInfo = "flex flex-col text-sm text-gray-400";
+const AnswerCard = "bg-gray-800/30 backdrop-blur border border-violet-500/20 rounded-lg p-6 hover:border-violet-500/40 transition-all mb-6";
+const AnswerBody = "text-gray-300 mb-3";
+const VoteButton = "p-1.5 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded group-hover:bg-violet-500/10";
+const VoteCount = "text-violet-400 font-medium text-sm";
+const CommentSection = "mt-4 pl-4 border-l-2 border-violet-500/30";
+const CommentCard = "bg-gray-800/50 rounded-lg p-3 mb-3";
 
-const HelpForum = () => {
-  const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [totalPages, setTotalPages] = useState(1);
-  const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
-  const [userVotes, setUserVotes] = useState({});
+const DUMMY_QUESTIONS = [
+  {
+    _id: '1',
+    title: 'How to implement authentication in React?',
+    body: 'I\'m building a React application and need to implement user authentication. What\'s the best approach using JWT tokens and how should I handle protected routes?',
+    tags: ['react', 'authentication', 'jwt'],
+    userId: {
+      username: 'reactdev',
+      avatar: null
+    },
+    createdAt: '2025-04-19T10:00:00.000Z',
+    views: 45,
+    answers: [
+      {
+        _id: 'a1',
+        body: 'I recommend using JWT tokens with localStorage. Here\'s how...',
+        userId: {
+          username: 'auth_expert',
+          avatar: null
+        },
+        createdAt: '2025-04-19T11:00:00.000Z',
+        upvotes: ['user1', 'user2'],
+        downvotes: [],
+        comments: [
+          {
+            _id: 'c1',
+            body: 'Great explanation! Could you elaborate on refresh tokens?',
+            userId: {
+              username: 'learner',
+              avatar: null
+            },
+            createdAt: '2025-04-19T12:00:00.000Z'
+          }
+        ]
+      }
+    ],
+    upvotes: ['user1', 'user2', 'user3'],
+    downvotes: ['user4']
+  },
+  {
+    _id: '2',
+    title: 'Best practices for state management in large React applications',
+    body: 'As my React application grows, I\'m finding it harder to manage state effectively. Should I use Redux, Context API, or other alternatives? What are the pros and cons?',
+    tags: ['react', 'redux', 'state-management'],
+    userId: {
+      username: 'frontend_guru',
+      avatar: null
+    },
+    createdAt: '2025-04-18T15:30:00.000Z',
+    views: 122,
+    answers: ['answer1', 'answer2'],
+    upvotes: ['user1', 'user2', 'user3', 'user4', 'user5'],
+    downvotes: ['user6']
+  },
+  {
+    _id: '3',
+    title: 'Optimizing React performance with useMemo and useCallback',
+    body: 'I\'ve noticed my React application is getting slower as it grows. When should I use useMemo and useCallback hooks? Are there any performance pitfalls to watch out for?',
+    tags: ['react', 'performance', 'hooks'],
+    userId: {
+      username: 'performance_ninja',
+      avatar: null
+    },
+    createdAt: '2025-04-20T09:15:00.000Z',
+    views: 67,
+    answers: ['answer1'],
+    upvotes: ['user1', 'user2'],
+    downvotes: []
+  }
+];
 
+const HelpForum = ({ basePath = '' }) => {
+  const [questions, setQuestions] = useState(DUMMY_QUESTIONS);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentFilter, setCurrentFilter] = useState('all');
+  const [showAskForm, setShowAskForm] = useState(false);
+  const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [answerText, setAnswerText] = useState('');
+  const [attachment, setAttachment] = useState(null);
+  const [attachmentName, setAttachmentName] = useState('');
   const { user } = useAuth();
   const navigate = useNavigate();
-
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const limit = parseInt(searchParams.get('limit') || '10', 10);
-  const sort = searchParams.get('sort') || 'newest';
-  const tags = searchParams.get('tags') || '';
-
-  const fetchQuestions = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {
-        page,
-        limit,
-        sort,
-        ...(tags && { tags }),
-        ...(searchTerm && { search: searchTerm }),
-      };
-      const response = await axios.get('http://localhost:5000/api/questions', { 
-        params,
-        withCredentials: true
-      });
-      
-      if (response.data.success) {
-        console.log('Questions response:', response.data.questions.docs);
-        setQuestions(response.data.questions.docs || []);
-        setTotalPages(response.data.questions.totalPages || 1);
-        
-        if (user) {
-          const votes = {};
-          response.data.questions.docs.forEach(q => {
-            if (q.upvotes?.includes(user.id)) {
-              votes[q._id] = 'upvote';
-            } else if (q.downvotes?.includes(user.id)) {
-              votes[q._id] = 'downvote';
-            } else {
-              votes[q._id] = null;
-            }
-          });
-          setUserVotes(votes);
-        }
-      } else {
-        throw new Error('Failed to fetch questions');
-      }
-    } catch (err) {
-      console.error('Error fetching questions:', err);
-      setError('Could not load questions. Please try again later.');
-      handleApiError(err);
-      setQuestions([]);
-      setTotalPages(1);
-    } finally {
-      setLoading(false);
-    }
-  }, [page, limit, sort, tags, searchTerm, user]);
-
-  useEffect(() => {
-    fetchQuestions();
-  }, [fetchQuestions]);
+  const [expandedAnswers, setExpandedAnswers] = useState(new Set());
 
   const handleAskQuestion = () => {
-    if (!user) {
-      toast.info('Please log in to ask a question.');
-      navigate('/login');
-    } else {
-      navigate('/ask-question');
-    }
+    setShowAskForm(true);
+  };
+
+  const handleCancelAsk = () => {
+    setShowAskForm(false);
+  };
+
+  const handleQuestionSubmitSuccess = () => {
+    setShowAskForm(false);
+    toast.success('Question posted successfully!');
   };
 
   const handleVote = async (questionId, voteType) => {
     if (!user) {
-      toast.info('Please log in to vote.');
+      toast.info('Please log in to vote');
+      return;
+    }
+
+    // Simulating vote update for dummy data
+    setQuestions(prev => prev.map(q => {
+      if (q._id === questionId) {
+        if (voteType === 'upvote') {
+          return {
+            ...q,
+            upvotes: [...q.upvotes, user.id],
+            downvotes: q.downvotes.filter(id => id !== user.id)
+          };
+        } else {
+          return {
+            ...q,
+            downvotes: [...q.downvotes, user.id],
+            upvotes: q.upvotes.filter(id => id !== user.id)
+          };
+        }
+      }
+      return q;
+    }));
+    
+    toast.success(voteType === 'upvote' ? 'Upvoted!' : 'Downvoted!');
+  };
+
+  const handleQuestionClick = (question) => {
+    setSelectedQuestion(question);
+  };
+
+  const handleAttachmentChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setAttachment(file);
+      setAttachmentName(file.name);
+    }
+  };
+
+  const handleSubmitAnswer = async (e) => {
+    e.preventDefault();
+    if (!answerText.trim()) return;
+
+    try {
+      const formData = new FormData();
+      formData.append('body', answerText);
+      if (attachment) {
+        formData.append('attachment', attachment);
+      }
+
+      const response = await fetch(`/api/questions/${selectedQuestion._id}/answers`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`,
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to submit answer');
+      }
+
+      const data = await response.json();
+      // Add new answer to the list
+      setQuestions(prev => prev.map(q => q._id === selectedQuestion._id ? { ...q, answers: [data.answer, ...q.answers] } : q));
+      // Clear form
+      setAnswerText('');
+      setAttachment(null);
+      setAttachmentName('');
+    } catch (error) {
+      console.error('Error submitting answer:', error);
+      // Show error notification to user
+    }
+  };
+
+  const handleAnswerVote = async (answerId, voteType) => {
+    if (!user) {
+      toast.info('Please log in to vote');
       return;
     }
 
     try {
-      const response = await axios.post(
-        `http://localhost:5000/api/questions/${questionId}/vote`,
-        { voteType },
-        { withCredentials: true }
-      );
+      const response = await fetch(`/api/answers/${answerId}/${voteType}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${user.token}`
+        }
+      });
 
-      if (response.data.success) {
-        setQuestions(prevQuestions => 
-          prevQuestions.map(q => 
-            q._id === questionId 
-              ? {
-                  ...q,
-                  upvotes: Array(response.data.upvotes).fill(null),
-                  downvotes: Array(response.data.downvotes).fill(null)
-                }
-              : q
-          )
-        );
-        
-        setUserVotes(prev => ({
-          ...prev,
-          [questionId]: response.data.userVote
-        }));
-        
-        toast.success(
-          response.data.userVote 
-            ? `Question ${response.data.userVote}d` 
-            : 'Vote removed'
-        );
+      if (!response.ok) {
+        throw new Error('Failed to vote');
       }
-    } catch (err) {
-      handleApiError(err);
+
+      setQuestions(prev => prev.map(q => ({
+        ...q,
+        answers: q.answers?.map(a => {
+          if (a._id === answerId) {
+            const updatedAnswer = { ...a };
+            if (voteType === 'upvote') {
+              if (!updatedAnswer.upvotes.includes(user.id)) {
+                updatedAnswer.upvotes = [...updatedAnswer.upvotes, user.id];
+                updatedAnswer.downvotes = updatedAnswer.downvotes.filter(id => id !== user.id);
+              }
+            } else {
+              if (!updatedAnswer.downvotes.includes(user.id)) {
+                updatedAnswer.downvotes = [...updatedAnswer.downvotes, user.id];
+                updatedAnswer.upvotes = updatedAnswer.upvotes.filter(id => id !== user.id);
+              }
+            }
+            return updatedAnswer;
+          }
+          return a;
+        })
+      })));
+
+      toast.success(voteType === 'upvote' ? 'Upvoted!' : 'Downvoted!');
+    } catch (error) {
+      toast.error('Failed to vote. Please try again.');
     }
   };
 
-  const handleAnswerQuestion = (questionId) => {
-    if (!user) {
-      toast.info('Please log in to answer this question.');
-      return;
-    }
-    navigate(`/question/${questionId}`);
-  };
-
-  const handleFilterChange = (key, value) => {
-    setSearchParams(prev => {
-      const newParams = new URLSearchParams(prev);
-      if (value) {
-        newParams.set(key, value);
+  const toggleAnswer = (answerId) => {
+    setExpandedAnswers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(answerId)) {
+        newSet.delete(answerId);
       } else {
-        newParams.delete(key);
+        newSet.add(answerId);
       }
-      if (key !== 'page') {
-        newParams.set('page', '1');
-      }
-      return newParams;
+      return newSet;
     });
   };
 
-  const handleSearchKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      handleFilterChange('search', searchTerm);
+  const filteredQuestions = questions.filter(q => {
+    const matchesSearch = q.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         q.body.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         q.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    switch (currentFilter) {
+      case 'unanswered':
+        return q.answers?.length === 0 && matchesSearch;
+      case 'answered':
+        return (q.answers?.length || 0) > 0 && matchesSearch;
+      case 'popular':
+        return (q.views || 0) > 20 && matchesSearch;
+      default:
+        return matchesSearch;
     }
-  };
-
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      handleFilterChange('page', newPage.toString());
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "Unknown date";
-    try {
-      const date = new Date(dateString);
-      return isNaN(date.getTime())
-        ? "Invalid date"
-        : date.toLocaleDateString("en-US", {
-            year: 'numeric', month: 'short', day: 'numeric'
-          });
-    } catch {
-      return "Invalid date";
-    }
-  };
-
-  const calculateVotes = (q) => (q.upvotes?.length || 0) - (q.downvotes?.length || 0);
+  });
 
   return (
     <div className={Container}>
-      <div className={Header}>
-        <h1 className={Title}>Help Forum</h1>
-        <button onClick={handleAskQuestion} className={AskButton}>
-          <span className="material-icons">add_circle_outline</span>
-          Ask Question
-        </button>
-      </div>
-
-      <div className={FiltersContainer}>
-        <input
-          type="search"
-          placeholder="Search questions..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          onKeyDown={handleSearchKeyDown}
-          className={SearchInput}
-        />
-        <select
-          value={sort}
-          onChange={(e) => handleFilterChange('sort', e.target.value)}
-          className={Select}
-        >
-          <option value="newest">Newest</option>
-          <option value="votes">Most Votes</option>
-          <option value="unanswered">Unanswered</option>
-        </select>
-      </div>
-
-      {loading && <div className={LoadingMessage}>
-        <div className="flex justify-center mb-4">
-          <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-purple-500"></div>
-        </div>
-        Loading questions...
-      </div>}
-      
-      {error && <div className={ErrorMessage}>{error}</div>}
-
-      {!loading && !error && questions.length === 0 && (
-        <div className={NoQuestionsMessage}>
-          <div className="flex justify-center mb-6">
-            <span className="material-icons text-5xl text-gray-500">help_outline</span>
-          </div>
-          No questions found. Be the first to ask!
-        </div>
-      )}
-
-      {!loading && !error && questions.length > 0 && (
-        <>
-          <div className={QuestionList}>
-            {questions.map((q) => (
-                
-              <div key={q._id} className={QuestionCard}>
-                <div className="flex items-center justify-between">
-                  <Link to={`/question/${q._id}`} className={QuestionTitleLink}>
-                    {q.title}
-                  </Link>
-                  <div className="flex items-center gap-4 text-sm bg-gray-800/60 px-3 py-1 rounded-lg">
-                    <span className="flex items-center gap-1 text-gray-300">
-                      <span className="material-icons text-purple-400">visibility</span>
-                      {q.views || 0}
-                    </span>
-                    <span className="flex items-center gap-1 text-gray-300">
-                      <span className="material-icons text-purple-400">question_answer</span>
-                      {q.answers?.length || 0}
-                    </span>
-                  </div>
-                </div>
-                
-                <p className={QuestionBodyExcerpt}>
-                  {q.body?.substring(0, 200)}{q.body?.length > 200 ? '...' : ''}
-                </p>
-                
-                <div className="mb-3">
-                  {q.tags?.map((tag) => (
-                    <span key={tag} className={Tag}>{tag}</span>
-                  ))}
-                </div>
-                
-                <div className={QuestionMeta}>
-                  <div className={UserInfo}>
-                    <img
-                      src={q.userId?.avatar || defaultAvatar}
-                      alt="User avatar"
-                      className={Avatar}
-                    />
-                    <span className={Username}>
-                      {q.userId ? (
-                        q.userId.username || q.userId.name || q.userId.fullName || 
-                        (typeof q.userId === 'string' ? 'User ' + q.userId.substring(0, 5) : 'Anonymous')
-                      ) : 'Anonymous'}
-                    </span>
-                    <span className="text-gray-500">
-                      asked {formatDate(q.createdAt)}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className={QuestionActions}>
-                  <div className={VoteContainer}>
-                    <button 
-                      onClick={() => handleVote(q._id, 'upvote')}
-                      className={`${VoteButton} ${userVotes[q._id] === 'upvote' ? ActiveVoteButton : 'text-gray-400'}`}
-                      aria-label="Upvote"
-                    >
-                      <span className="material-icons">thumb_up</span>
-                    </button>
-                    
-                    <span className={VoteCount}>{calculateVotes(q)}</span>
-                    
-                    <button 
-                      onClick={() => handleVote(q._id, 'downvote')}
-                      className={`${VoteButton} ${userVotes[q._id] === 'downvote' ? ActiveVoteButton : 'text-gray-400'}`}
-                      aria-label="Downvote"
-                    >
-                      <span className="material-icons">thumb_down</span>
-                    </button>
-                  </div>
-                  
-                  <button 
-                    onClick={() => handleAnswerQuestion(q._id)}
-                    className={AnswerButton}
-                    disabled={!user}
+      <div className="flex">
+        {/* Left panel - Questions list */}
+        <div className={`flex-1 ${selectedQuestion ? 'max-w-2xl border-r border-gray-800' : ''}`}>
+          <div className="max-w-6xl mx-auto pr-6">
+            {showAskForm ? (
+              <div className="mb-8">
+                <div className="flex justify-between items-center mb-6">
+                  <h1 className={Title}>
+                    <span className="material-icons text-violet-400">help_outline</span>
+                    Ask a Question
+                  </h1>
+                  <button
+                    onClick={handleCancelAsk}
+                    className="p-2 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
                   >
-                    <span className="material-icons">question_answer</span>
-                    Answer
+                    <span className="material-icons">close</span>
                   </button>
                 </div>
+                <AskQuestion onCancel={handleCancelAsk} onSuccess={handleQuestionSubmitSuccess} />
               </div>
-            ))}
-          </div>
+            ) : (
+              <>
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                  <div>
+                    <h1 className={Title}>Help Forum</h1>
+                    <p className="text-gray-400">Get help from the community and share your knowledge</p>
+                  </div>
+                  <button
+                    onClick={handleAskQuestion}
+                    className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap shadow-lg"
+                  >
+                    <span className="material-icons">add</span>
+                    Ask Question
+                  </button>
+                </div>
 
-          {totalPages > 1 && (
-            <div className={PaginationContainer}>
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page <= 1}
-                className={PageButton}
-              >
-                <span className="flex items-center">
-                  <span className="material-icons mr-1">arrow_back</span>
-                  Previous
-                </span>
-              </button>
-              <span className="text-gray-300 bg-gray-800/60 px-4 py-2 rounded-lg border border-purple-700/30">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= totalPages}
-                className={PageButton}
-              >
-                <span className="flex items-center">
-                  Next
-                  <span className="material-icons ml-1">arrow_forward</span>
-                </span>
-              </button>
+                <div className="relative mb-6">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-icons">
+                    search
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search questions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={SearchInput}
+                  />
+                </div>
+
+                <div className={FilterContainer}>
+                  <button 
+                    className={`${FilterButton} ${currentFilter === 'all' ? 'border-violet-500 text-violet-400' : ''}`}
+                    onClick={() => setCurrentFilter('all')}
+                  >
+                    All Questions
+                  </button>
+                  <button 
+                    className={`${FilterButton} ${currentFilter === 'unanswered' ? 'border-violet-500 text-violet-400' : ''}`}
+                    onClick={() => setCurrentFilter('unanswered')}
+                  >
+                    Unanswered
+                  </button>
+                  <button 
+                    className={`${FilterButton} ${currentFilter === 'answered' ? 'border-violet-500 text-violet-400' : ''}`}
+                    onClick={() => setCurrentFilter('answered')}
+                  >
+                    Answered
+                  </button>
+                  <button 
+                    className={`${FilterButton} ${currentFilter === 'popular' ? 'border-violet-500 text-violet-400' : ''}`}
+                    onClick={() => setCurrentFilter('popular')}
+                  >
+                    Popular
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Questions list */}
+            <div className="space-y-6">
+              {loading ? (
+                <div className="text-center py-20">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-violet-500"></div>
+                </div>
+              ) : filteredQuestions.length === 0 ? (
+                <div className="text-center py-20 text-gray-400">
+                  <span className="material-icons text-6xl mb-4">search_off</span>
+                  <p className="text-xl">No questions found</p>
+                  <p className="mt-2">Try adjusting your search or filters</p>
+                </div>
+              ) : (
+                filteredQuestions.map(question => (
+                  <div 
+                    key={question._id} 
+                    className={`${QuestionCard} cursor-pointer ${selectedQuestion?._id === question._id ? 'border-green-500' : ''}`}
+                    onClick={() => handleQuestionClick(question)}
+                  >
+                    <div className="flex items-start gap-6">
+                      {/* Vote buttons */}
+                      <div className="flex flex-col items-center gap-1">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVote(question._id, 'upvote');
+                          }}
+                          className="p-1 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
+                        >
+                          <span className="material-icons text-xl">arrow_upward</span>
+                        </button>
+                        <span className="text-violet-400 font-medium">
+                          {(question.upvotes?.length || 0) - (question.downvotes?.length || 0)}
+                        </span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleVote(question._id, 'downvote');
+                          }}
+                          className="p-1 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
+                        >
+                          <span className="material-icons text-xl">arrow_downward</span>
+                        </button>
+                      </div>
+
+                      {/* Question content */}
+                      <div className="flex-1">
+                        <h2 className={QuestionTitle}>{question.title}</h2>
+                        <p className={QuestionBody}>{question.body}</p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className={UserInfo}>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={question.userId.avatar || defaultAvatar}
+                                alt={question.userId.username}
+                                className="w-6 h-6 rounded-full border border-violet-500/30"
+                              />
+                              <span className="text-violet-400">{question.userId.username}</span>
+                            </div>
+                            <span className="text-sm text-gray-500 mt-1">
+                              {new Date(question.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+
+                          {/* Answer section */}
+                          <div className="flex flex-col items-end">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedQuestion(question);
+                              }}
+                              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1"
+                            >
+                              <span className="material-icons text-sm">add</span>
+                              Answer
+                            </button>
+                            <div className="mt-2 text-sm text-gray-400">
+                              {question.answers?.length || 0} Answers
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-          )}
-        </>
-      )}
+          </div>
+        </div>
+
+        {/* Right panel - Answers */}
+        {selectedQuestion && (
+          <div className="w-full max-w-xl pl-6">
+            <div className="sticky top-0 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-violet-300">
+                  <span className="material-icons mr-2">question_answer</span>
+                  Answers ({selectedQuestion.answers?.length || 0})
+                </h2>
+                <button
+                  onClick={() => setSelectedQuestion(null)}
+                  className="p-2 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
+                >
+                  <span className="material-icons">close</span>
+                </button>
+              </div>
+
+              {/* Answer form */}
+              <div className="mb-6">
+                <form onSubmit={handleSubmitAnswer} className="space-y-4">
+                  <textarea
+                    value={answerText}
+                    onChange={(e) => setAnswerText(e.target.value)}
+                    placeholder="Write your answer..."
+                    rows="4"
+                    className="w-full px-4 py-3 bg-gray-800/50 border border-violet-500/30 rounded-lg focus:outline-none focus:border-violet-500 text-white placeholder-gray-500 resize-none"
+                  />
+                  <div className="flex items-center gap-4">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 border border-violet-500/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
+                      <span className="material-icons text-violet-400">attach_file</span>
+                      <span className="text-gray-300">Add Attachment</span>
+                      <input
+                        type="file"
+                        onChange={handleAttachmentChange}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
+                      />
+                    </label>
+                    {attachmentName && (
+                      <div className="flex items-center gap-2 text-gray-300">
+                        <span className="material-icons text-violet-400">description</span>
+                        <span>{attachmentName}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAttachment(null);
+                            setAttachmentName('');
+                          }}
+                          className="p-1 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 rounded"
+                        >
+                          <span className="material-icons text-sm">close</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end">
+                    <button 
+                      type="submit"
+                      disabled={!answerText.trim()}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                    >
+                      Post Answer
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Answers list */}
+              <div className="space-y-4">
+                {selectedQuestion.answers?.length > 0 ? (
+                  selectedQuestion.answers.map(answer => (
+                    <div key={answer._id} className={AnswerCard}>
+                      <div className="flex items-start gap-4">
+                        {/* Vote buttons */}
+                        <div className="flex flex-col items-center gap-1">
+                          <button 
+                            onClick={() => handleAnswerVote(answer._id, 'upvote')}
+                            className={`${VoteButton} ${answer.upvotes?.includes(user?.id) ? 'text-violet-400' : ''}`}
+                          >
+                            <span className="material-icons text-xl">arrow_upward</span>
+                          </button>
+                          <span className={VoteCount}>
+                            {(answer.upvotes?.length || 0) - (answer.downvotes?.length || 0)}
+                          </span>
+                          <button 
+                            onClick={() => handleAnswerVote(answer._id, 'downvote')}
+                            className={`${VoteButton} ${answer.downvotes?.includes(user?.id) ? 'text-violet-400' : ''}`}
+                          >
+                            <span className="material-icons text-xl">arrow_downward</span>
+                          </button>
+                        </div>
+
+                        {/* Answer content */}
+                        <div className="flex-1">
+                          <div 
+                            className={`${AnswerBody} cursor-pointer`}
+                            onClick={() => toggleAnswer(answer._id)}
+                          >
+                            {expandedAnswers.has(answer._id) ? (
+                              <p>{answer.body}</p>
+                            ) : (
+                              <p className="line-clamp-3">{answer.body}</p>
+                            )}
+                            {answer.body.length > 150 && (
+                              <button className="text-violet-400 hover:text-violet-300 text-sm mt-2">
+                                {expandedAnswers.has(answer._id) ? 'Show less' : 'Show more'}
+                              </button>
+                            )}
+                          </div>
+
+                          {/* User info and timestamp */}
+                          <div className="flex items-center gap-3 text-sm text-gray-400 mb-4">
+                            <img
+                              src={answer.userId.avatar || defaultAvatar}
+                              alt={answer.userId.username}
+                              className="w-6 h-6 rounded-full border border-violet-500/30"
+                            />
+                            <span className="text-violet-400">{answer.userId.username}</span>
+                            <span>•</span>
+                            <span>{new Date(answer.createdAt).toLocaleDateString()}</span>
+                          </div>
+
+                          {/* Comments section */}
+                          <div className={CommentSection}>
+                            {answer.comments?.map(comment => (
+                              <div key={comment._id} className={CommentCard}>
+                                <p className="text-gray-300">{comment.body}</p>
+                                <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
+                                  <img
+                                    src={comment.userId.avatar || defaultAvatar}
+                                    alt={comment.userId.username}
+                                    className="w-4 h-4 rounded-full border border-violet-500/30"
+                                  />
+                                  <span className="text-violet-400">{comment.userId.username}</span>
+                                  <span>•</span>
+                                  <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            ))}
+                            
+                            {/* Add comment form */}
+                            <div className="mt-3 flex items-center gap-2">
+                              <input
+                                type="text"
+                                placeholder="Add a comment..."
+                                className="flex-1 px-3 py-2 bg-gray-800/50 border border-violet-500/30 rounded text-sm focus:outline-none focus:border-violet-500 text-white placeholder-gray-500"
+                              />
+                              <button className="px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1">
+                                <span className="material-icons text-sm">send</span>
+                                Add
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    <span className="material-icons text-4xl mb-2">question_answer</span>
+                    <p>No answers yet</p>
+                    <p className="text-sm mt-1">Be the first to answer this question!</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

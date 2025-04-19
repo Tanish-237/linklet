@@ -3,12 +3,14 @@ import { Question } from "../models/question.js";
 import wrapAsync from "../utils/wrapAsync.js";
 import apiError from "../utils/apiError.js";
 import mongoose from "mongoose";
+import { documentUpload } from "../utils/documentUpload.js";
 
 // Create a new answer for a question
 export const createAnswer = wrapAsync(async (req, res) => {
   const { questionId } = req.params;
   const { body } = req.body;
   const userId = req.user.id;
+  let attachmentData = null;
 
   if (!mongoose.Types.ObjectId.isValid(questionId)) {
       throw new apiError(400, "Invalid question ID format");
@@ -23,10 +25,20 @@ export const createAnswer = wrapAsync(async (req, res) => {
     throw new apiError(404, "Question not found");
   }
 
+  // Handle file upload if present
+  if (req.file) {
+    try {
+      attachmentData = await documentUpload(req.file.path, req.file.originalname);
+    } catch (error) {
+      throw new apiError(500, "Error uploading attachment");
+    }
+  }
+
   const answer = await Answer.create({
     userId,
     questionId,
     body,
+    attachment: attachmentData
   });
 
   // Add answer reference to the question
@@ -35,7 +47,6 @@ export const createAnswer = wrapAsync(async (req, res) => {
 
   // Populate user details for the response
   const populatedAnswer = await Answer.findById(answer._id).populate('userId', 'username avatar');
-
 
   res.status(201).json({ success: true, answer: populatedAnswer });
 });

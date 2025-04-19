@@ -11,7 +11,6 @@ import {
 
 const router = express.Router();
 
-
 // Create a new question (requires login)
 router.post('/api/questions', isLoggedIn, createQuestion);
 
@@ -30,5 +29,4 @@ router.delete('/api/questions/:questionId', isLoggedIn, deleteQuestion);
 // Vote on a question (requires login)
 router.post('/api/questions/:questionId/vote', isLoggedIn, voteQuestion);
 
-
-export { router }; 
+export { router };

@@ -1,5 +1,6 @@
 import express from 'express';
 import { isLoggedIn } from '../middlewares/isLoggedIn.js';
+import { documentUploadMiddleware } from '../middlewares/multer.js';
 import {
     createAnswer,
     getAnswersForQuestion,
@@ -11,10 +12,8 @@ import {
 
 const router = express.Router();
 
-
-
 // Create a new answer for a specific question (requires login)
-router.post('/api/questions/:questionId/answers', isLoggedIn, createAnswer);
+router.post('/api/questions/:questionId/answers', isLoggedIn, documentUploadMiddleware.single('attachment'), createAnswer);
 
 // Get all answers for a specific question (public)
 router.get('/api/questions/:questionId/answers', getAnswersForQuestion);
@@ -30,6 +29,5 @@ router.post('/api/answers/:answerId/vote', isLoggedIn, voteAnswer);
 
 // Accept an answer (requires login, question author only)
 router.post('/api/answers/:answerId/accept', isLoggedIn, acceptAnswer);
-
 
 export { router }; // Use a distinct name

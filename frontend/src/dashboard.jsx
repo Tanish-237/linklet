@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import defaultAvatar from './assets/default-avatar.png';
 import linkletLogo from './assets/linklet-logo.png';
 import AttendanceTracker from './components/AttendanceTracker';
 import DailySchedule from './components/DailySchedule';
 import Resource from './pages/Resource';
+import HelpForum from './pages/HelpForum';
+import QuestionDetail from './pages/QuestionDetail';
 
 export default function Dashboard() {
   const [dropdownStates, setDropdownStates] = useState({
@@ -15,6 +17,7 @@ export default function Dashboard() {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const { questionId } = useParams();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -41,8 +44,8 @@ export default function Dashboard() {
   const menuItems = [
     { icon: "dynamic_feed", label: "Feed", path: "/dashboard" },
     { icon: "library_books", label: "Resource Library", path: "/dashboard/resources" },
+    { icon: "help", label: "Help Forum", path: "/dashboard/help" },
     { icon: "groups", label: "Clubs", path: "/dashboard/clubs" },
-    { icon: "forum", label: "Forums", path: "/dashboard/forums" },
     { icon: "chat", label: "Chat", path: "/dashboard/chat" }
   ];
 
@@ -51,6 +54,14 @@ export default function Dashboard() {
     
     if (path === '/dashboard/resources') {
       return <Resource />;
+    }
+
+    if (path.startsWith('/dashboard/help')) {
+      return <HelpForum basePath="/dashboard" />;
+    }
+
+    if (path.startsWith('/dashboard/question/')) {
+      return <QuestionDetail basePath="/dashboard" />;
     }
 
     // Default dashboard content
