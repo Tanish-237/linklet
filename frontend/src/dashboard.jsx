@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import defaultAvatar from './assets/default-avatar.png';
 import linkletLogo from './assets/linklet-logo.png';
 import AttendanceTracker from './components/AttendanceTracker';
 import DailySchedule from './components/DailySchedule';
+import Resource from './pages/Resource';
 
 export default function Dashboard() {
   const [dropdownStates, setDropdownStates] = useState({
@@ -11,6 +13,8 @@ export default function Dashboard() {
   });
   
   const dropdownRef = useRef(null);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -30,9 +34,53 @@ export default function Dashboard() {
     setDropdownStates(prev => ({
       ...prev,
       [dropdown]: !prev[dropdown],
-      // Close other dropdown when opening one
       [dropdown === 'notifications' ? 'profile' : 'notifications']: false
     }));
+  };
+
+  const menuItems = [
+    { icon: "dynamic_feed", label: "Feed", path: "/dashboard" },
+    { icon: "library_books", label: "Resources", path: "/dashboard/resources" },
+    { icon: "groups", label: "Clubs", path: "/dashboard/clubs" },
+    { icon: "forum", label: "Forums", path: "/dashboard/forums" },
+    { icon: "chat", label: "Chat", path: "/dashboard/chat" }
+  ];
+
+  const renderMainContent = () => {
+    const path = location.pathname;
+    
+    if (path === '/dashboard/resources') {
+      return <Resource />;
+    }
+
+    // Default dashboard content
+    return (
+      <>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[
+            { icon: "help", title: "Questions", count: 15 },
+            { icon: "library_books", title: "Resources", count: 25 },
+            { icon: "forum", title: "Forums", count: 5 },
+            { icon: "groups", title: "Clubs", count: 3 },
+            { icon: "school", title: "Study", count: 8 },
+            { icon: "stars", title: "Activity", count: 12 },
+          ].map(({ icon, title, count }) => (
+            <div key={title} className="bg-violet-900/20 backdrop-blur-md rounded-lg shadow-lg p-6 hover:scale-[1.02] transform transition-all duration-300 border border-gray-800">
+              <div className="flex items-center space-x-3">
+                <span className="material-icons text-2xl text-violet-400">{icon}</span>
+                <h2 className="text-2xl font-bold text-violet-400">{title}</h2>
+              </div>
+              <p className="text-4xl font-bold mt-4 text-right">{count}</p>
+            </div>
+          ))}
+        </div>
+        
+        <div className="mt-8 space-y-8">
+          <DailySchedule />
+          <AttendanceTracker />
+        </div>
+      </>
+    );
   };
 
   return (
@@ -47,17 +95,20 @@ export default function Dashboard() {
         </div>
         <nav className="flex-1 overflow-y-auto no-scrollbar">
           <ul className="space-y-4 p-6">
-            {[
-              { icon: "dynamic_feed", label: "Feed" },
-              { icon: "library_books", label: "Resources" },
-              { icon: "groups", label: "Clubs" },
-              { icon: "forum", label: "Forums" },
-              { icon: "chat", label: "Chat" }
-            ].map((item) => (
-              <li key={item.label} className="p-4 bg-gray-800/50 rounded-lg hover:bg-violet-900/30 transition-all duration-300 cursor-pointer border border-violet-500/10 hover:border-violet-500/30 group">
+            {menuItems.map((item) => (
+              <li 
+                key={item.label} 
+                onClick={() => navigate(item.path)}
+                className={`p-4 rounded-lg transition-all duration-300 cursor-pointer border border-violet-500/10 hover:border-violet-500/30 group
+                  ${location.pathname === item.path ? 'bg-violet-900/30 border-violet-500/30' : 'bg-gray-800/50 hover:bg-violet-900/30'}`}
+              >
                 <div className="flex items-center gap-3">
-                  <span className="material-icons text-2xl group-hover:text-violet-400 transition-colors">{item.icon}</span>
-                  <span className="group-hover:text-violet-400 transition-colors">{item.label}</span>
+                  <span className={`material-icons text-2xl transition-colors ${location.pathname === item.path ? 'text-violet-400' : 'group-hover:text-violet-400'}`}>
+                    {item.icon}
+                  </span>
+                  <span className={`transition-colors ${location.pathname === item.path ? 'text-violet-400' : 'group-hover:text-violet-400'}`}>
+                    {item.label}
+                  </span>
                 </div>
               </li>
             ))}
@@ -70,7 +121,7 @@ export default function Dashboard() {
         {/* Header */}
         <header className="h-[73px] bg-black/50 backdrop-blur-md shadow-lg flex justify-between items-center border-b border-gray-800 z-20">
           <h1 className="px-6 text-3xl font-extrabold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-purple-600">
-            Dashboard
+            {menuItems.find(item => item.path === location.pathname)?.label || "Dashboard"}
           </h1>
           <div className="flex items-center space-x-6 pr-6" ref={dropdownRef}>
             {/* Notification Icon */}
@@ -125,29 +176,7 @@ export default function Dashboard() {
 
         {/* Main Content Area */}
         <main className="flex-1 p-8 overflow-y-auto no-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { icon: "help", title: "Questions", count: 15 },
-              { icon: "library_books", title: "Resources", count: 25 },
-              { icon: "forum", title: "Forums", count: 5 },
-              { icon: "groups", title: "Clubs", count: 3 },
-              { icon: "school", title: "Study", count: 8 },
-              { icon: "stars", title: "Activity", count: 12 },
-            ].map(({ icon, title, count }) => (
-              <div key={title} className="bg-violet-900/20 backdrop-blur-md rounded-lg shadow-lg p-6 hover:scale-[1.02] transform transition-all duration-300 border border-gray-800">
-                <div className="flex items-center space-x-3">
-                  <span className="material-icons text-2xl text-violet-400">{icon}</span>
-                  <h2 className="text-2xl font-bold text-violet-400">{title}</h2>
-                </div>
-                <p className="text-4xl font-bold mt-4 text-right">{count}</p>
-              </div>
-            ))}
-          </div>
-          
-          <div className="mt-8 space-y-8">
-            <DailySchedule />
-            <AttendanceTracker />
-          </div>
+          {renderMainContent()}
         </main>
       </div>
     </div>

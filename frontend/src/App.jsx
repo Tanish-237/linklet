@@ -31,7 +31,6 @@ function App() {
   return (
     <HelmetProvider>
       <Router>
-        <Navbar />
         <ToastContainer
           position="top-right"
           autoClose={5000}
@@ -45,28 +44,34 @@ function App() {
           theme="dark"
         />
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          {/* Only show Navbar on non-dashboard routes */}
+          <Route path="/" element={<><Navbar /><LandingPage /></>} />
+          <Route path="/home" element={<><Navbar /><Home /></>} />
+          <Route path="/login" element={<><Navbar /><Login /></>} />
+          <Route path="/register" element={<><Navbar /><Register /></>} />
+          <Route path="/signup" element={<><Navbar /><Register /></>} />
+          <Route path="/posts" element={<><Navbar /><Posts /></>} />
+          <Route path="/posts/:postId" element={<><Navbar /><PostDetail /></>} />
+          
+          {/* Dashboard Routes */}
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/signup" element={<Register />} />
-          <Route path="/posts" element={<Posts />} />
-          <Route path="/posts/:postId" element={<PostDetail />} />
-          <Route path="/resources" element={<Resource />} />
+          <Route path="/dashboard/resources" element={<Dashboard />} />
+          <Route path="/dashboard/clubs" element={<Dashboard />} />
+          <Route path="/dashboard/forums" element={<Dashboard />} />
+          <Route path="/dashboard/chat" element={<Dashboard />} />
           
           {/* Static Pages */}
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/blog" element={<BlogPage />} />
-          <Route path="/blog/:id" element={<BlogPostDetail />} />
-          <Route path="/careers" element={<CareersPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/privacy" element={<PrivacyPolicy />} />
-          <Route path="/terms" element={<TermsOfService />} />
-          <Route path="/cookies" element={<CookiePolicy />} />
-          <Route path="/security" element={<SecurityInfo />} />
-          <Route path="/pricing" element={<PricingPage />} />
-          <Route path="/faq" element={<FAQPage />} />
+          <Route path="/about" element={<><Navbar /><AboutPage /></>} />
+          <Route path="/blog" element={<><Navbar /><BlogPage /></>} />
+          <Route path="/blog/:id" element={<><Navbar /><BlogPostDetail /></>} />
+          <Route path="/careers" element={<><Navbar /><CareersPage /></>} />
+          <Route path="/contact" element={<><Navbar /><ContactPage /></>} />
+          <Route path="/privacy" element={<><Navbar /><PrivacyPolicy /></>} />
+          <Route path="/terms" element={<><Navbar /><TermsOfService /></>} />
+          <Route path="/cookies" element={<><Navbar /><CookiePolicy /></>} />
+          <Route path="/security" element={<><Navbar /><SecurityInfo /></>} />
+          <Route path="/pricing" element={<><Navbar /><PricingPage /></>} />
+          <Route path="/faq" element={<><Navbar /><FAQPage /></>} />
         </Routes>
       </Router>
     </HelmetProvider>
