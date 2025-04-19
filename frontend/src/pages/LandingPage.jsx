@@ -287,11 +287,94 @@ export default function LandingPage() {
       </main>
 
       {/* Footer */}
-      <footer className="w-full py-8 px-4 sm:px-6 bg-black/80 border-t border-gray-800">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-gray-400 text-sm">
-            © {new Date().getFullYear()} Linklet. All rights reserved.
-          </p>
+      <footer className="w-full py-12 px-4 sm:px-6 lg:px-8 bg-gray-900/80 border-t border-gray-800">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+            {/* Company Info */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <img src={logo} alt="Linklet Logo" className="h-8 w-8" />
+                <span className="text-xl font-bold bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+                  Linklet
+                </span>
+              </div>
+              <p className="text-gray-400 text-sm">
+                Empowering learners worldwide with comprehensive education tools and resources.
+              </p>
+              <div className="flex space-x-4">
+                <a href="https://twitter.com/linklet" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-violet-400 transition-colors">
+                  <span className="material-icons">twitter</span>
+                </a>
+                <a href="https://linkedin.com/company/linklet" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-violet-400 transition-colors">
+                  <span className="material-icons">linkedin</span>
+                </a>
+                <a href="https://github.com/linklet" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-violet-400 transition-colors">
+                  <span className="material-icons">code</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Product Links */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Product</h3>
+              <ul className="space-y-2">
+                <li><a href="#features" onClick={(e) => { e.preventDefault(); document.getElementById('features').scrollIntoView({ behavior: 'smooth' }); }} className="text-gray-400 hover:text-violet-400 transition-colors">Features</a></li>
+                <li><Link to="/resources" className="text-gray-400 hover:text-violet-400 transition-colors">Resources</Link></li>
+                <li><Link to="/pricing" className="text-gray-400 hover:text-violet-400 transition-colors">Pricing</Link></li>
+                <li><Link to="/faq" className="text-gray-400 hover:text-violet-400 transition-colors">FAQ</Link></li>
+              </ul>
+            </div>
+
+            {/* Company Links */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Company</h3>
+              <ul className="space-y-2">
+                <li><Link to="/about" className="text-gray-400 hover:text-violet-400 transition-colors">About Us</Link></li>
+                <li><Link to="/blog" className="text-gray-400 hover:text-violet-400 transition-colors">Blog</Link></li>
+                <li><Link to="/careers" className="text-gray-400 hover:text-violet-400 transition-colors">Careers</Link></li>
+                <li><Link to="/contact" className="text-gray-400 hover:text-violet-400 transition-colors">Contact</Link></li>
+              </ul>
+            </div>
+
+            {/* Legal Links */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-4">Legal</h3>
+              <ul className="space-y-2">
+                <li><Link to="/privacy" className="text-gray-400 hover:text-violet-400 transition-colors">Privacy Policy</Link></li>
+                <li><Link to="/terms" className="text-gray-400 hover:text-violet-400 transition-colors">Terms of Service</Link></li>
+                <li><Link to="/cookies" className="text-gray-400 hover:text-violet-400 transition-colors">Cookie Policy</Link></li>
+                <li><Link to="/security" className="text-gray-400 hover:text-violet-400 transition-colors">Security</Link></li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="pt-8 border-t border-gray-800">
+            <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+              <p className="text-gray-400 text-sm">
+                © {new Date().getFullYear()} Linklet. All rights reserved.
+              </p>
+              <div className="flex items-center space-x-4">
+                <select 
+                  className="bg-gray-800 text-gray-400 text-sm rounded-lg px-3 py-1 border border-gray-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none"
+                  defaultValue="en"
+                >
+                  <option value="en">English</option>
+                  <option value="es">Español</option>
+                  <option value="fr">Français</option>
+                  <option value="de">Deutsch</option>
+                </select>
+                <select 
+                  className="bg-gray-800 text-gray-400 text-sm rounded-lg px-3 py-1 border border-gray-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none"
+                  defaultValue="usd"
+                >
+                  <option value="usd">USD</option>
+                  <option value="eur">EUR</option>
+                  <option value="gbp">GBP</option>
+                  <option value="inr">INR</option>
+                </select>
+              </div>
+            </div>
+          </div>
         </div>
       </footer>
     </div>
