@@ -74,4 +74,4 @@ const addReply = wrapAsync(async (req, res) => {
   res.status(201).json({ success: true, message: "Reply added", post });
 });
 
-export { addComment, editComment, deleteComment, addReply };
+export { addComment, editComment, deleteComment };

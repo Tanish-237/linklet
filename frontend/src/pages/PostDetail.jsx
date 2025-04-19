@@ -248,6 +248,8 @@ const PostDetail = () => {
         }
 
         setPost(postResponse.data.post);
+        // Initialize comments from post data
+        setComments(postResponse.data.post.comments || []);
       } catch (error) {
         if (error.message === "Post not found") {
           toast.error("Post not found");
