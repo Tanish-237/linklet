@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+<<<<<<< HEAD
+import { Helmet } from 'react-helmet';
+=======
 import { Helmet } from 'react-helmet-async';
+>>>>>>> main
 
 // Import the logo correctly
 import logo from '../assets/linklet-logo.png';
@@ -97,6 +101,31 @@ export default function LandingPage() {
 
       {/* Navigation */}
       <nav 
+<<<<<<< HEAD
+        className={`fixed top-0 left-0 right-0 z-50 transition-colors duration-300 ${
+          scrolled ? 'bg-black/80 backdrop-blur-md shadow-lg' : ''
+        }`}
+        style={{ width: '100vw' }}
+      >
+        <div className="w-full px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-3">
+              <img src={logo} alt="Linklet Logo" className="h-10 w-10" />
+              <span className="text-2xl font-bold bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+                Linklet
+              </span>
+            </div>
+            
+            <div className="hidden md:flex items-center gap-8">
+              <a href="#features" className="hover:text-violet-400 transition-colors">Features</a>
+              <a href="#testimonials" className="hover:text-violet-400 transition-colors">Testimonials</a>
+            </div>
+            
+            <div className="hidden md:flex items-center gap-4">
+              <Link 
+                to="/login" 
+                className="px-4 py-2 rounded-lg hover:bg-violet-900/30 transition-all border border-violet-500/30 hover:border-violet-500"
+=======
         className={`fixed top-0 left-0 right-0 z-50 h-[73px] ${
           scrolled ? 'bg-black/50 backdrop-blur-md border-b border-gray-800 shadow-lg' : 'bg-transparent'
         }`}
@@ -125,31 +154,54 @@ export default function LandingPage() {
               <Link 
                 to="/login" 
                 className="px-4 py-2 rounded-lg text-gray-300 hover:text-violet-400 hover:bg-violet-900/30 transition-all"
+>>>>>>> main
               >
                 Log in
               </Link>
               <Link 
+<<<<<<< HEAD
+                to="/signup" 
+                className="px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 transition-all"
+=======
                 to="/register" 
                 className="px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-all font-medium"
+>>>>>>> main
               >
                 Get Started
               </Link>
             </div>
 
+<<<<<<< HEAD
+            <button
+              className="md:hidden p-2 rounded-md hover:bg-violet-900/30 transition-all"
+=======
             {/* Mobile Menu Button */}
             <button
               className="md:hidden p-2 rounded-lg hover:bg-violet-900/30 transition-all"
+>>>>>>> main
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label="Toggle menu"
               aria-expanded={isMobileMenuOpen}
             >
+<<<<<<< HEAD
+              <span className="material-icons">
+=======
               <span className="material-icons text-2xl text-gray-300 hover:text-violet-400">
+>>>>>>> main
                 {isMobileMenuOpen ? 'close' : 'menu'}
               </span>
             </button>
           </div>
         </div>
 
+<<<<<<< HEAD
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-black/95 backdrop-blur-md border-b border-gray-800 mobile-menu-container w-full">
+            <div className="px-4 pt-2 pb-3 space-y-1">
+              <a 
+                href="#features" 
+                className="block px-3 py-2 rounded-md hover:bg-violet-900/30 transition-colors"
+=======
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
           <div className="md:hidden absolute top-[73px] left-0 right-0 bg-black/50 backdrop-blur-md border-b border-gray-800">
@@ -157,17 +209,27 @@ export default function LandingPage() {
               <a 
                 href="#features" 
                 className="block px-4 py-2 rounded-lg text-gray-300 hover:text-violet-400 hover:bg-violet-900/30 transition-all"
+>>>>>>> main
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Features
               </a>
               <a 
                 href="#testimonials" 
+<<<<<<< HEAD
+                className="block px-3 py-2 rounded-md hover:bg-violet-900/30 transition-colors"
+=======
                 className="block px-4 py-2 rounded-lg text-gray-300 hover:text-violet-400 hover:bg-violet-900/30 transition-all"
+>>>>>>> main
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Testimonials
               </a>
+<<<<<<< HEAD
+              <Link 
+                to="/login" 
+                className="block px-3 py-2 rounded-md hover:bg-violet-900/30 transition-colors"
+=======
               <a 
                 href="#pricing" 
                 className="block px-4 py-2 rounded-lg text-gray-300 hover:text-violet-400 hover:bg-violet-900/30 transition-all"
@@ -179,13 +241,19 @@ export default function LandingPage() {
               <Link 
                 to="/login" 
                 className="block px-4 py-2 rounded-lg text-gray-300 hover:text-violet-400 hover:bg-violet-900/30 transition-all"
+>>>>>>> main
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Log in
               </Link>
               <Link 
+<<<<<<< HEAD
+                to="/signup" 
+                className="block px-3 py-2 rounded-md text-center mt-2 bg-violet-600 hover:bg-violet-700 transition-colors"
+=======
                 to="/register" 
                 className="block px-4 py-2 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-all text-center"
+>>>>>>> main
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Get Started
@@ -214,7 +282,11 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link 
+<<<<<<< HEAD
+                  to="/signup" 
+=======
                   to="/register" 
+>>>>>>> main
                   className="w-full sm:w-auto px-8 py-4 rounded-lg bg-violet-600 hover:bg-violet-700 transition-colors text-lg font-semibold"
                 >
                   Start Learning Now

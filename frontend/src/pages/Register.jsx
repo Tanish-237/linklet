@@ -3,9 +3,13 @@ import { useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { handleApiError } from "../utlis/ErrorHandler";
+<<<<<<< HEAD
+import { useAuth } from "../context/AuthContext";
+=======
 import { Helmet } from 'react-helmet-async';
 import axios from "axios";
 import linkletLogo from '../assets/linklet-logo.png';
+>>>>>>> main
 
 export default function Register() {
   const [email, setEmail] = useState("");

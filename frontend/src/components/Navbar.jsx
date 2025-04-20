@@ -3,7 +3,9 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { useEffect } from "react";
 import styled from "styled-components";
+import { useSocket } from "../context/SocketContext";
 
 const Nav = styled.nav`
   background-color: #111111;
@@ -17,8 +19,9 @@ const NavLinks = styled.div`
   display: flex;
   align-items: center;
   gap: 1.5rem;
-  
-  a, button {
+
+  a,
+  button {
     color: #f5f5f5;
     font-size: 1rem;
     transition: all 0.3s ease;
@@ -29,7 +32,7 @@ const NavLinks = styled.div`
     border-radius: 0.375rem;
 
     &:hover {
-      color: #8B5CF6;
+      color: #8b5cf6;
       background: rgba(139, 92, 246, 0.1);
     }
   }
@@ -57,7 +60,7 @@ const ProfileButton = styled.button`
     width: 2.5rem;
     height: 2.5rem;
     border-radius: 9999px;
-    border: 2px solid #8B5CF6;
+    border: 2px solid #8b5cf6;
   }
 `;
 
@@ -72,7 +75,7 @@ const DropdownMenu = styled.div`
   padding: 0.5rem;
   min-width: 12rem;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-  
+
   button {
     width: 100%;
     text-align: left;
@@ -86,7 +89,7 @@ const DropdownMenu = styled.div`
 
     &:hover {
       background: rgba(139, 92, 246, 0.1);
-      color: #8B5CF6;
+      color: #8b5cf6;
     }
   }
 `;
@@ -94,6 +97,7 @@ const DropdownMenu = styled.div`
 export const Navbar = () => {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
+  const socket = useSocket();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -113,10 +117,14 @@ export const Navbar = () => {
 
   return (
     <Nav>
-      <Link to={user ? "/home" : "/"} style={{ textDecoration: 'none' }}>
-        <h2 style={{ color: '#f5f5f5', fontSize: '1.5rem', fontWeight: 'bold' }}>Linklet</h2>
+      <Link to={user ? "/home" : "/"} style={{ textDecoration: "none" }}>
+        <h2
+          style={{ color: "#f5f5f5", fontSize: "1.5rem", fontWeight: "bold" }}
+        >
+          Linklet
+        </h2>
       </Link>
-      
+
       <NavLinks>
         {user ? (
           <>
@@ -124,19 +132,22 @@ export const Navbar = () => {
             <Link to="/dashboard">Dashboard</Link>
             <ProfileContainer>
               <ProfileButton onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
-                <img 
-                  src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"} 
-                  alt={user.username} 
+                <img
+                  src={
+                    user.avatar ||
+                    "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+                  }
+                  alt={user.username}
                 />
               </ProfileButton>
-              
+
               {isDropdownOpen && (
                 <DropdownMenu>
-                  <button onClick={() => navigate('/profile')}>
+                  <button onClick={() => navigate("/profile")}>
                     <span className="material-icons">person</span>
                     Profile
                   </button>
-                  <button onClick={() => navigate('/settings')}>
+                  <button onClick={() => navigate("/settings")}>
                     <span className="material-icons">settings</span>
                     Settings
                   </button>

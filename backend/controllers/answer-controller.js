@@ -13,7 +13,7 @@ export const createAnswer = wrapAsync(async (req, res) => {
   let attachmentData = null;
 
   if (!mongoose.Types.ObjectId.isValid(questionId)) {
-      throw new apiError(400, "Invalid question ID format");
+    throw new apiError(400, "Invalid question ID format");
   }
 
   if (!body) {
@@ -28,7 +28,10 @@ export const createAnswer = wrapAsync(async (req, res) => {
   // Handle file upload if present
   if (req.file) {
     try {
-      attachmentData = await documentUpload(req.file.path, req.file.originalname);
+      attachmentData = await documentUpload(
+        req.file.path,
+        req.file.originalname
+      );
     } catch (error) {
       throw new apiError(500, "Error uploading attachment");
     }
@@ -38,7 +41,7 @@ export const createAnswer = wrapAsync(async (req, res) => {
     userId,
     questionId,
     body,
-    attachment: attachmentData
+    attachment: attachmentData,
   });
 
   // Add answer reference to the question
@@ -46,7 +49,10 @@ export const createAnswer = wrapAsync(async (req, res) => {
   await question.save();
 
   // Populate user details for the response
-  const populatedAnswer = await Answer.findById(answer._id).populate('userId', 'username avatar');
+  const populatedAnswer = await Answer.findById(answer._id).populate(
+    "userId",
+    "username avatar"
+  );
 
   res.status(201).json({ success: true, answer: populatedAnswer });
 });
@@ -55,12 +61,12 @@ export const createAnswer = wrapAsync(async (req, res) => {
 export const getAnswersForQuestion = wrapAsync(async (req, res) => {
   const { questionId } = req.params;
 
-   if (!mongoose.Types.ObjectId.isValid(questionId)) {
-      throw new apiError(400, "Invalid question ID format");
+  if (!mongoose.Types.ObjectId.isValid(questionId)) {
+    throw new apiError(400, "Invalid question ID format");
   }
 
   const answers = await Answer.find({ questionId })
-    .populate('userId', 'username avatar') // Populate user details
+    .populate("userId", "username avatar") // Populate user details
     .sort({ createdAt: -1 }); // Sort by newest first, consider sorting by votes later
 
   res.status(200).json({ success: true, answers });
@@ -72,8 +78,8 @@ export const updateAnswer = wrapAsync(async (req, res) => {
   const { body } = req.body;
   const userId = req.user.id;
 
-   if (!mongoose.Types.ObjectId.isValid(answerId)) {
-      throw new apiError(400, "Invalid answer ID format");
+  if (!mongoose.Types.ObjectId.isValid(answerId)) {
+    throw new apiError(400, "Invalid answer ID format");
   }
 
   const answer = await Answer.findById(answerId);
@@ -90,7 +96,10 @@ export const updateAnswer = wrapAsync(async (req, res) => {
   await answer.save();
 
   // Populate user details for the response
-  const populatedAnswer = await Answer.findById(answer._id).populate('userId', 'username avatar');
+  const populatedAnswer = await Answer.findById(answer._id).populate(
+    "userId",
+    "username avatar"
+  );
 
   res.status(200).json({ success: true, answer: populatedAnswer });
 });
@@ -100,8 +109,8 @@ export const deleteAnswer = wrapAsync(async (req, res) => {
   const { answerId } = req.params;
   const userId = req.user.id;
 
-   if (!mongoose.Types.ObjectId.isValid(answerId)) {
-      throw new apiError(400, "Invalid answer ID format");
+  if (!mongoose.Types.ObjectId.isValid(answerId)) {
+    throw new apiError(400, "Invalid answer ID format");
   }
 
   const answer = await Answer.findById(answerId);
@@ -123,103 +132,115 @@ export const deleteAnswer = wrapAsync(async (req, res) => {
   // Delete the answer
   await Answer.findByIdAndDelete(answerId);
 
-  res.status(200).json({ success: true, message: "Answer deleted successfully" });
+  res
+    .status(200)
+    .json({ success: true, message: "Answer deleted successfully" });
 });
 
 // Vote on an answer (upvote/downvote)
 export const voteAnswer = wrapAsync(async (req, res) => {
-    const { answerId } = req.params;
-    const { voteType } = req.body; // 'upvote' or 'downvote'
-    const userId = req.user.id;
+  const { answerId } = req.params;
+  const { voteType } = req.body; // 'upvote' or 'downvote'
+  const userId = req.user.id;
 
-    if (!mongoose.Types.ObjectId.isValid(answerId)) {
-        throw new apiError(400, "Invalid answer ID format");
+  if (!mongoose.Types.ObjectId.isValid(answerId)) {
+    throw new apiError(400, "Invalid answer ID format");
+  }
+
+  if (!["upvote", "downvote"].includes(voteType)) {
+    throw new apiError(
+      400,
+      "Invalid vote type. Must be 'upvote' or 'downvote'."
+    );
+  }
+
+  const answer = await Answer.findById(answerId);
+  if (!answer) {
+    throw new apiError(404, "Answer not found");
+  }
+
+  const userIdObj = new mongoose.Types.ObjectId(userId);
+  const upvoteIndex = answer.upvotes.findIndex((id) => id.equals(userIdObj));
+  const downvoteIndex = answer.downvotes.findIndex((id) =>
+    id.equals(userIdObj)
+  );
+
+  if (voteType === "upvote") {
+    if (upvoteIndex !== -1) {
+      answer.upvotes.splice(upvoteIndex, 1);
+    } else {
+      answer.upvotes.push(userIdObj);
+      if (downvoteIndex !== -1) {
+        answer.downvotes.splice(downvoteIndex, 1);
+      }
     }
-
-    if (!['upvote', 'downvote'].includes(voteType)) {
-        throw new apiError(400, "Invalid vote type. Must be 'upvote' or 'downvote'.");
+  } else if (voteType === "downvote") {
+    if (downvoteIndex !== -1) {
+      answer.downvotes.splice(downvoteIndex, 1);
+    } else {
+      answer.downvotes.push(userIdObj);
+      if (upvoteIndex !== -1) {
+        answer.upvotes.splice(upvoteIndex, 1);
+      }
     }
+  }
 
-    const answer = await Answer.findById(answerId);
-    if (!answer) {
-        throw new apiError(404, "Answer not found");
-    }
+  await answer.save();
 
-    const userIdObj = new mongoose.Types.ObjectId(userId);
-    const upvoteIndex = answer.upvotes.findIndex(id => id.equals(userIdObj));
-    const downvoteIndex = answer.downvotes.findIndex(id => id.equals(userIdObj));
-
-    if (voteType === 'upvote') {
-        if (upvoteIndex !== -1) {
-            answer.upvotes.splice(upvoteIndex, 1);
-        } else {
-            answer.upvotes.push(userIdObj);
-            if (downvoteIndex !== -1) {
-                answer.downvotes.splice(downvoteIndex, 1);
-            }
-        }
-    } else if (voteType === 'downvote') {
-        if (downvoteIndex !== -1) {
-            answer.downvotes.splice(downvoteIndex, 1);
-        } else {
-            answer.downvotes.push(userIdObj);
-            if (upvoteIndex !== -1) {
-                answer.upvotes.splice(upvoteIndex, 1);
-            }
-        }
-    }
-
-    await answer.save();
-
-    res.status(200).json({
-        success: true,
-        upvotes: answer.upvotes.length,
-        downvotes: answer.downvotes.length,
-        userVote: upvoteIndex !== -1 ? 'upvote' : (downvoteIndex !== -1 ? 'downvote' : null)
-    });
+  res.status(200).json({
+    success: true,
+    upvotes: answer.upvotes.length,
+    downvotes: answer.downvotes.length,
+    userVote:
+      upvoteIndex !== -1 ? "upvote" : downvoteIndex !== -1 ? "downvote" : null,
+  });
 });
 
 // Accept an answer (only by the question author)
 export const acceptAnswer = wrapAsync(async (req, res) => {
-    const { answerId } = req.params;
-    const userId = req.user.id; // ID of the user making the request
+  const { answerId } = req.params;
+  const userId = req.user.id; // ID of the user making the request
 
-    if (!mongoose.Types.ObjectId.isValid(answerId)) {
-        throw new apiError(400, "Invalid answer ID format");
+  if (!mongoose.Types.ObjectId.isValid(answerId)) {
+    throw new apiError(400, "Invalid answer ID format");
+  }
+
+  const answer = await Answer.findById(answerId).populate("questionId"); // Populate the related question
+  if (!answer) {
+    throw new apiError(404, "Answer not found");
+  }
+  if (!answer.questionId) {
+    throw new apiError(500, "Answer is not associated with a question"); // Data integrity check
+  }
+
+  // Check if the user making the request is the author of the question
+  if (answer.questionId.userId.toString() !== userId) {
+    throw new apiError(403, "Only the question author can accept an answer.");
+  }
+
+  // Find if another answer is already accepted for this question
+  const alreadyAccepted = await Answer.findOne({
+    questionId: answer.questionId,
+    isAccepted: true,
+  });
+
+  // Toggle acceptance: If this answer is already accepted, unaccept it.
+  if (answer.isAccepted) {
+    answer.isAccepted = false;
+  } else {
+    // If another answer was accepted, unaccept it first
+    if (
+      alreadyAccepted &&
+      alreadyAccepted._id.toString() !== answer._id.toString()
+    ) {
+      alreadyAccepted.isAccepted = false;
+      await alreadyAccepted.save();
     }
+    // Accept the current answer
+    answer.isAccepted = true;
+  }
 
-    const answer = await Answer.findById(answerId).populate('questionId'); // Populate the related question
-    if (!answer) {
-        throw new apiError(404, "Answer not found");
-    }
-    if (!answer.questionId) {
-         throw new apiError(500, "Answer is not associated with a question"); // Data integrity check
-    }
+  await answer.save();
 
-
-    // Check if the user making the request is the author of the question
-    if (answer.questionId.userId.toString() !== userId) {
-        throw new apiError(403, "Only the question author can accept an answer.");
-    }
-
-    // Find if another answer is already accepted for this question
-    const alreadyAccepted = await Answer.findOne({ questionId: answer.questionId, isAccepted: true });
-
-    // Toggle acceptance: If this answer is already accepted, unaccept it.
-    if (answer.isAccepted) {
-        answer.isAccepted = false;
-    } else {
-        // If another answer was accepted, unaccept it first
-        if (alreadyAccepted && alreadyAccepted._id.toString() !== answer._id.toString()) {
-            alreadyAccepted.isAccepted = false;
-            await alreadyAccepted.save();
-        }
-        // Accept the current answer
-        answer.isAccepted = true;
-    }
-
-
-    await answer.save();
-
-    res.status(200).json({ success: true, answer });
+  res.status(200).json({ success: true, answer });
 });

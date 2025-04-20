@@ -3,8 +3,113 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
+<<<<<<< HEAD
+
+const PostsContainer = styled.div`
+  max-width: 800px;
+  margin: 50px auto;
+  padding: 0 20px;
+`;
+
+const PostCard = styled.div`
+  background-color: #fff;
+  border: 1px solid #e1e1e1;
+  padding: 20px;
+  margin-bottom: 25px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+`;
+
+const UserInfo = styled.div`
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+
+  img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 10px;
+    object-fit: cover;
+  }
+
+  span {
+    font-weight: 600;
+  }
+`;
+
+const PostImage = styled.img`
+  width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  border-radius: 4px;
+  margin: 10px 0;
+  cursor: pointer;
+`;
+
+const PostActions = styled.div`
+  display: flex;
+  align-items: center;
+  margin-top: 15px;
+  gap: 15px;
+
+  button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+
+    &:hover {
+      opacity: 0.8;
+    }
+  }
+`;
+
+const Pagination = styled.div`
+  display: flex;
+  justify-content: center;
+  margin-top: 30px;
+  gap: 10px;
+
+  button {
+    padding: 8px 15px;
+    border: 1px solid #ddd;
+    background: #fff;
+    cursor: pointer;
+    border-radius: 4px;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    &.active {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+  }
+`;
+
+const Loading = styled.div`
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+  color: #666;
+`;
+=======
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.png";
+>>>>>>> main
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -196,6 +301,15 @@ const Posts = () => {
                 </div>
               )}
 
+<<<<<<< HEAD
+              <PostActions>
+                <button onClick={(e) => handleUpvote(post._id, e)}>
+                  👍 {post.upvotes?.length || 0} Upvotes
+                </button>
+                <button>💬 {post.comments?.length || 0} Comments</button>
+              </PostActions>
+            </PostCard>
+=======
               {/* Post Footer with interactions */}
               <div className="p-4 border-t border-violet-500/10 bg-gray-900/20">
                 <div className="flex items-center gap-6 text-gray-300">
@@ -242,6 +356,7 @@ const Posts = () => {
                 </div>
                ) : null}
             </div>
+>>>>>>> main
           ))}
         </div>
       )}
