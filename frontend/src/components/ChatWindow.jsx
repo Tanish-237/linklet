@@ -9,6 +9,7 @@ const ChatWindow = ({ chatId }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [file, setFile] = useState(null);
+  const [fileName, setFileName] = useState("");
   const { user } = useAuth();
   const messagesEndRef = useRef(null);
   const socket = useSocket();
@@ -32,8 +33,6 @@ const ChatWindow = ({ chatId }) => {
     return () => clearTimeout(typingTimeout);
   }, [newMessage]);
 
-
-
   useEffect(() => {
     if (!chatId || !user) return;
 
@@ -46,8 +45,6 @@ const ChatWindow = ({ chatId }) => {
           }
         );
         setMessages(res.data || []);
-
-        
       } catch (error) {
         console.error("Failed to fetch messages:", error);
         toast.error("Failed to load messages");
@@ -56,8 +53,6 @@ const ChatWindow = ({ chatId }) => {
 
     fetchMessages();
   }, [chatId, user]);
-
-  
 
   useEffect(() => {
     if (!socket || !chatId) return;
@@ -118,6 +113,7 @@ const ChatWindow = ({ chatId }) => {
       setMessages([...messages, res.data]);
       setNewMessage("");
       setFile(null);
+      setFileName("");
     } catch (error) {
       console.error("Failed to send message:", error);
       toast.error("Failed to send message");
@@ -131,7 +127,11 @@ const ChatWindow = ({ chatId }) => {
   };
 
   const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      setFileName(selectedFile.name);
+    }
   };
 
   const handleEditMessage = async (message) => {
@@ -161,14 +161,48 @@ const ChatWindow = ({ chatId }) => {
 
   const handleDeleteMessage = async (messageId) => {
     try {
-      await axios.delete("http://localhost:5000/api/chat/message/delete", {
-        data: { chatId, messageId },
-        withCredentials: true,
-      });
+      const response = await axios.delete(
+        "http://localhost:5000/api/chat/message",
+        {
+          data: { chatId, messageId },
+          withCredentials: true,
+        }
+      );
+
+      if (response.data.success) {
+        setMessages((prevMessages) =>
+          prevMessages.filter((msg) => msg._id !== messageId)
+        );
+        toast.success("Message deleted successfully");
+      }
     } catch (error) {
       console.error("Failed to delete message:", error);
-      toast.error("Failed to delete message");
+      toast.error(error.response?.data?.message || "Failed to delete message");
     }
+  };
+
+  const handleFileView = (mediaUrl) => {
+    if (!mediaUrl) return;
+
+    // Check if the URL is from Cloudinary
+    if (mediaUrl.includes("cloudinary.com")) {
+      window.open(mediaUrl, "_blank");
+    } else {
+      // If it's a local file, try to open it directly
+      window.open(`http://localhost:5000${mediaUrl}`, "_blank");
+    }
+  };
+
+  const handleFileDownload = (mediaUrl) => {
+    if (!mediaUrl) return;
+
+    // Create a temporary link element
+    const link = document.createElement("a");
+    link.href = mediaUrl;
+    link.setAttribute("download", "");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -183,15 +217,17 @@ const ChatWindow = ({ chatId }) => {
           >
             {message.sender._id === user?._id && (
               <div className="absolute top-0 right-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 backdrop-blur-md p-2 rounded-lg border border-purple-500/10 z-10">
-                <button
-                  onClick={() => {
-                    setEditingMessage(message._id);
-                    setEditContent(message.content);
-                  }}
-                  className="text-gray-400 hover:text-purple-500 transition-colors"
-                >
-                  Edit
-                </button>
+                {!message.media && (
+                  <button
+                    onClick={() => {
+                      setEditingMessage(message._id);
+                      setEditContent(message.content);
+                    }}
+                    className="text-gray-400 hover:text-purple-500 transition-colors"
+                  >
+                    Edit
+                  </button>
+                )}
                 <button
                   onClick={() => handleDeleteMessage(message._id)}
                   className="text-gray-400 hover:text-red-500 transition-colors"
@@ -256,34 +292,40 @@ const ChatWindow = ({ chatId }) => {
                   } transition-transform hover:scale-105`}
                 >
                   <div className="text-white text-base mb-2">
-                {message.content}
+                    {message.content}
                   </div>
-                {message.media && (
+                  {message.media && (
                     <div className="mt-2">
-                    {message.mediaType === "image" ? (
+                      {message.mediaType === "image" ? (
                         <img
                           src={message.media}
                           alt="Media"
                           className="max-w-full rounded-lg border border-purple-500/10"
                         />
-                    ) : message.mediaType === "video" ? (
+                      ) : message.mediaType === "video" ? (
                         <video
                           controls
                           className="max-w-full rounded-lg border border-purple-500/10"
                         >
-                        <source src={message.media} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </video>
-                    ) : (
-                      <a
-                        href={message.media}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                          className="text-purple-500 hover:underline"
-                      >
-                        View File
-                      </a>
-                    )}
+                          <source src={message.media} type="video/mp4" />
+                          Your browser does not support the video tag.
+                        </video>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          <button
+                            onClick={() => handleFileView(message.media)}
+                            className="text-purple-500 hover:underline text-left"
+                          >
+                            View File
+                          </button>
+                          <button
+                            onClick={() => handleFileDownload(message.media)}
+                            className="text-gray-400 hover:text-purple-500 text-sm text-left"
+                          >
+                            Download File
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                   <div
@@ -300,7 +342,7 @@ const ChatWindow = ({ chatId }) => {
                       </span>
                     ) : (
                       <span className="text-xs text-gray-400">
-                  {format(message.createdAt)}
+                        {format(message.createdAt)}
                       </span>
                     )}
                   </div>
@@ -321,12 +363,12 @@ const ChatWindow = ({ chatId }) => {
 
       <div className="p-4 border-t border-gray-700 bg-gray-800/50">
         <div className="flex items-center gap-4">
-          <label className="cursor-pointer text-gray-400 hover:text-purple-500">
+          <label className="cursor-pointer text-gray-400 hover:text-purple-500 relative group">
             <input
               type="file"
               onChange={handleFileChange}
               className="hidden"
-              accept="image/*,video/*"
+              accept="*/*"
             />
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -342,13 +384,18 @@ const ChatWindow = ({ chatId }) => {
                 d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
               />
             </svg>
+            {fileName && (
+              <div className="absolute top-0 left-0 bg-purple-500/20 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap">
+                {fileName}
+              </div>
+            )}
           </label>
           <input
-          type="text"
+            type="text"
             value={newMessage}
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
-          placeholder="Type a message..."
+            placeholder="Type a message..."
             className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
           <button

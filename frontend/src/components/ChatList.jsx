@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 const ChatList = () => {
   const [chats, setChats] = useState([]);
@@ -22,19 +22,19 @@ const ChatList = () => {
             className="flex items-center p-3 rounded-lg cursor-pointer hover:bg-purple-500/20 transition-colors border border-purple-500/10 hover:scale-105"
           >
             <img
-              src={chat.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+              src={
+                chat.avatar ||
+                "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+              }
               alt={chat.name}
               className="w-10 h-10 rounded-full border border-purple-500/10"
             />
             <div className="ml-3 flex-1">
               <div className="font-bold text-purple-500">{chat.name}</div>
-              <div className="text-sm text-gray-400 truncate">{chat.lastMessage}</div>
-            </div>
-            {chat.unreadCount > 0 && (
-              <div className="w-5 h-5 flex items-center justify-center bg-purple-500/20 text-white rounded-full text-xs border border-purple-500/30">
-                {chat.unreadCount}
+              <div className="text-sm text-gray-400 truncate">
+                {chat.lastMessage}
               </div>
-            )}
+            </div>
           </div>
         ))}
       </div>
@@ -42,4 +42,4 @@ const ChatList = () => {
   );
 };
 
-export default ChatList; 
+export default ChatList;

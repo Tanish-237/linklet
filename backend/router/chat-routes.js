@@ -5,33 +5,29 @@ import wrapAsync from "../utils/wrapAsync.js";
 import {
   accessChat,
   fetchChats,
-  createGroupChat,
-  renameGroup,
-  addToGroup,
-  removeFromGroup,
   sendMessage,
   allMessages,
   searchUsers,
-  editMessage,
   deleteMessage,
 } from "../controllers/chat-controller.js";
 
 const router = Router();
 
-router.route("/").post(isLoggedIn, wrapAsync(accessChat));
-router.route("/").get(isLoggedIn, wrapAsync(fetchChats));
-router
-  .route("/group")
-  .post(isLoggedIn, upload.single("groupImage"), wrapAsync(createGroupChat));
-router.route("/rename").put(isLoggedIn, wrapAsync(renameGroup));
-router.route("/groupadd").put(isLoggedIn, wrapAsync(addToGroup));
-router.route("/groupremove").put(isLoggedIn, wrapAsync(removeFromGroup));
-router
-  .route("/message")
-  .post(isLoggedIn, upload.single("media"), wrapAsync(sendMessage));
-router.route("/message/:chatId").get(isLoggedIn, wrapAsync(allMessages));
-router.route("/search").get(isLoggedIn, wrapAsync(searchUsers));
-router.route("/message/edit").put(isLoggedIn, wrapAsync(editMessage));
-router.route("/message/delete").delete(isLoggedIn, wrapAsync(deleteMessage));
+// Chat routes
+router.post("/", isLoggedIn, wrapAsync(accessChat));
+router.get("/", isLoggedIn, wrapAsync(fetchChats));
+
+// Message routes
+router.post(
+  "/message",
+  isLoggedIn,
+  upload.single("media"),
+  wrapAsync(sendMessage)
+);
+router.get("/message/:chatId", isLoggedIn, wrapAsync(allMessages));
+router.delete("/message", isLoggedIn, wrapAsync(deleteMessage));
+
+// Search route
+router.get("/search", isLoggedIn, wrapAsync(searchUsers));
 
 export { router as chatRouter };

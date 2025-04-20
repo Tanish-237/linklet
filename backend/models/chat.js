@@ -8,7 +8,7 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: String,
-    required: function() {
+    required: function () {
       return !this.media;
     },
   },
@@ -20,7 +20,12 @@ const messageSchema = new mongoose.Schema({
     enum: ["image", "video", "document", null],
     default: null,
   },
-
+  readBy: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+  ],
   createdAt: {
     type: Date,
     default: Date.now,
@@ -36,20 +41,6 @@ const chatSchema = new mongoose.Schema(
         required: true,
       },
     ],
-    isGroup: {
-      type: Boolean,
-      default: false,
-    },
-    groupName: {
-      type: String,
-    },
-    groupAdmin: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    groupImage: {
-      type: String,
-    },
     messages: [messageSchema],
     lastMessage: {
       type: messageSchema,

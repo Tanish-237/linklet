@@ -242,6 +242,24 @@ const getCurrentUser = (req, res) => {
   res.status(200).json({ user: req.user });
 };
 
+const searchUsers = wrapAsync(async (req, res) => {
+  const { query } = req.query;
+
+  if (!query) {
+    throw new apiError(400, "Search query is required");
+  }
+
+  const users = await User.find({
+    $or: [
+      { username: { $regex: query, $options: "i" } },
+      { fullName: { $regex: query, $options: "i" } },
+      { email: { $regex: query, $options: "i" } },
+    ],
+  }).select("username fullName email avatar");
+
+  res.status(200).json(users);
+});
+
 export {
   registerUser,
   loginUser,
@@ -251,4 +269,5 @@ export {
   refreshAccessToken,
   getUser,
   getCurrentUser,
+  searchUsers,
 };

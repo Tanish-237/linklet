@@ -12,6 +12,7 @@ import {
   refreshAccessToken,
   getUser,
   getCurrentUser,
+  searchUsers,
 } from "../controllers/user-controller.js";
 import { isLoggedIn } from "../middlewares/isLoggedIn.js";
 
@@ -28,5 +29,7 @@ router
 router.route("/api/users/:id").get(isLoggedIn, wrapAsync(getUser)); // Get user information
 
 router.get("/api/getCurrUser", isLoggedIn, getCurrentUser);
+
+router.route("/api/user/search").get(isLoggedIn, wrapAsync(searchUsers));
 
 export { router };

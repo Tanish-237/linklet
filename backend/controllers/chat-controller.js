@@ -4,6 +4,7 @@ import { User } from "../models/users.js";
 import apiError from "../utils/apiError.js";
 import { v2 as cloudinary } from "cloudinary";
 import { io } from "../socket.js";
+import fs from "fs";
 
 // Create or fetch one-to-one chat
 export const accessChat = wrapAsync(async (req, res) => {
@@ -14,7 +15,6 @@ export const accessChat = wrapAsync(async (req, res) => {
   }
 
   let isChat = await Chat.findOne({
-    isGroup: false,
     participants: { $all: [req.user._id, userId] },
   })
     .populate("participants", "-password -refreshToken")
@@ -53,110 +53,13 @@ export const fetchChats = wrapAsync(async (req, res) => {
   return res.status(200).json(chats);
 });
 
-// Create new group chat
-export const createGroupChat = wrapAsync(async (req, res) => {
-  if (!req.body.users || !req.body.name) {
-    throw new apiError(400, "Please fill all the fields");
-  }
-
-  let users = JSON.parse(req.body.users);
-
-  if (users.length < 2) {
-    throw new apiError(
-      400,
-      "More than 2 users are required to form a group chat"
-    );
-  }
-
-  users.push(req.user._id);
-
-  let groupImage;
-  if (req.file) {
-    const result = await cloudinary.uploader.upload(req.file.path, {
-      folder: "group_images",
-    });
-    groupImage = result.secure_url;
-  }
-
-  const groupChat = await Chat.create({
-    participants: users,
-    isGroup: true,
-    groupName: req.body.name,
-    groupAdmin: req.user._id,
-    groupImage: groupImage || undefined,
-  });
-
-  const fullGroupChat = await Chat.findOne({ _id: groupChat._id })
-    .populate("participants", "-password -refreshToken")
-    .populate("groupAdmin", "-password -refreshToken");
-
-  res.status(200).json(fullGroupChat);
-});
-
-// Rename group
-export const renameGroup = wrapAsync(async (req, res) => {
-  const { chatId, groupName } = req.body;
-
-  const updatedChat = await Chat.findByIdAndUpdate(
-    chatId,
-    { groupName },
-    { new: true }
-  )
-    .populate("participants", "-password -refreshToken")
-    .populate("groupAdmin", "-password -refreshToken");
-
-  if (!updatedChat) {
-    throw new apiError(404, "Chat Not Found");
-  }
-
-  res.status(200).json(updatedChat);
-});
-
-// Add user to group
-export const addToGroup = wrapAsync(async (req, res) => {
-  const { chatId, userId } = req.body;
-
-  const added = await Chat.findByIdAndUpdate(
-    chatId,
-    { $push: { participants: userId } },
-    { new: true }
-  )
-    .populate("participants", "-password -refreshToken")
-    .populate("groupAdmin", "-password -refreshToken");
-
-  if (!added) {
-    throw new apiError(404, "Chat Not Found");
-  }
-
-  res.status(200).json(added);
-});
-
-// Remove user from group
-export const removeFromGroup = wrapAsync(async (req, res) => {
-  const { chatId, userId } = req.body;
-
-  const removed = await Chat.findByIdAndUpdate(
-    chatId,
-    { $pull: { participants: userId } },
-    { new: true }
-  )
-    .populate("participants", "-password -refreshToken")
-    .populate("groupAdmin", "-password -refreshToken");
-
-  if (!removed) {
-    throw new apiError(404, "Chat Not Found");
-  }
-
-  res.status(200).json(removed);
-});
-
 // Send message
 export const sendMessage = wrapAsync(async (req, res) => {
   console.log("Received message request:", {
     content: req.body.content,
     chatId: req.body.chatId,
     hasFile: !!req.file,
-    user: req.user?._id
+    user: req.user?._id,
   });
 
   const { content, chatId } = req.body;
@@ -179,15 +82,41 @@ export const sendMessage = wrapAsync(async (req, res) => {
 
   if (req.file) {
     try {
-      console.log("Uploading file:", req.file);
+      console.log("Uploading file:", {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+      });
+
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "chat_media",
+        resource_type: "auto", // Automatically detect resource type
       });
+
       mediaUrl = result.secure_url;
       mediaType = req.file.mimetype.split("/")[0];
       console.log("File uploaded successfully:", { mediaUrl, mediaType });
+
+      // Clean up the temporary file
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (error) {
+        console.error("Failed to delete temporary file:", error);
+      }
     } catch (error) {
       console.error("File upload error:", error);
+      // Clean up the temporary file in case of error
+      try {
+        if (req.file && req.file.path) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (unlinkError) {
+        console.error(
+          "Failed to delete temporary file after upload error:",
+          unlinkError
+        );
+      }
       throw new apiError(500, `Failed to upload media: ${error.message}`);
     }
   }
@@ -206,11 +135,14 @@ export const sendMessage = wrapAsync(async (req, res) => {
     // First verify the chat exists and user is a participant
     const chat = await Chat.findOne({
       _id: chatId,
-      participants: req.user._id
+      participants: req.user._id,
     });
 
     if (!chat) {
-      console.error("Chat not found or user not a participant:", { chatId, userId: req.user._id });
+      console.error("Chat not found or user not a participant:", {
+        chatId,
+        userId: req.user._id,
+      });
       throw new apiError(404, "Chat not found or you are not a participant");
     }
 
@@ -219,7 +151,7 @@ export const sendMessage = wrapAsync(async (req, res) => {
       chatId,
       {
         $push: { messages: newMessage },
-        $set: { lastMessage: newMessage }
+        $set: { lastMessage: newMessage },
       },
       { new: true }
     )
@@ -234,7 +166,7 @@ export const sendMessage = wrapAsync(async (req, res) => {
 
     console.log("Message saved successfully");
     const latestMessage = message.messages[message.messages.length - 1];
-    
+
     // Emit the message to all participants in the chat
     if (io) {
       io.to(chatId).emit("message received", latestMessage);
@@ -285,8 +217,6 @@ export const searchUsers = wrapAsync(async (req, res) => {
   res.status(200).json(users);
 });
 
-
-
 export const editMessage = wrapAsync(async (req, res) => {
   const { chatId, messageId, content } = req.body;
 
@@ -297,7 +227,7 @@ export const editMessage = wrapAsync(async (req, res) => {
   // Find the chat and message
   const chat = await Chat.findOne({
     _id: chatId,
-    "messages._id": messageId
+    "messages._id": messageId,
   }).populate("messages.sender", "username avatar email");
 
   if (!chat) {
@@ -305,7 +235,7 @@ export const editMessage = wrapAsync(async (req, res) => {
   }
 
   // Find the specific message
-  const message = chat.messages.find(msg => msg._id.toString() === messageId);
+  const message = chat.messages.find((msg) => msg._id.toString() === messageId);
   if (!message) {
     throw new apiError(404, "Message not found");
   }
@@ -319,13 +249,13 @@ export const editMessage = wrapAsync(async (req, res) => {
   const updatedChat = await Chat.findOneAndUpdate(
     {
       _id: chatId,
-      "messages._id": messageId
+      "messages._id": messageId,
     },
     {
       $set: {
         "messages.$.content": content,
-        "messages.$.updatedAt": new Date()
-      }
+        "messages.$.updatedAt": new Date(),
+      },
     },
     { new: true }
   ).populate("messages.sender", "username avatar email");
@@ -335,7 +265,9 @@ export const editMessage = wrapAsync(async (req, res) => {
   }
 
   // Find the updated message
-  const updatedMessage = updatedChat.messages.find(msg => msg._id.toString() === messageId);
+  const updatedMessage = updatedChat.messages.find(
+    (msg) => msg._id.toString() === messageId
+  );
 
   // Format the message for socket emission
   const formattedMessage = {
@@ -344,14 +276,14 @@ export const editMessage = wrapAsync(async (req, res) => {
       _id: updatedMessage.sender._id,
       username: updatedMessage.sender.username,
       email: updatedMessage.sender.email,
-      avatar: updatedMessage.sender.avatar
+      avatar: updatedMessage.sender.avatar,
     },
     content: updatedMessage.content,
     media: updatedMessage.media,
     mediaType: updatedMessage.mediaType,
     readBy: updatedMessage.readBy,
     createdAt: updatedMessage.createdAt,
-    updatedAt: updatedMessage.updatedAt
+    updatedAt: updatedMessage.updatedAt,
   };
 
   // Emit the updated message to all participants
@@ -369,20 +301,46 @@ export const deleteMessage = wrapAsync(async (req, res) => {
     throw new apiError(400, "Chat ID and Message ID are required");
   }
 
+  // First find the message to get the media URL if it exists
+  const chat = await Chat.findOne({
+    _id: chatId,
+    "messages._id": messageId,
+  });
+
+  if (!chat) {
+    throw new apiError(404, "Message not found");
+  }
+
+  const message = chat.messages.find((msg) => msg._id.toString() === messageId);
+
+  // If message has media, delete it from Cloudinary
+  if (message && message.media) {
+    try {
+      const publicId = message.media.split("/").pop().split(".")[0];
+      await cloudinary.uploader.destroy(`chat_media/${publicId}`);
+    } catch (error) {
+      console.error("Error deleting media from Cloudinary:", error);
+    }
+  }
+
+  // Delete the message from the chat
   const updatedChat = await Chat.findOneAndUpdate(
     {
       _id: chatId,
       "messages._id": messageId,
-      "messages.sender": req.user._id // Only allow sender to delete
+      "messages.sender": req.user._id, // Only allow sender to delete
     },
     {
-      $pull: { messages: { _id: messageId } }
+      $pull: { messages: { _id: messageId } },
     },
     { new: true }
   );
 
   if (!updatedChat) {
-    throw new apiError(404, "Message not found or you don't have permission to delete");
+    throw new apiError(
+      404,
+      "Message not found or you don't have permission to delete"
+    );
   }
 
   // Emit the deleted message ID to all participants
