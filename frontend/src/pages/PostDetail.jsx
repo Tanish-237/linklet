@@ -245,11 +245,11 @@ const PostDetail = () => {
       {/* Semi-transparent backdrop that keeps home page visible */}
       <div className="absolute inset-0 bg-black/75 backdrop-blur-sm transition-opacity duration-300" />
 
-      {/* Compact Modal Container */}
+      {/* Larger Modal Container */}
       <div
         ref={modalRef}
         className={`
-          w-full max-w-4xl max-h-[80vh] mx-4
+          w-full max-w-6xl max-h-[90vh] mx-4
           bg-gradient-to-br from-gray-900/95 via-gray-900/98 to-black/95
           backdrop-blur-xl
           rounded-2xl
@@ -261,154 +261,135 @@ const PostDetail = () => {
         `}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Enhanced Header */}
-        <div className="relative px-6 py-4 border-b border-violet-500/20 bg-black/40 backdrop-blur-md">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="relative group">
+        {/* Content layout with user info, date, and caption repositioned */}
+        <div className="flex flex-col md:flex-row h-[90vh]">
+          {/* Left side: Image with user info overlay */}
+          <div className="md:w-3/5 bg-black/50 relative group flex items-center justify-center">
+            {/* User info at top-left of image */}
+            <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10">
+              <div className="flex items-center gap-3">
                 <img
                   src={post.userId?.avatar || defaultAvatar}
                   alt={post.userId?.username}
-                  className="w-12 h-12 rounded-full border-2 border-violet-500/30 object-cover group-hover:border-violet-500/60 transition-all duration-300"
+                  className="w-14 h-14 rounded-full border-2 border-violet-500/50 object-cover shadow-lg"
                 />
-                <div className="absolute inset-0 rounded-full bg-violet-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-violet-300 hover:text-violet-200 transition-colors cursor-pointer">
-                  {post.userId?.username || "Anonymous"}
-                </h3>
-                <div className="flex items-center gap-2 text-sm text-gray-400">
-                  <span className="material-icons text-base">schedule</span>
-                  {formatDate(post.createdAt)}
+                <div>
+                  <h3 className="font-semibold text-xl text-white hover:text-violet-200 transition-colors cursor-pointer">
+                    {post.userId?.username || "Anonymous"}
+                  </h3>
+                  <div className="text-sm text-gray-300">
+                    {formatDate(post.createdAt)}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Enhanced Action Buttons */}
-            <div className="flex items-center gap-2">
+            {/* Post image */}
+            <img
+              src={post.image}
+              alt={post.caption}
+              className="max-h-full max-w-full object-contain transition-transform duration-300"
+            />
+
+            {/* Action buttons on image */}
+            <div className="absolute bottom-4 left-4 flex items-center gap-4">
+              <button
+                onClick={handleUpvote}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm transition-all duration-300 ${
+                  post.upvotes?.includes(user?.id)
+                    ? "bg-pink-500/30 text-white"
+                    : "bg-black/40 text-gray-300 hover:bg-pink-500/20"
+                } border border-violet-500/30`}
+              >
+                <span className="material-icons text-xl transform transition-transform">
+                  {post.upvotes?.includes(user?.id)
+                    ? "favorite"
+                    : "favorite_border"}
+                </span>
+                <span>{post.upvotes?.length || 0}</span>
+              </button>
+              
               <button
                 onClick={handleBookmark}
-                className="p-2 hover:bg-violet-500/20 rounded-full transition-all duration-300 group tooltip-wrapper"
+                className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm transition-all duration-300 ${
+                  isBookmarked
+                    ? "bg-violet-500/30 text-white"
+                    : "bg-black/40 text-gray-300 hover:bg-violet-500/20"
+                } border border-violet-500/30`}
               >
-                <span
-                  className={`material-icons ${
-                    isBookmarked
-                      ? "text-violet-400"
-                      : "text-gray-400 group-hover:text-violet-400"
-                  }`}
-                >
+                <span className="material-icons text-xl">
                   {isBookmarked ? "bookmark" : "bookmark_border"}
                 </span>
-                <span className="tooltip">
-                  {isBookmarked ? "Remove Bookmark" : "Add Bookmark"}
-                </span>
-              </button>
-
-              {/* Share Menu with Enhanced UI */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowShareMenu(!showShareMenu)}
-                  className="p-2 hover:bg-violet-500/20 rounded-full transition-all duration-300 group"
-                >
-                  <span className="material-icons text-gray-400 group-hover:text-violet-400">
-                    share
-                  </span>
-                </button>
-
-                {/* Share menu with glass effect */}
-                {showShareMenu && (
-                  <div className="absolute right-0 mt-2 w-56 py-2 bg-gray-900/95 backdrop-blur-xl rounded-xl border border-violet-500/30 shadow-xl z-10 transform origin-top-right transition-all duration-300">
-                    <div className="p-2">
-                      <button
-                        onClick={() => handleShare("twitter")}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-500/20 rounded-lg transition-colors"
-                      >
-                        <span className="material-icons">twitter</span>
-                        Share on Twitter
-                      </button>
-                      <button
-                        onClick={() => handleShare("linkedin")}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-500/20 rounded-lg transition-colors"
-                      >
-                        <span className="material-icons">linkedin</span>
-                        Share on LinkedIn
-                      </button>
-                      <button
-                        onClick={() => handleShare("copy")}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-500/20 rounded-lg transition-colors"
-                      >
-                        <span className="material-icons">content_copy</span>
-                        Copy Link
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <button
-                onClick={closeModal}
-                className="p-2 hover:bg-red-500/20 rounded-full transition-all duration-300 group tooltip-wrapper"
-              >
-                <span className="material-icons text-gray-400 group-hover:text-red-400">
-                  close
-                </span>
-                <span className="tooltip">Close</span>
               </button>
             </div>
           </div>
-        </div>
 
-        {/* Refined Content Layout */}
-        <div className="flex flex-col md:flex-row h-[calc(80vh-80px)]">
-          {post.image && (
-            <div className="md:w-3/5 bg-black/50 flex items-center justify-center border-r border-violet-500/10 relative group">
-              <img
-                src={post.image}
-                alt={post.caption}
-                className="max-h-full max-w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
-              />
-              {/* Image overlay with actions */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-center p-4">
-                <button className="px-4 py-2 bg-violet-600/80 hover:bg-violet-600 text-white rounded-lg backdrop-blur-sm transition-all duration-300">
-                  View Full Image
-                </button>
+          {/* Right side: Caption and comments */}
+          <div className="md:w-2/5 flex flex-col bg-gray-900/50 h-full">
+            {/* Right side header with actions */}
+            <div className="relative px-6 py-4 border-b border-violet-500/20 bg-black/40 backdrop-blur-md">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-violet-300">Post Details</h2>
+                <div className="flex items-center gap-2">
+                  {/* Share button */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowShareMenu(!showShareMenu)}
+                      className="p-2 hover:bg-violet-500/20 rounded-full transition-all duration-300 group"
+                    >
+                      <span className="material-icons text-gray-400 group-hover:text-violet-400">
+                        share
+                      </span>
+                    </button>
+
+                    {/* Share menu with glass effect */}
+                    {showShareMenu && (
+                      <div className="absolute right-0 mt-2 w-56 py-2 bg-gray-900/95 backdrop-blur-xl rounded-xl border border-violet-500/30 shadow-xl z-10 transform origin-top-right transition-all duration-300">
+                        <div className="p-2">
+                          <button
+                            onClick={() => handleShare("twitter")}
+                            className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-500/20 rounded-lg transition-colors"
+                          >
+                            <span className="material-icons">twitter</span>
+                            Share on Twitter
+                          </button>
+                          <button
+                            onClick={() => handleShare("linkedin")}
+                            className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-500/20 rounded-lg transition-colors"
+                          >
+                            <span className="material-icons">linkedin</span>
+                            Share on LinkedIn
+                          </button>
+                          <button
+                            onClick={() => handleShare("copy")}
+                            className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-500/20 rounded-lg transition-colors"
+                          >
+                            <span className="material-icons">content_copy</span>
+                            Copy Link
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Close button */}
+                  <button
+                    onClick={closeModal}
+                    className="p-2 hover:bg-red-500/20 rounded-full transition-all duration-300 group"
+                  >
+                    <span className="material-icons text-gray-400 group-hover:text-red-400">
+                      close
+                    </span>
+                  </button>
+                </div>
               </div>
             </div>
-          )}
 
-          <div
-            className={`${
-              post.image ? "md:w-2/5" : "w-full"
-            } flex flex-col bg-gray-900/50`}
-          >
-            {/* Enhanced Post Content */}
+            {/* Caption section */}
             <div className="p-6 border-b border-violet-500/10">
               <p className="text-gray-200 text-lg leading-relaxed whitespace-pre-wrap">
                 {post.caption}
               </p>
-
-              {/* Enhanced Interaction Buttons */}
-              <div className="flex items-center gap-6 mt-6 pt-4 border-t border-violet-500/10">
-                <button
-                  onClick={handleUpvote}
-                  className={`flex items-center gap-2 transition-all duration-300 ${
-                    post.upvotes?.includes(user?.id)
-                      ? "text-pink-500"
-                      : "text-gray-400 hover:text-pink-400"
-                  }`}
-                >
-                  <span className="material-icons text-xl transform hover:scale-110 transition-transform">
-                    {post.upvotes?.includes(user?.id)
-                      ? "favorite"
-                      : "favorite_border"}
-                  </span>
-                  <span>{post.upvotes?.length || 0}</span>
-                </button>
-                <button className="flex items-center gap-2 text-gray-400">
-                  <span className="material-icons">chat_bubble_outline</span>
-                  <span>{post.comments?.length || 0}</span>
-                </button>
-              </div>
             </div>
 
             {/* Comments Section with Enhanced Scrollbar */}
@@ -470,7 +451,6 @@ const PostDetail = () => {
                     alt={user?.username || "Your avatar"}
                     className="w-8 h-8 rounded-full border border-violet-500/30 object-cover group-hover:border-violet-500/60 transition-all duration-300"
                   />
-                  <div className="absolute inset-0 rounded-full bg-violet-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 </div>
                 <textarea
                   rows="1"

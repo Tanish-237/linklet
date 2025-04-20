@@ -12,6 +12,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Posts from "./pages/Posts";
 import PostDetail from "./pages/PostDetail";
+import CreatePost from "./pages/CreatePost";
 import Resource from "./pages/Resource";
 import { Navbar } from "./components/Navbar";
 import { ToastContainer } from "react-toastify";
@@ -126,6 +127,19 @@ function App() {
                   <Navbar />
                   <PostDetail />
                 </>
+              }
+            />
+            <Route
+              path="/create-post"
+              element={
+                user ? (
+                  <>
+                    <Navbar />
+                    <CreatePost />
+                  </>
+                ) : (
+                  <Navigate to="/login" replace />
+                )
               }
             />
             <Route
