@@ -1,27 +1,92 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import { toast } from "react-toastify";
-import { useEffect, useState } from "react";
 import styled from "styled-components";
 
 const Nav = styled.nav`
   background-color: #111111;
-  padding: 15px;
+  padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
 `;
 
 const NavLinks = styled.div`
-  a {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  
+  a, button {
     color: #f5f5f5;
-    margin: 0 15px;
-    font-size: 18px;
-    transition: color 0.3s ease;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+
     &:hover {
-      color: #1db954;
+      color: #8B5CF6;
+      background: rgba(139, 92, 246, 0.1);
+    }
+  }
+`;
+
+const ProfileContainer = styled.div`
+  position: relative;
+`;
+
+const ProfileButton = styled.button`
+  display: flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0.25rem;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+
+  &:hover {
+    background: rgba(139, 92, 246, 0.1);
+  }
+
+  img {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 9999px;
+    border: 2px solid #8B5CF6;
+  }
+`;
+
+const DropdownMenu = styled.div`
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: #1a1a1a;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  min-width: 12rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  
+  button {
+    width: 100%;
+    text-align: left;
+    padding: 0.75rem 1rem;
+    color: #f5f5f5;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    border-radius: 0.5rem;
+
+    &:hover {
+      background: rgba(139, 92, 246, 0.1);
+      color: #8B5CF6;
     }
   }
 `;
@@ -29,37 +94,65 @@ const NavLinks = styled.div`
 export const Navbar = () => {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
       await axios.post(
         "http://localhost:5000/api/logout",
         {},
-        {
-          withCredentials: true,
-        }
+        { withCredentials: true }
       );
-      toast.success("Logged out");
+      toast.success("Logged out successfully");
       setUser(null);
       navigate("/");
-    } catch {
-      toast.error("Logout failed");
+    } catch (error) {
+      toast.error("Failed to logout");
     }
   };
 
   return (
     <Nav>
-      <h2>Linklet</h2>
+      <Link to={user ? "/home" : "/"} style={{ textDecoration: 'none' }}>
+        <h2 style={{ color: '#f5f5f5', fontSize: '1.5rem', fontWeight: 'bold' }}>Linklet</h2>
+      </Link>
+      
       <NavLinks>
-        <Link to="/">Home</Link>
-        <Link to="/posts">Feed</Link>
-        {!user ? (
+        {user ? (
+          <>
+            <Link to="/posts">Feed</Link>
+            <Link to="/dashboard">Dashboard</Link>
+            <ProfileContainer>
+              <ProfileButton onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+                <img 
+                  src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"} 
+                  alt={user.username} 
+                />
+              </ProfileButton>
+              
+              {isDropdownOpen && (
+                <DropdownMenu>
+                  <button onClick={() => navigate('/profile')}>
+                    <span className="material-icons">person</span>
+                    Profile
+                  </button>
+                  <button onClick={() => navigate('/settings')}>
+                    <span className="material-icons">settings</span>
+                    Settings
+                  </button>
+                  <button onClick={handleLogout}>
+                    <span className="material-icons">logout</span>
+                    Logout
+                  </button>
+                </DropdownMenu>
+              )}
+            </ProfileContainer>
+          </>
+        ) : (
           <>
             <Link to="/login">Login</Link>
             <Link to="/register">Sign Up</Link>
           </>
-        ) : (
-          <button onClick={handleLogout}>Logout</button>
         )}
       </NavLinks>
     </Nav>
