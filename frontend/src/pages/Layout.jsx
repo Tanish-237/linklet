@@ -66,7 +66,10 @@ export default function Layout({ children }) {
     <div className="fixed inset-0 flex overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
       {/* Sidebar */}
       <aside className="w-72 bg-black/50 backdrop-blur-md text-gray-300 flex flex-col border-r border-gray-800">
-        <div className="h-[73px] flex items-center justify-center gap-3 border-b border-gray-800 bg-black/50 backdrop-blur-md">
+        <div 
+          className="h-[73px] flex items-center justify-center gap-3 border-b border-gray-800 bg-black/50 backdrop-blur-md cursor-pointer hover:bg-violet-900/10 transition-all"
+          onClick={() => navigate('/home')}
+        >
           <img src={linkletLogo} alt="Linklet Logo" className="h-10 w-10 rounded-full object-cover" />
           <h1 className="text-3xl font-extrabold tracking-wide">
             Linklet
