@@ -16,6 +16,11 @@ const answerSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    attachment: {
+      url: String,
+      filename: String,
+      contentType: String,
+    },
     upvotes: [
       {
         type: mongoose.Schema.Types.ObjectId,
@@ -28,7 +33,13 @@ const answerSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    isAccepted: { // Optional: Mark if the question author accepted this answer
+    comments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Comment",
+      },
+    ],
+    isAccepted: {
       type: Boolean,
       default: false,
     },

@@ -1,7 +1,13 @@
 import React from "react";
+import Layout from "./Layout";
+import Posts from "./Posts";
 
 const Home = () => {
-  return <div></div>;
+  return (
+    <Layout>
+      <Posts />
+    </Layout>
+  );
 };
 
 export default Home;

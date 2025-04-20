@@ -12,28 +12,18 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter function to allow specific media types
+// File filter function to only allow specific document types
 const fileFilter = (req, file, cb) => {
   // Define the allowed file types
   const allowedFileTypes = [
-    // Images
-    "image/jpeg",
-    "image/png",
-    "image/gif",
-    "image/webp",
-    // Videos
-    "video/mp4",
-    "video/webm",
-    "video/quicktime",
-    // Documents
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "text/plain",
+    "application/pdf", // PDF
+    "application/msword", // DOC
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document", // DOCX
+    "application/vnd.ms-powerpoint", // PPT
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation", // PPTX
+    "application/vnd.ms-excel", // XLS
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
+    "text/plain", // TXT
   ];
 
   if (allowedFileTypes.includes(file.mimetype)) {
@@ -41,7 +31,7 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new Error(
-        "Unsupported file type. Only images, videos, and documents are allowed."
+        "Unsupported file type. Only PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, and TXT are allowed."
       ),
       false
     );
@@ -50,38 +40,15 @@ const fileFilter = (req, file, cb) => {
 
 export const upload = multer({
   storage: storage,
-  fileFilter: fileFilter,
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB file size limit
+    fileSize: 10 * 1024 * 1024, // 10MB file size limit
   },
 });
 
 // Special upload middleware for document files
 export const documentUploadMiddleware = multer({
   storage: storage,
-  fileFilter: (req, file, cb) => {
-    const allowedFileTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.ms-powerpoint",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.ms-excel",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "text/plain",
-    ];
-
-    if (allowedFileTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(
-        new Error(
-          "Unsupported file type. Only PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, and TXT are allowed."
-        ),
-        false
-      );
-    }
-  },
+  fileFilter: fileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB file size limit
   },

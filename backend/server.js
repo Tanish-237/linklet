@@ -2,12 +2,12 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
-import { router as userRouter } from "./router/user-routes.js";
-import { router as postRouter } from "./router/post-routes.js";
 import { router as resourceRouter } from "./router/resource-routes.js";
-import { questionRouter } from "./router/question-routes.js";
+import { router as questionRouter } from "./router/question-routes.js";
+import { router as answerRouter } from "./router/answer-routes.js";
 import { connectDb } from "./utils/db.js";
-import { errorHandler } from "./middlewares/errorHandler.js";
+import { User } from "./models/users.js";
+import { errorHandler } from "./utils/errorHandler.js";
 import { initializeSocket } from "./socket.js";
 import { chatRouter } from "./router/chat-routes.js";
 import fs from "fs";
@@ -38,10 +38,12 @@ app.use(cookieParser());
 app.use("/", userRouter);
 app.use("/", postRouter);
 app.use("/", resourceRouter);
+app.use("/", questionRouter);
+app.use("/", answerRouter);
+app.use("/", resourceRouter);
 app.use("/api/questions", questionRouter);
 app.use("/api/chat", chatRouter);
 
-// 404 handler
 app.use((req, res, next) => {
   const error = new Error("Not Found");
   error.status = 404;
