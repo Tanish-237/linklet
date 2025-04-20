@@ -37,9 +37,7 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
       // Update chat list with new message
       setChats((prevChats) =>
         prevChats.map((chat) =>
-          chat._id === message.chatId
-            ? { ...chat, lastMessage: message }
-            : chat
+          chat._id === message.chatId ? { ...chat, lastMessage: message } : chat
         )
       );
     };
@@ -94,12 +92,6 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
 
   return (
     <div className="w-80 h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white p-6 overflow-y-auto border-r border-purple-500/10">
-      <button
-        onClick={() => navigate("/chat/new-group")}
-        className="w-full p-3 mb-6 bg-purple-500/20 text-white rounded-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30 hover:scale-105"
-      >
-        New Group
-      </button>
       <input
         type="text"
         placeholder="Search users..."
@@ -117,13 +109,18 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
               className="flex items-center p-3 rounded-lg cursor-pointer hover:bg-purple-500/20 transition-colors border border-purple-500/10 hover:scale-105"
             >
               <img
-                src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+                src={
+                  user.avatar ||
+                  "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+                }
                 alt={user.username}
                 className="w-10 h-10 rounded-full border border-purple-500/10"
               />
               <div className="ml-3 flex-1">
                 <div className="font-bold text-purple-500">{user.username}</div>
-                <div className="text-sm text-gray-400 truncate">{user.fullName}</div>
+                <div className="text-sm text-gray-400 truncate">
+                  {user.fullName}
+                </div>
               </div>
             </div>
           ))}
@@ -144,8 +141,10 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
             <img
               src={
                 chat.isGroup
-                  ? chat.groupImage || "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
-                  : chat.participants.find((p) => p._id !== user?._id)?.avatar ||
+                  ? chat.groupImage ||
+                    "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
+                  : chat.participants.find((p) => p._id !== user?._id)
+                      ?.avatar ||
                     "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
               }
               alt={chat.isGroup ? chat.groupName : "User"}
@@ -155,7 +154,8 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
               <div className="font-bold text-purple-500">
                 {chat.isGroup
                   ? chat.groupName
-                  : chat.participants.find((p) => p._id !== user?._id)?.username}
+                  : chat.participants.find((p) => p._id !== user?._id)
+                      ?.username}
               </div>
               {/* <div className="text-sm text-gray-400 truncate">
                 {chat.lastMessage

@@ -3,113 +3,8 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
-<<<<<<< HEAD
-
-const PostsContainer = styled.div`
-  max-width: 800px;
-  margin: 50px auto;
-  padding: 0 20px;
-`;
-
-const PostCard = styled.div`
-  background-color: #fff;
-  border: 1px solid #e1e1e1;
-  padding: 20px;
-  margin-bottom: 25px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s;
-
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  }
-`;
-
-const UserInfo = styled.div`
-  display: flex;
-  align-items: center;
-  margin-bottom: 15px;
-
-  img {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    margin-right: 10px;
-    object-fit: cover;
-  }
-
-  span {
-    font-weight: 600;
-  }
-`;
-
-const PostImage = styled.img`
-  width: 100%;
-  max-height: 500px;
-  object-fit: contain;
-  border-radius: 4px;
-  margin: 10px 0;
-  cursor: pointer;
-`;
-
-const PostActions = styled.div`
-  display: flex;
-  align-items: center;
-  margin-top: 15px;
-  gap: 15px;
-
-  button {
-    background: none;
-    border: none;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 14px;
-
-    &:hover {
-      opacity: 0.8;
-    }
-  }
-`;
-
-const Pagination = styled.div`
-  display: flex;
-  justify-content: center;
-  margin-top: 30px;
-  gap: 10px;
-
-  button {
-    padding: 8px 15px;
-    border: 1px solid #ddd;
-    background: #fff;
-    cursor: pointer;
-    border-radius: 4px;
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    &.active {
-      background: #007bff;
-      color: white;
-      border-color: #007bff;
-    }
-  }
-`;
-
-const Loading = styled.div`
-  text-align: center;
-  padding: 40px;
-  font-size: 18px;
-  color: #666;
-`;
-=======
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.png";
->>>>>>> main
 
 const Posts = () => {
   const [posts, setPosts] = useState([]);
@@ -173,13 +68,13 @@ const Posts = () => {
   const openPostDetail = (post) => {
     setSelectedPost(post);
     setShowPostModal(true);
-    document.body.style.overflow = 'hidden';
+    document.body.style.overflow = "hidden";
   };
 
   const closePostDetail = () => {
     setShowPostModal(false);
     setSelectedPost(null);
-    document.body.style.overflow = 'auto';
+    document.body.style.overflow = "auto";
   };
 
   return (
@@ -192,8 +87,8 @@ const Posts = () => {
             alt={user?.username || "Your profile"}
             className="w-12 h-12 rounded-full border border-violet-500/30"
           />
-          <div 
-            onClick={() => navigate('/create-post')}
+          <div
+            onClick={() => navigate("/create-post")}
             className="flex-1 px-4 py-3 bg-gray-900/50 text-gray-400 rounded-lg border border-violet-500/20 hover:border-violet-500/40 cursor-pointer transition-all"
           >
             Share something with the community...
@@ -211,7 +106,7 @@ const Posts = () => {
             </button>
           </div>
           <button
-            onClick={() => navigate('/create-post')}
+            onClick={() => navigate("/create-post")}
             className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-violet-900/20"
           >
             <span className="material-icons">edit</span>
@@ -229,12 +124,18 @@ const Posts = () => {
       ) : posts.length === 0 ? (
         <div className="text-center py-20 px-4 bg-gray-800/30 backdrop-blur-md rounded-xl border border-violet-500/20 shadow-inner">
           <div className="inline-flex justify-center items-center w-20 h-20 bg-violet-900/20 rounded-full mb-6">
-            <span className="material-icons text-4xl text-violet-400">post_add</span>
+            <span className="material-icons text-4xl text-violet-400">
+              post_add
+            </span>
           </div>
-          <h3 className="text-xl font-semibold text-violet-300 mb-2">No posts yet</h3>
-          <p className="text-gray-400 max-w-md mx-auto mb-6">Be the first to share something with the community!</p>
+          <h3 className="text-xl font-semibold text-violet-300 mb-2">
+            No posts yet
+          </h3>
+          <p className="text-gray-400 max-w-md mx-auto mb-6">
+            Be the first to share something with the community!
+          </p>
           <button
-            onClick={() => navigate('/create-post')}
+            onClick={() => navigate("/create-post")}
             className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors inline-flex items-center gap-2"
           >
             <span className="material-icons">add</span>
@@ -262,13 +163,13 @@ const Posts = () => {
                   <div className="text-sm text-gray-400 flex items-center gap-1">
                     <span className="material-icons text-xs">schedule</span>
                     {new Date(post.createdAt).toLocaleDateString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
                     })}
                   </div>
                 </div>
-                
+
                 {/* Post Menu */}
                 <button className="ml-auto p-2 text-gray-400 hover:text-violet-400 hover:bg-violet-500/10 rounded-full transition-all">
                   <span className="material-icons">more_horiz</span>
@@ -277,12 +178,14 @@ const Posts = () => {
 
               {/* Post Caption */}
               <div className="px-5 pb-4">
-                <p className="text-gray-200 whitespace-pre-line">{post.caption}</p>
+                <p className="text-gray-200 whitespace-pre-line">
+                  {post.caption}
+                </p>
               </div>
 
               {/* Post Image */}
               {post.image && (
-                <div 
+                <div
                   className="cursor-pointer relative group"
                   onClick={() => openPostDetail(post)}
                 >
@@ -295,21 +198,14 @@ const Posts = () => {
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
                     <div className="p-5 w-full">
-                      <p className="text-white text-sm font-medium line-clamp-2">{post.caption}</p>
+                      <p className="text-white text-sm font-medium line-clamp-2">
+                        {post.caption}
+                      </p>
                     </div>
                   </div>
                 </div>
               )}
 
-<<<<<<< HEAD
-              <PostActions>
-                <button onClick={(e) => handleUpvote(post._id, e)}>
-                  👍 {post.upvotes?.length || 0} Upvotes
-                </button>
-                <button>💬 {post.comments?.length || 0} Comments</button>
-              </PostActions>
-            </PostCard>
-=======
               {/* Post Footer with interactions */}
               <div className="p-4 border-t border-violet-500/10 bg-gray-900/20">
                 <div className="flex items-center gap-6 text-gray-300">
@@ -320,22 +216,32 @@ const Posts = () => {
                     }}
                     className="flex items-center gap-2 hover:text-violet-400 transition-colors group"
                   >
-                    <span className={`material-icons text-xl ${post.upvotes?.includes(user?.id) ? 'text-pink-500' : ''} group-hover:scale-110 transition-transform`}>
-                      {post.upvotes?.includes(user?.id) ? 'favorite' : 'favorite_border'}
+                    <span
+                      className={`material-icons text-xl ${
+                        post.upvotes?.includes(user?.id) ? "text-pink-500" : ""
+                      } group-hover:scale-110 transition-transform`}
+                    >
+                      {post.upvotes?.includes(user?.id)
+                        ? "favorite"
+                        : "favorite_border"}
                     </span>
                     <span>{post.upvotes?.length || 0}</span>
                   </button>
-                  <button 
+                  <button
                     className="flex items-center gap-2 hover:text-violet-400 transition-colors group"
                     onClick={() => openPostDetail(post)}
                   >
-                    <span className="material-icons text-xl group-hover:scale-110 transition-transform">chat_bubble_outline</span>
+                    <span className="material-icons text-xl group-hover:scale-110 transition-transform">
+                      chat_bubble_outline
+                    </span>
                     <span>{post.comments?.length || 0}</span>
                   </button>
                   <button className="flex items-center gap-2 hover:text-violet-400 transition-colors group">
-                    <span className="material-icons text-xl group-hover:scale-110 transition-transform">share</span>
+                    <span className="material-icons text-xl group-hover:scale-110 transition-transform">
+                      share
+                    </span>
                   </button>
-                  <button 
+                  <button
                     onClick={() => openPostDetail(post)}
                     className="ml-auto text-violet-400 hover:text-violet-300 transition-colors"
                   >
@@ -346,17 +252,20 @@ const Posts = () => {
 
               {/* Achievement Section (for certain posts) */}
               {post.caption?.toLowerCase().includes("certificate") ||
-               post.caption?.toLowerCase().includes("achievement") ||
-               post.caption?.toLowerCase().includes("award") ? (
+              post.caption?.toLowerCase().includes("achievement") ||
+              post.caption?.toLowerCase().includes("award") ? (
                 <div className="p-4 bg-gradient-to-r from-violet-900/20 to-indigo-900/20 border-t border-violet-500/20">
                   <div className="flex items-center gap-2">
-                    <span className="material-icons text-yellow-400">workspace_premium</span>
-                    <span className="text-violet-300 font-medium">Achievement Unlocked</span>
+                    <span className="material-icons text-yellow-400">
+                      workspace_premium
+                    </span>
+                    <span className="text-violet-300 font-medium">
+                      Achievement Unlocked
+                    </span>
                   </div>
                 </div>
-               ) : null}
+              ) : null}
             </div>
->>>>>>> main
           ))}
         </div>
       )}
@@ -372,7 +281,7 @@ const Posts = () => {
             >
               <span className="material-icons">chevron_left</span>
             </button>
-            
+
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum = i + 1;
               if (totalPages > 5) {
@@ -388,15 +297,15 @@ const Posts = () => {
                   onClick={() => handlePageChange(pageNum)}
                   className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${
                     currentPage === pageNum
-                      ? 'bg-violet-600 text-white font-medium'
-                      : 'text-gray-400 hover:text-violet-400 hover:bg-violet-500/10'
+                      ? "bg-violet-600 text-white font-medium"
+                      : "text-gray-400 hover:text-violet-400 hover:bg-violet-500/10"
                   }`}
                 >
                   {pageNum}
                 </button>
               );
             })}
-            
+
             <button
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages}
@@ -412,11 +321,11 @@ const Posts = () => {
       {showPostModal && selectedPost && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           {/* Modal Backdrop with blur */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/80 backdrop-blur-sm"
             onClick={closePostDetail}
           ></div>
-          
+
           {/* Modal Content */}
           <div className="relative w-full max-w-5xl max-h-[90vh] bg-gradient-to-b from-gray-900/95 to-black/95 backdrop-blur-xl rounded-xl border border-violet-500/20 shadow-2xl shadow-violet-900/20 overflow-hidden flex flex-col md:flex-row">
             {/* Close Button */}
@@ -426,20 +335,24 @@ const Posts = () => {
             >
               <span className="material-icons">close</span>
             </button>
-            
+
             {/* Image Section */}
             {selectedPost.image && (
               <div className="md:w-3/5 bg-black flex items-center justify-center max-h-[60vh] md:max-h-[90vh]">
-                <img 
-                  src={selectedPost.image} 
+                <img
+                  src={selectedPost.image}
                   alt={selectedPost.caption}
-                  className="w-full h-full object-contain" 
+                  className="w-full h-full object-contain"
                 />
               </div>
             )}
-            
+
             {/* Content Section */}
-            <div className={`${selectedPost.image ? 'md:w-2/5' : 'w-full'} flex flex-col max-h-[90vh] overflow-hidden`}>
+            <div
+              className={`${
+                selectedPost.image ? "md:w-2/5" : "w-full"
+              } flex flex-col max-h-[90vh] overflow-hidden`}
+            >
               {/* Post Header */}
               <div className="p-5 border-b border-violet-500/20 bg-black/40 backdrop-blur-md">
                 <div className="flex items-center gap-3">
@@ -453,22 +366,27 @@ const Posts = () => {
                       {selectedPost.userId?.username || "Anonymous"}
                     </h3>
                     <div className="text-sm text-gray-400">
-                      {new Date(selectedPost.createdAt).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {new Date(selectedPost.createdAt).toLocaleDateString(
+                        undefined,
+                        {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
-              
+
               {/* Post Content */}
               <div className="p-5 border-b border-violet-500/20">
-                <p className="text-gray-200 whitespace-pre-line">{selectedPost.caption}</p>
-                
+                <p className="text-gray-200 whitespace-pre-line">
+                  {selectedPost.caption}
+                </p>
+
                 {/* Post Actions */}
                 <div className="flex items-center gap-6 mt-6 pt-4 border-t border-violet-500/10">
                   <button
@@ -483,7 +401,9 @@ const Posts = () => {
                     } transition-colors`}
                   >
                     <span className="material-icons">
-                      {selectedPost.upvotes?.includes(user?.id) ? "favorite" : "favorite_border"}
+                      {selectedPost.upvotes?.includes(user?.id)
+                        ? "favorite"
+                        : "favorite_border"}
                     </span>
                     <span>{selectedPost.upvotes?.length || 0}</span>
                   </button>
@@ -499,22 +419,29 @@ const Posts = () => {
                   </button>
                 </div>
               </div>
-              
+
               {/* Comments Section */}
               <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <div className="p-5">
                   <h3 className="font-medium text-violet-300 mb-4">Comments</h3>
-                  
+
                   {selectedPost.comments?.length === 0 ? (
                     <div className="text-center py-8 bg-black/20 rounded-lg">
-                      <span className="material-icons text-3xl text-gray-500 mb-2">chat_bubble_outline</span>
+                      <span className="material-icons text-3xl text-gray-500 mb-2">
+                        chat_bubble_outline
+                      </span>
                       <p className="text-gray-400">No comments yet</p>
-                      <p className="text-sm text-gray-500 mt-1">Be the first to comment!</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Be the first to comment!
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {selectedPost.comments?.map((comment) => (
-                        <div key={comment._id} className="bg-black/30 rounded-lg p-4 border border-violet-500/10">
+                        <div
+                          key={comment._id}
+                          className="bg-black/30 rounded-lg p-4 border border-violet-500/10"
+                        >
                           <div className="flex items-center gap-3 mb-2">
                             <img
                               src={comment.userId?.avatar || defaultAvatar}
@@ -526,7 +453,9 @@ const Posts = () => {
                                 {comment.userId?.username || "Anonymous"}
                               </div>
                               <div className="text-xs text-gray-500">
-                                {new Date(comment.createdAt).toLocaleDateString()}
+                                {new Date(
+                                  comment.createdAt
+                                ).toLocaleDateString()}
                               </div>
                             </div>
                           </div>
@@ -537,7 +466,7 @@ const Posts = () => {
                   )}
                 </div>
               </div>
-              
+
               {/* Comment Form */}
               <div className="p-4 border-t border-violet-500/20 bg-black/40 backdrop-blur-md">
                 <form className="flex items-center gap-3">
@@ -548,7 +477,9 @@ const Posts = () => {
                   />
                   <input
                     type="text"
-                    placeholder={user ? "Write a comment..." : "Log in to comment"}
+                    placeholder={
+                      user ? "Write a comment..." : "Log in to comment"
+                    }
                     className="flex-1 px-4 py-2 bg-black/30 text-white rounded-full border border-violet-500/30 focus:border-violet-500 focus:outline-none transition-all placeholder-gray-500"
                     disabled={!user}
                   />

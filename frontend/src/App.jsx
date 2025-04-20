@@ -108,7 +108,6 @@ function App() {
                 )
               }
             />
-            <Route path="/chat" element={<ChatPage />} />
 
             {/* Public routes with Navbar */}
             <Route
@@ -189,14 +188,7 @@ function App() {
                 </Layout>
               }
             />
-            <Route
-              path="/dashboard/chat"
-              element={
-                <Layout>
-                  <div>Chat Coming Soon</div>
-                </Layout>
-              }
-            />
+            <Route path="/dashboard/chat" element={<ChatPage />} />
 
             {/* Static Pages */}
             <Route

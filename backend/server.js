@@ -5,6 +5,8 @@ import cookieParser from "cookie-parser";
 import { router as resourceRouter } from "./router/resource-routes.js";
 import { router as questionRouter } from "./router/question-routes.js";
 import { router as answerRouter } from "./router/answer-routes.js";
+import { router as userRouter } from "./router/user-routes.js";
+import { router as postRouter } from "./router/post-routes.js";
 import { connectDb } from "./utils/db.js";
 import { User } from "./models/users.js";
 import { errorHandler } from "./utils/errorHandler.js";
