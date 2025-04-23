@@ -25,6 +25,7 @@ import HelpForum from "./pages/HelpForum";
 import AskQuestion from "./pages/AskQuestion";
 import QuestionDetail from "./pages/QuestionDetail";
 import Layout from "./pages/Layout";
+import GamesAndVideos from "./pages/GamesAndVideos";
 
 // Import static pages
 import AboutPage from "./pages/static/AboutPage";
@@ -107,6 +108,15 @@ function App() {
                     <Register />
                   </>
                 )
+              }
+            />
+            <Route
+              path="/games"
+              element={
+                <>
+                  <Navbar />
+                  <GamesAndVideos />
+                </>
               }
             />
 
