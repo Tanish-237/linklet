@@ -1,9 +1,9 @@
 import React, { useState, useRef } from "react";
-import axios from "axios";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.png";
+import { apiClient } from "../api/apiClient";
 
 const CreatePost = () => {
   const { user } = useAuth();
@@ -76,14 +76,13 @@ const CreatePost = () => {
         formData.append("image", image);
       }
 
-      const response = await axios.post(
-        "http://localhost:5000/api/posts",
+      const response = await apiClient.post(
+        `/posts`,
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
-          },
-          withCredentials: true,
+          }
         }
       );
 

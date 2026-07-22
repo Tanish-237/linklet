@@ -1,6 +1,6 @@
 // src/pages/Posts.js
 import React, { useEffect, useState, useRef } from "react";
-import axios from "axios";
+import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -24,11 +24,11 @@ const Posts = () => {
   const fetchPosts = async (page = 1) => {
     try {
       setLoading(true);
-      const res = await axios.get(
-        `http://localhost:5000/api/posts?page=${page}&limit=10`
+      const res = await apiClient.get(
+        `/posts/feed?limit=50`
       );
-      setPosts(res.data.posts.docs || []);
-      setTotalPages(res.data.posts.totalPages || 1);
+      setPosts(res.data.data || []);
+      setTotalPages(1);
     } catch (error) {
       toast.error("Error fetching posts");
       console.error("Error:", error);
@@ -55,10 +55,8 @@ const Posts = () => {
     }
 
     try {
-      const res = await axios.post(
-        `http://localhost:5000/api/posts/${postId}/upvote`,
-        {},
-        { withCredentials: true }
+      const res = await apiClient.post(
+        `/posts/${postId}/upvote`
       );
 
       setPosts((prevPosts) =>
@@ -66,9 +64,7 @@ const Posts = () => {
           post._id === postId
             ? {
                 ...post,
-                upvotes: res.data.upvoted
-                  ? [...(post.upvotes || []), user.id]
-                  : (post.upvotes || []).filter((id) => id !== user.id),
+                upvotes: res.data.data.upvotes || []
               }
             : post
         )
@@ -77,9 +73,7 @@ const Posts = () => {
       if (selectedPost && selectedPost._id === postId) {
         setSelectedPost((prev) => ({
           ...prev,
-          upvotes: res.data.upvoted
-            ? [...(prev.upvotes || []), user.id]
-            : (prev.upvotes || []).filter((id) => id !== user.id),
+          upvotes: res.data.data.upvotes || []
         }));
       }
     } catch (error) {
@@ -112,17 +106,16 @@ const Posts = () => {
 
     try {
       setCommentLoading(true);
-      const res = await axios.post(
-        `http://localhost:5000/api/posts/${selectedPost._id}/comments`,
-        { text: commentText },
-        { withCredentials: true }
+      const res = await apiClient.post(
+        `/posts/${selectedPost._id}/comment`,
+        { text: commentText }
       );
 
-      setSelectedPost(res.data.post);
+      setSelectedPost(res.data.data);
 
       setPosts((prevPosts) =>
         prevPosts.map((post) =>
-          post._id === selectedPost._id ? res.data.post : post
+          post._id === selectedPost._id ? res.data.data : post
         )
       );
 

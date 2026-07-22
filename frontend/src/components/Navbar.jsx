@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
+import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useEffect } from "react";
 import styled from "styled-components";
-import { useSocket } from "../context/SocketContext";
+import { useSocket } from "../hooks/useSocket";
 
 const Nav = styled.nav`
   background-color: #111111;
@@ -102,11 +104,7 @@ export const Navbar = () => {
 
   const handleLogout = async () => {
     try {
-      await axios.post(
-        "http://localhost:5000/api/logout",
-        {},
-        { withCredentials: true }
-      );
+      await apiClient.post(`/auth/logout`);
       toast.success("Logged out successfully");
       setUser(null);
       navigate("/");

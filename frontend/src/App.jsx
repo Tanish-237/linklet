@@ -6,44 +6,59 @@ import {
   Navigate,
 } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
-import Home from "./pages/Home";
-import LandingPage from "./pages/LandingPage";
-import Login from "./pages/Login";
-import Register from "./pages/Register";
-import Posts from "./pages/Posts";
-import PostDetail from "./pages/PostDetail";
-import CreatePost from "./pages/CreatePost";
-import Resource from "./pages/Resource";
+import { Suspense, lazy, useEffect } from "react";
+import useAuthStore from "./store/useAuthStore";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+// Core Layout
 import { Navbar } from "./components/Navbar";
+import Layout from "./pages/Layout";
+import { SocketProvider } from "./context/SocketContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import ChatPage from "./pages/ChatPage";
-import { SocketProvider } from "./context/SocketContext";
 import "./App.css";
-import Dashboard from "./pages/Dashboard";
-import HelpForum from "./pages/HelpForum";
-import AskQuestion from "./pages/AskQuestion";
-import QuestionDetail from "./pages/QuestionDetail";
-import Layout from "./pages/Layout";
-import GamesAndVideos from "./pages/GamesAndVideos";
 
-// Import static pages
-import AboutPage from "./pages/static/AboutPage";
-import BlogPage from "./pages/static/BlogPage";
-import BlogPostDetail from "./pages/static/BlogPostDetail";
-import CareersPage from "./pages/static/CareersPage";
-import ContactPage from "./pages/static/ContactPage";
-import PrivacyPolicy from "./pages/static/PrivacyPolicy";
-import TermsOfService from "./pages/static/TermsOfService";
-import CookiePolicy from "./pages/static/CookiePolicy";
-import SecurityInfo from "./pages/static/SecurityInfo";
-import PricingPage from "./pages/static/PricingPage";
-import FAQPage from "./pages/static/FAQPage";
+// Lazy Loaded Pages
+const Home = lazy(() => import("./pages/Home"));
+const LandingPage = lazy(() => import("./pages/LandingPage"));
+const Login = lazy(() => import("./pages/Login"));
+const Register = lazy(() => import("./pages/Register"));
+const Posts = lazy(() => import("./pages/Posts"));
+const PostDetail = lazy(() => import("./pages/PostDetail"));
+const CreatePost = lazy(() => import("./pages/CreatePost"));
+const Resource = lazy(() => import("./pages/Resource"));
+const ChatPage = lazy(() => import("./pages/ChatPage"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const HelpForum = lazy(() => import("./pages/HelpForum"));
+const AskQuestion = lazy(() => import("./pages/AskQuestion"));
+const QuestionDetail = lazy(() => import("./pages/QuestionDetail"));
+const GamesAndVideos = lazy(() => import("./pages/GamesAndVideos"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const ModeratorDashboard = lazy(() => import("./pages/ModeratorDashboard"));
 
-import { useAuth } from "./context/AuthContext";
+// Lazy Loaded Static Pages
+const AboutPage = lazy(() => import("./pages/static/AboutPage"));
+const BlogPage = lazy(() => import("./pages/static/BlogPage"));
+const BlogPostDetail = lazy(() => import("./pages/static/BlogPostDetail"));
+const CareersPage = lazy(() => import("./pages/static/CareersPage"));
+const ContactPage = lazy(() => import("./pages/static/ContactPage"));
+const PrivacyPolicy = lazy(() => import("./pages/static/PrivacyPolicy"));
+const TermsOfService = lazy(() => import("./pages/static/TermsOfService"));
+const CookiePolicy = lazy(() => import("./pages/static/CookiePolicy"));
+const SecurityInfo = lazy(() => import("./pages/static/SecurityInfo"));
+const PricingPage = lazy(() => import("./pages/static/PricingPage"));
+const FAQPage = lazy(() => import("./pages/static/FAQPage"));
 
 function App() {
-  const { user } = useAuth();
+  const { user, isLoading, checkAuth } = useAuthStore();
+
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  if (isLoading) {
+    return <div className="loading-screen">Loading Linklet...</div>; // Could be a beautiful spinner
+  }
 
   return (
     <HelmetProvider>
@@ -61,7 +76,8 @@ function App() {
             pauseOnHover
             theme="dark"
           />
-          <Routes>
+          <Suspense fallback={<div className="loading-screen">Loading Page...</div>}>
+            <Routes>
             {/* Redirect to home if logged in, otherwise show landing page */}
             <Route
               path="/"
@@ -172,6 +188,26 @@ function App() {
             />
 
             {/* Layout Routes */}
+            <Route
+              path="/dashboard/admin"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <Layout>
+                    <AdminDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/moderator"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'moderator']}>
+                  <Layout>
+                    <ModeratorDashboard />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/dashboard"
               element={
@@ -314,7 +350,8 @@ function App() {
                 </>
               }
             />
-          </Routes>
+            </Routes>
+          </Suspense>
         </Router>
       </SocketProvider>
     </HelmetProvider>

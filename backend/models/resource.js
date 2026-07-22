@@ -13,6 +13,8 @@ const resourceSchema = new mongoose.Schema({
   fileUrl: { type: String }, // URL to Cloudinary document
   fileType: { type: String }, // e.g., "pdf", "doc", "docx"
   fileName: { type: String }, // Original file name
+  branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
+  verificationStatus: { type: String, enum: ["Pending", "Approved", "Rejected"], default: "Pending" },
   publicId: { type: String }, // Cloudinary public ID for deletion purposes
 }, {timestamps: true});
 

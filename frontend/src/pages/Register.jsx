@@ -6,6 +6,8 @@ import { handleApiError } from "../utlis/ErrorHandler";
 import { Helmet } from "react-helmet-async";
 import axios from "axios";
 import linkletLogo from "../assets/linklet-logo.png";
+import { API_BASE_URL } from "../config";
+import { apiClient } from "../api/apiClient";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -46,15 +48,14 @@ export default function Register() {
         formData.append("avatar", avatar);
       }
 
-      const res = await axios.post(
-        "http://localhost:5000/api/register",
+      const res = await apiClient.post(
+        `/auth/register`,
         formData,
         {
           headers: {
             "Content-Type": "multipart/form-data",
           },
-        },
-        { withCredentials: true }
+        }
       );
 
       if (res.status === 201) {

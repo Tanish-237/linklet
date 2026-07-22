@@ -4,6 +4,7 @@ import Minesweeper from "../games/Minesweeper";
 import SimonSays from "../games/SimonSays";
 import "./GamesAndVideos.css";
 import { io } from "socket.io-client";
+import { API_BASE_URL } from "../config";
 
 const GamesAndVideos = () => {
   const [activeTab, setActiveTab] = useState("games");
@@ -57,7 +58,7 @@ const GamesAndVideos = () => {
   }, [gameState]);
 
   useEffect(() => {
-    const socketUrl = "http://localhost:5000";
+    const socketUrl = API_BASE_URL;
     console.log("Connecting to socket server at:", socketUrl);
 
     const newSocket = io(socketUrl, {

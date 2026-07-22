@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
-import axios from 'axios';
+import { apiClient } from '../api/apiClient';
 import linkletLogo from '../assets/linklet-logo.png';
 import defaultAvatar from '../assets/default-avatar.png';
 
@@ -34,11 +34,7 @@ export default function Layout({ children }) {
 
   const handleLogout = async () => {
     try {
-      await axios.post(
-        "http://localhost:5000/api/logout",
-        {},
-        { withCredentials: true }
-      );
+      await apiClient.post(`/auth/logout`);
       setUser(null);
       toast.success("Logged out successfully");
       navigate("/");

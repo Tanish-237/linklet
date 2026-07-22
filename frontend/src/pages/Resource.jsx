@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
+import { API_BASE_URL } from "../config";
 
-// Create an axios instance with default config
-const api = axios.create({
-  baseURL: "http://localhost:5000",
-  withCredentials: true,
-});
+import { apiClient } from "../api/apiClient";
 
 const Resource = () => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,7 +52,7 @@ const Resource = () => {
   const fetchResources = async (query = "") => {
     setLoading(true);
     try {
-      const response = await api.get("/api/resources", {
+      const response = await apiClient.get("/resources/library", {
         params: {
           search: query || searchTerm,
           category: selectedCategory !== "all" ? selectedCategory : "",
@@ -140,7 +137,7 @@ const Resource = () => {
       formData.append("tags", uploadFormData.tags);
       formData.append("document", selectedFile);
 
-      const response = await api.post("/api/resources", formData, {
+      const response = await apiClient.post("/resources", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { useAuth } from "../context/AuthContext";
-import { useSocket } from "../context/SocketContext";
+import { useSocket } from "../hooks/useSocket";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 
@@ -16,7 +17,7 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
   useEffect(() => {
     const fetchChats = async () => {
       try {
-        const res = await axios.get("http://localhost:5000/api/chat", {
+        const res = await axios.get(`${API_BASE_URL}/api/chat`, {
           withCredentials: true,
         });
         setChats(res.data);
@@ -56,7 +57,7 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
     if (query.length > 2) {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/chat/search?query=${query}`,
+          `${API_BASE_URL}/api/chat/search?query=${query}`,
           {
             withCredentials: true,
           }
@@ -73,7 +74,7 @@ const ChatSidebar = ({ onSelectChat, activeChat }) => {
   const startNewChat = async (userId) => {
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/chat",
+        `${API_BASE_URL}/api/chat`,
         { userId },
         { withCredentials: true }
       );

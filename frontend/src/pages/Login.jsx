@@ -6,6 +6,8 @@ import { useAuth } from "../context/AuthContext";
 import { Helmet } from 'react-helmet-async';
 import axios from "axios";
 import linkletLogo from '../assets/linklet-logo.png';
+import { API_BASE_URL } from "../config";
+import { apiClient } from "../api/apiClient";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -29,15 +31,12 @@ export default function Login() {
 
     setIsLoading(true);
     try {
-      const res = await axios.post(
-        "http://localhost:5000/api/login",
+      const res = await apiClient.post(
+        `/auth/login`,
         {
           email,
           password,
           rememberMe,
-        },
-        {
-          withCredentials: true,
         }
       );
       

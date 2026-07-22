@@ -1,31 +1,15 @@
-import { createContext, useContext, useEffect, useState } from "react";
-import axios from "axios";
+import useAuthStore from "../store/useAuthStore";
 
-const AuthContext = createContext();
-
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-
-  const fetchUser = async () => {
-    try {
-      const res = await axios.get("http://localhost:5000/api/getCurrUser", {
-        withCredentials: true,
-      });
-      setUser(res.data.user);
-    } catch {
-      setUser(null);
-    }
+// Compatibility layer to bridge the old Context API to the new Zustand Store
+// This prevents having to rewrite 15+ legacy files right away!
+export const useAuth = () => {
+  const { user, setUser, checkAuth } = useAuthStore();
+  
+  return {
+    user,
+    setUser,
+    fetchUser: checkAuth // Map the old fetchUser function to the new checkAuth
   };
-
-  useEffect(() => {
-    fetchUser();
-  }, []);
-
-  return (
-    <AuthContext.Provider value={{ user, setUser, fetchUser }}>
-      {children}
-    </AuthContext.Provider>
-  );
 };
 
-export const useAuth = () => useContext(AuthContext);
+

@@ -52,7 +52,9 @@ const userSchema = new mongoose.Schema(
     year: { type: String }, // e.g., "First", "Second"
     department: { type: String },
     skills: [{ type: String }], // e.g., ["Python", "React"]
-    role: { type: String, enum: ["Student", "Alumni"], default: "Student" },
+    userType: { type: String, enum: ["Student", "Alumni"], default: "Student" },
+    role: { type: String, enum: ["user", "moderator", "admin"], default: "user" },
+    branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
     refreshToken: {
       type: String,
     },

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import { apiClient } from "../api/apiClient";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
@@ -26,15 +26,15 @@ const PostDetail = () => {
       try {
         setLoading(true);
 
-        const postResponse = await axios.get(
-          `http://localhost:5000/api/posts/${postId}`
+        const postResponse = await apiClient.get(
+          `/posts/${postId}`
         );
 
         if (!postResponse.data) {
           throw new Error("Post not found");
         }
 
-        setPost(postResponse.data.post);
+        setPost(postResponse.data.data);
 
         // Check if post is bookmarked by user
         if (user) {
@@ -93,10 +93,9 @@ const PostDetail = () => {
     try {
       setCommentLoading(true);
 
-      const response = await axios.post(
-        `http://localhost:5000/api/posts/${postId}/comments`,
-        { text: commentText },
-        { withCredentials: true }
+      const response = await apiClient.post(
+        `/posts/${postId}/comment`,
+        { text: commentText }
       );
 
       if (response.data.success) {
@@ -152,10 +151,8 @@ const PostDetail = () => {
     }
 
     try {
-      const response = await axios.post(
-        `http://localhost:5000/api/posts/${postId}/bookmark`,
-        {},
-        { withCredentials: true }
+      const response = await apiClient.post(
+        `/posts/${postId}/bookmark`
       );
 
       setIsBookmarked(!isBookmarked);
@@ -174,10 +171,8 @@ const PostDetail = () => {
     }
 
     try {
-      const res = await axios.post(
-        `http://localhost:5000/api/posts/${postId}/upvote`,
-        {},
-        { withCredentials: true }
+      const res = await apiClient.post(
+        `/posts/${postId}/upvote`
       );
 
       setPost((prev) => ({

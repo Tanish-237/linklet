@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
 import defaultAvatar from '../assets/default-avatar.png';
+import { API_BASE_URL } from '../config';
 
 const QuestionDetail = ({ basePath = '' }) => {
   const { questionId } = useParams();
@@ -23,7 +24,7 @@ const QuestionDetail = ({ basePath = '' }) => {
   const fetchQuestionDetails = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5000/api/questions/${questionId}`);
+      const response = await fetch(`${API_BASE_URL}/api/questions/${questionId}`);
       const data = await response.json();
       if (data.success) {
         setQuestion(data.question);
@@ -50,7 +51,7 @@ const QuestionDetail = ({ basePath = '' }) => {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch(`http://localhost:5000/api/questions/${questionId}/answers`, {
+      const response = await fetch(`${API_BASE_URL}/api/questions/${questionId}/answers`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -78,7 +79,7 @@ const QuestionDetail = ({ basePath = '' }) => {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:5000/api/questions/${questionId}/vote`, {
+      const response = await fetch(`${API_BASE_URL}/api/questions/${questionId}/vote`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

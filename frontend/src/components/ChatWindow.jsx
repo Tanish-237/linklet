@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
-import { useSocket } from "../context/SocketContext";
+import { useSocket } from "../hooks/useSocket";
 import { format } from "timeago.js";
 
 const ChatWindow = ({ chatId }) => {
@@ -39,7 +40,7 @@ const ChatWindow = ({ chatId }) => {
     const fetchMessages = async () => {
       try {
         const res = await axios.get(
-          `http://localhost:5000/api/chat/message/${chatId}`,
+          `${API_BASE_URL}/api/chat/message/${chatId}`,
           {
             withCredentials: true,
           }
@@ -99,7 +100,7 @@ const ChatWindow = ({ chatId }) => {
 
     try {
       const res = await axios.post(
-        "http://localhost:5000/api/chat/message",
+        `${API_BASE_URL}/api/chat/message`,
         formData,
         {
           headers: {
@@ -139,7 +140,7 @@ const ChatWindow = ({ chatId }) => {
 
     try {
       const res = await axios.put(
-        "http://localhost:5000/api/chat/message/edit",
+        `${API_BASE_URL}/api/chat/message/edit`,
         {
           chatId,
           messageId: message._id,
@@ -162,7 +163,7 @@ const ChatWindow = ({ chatId }) => {
   const handleDeleteMessage = async (messageId) => {
     try {
       const response = await axios.delete(
-        "http://localhost:5000/api/chat/message",
+        `${API_BASE_URL}/api/chat/message`,
         {
           data: { chatId, messageId },
           withCredentials: true,
@@ -189,7 +190,7 @@ const ChatWindow = ({ chatId }) => {
       window.open(mediaUrl, "_blank");
     } else {
       // If it's a local file, try to open it directly
-      window.open(`http://localhost:5000${mediaUrl}`, "_blank");
+      window.open(`${API_BASE_URL}${mediaUrl}`, "_blank");
     }
   };
 
