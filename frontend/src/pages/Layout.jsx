@@ -104,10 +104,10 @@ export default function Layout({ children }) {
             {/* Notification Icon */}
             <div className="relative">
               <button
-                className="p-2 rounded-full hover:bg-violet-900/30 transition-all duration-300 cursor-pointer group"
+                className="p-2 rounded-full hover:bg-violet-900/30 transition-all duration-300 cursor-pointer group flex items-center justify-center"
                 onClick={() => toggleDropdown('notifications')}
               >
-                <span className="material-icons text-2xl group-hover:text-violet-400">notifications</span>
+                <span className="material-icons text-2xl group-hover:text-violet-400 leading-none">notifications</span>
                 <span className="absolute -top-1 -right-1 bg-violet-600 text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
               </button>
 
@@ -164,16 +164,9 @@ export default function Layout({ children }) {
               {dropdownStates.profile && (
                 <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-800 transition-all duration-300 z-50">
                   <div className="p-4 border-b border-gray-800">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={user?.avatar || defaultAvatar}
-                        alt="Avatar"
-                        className="w-10 h-10 rounded-full border border-violet-500/30"
-                      />
-                      <div>
-                        <h4 className="font-medium text-violet-400">{user?.username || "User"}</h4>
-                        <p className="text-sm text-gray-400">{user?.email || "email@example.com"}</p>
-                      </div>
+                    <div className="flex flex-col">
+                      <h4 className="font-medium text-violet-400 truncate">{user?.username || "User"}</h4>
+                      <p className="text-sm text-gray-400 truncate" title={user?.email || "email@example.com"}>{user?.email || "email@example.com"}</p>
                     </div>
                   </div>
                   <ul className="py-2">
