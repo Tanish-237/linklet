@@ -6,6 +6,19 @@ const cookieOptions = {
   sameSite: "strict",
 };
 
+export const sendOtp = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+    const result = await authService.generateAndSendOtp(email);
+    res.status(200).json({ success: true, message: result.message });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const registerUser = async (req, res, next) => {
   try {
     const result = await authService.register(req.body);

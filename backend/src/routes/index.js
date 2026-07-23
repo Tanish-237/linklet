@@ -6,6 +6,7 @@ import moderatorRoutes from "./moderator.routes.js";
 import postRoutes from "./post.routes.js";
 import resourceRoutes from "./resource.routes.js";
 import questionRoutes from "./question.routes.js";
+import profileRoutes from "./profile.routes.js";
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use("/moderator", moderatorRoutes);
 router.use("/posts", postRoutes);
 router.use("/resources", resourceRoutes);
 router.use("/questions", questionRoutes);
+router.use("/profile", profileRoutes);
 
 export default router;

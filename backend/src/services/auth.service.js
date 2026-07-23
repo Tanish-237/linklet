@@ -1,23 +1,103 @@
 import * as userRepository from "../repositories/user.repository.js";
+import crypto from "crypto";
 import { AppError } from "../utils/error.js";
 import { blacklistToken } from "../utils/blacklist.js";
 import jwt from "jsonwebtoken";
+import { verifyStudent } from "./college.service.js";
+import { getRedisClient } from "../utils/redis.js";
+import { sendEmail } from "../utils/email.service.js";
 
-export const register = async (userData) => {
-  const { email, username } = userData;
+export const generateAndSendOtp = async (email) => {
+  // Validate against Mock College DB first
+  const collegeRecord = await verifyStudent(email);
+  if (!collegeRecord) {
+    throw new AppError("Your email is not present in the college database. Registration denied.", 403);
+  }
 
-  // Check if user exists
+  // Then check if user already exists
   const existingEmail = await userRepository.findUserByEmail(email);
   if (existingEmail) {
     throw new AppError("Email is already registered", 400);
   }
 
-  const existingUsername = await userRepository.findUserByUsername(username);
-  if (existingUsername) {
-    throw new AppError("Username is already taken", 400);
+  // Generate 6 digit OTP using cryptographically secure random number generator
+  const otp = crypto.randomInt(100000, 1000000).toString();
+
+  // Save to Redis with 10 mins expiry
+  let redisClient;
+  try {
+    redisClient = getRedisClient();
+  } catch (err) {
+    throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
+  }
+  await redisClient.setEx(`otp:${email}`, 600, otp);
+
+  // Send Email
+  const text = `Hello ${collegeRecord.fullName},\n\nYour OTP for registering on Linklet is: ${otp}\nThis OTP is valid for 10 minutes.\n\nWelcome to the community!`;
+  await sendEmail(email, "Linklet Registration OTP", text);
+
+  return { message: "OTP sent to your email" };
+};
+
+export const register = async (userData) => {
+  const { email, password, otp } = userData;
+
+  if (!otp) {
+    throw new AppError("OTP is required", 400);
   }
 
-  const user = await userRepository.createUser(userData);
+  // Verify OTP
+  let redisClient;
+  try {
+    redisClient = getRedisClient();
+  } catch (err) {
+    throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
+  }
+  const storedOtp = await redisClient.get(`otp:${email}`);
+  if (!storedOtp || storedOtp !== otp) {
+    throw new AppError("Invalid or expired OTP", 400);
+  }
+
+  // Validate against Mock College DB again just in case
+  const collegeRecord = await verifyStudent(email);
+  if (!collegeRecord) {
+    throw new AppError("Your email is not present in the college database.", 403);
+  }
+
+  // Re-check email uniqueness to avoid race conditions
+  const existingEmail = await userRepository.findUserByEmail(email);
+  if (existingEmail) {
+    throw new AppError("Email is already registered", 400);
+  }
+
+  // Auto-generate username (guaranteed unique)
+  const baseUsername = email.split('@')[0];
+  let generatedUsername = "";
+  let isUnique = false;
+
+  while (!isUnique) {
+    const uniqueSuffix = crypto.randomBytes(3).toString('hex');
+    generatedUsername = `${baseUsername}_${uniqueSuffix}`;
+    const existingUser = await userRepository.findUserByUsername(generatedUsername);
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
+
+  const enrichedUserData = {
+    email,
+    password,
+    username: generatedUsername,
+    fullName: collegeRecord.fullName,
+    department: collegeRecord.department,
+    year: collegeRecord.year,
+  };
+
+  const user = await userRepository.createUser(enrichedUserData);
+
+  // Delete OTP after successful registration
+  await redisClient.del(`otp:${email}`);
+
 
   const accessToken = user.generateAccessToken();
   const refreshToken = user.generateRefreshToken();

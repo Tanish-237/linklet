@@ -4,32 +4,19 @@ import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import { handleApiError } from "../utlis/ErrorHandler";
 import { Helmet } from "react-helmet-async";
-import axios from "axios";
+
 import linkletLogo from "../assets/linklet-logo.png";
-import { API_BASE_URL } from "../config";
 import { apiClient } from "../api/apiClient";
 
 export default function Register() {
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
-  const [avatar, setAvatar] = useState(null);
-  const [avatarPreview, setAvatarPreview] = useState("");
+  const [otp, setOtp] = useState("");
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { fetchUser } = useAuth();
 
-  const handleAvatarChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setAvatar(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
 
   const handleGoogleSignup = () => {
     // TODO: Implement Google OAuth
@@ -38,33 +25,28 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("email", email);
-      formData.append("username", username);
-      formData.append("password", password);
-      formData.append("fullName", fullName);
-      if (avatar) {
-        formData.append("avatar", avatar);
-      }
-
-      const res = await apiClient.post(
-        `/auth/register`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
+      if (step === 1) {
+        const res = await apiClient.post("/auth/send-otp", { email });
+        if (res.status === 200) {
+          toast.success(res.data.message || "OTP sent to your email!");
+          setStep(2);
         }
-      );
+      } else {
+        const payload = { email, password, otp };
+        const res = await apiClient.post(`/auth/register`, payload);
 
-      if (res.status === 201) {
-        toast.success("Registration successful! Please login.");
-        await fetchUser();
-        navigate("/login");
+        if (res.status === 201) {
+          toast.success("Registration successful! Please login.");
+          await fetchUser();
+          navigate("/login");
+        }
       }
     } catch (error) {
       handleApiError(error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -167,46 +149,10 @@ export default function Register() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1">
-                  <label
-                    className="text-sm font-medium text-gray-300"
-                    htmlFor="fullName"
-                  >
-                    Full Name
-                  </label>
-                  <input
-                    id="fullName"
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white"
-                  />
-                </div>
 
                 <div className="space-y-1">
-                  <label
-                    className="text-sm font-medium text-gray-300"
-                    htmlFor="username"
-                  >
-                    Username
-                  </label>
-                  <input
-                    id="username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label
-                    className="text-sm font-medium text-gray-300"
-                    htmlFor="email"
-                  >
-                    Email
+                  <label className="text-sm font-medium text-gray-300" htmlFor="email">
+                    College Email
                   </label>
                   <input
                     id="email"
@@ -214,15 +160,13 @@ export default function Register() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white"
+                    disabled={step === 2}
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label
-                    className="text-sm font-medium text-gray-300"
-                    htmlFor="password"
-                  >
+                  <label className="text-sm font-medium text-gray-300" htmlFor="password">
                     Password
                   </label>
                   <input
@@ -231,54 +175,49 @@ export default function Register() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white"
+                    disabled={step === 2}
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
                   />
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300">
-                    Profile Picture (Optional)
-                  </label>
-                  <div
-                    onClick={() =>
-                      document.getElementById("avatar-input").click()
-                    }
-                    className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-violet-500/30 rounded-lg cursor-pointer hover:border-violet-500/50 transition-all bg-gray-900/50"
-                  >
-                    {avatarPreview ? (
-                      <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-violet-500 mb-2">
-                        <img
-                          src={avatarPreview}
-                          alt="Profile preview"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <span className="material-icons text-3xl text-violet-400 mb-2">
-                          cloud_upload
-                        </span>
-                        <p className="text-sm text-gray-400">
-                          Click to upload a profile picture
-                        </p>
-                      </>
-                    )}
+                {step === 2 && (
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-300" htmlFor="otp">
+                      Enter 6-digit OTP
+                    </label>
                     <input
-                      id="avatar-input"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarChange}
-                      className="hidden"
+                      id="otp"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength="6"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                      required
+                      placeholder="123456"
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white tracking-widest text-center text-lg font-bold"
                     />
+                    <p className="text-xs text-gray-400 mt-1">Please check your email inbox.</p>
                   </div>
-                </div>
+                )}
 
                 <button
                   type="submit"
-                  className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-lg font-semibold transition-all duration-200 transform hover:-translate-y-0.5"
+                  disabled={loading}
+                  className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-lg font-semibold transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-50"
                 >
-                  Create Account
+                  {loading ? "Processing..." : step === 1 ? "Send Verification OTP" : "Complete Registration"}
                 </button>
+                
+                {step === 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                  >
+                    Change Email or Password
+                  </button>
+                )}
               </form>
             </div>
 

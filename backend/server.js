@@ -9,7 +9,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 
 // Architecture Imports
-import { connectDb } from "./utils/db.js";
+import { connectDb } from "./src/utils/db.js";
 import { connectRedis } from "./src/utils/redis.js";
 import logger from "./src/utils/logger.js";
 import apiRoutes from "./src/routes/index.js";

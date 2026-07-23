@@ -4,6 +4,7 @@ import { isLoggedIn } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
+router.post("/send-otp", authController.sendOtp);
 router.post("/register", authController.registerUser);
 router.post("/login", authController.loginUser);
 router.post("/logout", isLoggedIn, authController.logoutUser);
