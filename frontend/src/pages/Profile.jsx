@@ -195,12 +195,14 @@ const Profile = () => {
                   />
                 </div>
                 {isOwnProfile && isEditing && (
-                  <div
+                  <button
+                    type="button"
+                    aria-label="Change avatar"
                     className="profile-avatar-overlay"
                     onClick={() => document.getElementById("avatar-upload").click()}
                   >
                     <span className="material-icons">camera_alt</span>
-                  </div>
+                  </button>
                 )}
                 <input
                   type="file"
@@ -233,11 +235,11 @@ const Profile = () => {
                       <React.Fragment key={category.id}>
                         <div className="flex flex-wrap gap-3 justify-start">
                           {category.avatars.map((preset, idx) => (
-                            <img
+                            <button
                               key={idx}
-                              src={preset}
-                              alt="preset"
-                              className={`w-12 h-12 rounded-full cursor-pointer border-2 transition-all hover:scale-110 flex-shrink-0 bg-white/5 ${
+                              type="button"
+                              aria-label={`Select avatar preset ${idx + 1}`}
+                              className={`w-12 h-12 rounded-full cursor-pointer border-2 transition-all hover:scale-110 flex-shrink-0 bg-white/5 p-0 overflow-hidden outline-none focus:ring-2 focus:ring-purple-500 ${
                                 selectedAvatarUrl === preset ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.5)] opacity-100" : "border-transparent opacity-60 hover:opacity-100 hover:bg-white/10"
                               }`}
                               onClick={() => {
@@ -245,7 +247,9 @@ const Profile = () => {
                                 setAvatarPreview(preset);
                                 setAvatarFile(null);
                               }}
-                            />
+                            >
+                              <img src={preset} alt="" className="w-full h-full object-cover" />
+                            </button>
                           ))}
                         </div>
                         {catIdx < 2 && <div className="w-full h-[1px] bg-white/10"></div>}
@@ -398,6 +402,7 @@ const Profile = () => {
                     setIsEditing(false);
                     setAvatarPreview("");
                     setAvatarFile(null);
+                    setSelectedAvatarUrl("");
                     setEditBio(profileUser.bio || "");
                     setEditSkills(profileUser.skills?.join(", ") || "");
                     setEditUsername(profileUser.username || "");
