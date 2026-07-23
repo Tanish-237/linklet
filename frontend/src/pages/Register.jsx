@@ -6,7 +6,6 @@ import { handleApiError } from "../utlis/ErrorHandler";
 import { Helmet } from "react-helmet-async";
 
 import linkletLogo from "../assets/linklet-logo.png";
-import { API_BASE_URL } from "../config";
 import { apiClient } from "../api/apiClient";
 
 export default function Register() {
@@ -189,9 +188,11 @@ export default function Register() {
                     <input
                       id="otp"
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       maxLength="6"
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                       required
                       placeholder="123456"
                       className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white tracking-widest text-center text-lg font-bold"

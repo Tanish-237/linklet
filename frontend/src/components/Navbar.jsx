@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-import { API_BASE_URL } from "../config";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useEffect } from "react";

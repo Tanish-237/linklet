@@ -20,7 +20,7 @@ apiClient.interceptors.response.use(
 
     // If the error is 401 (Unauthorized) and we haven't already retried this request
     // We also skip intercepting if the request was for login, as 401 there means wrong credentials.
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url.includes('/auth/login')) {
+    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.includes('/auth/login')) {
       originalRequest._retry = true;
 
       try {

@@ -1,4 +1,3 @@
-import * as userRepository from "../repositories/user.repository.js";
 import { User } from "../../models/users.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
@@ -27,9 +26,9 @@ export const updateProfile = async (req, res, next) => {
 
     const updates = {};
     if (bio !== undefined) updates.bio = bio;
-    if (skills) {
-      // If skills is a string (comma separated), parse it
-      updates.skills = Array.isArray(skills) ? skills : skills.split(",").map((s) => s.trim());
+    if (skills !== undefined) {
+      const skillsArray = Array.isArray(skills) ? skills : skills.split(",");
+      updates.skills = skillsArray.map((s) => (typeof s === "string" ? s.trim() : s)).filter((s) => s !== "");
     }
 
     if (username) {
@@ -45,7 +44,7 @@ export const updateProfile = async (req, res, next) => {
     if (req.file) {
       const avatarUrl = await uploadOnCloudinary(req.file.path);
       if (avatarUrl) {
-        updates.avatar = avatarUrl.url;
+        updates.avatar = avatarUrl.secure_url ?? avatarUrl.url;
       }
     }
 

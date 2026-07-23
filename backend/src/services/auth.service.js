@@ -1,4 +1,5 @@
 import * as userRepository from "../repositories/user.repository.js";
+import crypto from "crypto";
 import { AppError } from "../utils/error.js";
 import { blacklistToken } from "../utils/blacklist.js";
 import jwt from "jsonwebtoken";
@@ -19,11 +20,16 @@ export const generateAndSendOtp = async (email) => {
     throw new AppError("Email is already registered", 400);
   }
 
-  // Generate 6 digit OTP
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate 6 digit OTP using cryptographically secure random number generator
+  const otp = crypto.randomInt(100000, 1000000).toString();
 
   // Save to Redis with 10 mins expiry
-  const redisClient = getRedisClient();
+  let redisClient;
+  try {
+    redisClient = getRedisClient();
+  } catch (err) {
+    throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
+  }
   await redisClient.setEx(`otp:${email}`, 600, otp);
 
   // Send Email
@@ -41,7 +47,12 @@ export const register = async (userData) => {
   }
 
   // Verify OTP
-  const redisClient = getRedisClient();
+  let redisClient;
+  try {
+    redisClient = getRedisClient();
+  } catch (err) {
+    throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
+  }
   const storedOtp = await redisClient.get(`otp:${email}`);
   if (!storedOtp || storedOtp !== otp) {
     throw new AppError("Invalid or expired OTP", 400);
@@ -53,11 +64,25 @@ export const register = async (userData) => {
     throw new AppError("Your email is not present in the college database.", 403);
   }
 
+  // Re-check email uniqueness to avoid race conditions
+  const existingEmail = await userRepository.findUserByEmail(email);
+  if (existingEmail) {
+    throw new AppError("Email is already registered", 400);
+  }
 
-  // Auto-generate username (unique)
+  // Auto-generate username (guaranteed unique)
   const baseUsername = email.split('@')[0];
-  const uniqueSuffix = Math.floor(1000 + Math.random() * 9000);
-  const generatedUsername = `${baseUsername}${uniqueSuffix}`;
+  let generatedUsername = "";
+  let isUnique = false;
+
+  while (!isUnique) {
+    const uniqueSuffix = crypto.randomBytes(3).toString('hex');
+    generatedUsername = `${baseUsername}_${uniqueSuffix}`;
+    const existingUser = await userRepository.findUserByUsername(generatedUsername);
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
 
   const enrichedUserData = {
     email,
