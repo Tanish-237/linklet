@@ -35,6 +35,7 @@ const QuestionDetail = lazy(() => import("./pages/QuestionDetail"));
 const GamesAndVideos = lazy(() => import("./pages/GamesAndVideos"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const ModeratorDashboard = lazy(() => import("./pages/ModeratorDashboard"));
+const Profile = lazy(() => import("./pages/Profile"));
 
 // Lazy Loaded Static Pages
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
@@ -183,6 +184,16 @@ function App() {
                 <>
                   <Navbar />
                   <QuestionDetail />
+                </>
+              }
+            />
+
+            <Route
+              path="/profile/:username?"
+              element={
+                <>
+                  <Navbar />
+                  <Profile />
                 </>
               }
             />

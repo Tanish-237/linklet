@@ -4,7 +4,7 @@ import { toast } from "react-toastify";
 import { handleApiError } from "../utlis/ErrorHandler";
 import { useAuth } from "../context/AuthContext";
 import { Helmet } from 'react-helmet-async';
-import axios from "axios";
+
 import linkletLogo from '../assets/linklet-logo.png';
 import { API_BASE_URL } from "../config";
 import { apiClient } from "../api/apiClient";
