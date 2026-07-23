@@ -59,6 +59,7 @@ const userSchema = new mongoose.Schema(
     userType: { type: String, enum: ["Student", "Alumni"], default: "Student" },
     role: { type: String, enum: ["user", "moderator", "admin"], default: "user" },
     branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
+    bookmarks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Resource" }],
     refreshToken: {
       type: String,
     },

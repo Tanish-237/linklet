@@ -18,7 +18,8 @@ export default function Layout({ children }) {
 
   const menuItems = [
     { icon: "dynamic_feed", label: "Feed", path: "/home" },
-    { icon: "library_books", label: "Resource Library", path: "/dashboard/resources" },
+    { icon: "library_books", label: "Global Search", path: "/dashboard/global-search" },
+    { icon: "bookmark", label: "Saved", path: "/dashboard/saved" },
     { icon: "help", label: "Help Forum", path: "/dashboard/help" },
     { icon: "groups", label: "Clubs", path: "/dashboard/clubs" },
     { icon: "chat", label: "Chat", path: "/dashboard/chat" }
@@ -96,11 +97,17 @@ export default function Layout({ children }) {
 
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <header className="h-[73px] bg-black/50 backdrop-blur-md shadow-lg flex justify-between items-center border-b border-gray-800 z-20">
+        <header className="h-[73px] bg-black/50 backdrop-blur-md shadow-lg flex justify-between items-center border-b border-gray-800 z-40 relative">
           <h1 className="px-6 text-3xl font-extrabold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-purple-600">
-            {location.pathname === "/home" ? "Home" : location.pathname.startsWith("/dashboard/profile") ? "Profile" : "Dashboard"}
+            {(() => {
+              const currentMenuItem = menuItems.find(item => location.pathname === item.path);
+              if (currentMenuItem) return currentMenuItem.label;
+              if (location.pathname.startsWith("/dashboard/profile")) return "Profile";
+              if (location.pathname.startsWith("/dashboard/question/")) return "Question Detail";
+              return "Dashboard";
+            })()}
           </h1>
-          <div className="flex items-center space-x-6 pr-6" ref={dropdownRef}>
+          <div className="flex items-center space-x-6 pr-6 relative z-50" ref={dropdownRef}>
             {/* Notification Icon */}
             <div className="relative">
               <button

@@ -1,4 +1,5 @@
 import { User } from "../../models/users.js";
+import { Resource } from "../../models/resource.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
@@ -9,9 +10,7 @@ export const getProfile = async (req, res, next) => {
       .select("-password -refreshToken")
       .populate("branch", "name");
 
-    if (!user) {
-      throw new AppError("User not found", 404);
-    }
+    if (!user) throw new AppError("User not found", 404);
 
     res.status(200).json({ success: true, data: user });
   } catch (error) {
@@ -28,11 +27,12 @@ export const updateProfile = async (req, res, next) => {
     if (bio !== undefined) updates.bio = bio;
     if (skills !== undefined) {
       const skillsArray = Array.isArray(skills) ? skills : skills.split(",");
-      updates.skills = skillsArray.map((s) => (typeof s === "string" ? s.trim() : s)).filter((s) => s !== "");
+      updates.skills = skillsArray
+        .map((s) => (typeof s === "string" ? s.trim() : s))
+        .filter((s) => s !== "");
     }
 
     if (username) {
-      // Check if username is already taken by someone else
       const existingUser = await User.findOne({ username });
       if (existingUser && existingUser._id.toString() !== userId.toString()) {
         throw new AppError("Username is already taken", 400);
@@ -40,23 +40,14 @@ export const updateProfile = async (req, res, next) => {
       updates.username = username;
     }
 
-    // Handle avatar upload or URL
     if (req.file) {
       const avatarUrl = await uploadOnCloudinary(req.file.path);
-      if (!avatarUrl) {
-        throw new AppError("Failed to upload image to Cloudinary", 500);
-      }
+      if (!avatarUrl) throw new AppError("Failed to upload image to Cloudinary", 500);
       updates.avatar = avatarUrl.secure_url ?? avatarUrl.url;
     } else if (typeof req.body.avatarUrl === "string" && req.body.avatarUrl.trim() !== "") {
       let parsedUrl;
-      try {
-        parsedUrl = new URL(req.body.avatarUrl);
-      } catch {
-        throw new AppError("Invalid avatarUrl", 400);
-      }
-      if (parsedUrl.protocol !== "https:") {
-        throw new AppError("avatarUrl must be an https URL", 400);
-      }
+      try { parsedUrl = new URL(req.body.avatarUrl); } catch { throw new AppError("Invalid avatarUrl", 400); }
+      if (parsedUrl.protocol !== "https:") throw new AppError("avatarUrl must be an https URL", 400);
       updates.avatar = parsedUrl.toString();
     }
 
@@ -66,6 +57,72 @@ export const updateProfile = async (req, res, next) => {
     }).select("-password -refreshToken");
 
     res.status(200).json({ success: true, data: updatedUser });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Toggle bookmark — adds if not present, removes if already bookmarked */
+export const toggleBookmark = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { resourceId } = req.params;
+
+    // Verify resource exists
+    const resource = await Resource.findById(resourceId);
+    if (!resource) throw new AppError("Resource not found", 404);
+
+    const user = await User.findById(userId);
+    const alreadyBookmarked = user.bookmarks.some((id) => id.toString() === resourceId);
+
+    const update = alreadyBookmarked
+      ? { $pull: { bookmarks: resourceId } }
+      : { $addToSet: { bookmarks: resourceId } };
+
+    await User.findByIdAndUpdate(userId, update);
+
+    res.status(200).json({
+      success: true,
+      bookmarked: !alreadyBookmarked,
+      message: alreadyBookmarked ? "Bookmark removed" : "Resource bookmarked",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Return the current user's bookmarked resources, fully populated */
+export const getMyBookmarks = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate({
+        path: "bookmarks",
+        populate: { path: "userId", select: "username avatar" },
+      })
+      .select("bookmarks");
+
+    const validBookmarks = (user?.bookmarks || []).filter(Boolean);
+    res.status(200).json({ success: true, data: validBookmarks });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Return another user's public bookmark IDs (for profile display) */
+export const getUserBookmarks = async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    const user = await User.findOne({ username })
+      .populate({
+        path: "bookmarks",
+        populate: { path: "userId", select: "username avatar" },
+      })
+      .select("bookmarks");
+
+    if (!user) throw new AppError("User not found", 404);
+
+    const validBookmarks = (user?.bookmarks || []).filter(Boolean);
+    res.status(200).json({ success: true, data: validBookmarks });
   } catch (error) {
     next(error);
   }

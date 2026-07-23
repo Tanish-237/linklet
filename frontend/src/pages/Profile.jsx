@@ -6,6 +6,7 @@ import { apiClient } from "../api/apiClient";
 import defaultAvatar from "../assets/default-avatar.png";
 import defaultBanner from "../assets/mnnit-banner.png";
 import { Helmet } from "react-helmet-async";
+import Saved from "./Saved";
 import "./Profile.css";
 
 const Profile = () => {
@@ -471,21 +472,17 @@ const Profile = () => {
           </div>
 
           <div className="profile-tab-content">
-            <div className="profile-empty-state">
-              <div className="profile-empty-icon">
-                <span className="material-icons">
-                  {activeTab === "posts" ? "article" : "bookmark"}
-                </span>
+            {activeTab === "posts" ? (
+              <div className="profile-empty-state">
+                <div className="profile-empty-icon">
+                  <span className="material-icons">article</span>
+                </div>
+                <h3 className="profile-empty-title">No posts yet</h3>
+                <p className="profile-empty-desc">When this user creates posts, they will appear here.</p>
               </div>
-              <h3 className="profile-empty-title">
-                {activeTab === "posts" ? "No posts yet" : "No saved resources"}
-              </h3>
-              <p className="profile-empty-desc">
-                {activeTab === "posts"
-                  ? "When this user creates posts, they will appear here."
-                  : "Saved resources will appear here."}
-              </p>
-            </div>
+            ) : (
+              <Saved username={profileUser.username} />
+            )}
           </div>
         </div>
 
