@@ -1,6 +1,6 @@
 import React from "react";
-import Layout from "./Layout";
 import { useLocation } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import AttendanceTracker from "../components/AttendanceTracker";
 import DailySchedule from "../components/DailySchedule";
 import Resource from "./Resource";
@@ -56,8 +56,11 @@ export default function Dashboard() {
   };
 
   return (
-    <Layout>
+    <>
+      <Helmet>
+        <title>Dashboard | Linklet</title>
+      </Helmet>
       {renderMainContent()}
-    </Layout>
+    </>
   );
 }

@@ -37,6 +37,7 @@ const GamesAndVideos = lazy(() => import("./pages/GamesAndVideos"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const ModeratorDashboard = lazy(() => import("./pages/ModeratorDashboard"));
 const Profile = lazy(() => import("./pages/Profile"));
+const Saved = lazy(() => import("./pages/Saved"));
 
 // Lazy Loaded Static Pages
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
@@ -241,7 +242,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/resources"
+              path="/dashboard/global-search"
               element={
                 <Layout>
                   <Resource />
@@ -269,6 +270,22 @@ function App() {
               element={
                 <Layout>
                   <div>Clubs Coming Soon</div>
+                </Layout>
+              }
+            />
+            <Route
+              path="/dashboard/bookmarks"
+              element={
+                <Layout>
+                  <Saved />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dashboard/saved"
+              element={
+                <Layout>
+                  <Saved />
                 </Layout>
               }
             />

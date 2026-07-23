@@ -1,525 +1,791 @@
-import React, { useState, useEffect } from "react";
-
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
 import { toast } from "react-toastify";
-import { API_BASE_URL } from "../config";
-
 import { apiClient } from "../api/apiClient";
+import PreviewModal, { getFileIcon } from "../components/PreviewModal";
+import "./Resource.css";
 
-const Resource = () => {
-  const [searchTerm, setSearchTerm] = useState("");
+/* ─────────────────────────── helpers ─────────────────────────── */
+const formatCount = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n || 0);
+
+const timeAgo = (dateStr) => {
+  const diff = (Date.now() - new Date(dateStr)) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+};
+
+/* ─────────────────────────── skeleton ─────────────────────────── */
+const SkeletonCard = ({ view }) => (
+  view === "grid"
+    ? <div className="gs-skeleton gs-card-grid" />
+    : <div className="gs-skeleton gs-card-list" />
+);
+
+/* ─────────────────────── upload modal ─────────────────────────── */
+import SaveToCollectionModal from "../components/SaveToCollectionModal";
+
+const CATEGORIES = [
+  { id: "all",           label: "All",           icon: "folder" },
+  { id: "notes",         label: "Notes",         icon: "description" },
+  { id: "assignments",   label: "Assignments",   icon: "assignment" },
+  { id: "papers",        label: "Papers",        icon: "library_books" },
+  { id: "presentations", label: "Presentations", icon: "slideshow" },
+  { id: "other",         label: "Other",         icon: "more_horiz" },
+];
+
+const POPULAR_TAGS = ["mid-term", "finals", "project", "homework", "research"];
+
+const UploadModal = ({ onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({ title: "", description: "", category: "notes" });
+  const [tags, setTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
+  const [uploadType, setUploadType] = useState("file");
+  const [linkUrl, setLinkUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
-  const [resources, setResources] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedSort, setSelectedSort] = useState("newest");
-  const [selectedTags, setSelectedTags] = useState([]);
-  const [stats, setStats] = useState({
-    total: 0,
-    categories: {
-      all: 0,
-      notes: 0,
-      assignments: 0,
-      papers: 0,
-      presentations: 0,
-      other: 0,
-    },
-  });
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
-  const [uploadFormData, setUploadFormData] = useState({
-    title: "",
-    description: "",
-    tags: "",
-    category: "notes", // default category
-  });
-  const [isUploading, setIsUploading] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-
-  const categories = [
-    { id: "all", label: "All Resources", icon: "folder" },
-    { id: "notes", label: "Notes", icon: "description" },
-    { id: "assignments", label: "Assignments", icon: "assignment" },
-    { id: "papers", label: "Papers", icon: "library_books" },
-    { id: "presentations", label: "Presentations", icon: "slideshow" },
-    { id: "other", label: "Other", icon: "more_horiz" },
+  const ALLOWED_TYPES = [
+    "application/pdf","application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/vnd.ms-powerpoint",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "text/plain",
+    "image/jpeg","image/png","image/gif","image/webp","image/svg+xml",
+    "video/mp4","video/webm","video/ogg","video/quicktime"
   ];
 
-  const popularTags = ["mid-term", "finals", "project", "homework", "research"];
+  const handleFile = (file) => {
+    if (file && (ALLOWED_TYPES.includes(file.type) || file.type.startsWith("image/") || file.type.startsWith("video/"))) setSelectedFile(file);
+    else toast.error("Please select a valid document, image, or video file.");
+  };
 
-  useEffect(() => {
-    fetchResources();
-  }, [selectedCategory, selectedSort, selectedTags]);
+  const addTag = (tag) => {
+    const cleaned = tag.trim().toLowerCase().replace(/^#+/, "");
+    if (cleaned && !tags.includes(cleaned)) setTags((p) => [...p, cleaned]);
+    setTagInput("");
+  };
 
-  const fetchResources = async (query = "") => {
-    setLoading(true);
+  const handleTagKeyDown = (e) => {
+    if (["Enter", ",", " "].includes(e.key)) {
+      e.preventDefault();
+      if (tagInput.trim()) addTag(tagInput);
+    } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
+      setTags((p) => p.slice(0, -1));
+    }
+  };
+
+  const removeTag = (tag) => setTags((p) => p.filter((t) => t !== tag));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (uploadType === "file" && !selectedFile) return;
+    if (uploadType === "link" && !linkUrl) return;
+    setUploading(true);
     try {
-      const response = await apiClient.get("/resources/library", {
-        params: {
-          search: query || searchTerm,
-          category: selectedCategory !== "all" ? selectedCategory : "",
-          sort: selectedSort,
-          tags: selectedTags.join(","),
-          page: 1,
-          limit: 50,
-        },
-      });
-      setResources(response.data.data || []);
-      setStats(
-        response.data.stats || {
-          total: 0,
-          categories: {
-            all: 0,
-            notes: 0,
-            assignments: 0,
-            papers: 0,
-            presentations: 0,
-            other: 0,
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error fetching resources:", error);
-      if (error.response?.status === 401) {
-        toast.error("Please login to view resources");
+      const fd = new FormData();
+      const fallbackName = uploadType === "file" ? selectedFile.name : linkUrl;
+      const finalTitle = formData.title.trim() || fallbackName;
+      fd.append("title", finalTitle);
+      fd.append("description", formData.description);
+      fd.append("category", formData.category);
+      fd.append("tags", tags.join(","));
+      if (uploadType === "file") {
+        fd.append("document", selectedFile);
       } else {
-        toast.error("Failed to load resources. Please try again later.");
+        fd.append("linkUrl", linkUrl);
       }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      fetchResources(searchTerm);
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    const allowedTypes = [
-      "application/pdf",
-      "application/msword",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/vnd.ms-powerpoint",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.ms-excel",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "text/plain",
-    ];
-
-    if (file && allowedTypes.includes(file.type)) {
-      setSelectedFile(file);
-    } else {
-      toast.error(
-        "Please select a valid document (PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, TXT)"
-      );
-    }
-  };
-
-  const handleUploadFormChange = (e) => {
-    const { name, value } = e.target;
-    setUploadFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    setIsUploading(true);
-
-    try {
-      const formData = new FormData();
-      formData.append("title", uploadFormData.title);
-      formData.append("description", uploadFormData.description);
-      formData.append("category", uploadFormData.category);
-      formData.append("tags", uploadFormData.tags);
-      formData.append("document", selectedFile);
-
-      const response = await apiClient.post("/resources", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-        withCredentials: true, // Ensure cookies are sent
-      });
-
-      if (response.status === 201) {
-        toast.success("Resource uploaded successfully!");
-        setSelectedFile(null);
-        setUploadFormData({
-          title: "",
-          description: "",
-          tags: "",
-          category: "notes",
-        });
-        setShowUploadModal(false);
-        fetchResources();
+      const res = await apiClient.post("/resources", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      if (res.status === 201) {
+        toast.success("Resource shared successfully!");
+        onSuccess();
+        onClose();
       }
-    } catch (error) {
-      console.error("Upload error:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Upload failed. Please try again.";
-      toast.error(errorMessage);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Upload failed. Please try again.");
     } finally {
-      setIsUploading(false);
+      setUploading(false);
     }
-  };
-
-  const toggleTag = (tag) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
   };
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto">
-      {/* Search and Action Section */}
-      <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-md -mx-8 px-8 py-6 border-b border-gray-800 shadow-lg">
-        <div className="max-w-6xl mx-auto space-y-6">
-          {/* Top row with search and actions */}
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch(e)}
-                placeholder="Search for resources..."
-                className="w-full h-12 pl-12 pr-4 bg-black/30 text-white rounded-lg border border-violet-500/30 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all"
-              />
-              <span className="material-icons absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-                search
-              </span>
+    <div className="gs-modal-backdrop" onClick={onClose}>
+      <div className="gs-upload-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="gs-modal-header">
+          <h2 className="gs-modal-title">
+            <span className="material-icons" style={{ color: "#a78bfa" }}>upload_file</span>
+            Share a Resource
+          </h2>
+          <button className="gs-icon-btn" onClick={onClose}>
+            <span className="material-icons">close</span>
+          </button>
+        </div>
+        
+        <div className="gs-upload-type-toggle">
+          <button type="button" className={`gs-toggle-btn ${uploadType === "file" ? "active" : ""}`} onClick={() => setUploadType("file")}>Upload File</button>
+          <button type="button" className={`gs-toggle-btn ${uploadType === "link" ? "active" : ""}`} onClick={() => setUploadType("link")}>Share Link</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="gs-upload-form">
+          <div className="gs-form-group">
+            <label>Title</label>
+            <input
+              type="text" value={formData.title}
+              onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+              placeholder="e.g. Data Structures Notes (Defaults to file name if empty)"
+            />
+          </div>
+          <div className="gs-form-row">
+            <div className="gs-form-group">
+              <label>Category *</label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData((p) => ({ ...p, category: e.target.value }))}
+                required
+              >
+                {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
             </div>
-            <button
-              onClick={handleSearch}
-              className="h-12 px-6 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-all duration-300 flex items-center gap-2 font-semibold"
-              disabled={loading}
+            <div className="gs-form-group">
+              <label>Tags</label>
+              <div className="gs-tag-input-wrap">
+                {tags.map((t) => (
+                  <span key={t} className="gs-tag-input-chip">
+                    #{t}
+                    <button type="button" className="gs-tag-remove" onClick={() => removeTag(t)}>×</button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  className="gs-tag-inner-input"
+                  placeholder={tags.length === 0 ? "Add tags…" : ""}
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  onBlur={() => tagInput.trim() && addTag(tagInput)}
+                />
+              </div>
+              <div className="gs-tag-suggestions">
+                {POPULAR_TAGS.filter((t) => !tags.includes(t)).map((t) => (
+                  <button key={t} type="button" className="gs-tag-suggestion" onClick={() => addTag(t)}>
+                    +{t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="gs-form-group">
+            <label>Description *</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+              placeholder="Describe what's in this resource…" rows={3} required
+            />
+          </div>
+
+          {uploadType === "file" ? (
+            <div
+              className={`gs-dropzone ${dragOver ? "drag-active" : ""} ${selectedFile ? "has-file" : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
+              onClick={() => document.getElementById("gs-file-input").click()}
             >
-              {loading ? (
-                <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white"></div>
-                  <span>Searching...</span>
-                </>
+              <span className="material-icons gs-dropzone-icon">{selectedFile ? "check_circle" : "cloud_upload"}</span>
+              {selectedFile ? (
+                <p className="gs-dropzone-text selected">{formData.title || selectedFile.name}</p>
               ) : (
                 <>
-                  <span className="material-icons">manage_search</span>
-                  <span>Search</span>
+                  <p className="gs-dropzone-text">Drag & drop or click to choose</p>
+                  <p className="gs-dropzone-sub">Documents, Images, Videos</p>
                 </>
               )}
-            </button>
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="h-12 px-6 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white rounded-lg transition-all duration-300 flex items-center gap-2 font-semibold shadow-lg shadow-violet-900/20"
-            >
-              <span className="material-icons">upload_file</span>
-              Share Resource
-            </button>
-          </div>
-
-          {/* Bottom row with filters */}
-          <div className="flex justify-between items-center">
-            {/* Category filters */}
-            <div className="flex gap-2">
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
-                    selectedCategory === category.id
-                      ? "bg-violet-600 text-white"
-                      : "bg-gray-800/50 text-gray-300 hover:bg-gray-800"
-                  }`}
-                >
-                  <span className="material-icons text-xl">
-                    {category.icon}
-                  </span>
-                  <span>{category.label}</span>
-                  {stats.categories[category.id] > 0 && (
-                    <span className="px-2 py-0.5 bg-black/30 rounded-full text-xs">
-                      {stats.categories[category.id]}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Sort options */}
-            <select
-              value={selectedSort}
-              onChange={(e) => setSelectedSort(e.target.value)}
-              className="px-4 py-2 bg-gray-800/50 text-gray-300 rounded-lg border border-gray-700 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 outline-none"
-            >
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-              <option value="az">A-Z</option>
-              <option value="za">Z-A</option>
-            </select>
-          </div>
-
-          {/* Popular tags */}
-          <div className="flex items-center gap-2">
-            <span className="text-gray-400">Popular Tags:</span>
-            <div className="flex flex-wrap gap-2">
-              {popularTags.map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => toggleTag(tag)}
-                  className={`px-3 py-1 rounded-full text-sm border transition-all ${
-                    selectedTags.includes(tag)
-                      ? "bg-violet-600 border-violet-500 text-white"
-                      : "border-violet-500/30 text-violet-300 hover:border-violet-500"
-                  }`}
-                >
-                  #{tag}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Content Area */}
-      <div className="max-w-6xl mx-auto mt-8">
-        {/* Results Section */}
-        <div className="space-y-6">
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-violet-500/20 border-t-violet-500"></div>
-            </div>
-          ) : resources.length > 0 ? (
-            <div className="grid gap-6">
-              {resources.map((resource) => (
-                <div
-                  key={resource._id}
-                  className="p-6 bg-gray-900/50 backdrop-blur-md border border-violet-500/20 rounded-xl hover:border-violet-500/40 transition-all group"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <span
-                          className={`material-icons text-2xl ${
-                            resource.category === "notes"
-                              ? "text-blue-400"
-                              : resource.category === "assignments"
-                              ? "text-green-400"
-                              : resource.category === "papers"
-                              ? "text-yellow-400"
-                              : resource.category === "presentations"
-                              ? "text-pink-400"
-                              : "text-gray-400"
-                          }`}
-                        >
-                          {categories.find((c) => c.id === resource.category)
-                            ?.icon || "description"}
-                        </span>
-                        <h3 className="text-xl font-semibold text-white group-hover:text-violet-400 transition-colors">
-                          {resource.title}
-                        </h3>
-                      </div>
-                      <p className="text-gray-300 mb-4">
-                        {resource.description}
-                      </p>
-
-                      {resource.resourcetags?.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-4">
-                          {resource.resourcetags.map((tag, index) => (
-                            <span
-                              key={index}
-                              className="px-3 py-1 bg-violet-900/30 text-violet-300 text-sm rounded-full border border-violet-500/30"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-4 text-sm text-gray-400">
-                        <div className="flex items-center gap-2">
-                          <span className="material-icons text-base">
-                            description
-                          </span>
-                          <span>{resource.fileName}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="material-icons text-base">
-                            person
-                          </span>
-                          <span>
-                            {resource.userId?.username || "Anonymous"}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="material-icons text-base">
-                            schedule
-                          </span>
-                          <span>
-                            {new Date(resource.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <a
-                      href={resource.fileUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 px-4 py-2 bg-violet-600/20 text-violet-400 rounded-lg hover:bg-violet-600 hover:text-white transition-all ml-4"
-                    >
-                      <span className="material-icons text-xl">download</span>
-                      Download
-                    </a>
-                  </div>
-                </div>
-              ))}
+              <input id="gs-file-input" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" onChange={(e) => handleFile(e.target.files[0])} style={{ display: "none" }} />
             </div>
           ) : (
-            <div className="text-center py-20 bg-gray-900/30 rounded-xl border border-violet-500/20">
-              <span className="material-icons text-4xl text-gray-500 mb-4">
-                folder_off
-              </span>
-              <p className="text-gray-400 text-lg">
-                No resources found. Try a different search or share some
-                documents!
-              </p>
+            <div className="gs-form-group gs-link-group">
+              <label>Resource Link *</label>
+              <input 
+                type="url" 
+                value={linkUrl} 
+                onChange={(e) => setLinkUrl(e.target.value)} 
+                placeholder="https://..." 
+                required={uploadType === "link"} 
+              />
             </div>
           )}
-        </div>
+
+          <button type="submit" className="gs-btn-primary gs-submit-btn" disabled={uploading || (uploadType === "file" && !selectedFile) || (uploadType === "link" && !linkUrl)}>
+            {uploading ? <><div className="gs-spinner-sm" /><span>Sharing…</span></> : <><span className="material-icons">cloud_upload</span><span>Share Resource</span></>}
+          </button>
+        </form>
       </div>
-
-      {/* Upload Modal - Enhanced with category selection */}
-      {showUploadModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-gray-900/95 rounded-xl shadow-xl w-full max-w-md p-6 relative border border-violet-500/30">
-            <button
-              onClick={() => setShowUploadModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"
-            >
-              <span className="material-icons">close</span>
-            </button>
-
-            <h2 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
-              Share Your Resource
-            </h2>
-
-            <form onSubmit={handleUpload} className="space-y-4">
-              <div>
-                <label className="block text-gray-300 mb-2 text-sm">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  name="title"
-                  value={uploadFormData.title}
-                  onChange={handleUploadFormChange}
-                  placeholder="Enter a title for your resource"
-                  className="w-full p-3 bg-black/30 text-white rounded-lg border border-violet-500/30 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2 text-sm">
-                  Category *
-                </label>
-                <select
-                  name="category"
-                  value={uploadFormData.category}
-                  onChange={handleUploadFormChange}
-                  className="w-full p-3 bg-black/30 text-white rounded-lg border border-violet-500/30 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all"
-                  required
-                >
-                  {categories
-                    .filter((c) => c.id !== "all")
-                    .map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.label}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2 text-sm">
-                  Description *
-                </label>
-                <textarea
-                  name="description"
-                  value={uploadFormData.description}
-                  onChange={handleUploadFormChange}
-                  placeholder="Describe your resource"
-                  className="w-full p-3 bg-black/30 text-white rounded-lg border border-violet-500/30 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all min-h-[100px]"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2 text-sm">
-                  Tags (comma separated)
-                </label>
-                <input
-                  type="text"
-                  name="tags"
-                  value={uploadFormData.tags}
-                  onChange={handleUploadFormChange}
-                  placeholder="e.g. maths, mid-term, notes"
-                  className="w-full p-3 bg-black/30 text-white rounded-lg border border-violet-500/30 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label className="block text-gray-300 mb-2 text-sm">
-                  Document *
-                </label>
-                <label className="block w-full p-4 bg-black/30 text-white rounded-lg cursor-pointer border border-violet-500/30 hover:border-violet-500 transition-all text-center group">
-                  <span className="material-icons text-2xl mb-2 text-violet-400 group-hover:text-violet-300">
-                    {selectedFile ? "check_circle" : "upload_file"}
-                  </span>
-                  <span className="block text-sm">
-                    {selectedFile
-                      ? `Selected: ${selectedFile.name}`
-                      : "Choose Document"}
-                  </span>
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    required
-                  />
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isUploading || !selectedFile}
-                className={`w-full p-4 rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${
-                  selectedFile
-                    ? "bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white"
-                    : "bg-gray-700 text-gray-400 cursor-not-allowed"
-                }`}
-              >
-                {isUploading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white/20 border-t-white"></div>
-                    <span>Uploading...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-icons">cloud_upload</span>
-                    <span>Upload Document</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default Resource;
+/* ──────────────────────── resource card ──────────────────────── */
+const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction }) => {
+  const { icon, color } = getFileIcon(resource.fileName, resource.fileType);
+  const [copying, setCopying] = useState(false);
+
+  const copyLink = async (e) => {
+    if (e) e.stopPropagation();
+    try {
+      const shareUrl = `${window.location.origin}/dashboard/global-search?preview=${resource._id}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 1500);
+    } catch { toast.error("Could not copy link"); }
+  };
+
+  /* ── List view ── */
+  if (view === "list") {
+    return (
+      <div className="gs-card-list" onClick={() => onOpen(resource)} style={{ cursor: "pointer" }}>
+        <div className="gs-list-left">
+          <div className="gs-list-icon-wrap">
+            <span className="material-icons gs-list-icon" style={{ color }}>{icon}</span>
+          </div>
+          <div className="gs-list-info">
+            {/* Title row */}
+            <h3 className="gs-list-title">{resource.title || resource.fileName}</h3>
+            {/* Description — always visible, left-aligned */}
+            {resource.description && (
+              <p className="gs-list-desc">{resource.description}</p>
+            )}
+            {/* Tags */}
+            {resource.resourcetags?.length > 0 && (
+              <div className="gs-tags">
+                {resource.resourcetags.slice(0, 5).map((t, i) => (
+                  <span key={i} className="gs-tag">#{t}</span>
+                ))}
+              </div>
+            )}
+            {/* Meta row */}
+            <div className="gs-list-meta">
+              {resource.userId?.avatar
+                ? <img src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
+                : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
+              }
+              <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
+                {resource.userId?.username || "Anonymous"}
+              </Link>
+              <span className="gs-dot" />
+              <span>{timeAgo(resource.createdAt)}</span>
+              <span className="gs-dot" />
+              <span className="gs-category-badge">{resource.category}</span>
+              <span className="gs-dot" />
+              <span className="gs-stat-chip">
+                <span className="material-icons">download</span>
+                {formatCount(resource.downloadsCount)}
+              </span>
+            </div>
+          </div>
+        </div>
+        {/* Right: actions */}
+        <div className="gs-list-actions">
+          <button className={`gs-icon-btn ${saved ? "saved" : ""}`} title={saved ? "Remove from Saved" : "Save"} onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}>
+            <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
+          </button>
+          <button className="gs-icon-btn" title={copying ? "Copied!" : "Copy link"} onClick={copyLink}>
+            <span className="material-icons">{copying ? "check" : "link"}</span>
+          </button>
+          {resource.fileType !== "link" && (
+            <button className="gs-btn-primary-sm" onClick={(e) => { e.stopPropagation(); onAction(resource, "download"); }}>
+              <span className="material-icons">download</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ── Grid view ── */
+  return (
+    <div className="gs-card-grid" onClick={() => onOpen(resource)} style={{ cursor: "pointer" }}>
+      <div className="gs-card-top-row">
+        <div className="gs-card-icon-wrap" style={{ "--ic": color }}>
+          <span className="material-icons gs-card-icon" style={{ color }}>{icon}</span>
+        </div>
+        <button
+          className={`gs-icon-btn ${saved ? "saved" : ""}`}
+          title={saved ? "Remove from Saved" : "Save"}
+          onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}
+        >
+          <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
+        </button>
+      </div>
+
+      {/* Title */}
+      <h3 className="gs-card-title" title={resource.title || resource.fileName}>
+        {resource.title || resource.fileName}
+      </h3>
+
+      {/* Description — always visible */}
+      {resource.description && (
+        <p className="gs-card-desc">{resource.description}</p>
+      )}
+
+      <div className="gs-card-body">
+        <span className="gs-category-badge">{resource.category}</span>
+        {/* Tags */}
+        {resource.resourcetags?.length > 0 && (
+          <div className="gs-tags">
+            {resource.resourcetags.slice(0, 4).map((t, i) => <span key={i} className="gs-tag">#{t}</span>)}
+          </div>
+        )}
+      </div>
+
+      <div className="gs-card-footer">
+        <div className="gs-card-user">
+          {resource.userId?.avatar
+            ? <img src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
+            : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
+          }
+          <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
+            {resource.userId?.username || "Anonymous"}
+          </Link>
+          <span className="gs-time">{timeAgo(resource.createdAt)}</span>
+        </div>
+        <div className="gs-stat-chip">
+          <span className="material-icons">download</span>
+          {formatCount(resource.downloadsCount)}
+        </div>
+      </div>
+
+      <div className="gs-card-actions">
+        <button className="gs-btn-ghost" style={{ flex: 1 }} onClick={copyLink}>
+          <span className="material-icons">{copying ? "check" : "link"}</span>
+          {copying ? "Copied" : "Copy Link"}
+        </button>
+        {resource.fileType !== "link" && (
+          <button className="gs-btn-primary-sm" style={{ flex: 1 }} onClick={(e) => { e.stopPropagation(); onAction(resource, "download"); }}>
+            <span className="material-icons">download</span>
+            Download
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────── constants ─────────────────────────── */
+const SORT_OPTIONS = [
+  { id: "most_downloaded", label: "Most Downloaded", icon: "trending_up" },
+  { id: "relevance",       label: "Relevance",        icon: "auto_awesome" },
+  { id: "newest",          label: "Newest First",     icon: "schedule" },
+  { id: "oldest",          label: "Oldest First",     icon: "history" },
+  { id: "az",              label: "A – Z",            icon: "sort_by_alpha" },
+  { id: "za",              label: "Z – A",            icon: "sort_by_alpha" },
+];
+
+const FILE_TYPE_FILTERS = [
+  { id: "all", label: "All Types" },
+  { id: "pdf", label: "PDF" },
+  { id: "doc", label: "Word" },
+  { id: "ppt", label: "Slides" },
+  { id: "xls", label: "Sheet" },
+  { id: "txt", label: "Text" },
+  { id: "img", label: "Image" },
+  { id: "vid", label: "Video" },
+  { id: "link", label: "Link" },
+];
+
+const PAGE_SIZE = 12;
+
+/* ─────────────────────── main component ─────────────────────────── */
+export default function GlobalSearch() {
+  const [searchTerm, setSearchTerm]         = useState("");
+  const [debouncedTerm, setDebouncedTerm]   = useState("");
+  const [resources, setResources]           = useState([]);
+  const [loading, setLoading]               = useState(false);
+  const [loadingMore, setLoadingMore]       = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedFileType, setSelectedFileType] = useState("all");
+  const [selectedSort, setSelectedSort]     = useState("most_downloaded");
+  const [selectedTags, setSelectedTags]     = useState([]);
+  const [isSortOpen, setIsSortOpen]         = useState(false);
+  const [view, setView]                     = useState("grid");
+  // bookmarks: Set of resource IDs saved by current user (from backend)
+  const [bookmarks, setBookmarks]           = useState(new Set());
+  const [previewResource, setPreviewResource] = useState(null);
+  const [showUpload, setShowUpload]         = useState(false);
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+  const [showMyResourcesOnly, setShowMyResourcesOnly] = useState(false);
+  const [savedResources, setBookmarkedResources] = useState([]);
+  const [stats, setStats]                   = useState({ total: 0, categories: { all:0, notes:0, assignments:0, papers:0, presentations:0, other:0 } });
+  const [pagination, setPagination]         = useState({ page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false });
+  const [searchParams, setSearchParams]     = useSearchParams();
+  const [collectionModalResourceId, setCollectionModalResourceId] = useState(null);
+
+  const sortRef = useRef(null);
+  const debounceRef = useRef(null);
+
+  // Debounce search
+  useEffect(() => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedTerm(searchTerm), 400);
+    return () => clearTimeout(debounceRef.current);
+  }, [searchTerm]);
+
+  // Fetch bookmarks from backend on mount
+  useEffect(() => {
+    fetchMySaved();
+    
+    // Check for preview parameter in URL to auto-open modal
+    const previewId = searchParams.get("preview");
+    if (previewId) {
+      apiClient.get(`/resources/${previewId}`)
+        .then(res => {
+          if (res.data.data) setPreviewResource(res.data.data);
+        })
+        .catch(() => toast.error("Could not load preview resource"));
+      // Clear parameter to avoid re-triggering on refresh
+      setSearchParams({}, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Fetch resources when filters change
+  useEffect(() => {
+    fetchResources(1, false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedTerm, selectedCategory, selectedFileType, selectedSort, selectedTags, showMyResourcesOnly]);
+
+  // Close sort dropdown outside click
+  useEffect(() => {
+    const handler = (e) => { if (sortRef.current && !sortRef.current.contains(e.target)) setIsSortOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const fetchMySaved = async () => {
+    try {
+      const res = await apiClient.get("/profile/me/bookmarks");
+      const bms = res.data.data || [];
+      setBookmarks(new Set(bms.map((r) => r._id?.toString())));
+      setBookmarkedResources(bms);
+    } catch {
+      // Not logged in or error — silently ignore
+    }
+  };
+
+  const fetchResources = async (page = 1, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
+    try {
+      const res = await apiClient.get("/resources/library", {
+        params: {
+          search: debouncedTerm || undefined,
+          category: selectedCategory !== "all" ? selectedCategory : undefined,
+          fileType: selectedFileType !== "all" ? selectedFileType : undefined,
+          sort: selectedSort,
+          tags: selectedTags.length > 0 ? selectedTags.join(",") : undefined,
+          page,
+          limit: PAGE_SIZE,
+          onlyMe: showMyResourcesOnly || undefined,
+        },
+      });
+      const data = res.data.data || [];
+      setResources((prev) => append ? [...prev, ...data] : data);
+      setStats(res.data.stats || stats);
+      setPagination(res.data.pagination || { page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false });
+    } catch (err) {
+      if (err.response?.status === 401) toast.error("Please log in to view resources");
+      else toast.error("Failed to load resources.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const handleLoadMore = () => fetchResources(pagination.page + 1, true);
+
+  const handleResourceAction = async (resource, actionType) => {
+    try {
+      setResources((prev) =>
+        prev.map((r) => r._id === resource._id ? { ...r, downloadsCount: (r.downloadsCount || 0) + 1 } : r)
+      );
+      await apiClient.patch(`/resources/${resource._id}/download`);
+      let url = resource.fileUrl;
+      if (actionType === "download") {
+        if (url.includes("cloudinary.com") && !url.includes("fl_attachment"))
+          url = url.replace("/upload/", "/upload/fl_attachment/");
+        const a = document.createElement("a");
+        a.href = url; a.download = resource.title || resource.fileName || "download"; a.target = "_blank";
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch {
+      window.open(resource.fileUrl, "_blank");
+    }
+  };
+
+  const handleToggleBookmark = async (id) => {
+    const wasBookmarked = bookmarks.has(id.toString());
+    // Optimistic update
+    setBookmarks((prev) => {
+      const next = new Set(prev);
+      if (wasBookmarked) next.delete(id.toString()); else next.add(id.toString());
+      return next;
+    });
+    try {
+      const res = await apiClient.post(`/profile/bookmarks/${id}`);
+      if (res.data.bookmarked) {
+        setCollectionModalResourceId(id.toString());
+      } else {
+        toast("Removed from Saved", {
+          icon: "🗑️", autoClose: 1500,
+        });
+      }
+      // Refresh bookmark list for sidebar view
+      fetchMySaved();
+    } catch {
+      // Revert on error
+      setBookmarks((prev) => {
+        const next = new Set(prev);
+        if (wasBookmarked) next.add(id.toString()); else next.delete(id.toString());
+        return next;
+      });
+      toast.error("Failed to update saved item");
+    }
+  };
+
+  const toggleTag = (tag) =>
+    setSelectedTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
+
+  const clearFilters = () => {
+    setSearchTerm(""); setDebouncedTerm("");
+    setSelectedCategory("all"); setSelectedFileType("all");
+    setSelectedSort("most_downloaded"); setSelectedTags([]);
+    setShowSavedOnly(false);
+  };
+
+  const hasFilters = searchTerm || selectedCategory !== "all" || selectedFileType !== "all"
+    || selectedTags.length > 0 || showSavedOnly;
+
+  const displayedResources = showSavedOnly ? savedResources : resources;
+  const activeSort = SORT_OPTIONS.find((o) => o.id === selectedSort);
+
+  return (
+    <div className="gs-root">
+      <Helmet>
+        <title>Global Search | Linklet</title>
+      </Helmet>
+      {/* ── Toolbar ── */}
+      <div className="gs-toolbar">
+        <div className="gs-toolbar-inner">
+          {/* Search */}
+          <div className="gs-search-wrap">
+            <span className="material-icons gs-search-icon">search</span>
+            <input
+              className="gs-search-input"
+              type="text" value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search resources, notes, papers…"
+              autoComplete="off"
+            />
+            {searchTerm && (
+              <button className="gs-search-clear" onClick={() => setSearchTerm("")}>
+                <span className="material-icons">close</span>
+              </button>
+            )}
+            {loading && <div className="gs-search-spinner" />}
+          </div>
+
+          {/* Actions */}
+          <div className="gs-toolbar-actions">
+            {/* Saved toggle */}
+            <button
+              className={`gs-icon-btn-lg ${showSavedOnly ? "active" : ""}`}
+              title="Saved Items"
+              onClick={() => setShowSavedOnly((p) => !p)}
+            >
+              <span className="material-icons">bookmark</span>
+              {bookmarks.size > 0 && <span className="gs-badge">{bookmarks.size}</span>}
+            </button>
+
+            {/* My Resources toggle */}
+            <button
+              className={`gs-icon-btn-lg ${showMyResourcesOnly ? "active" : ""}`}
+              title="My Resources"
+              onClick={() => setShowMyResourcesOnly((p) => !p)}
+            >
+              <span className="material-icons">folder_shared</span>
+            </button>
+
+            {/* View toggle */}
+            <div className="gs-view-toggle">
+              <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} title="Grid view">
+                <span className="material-icons">grid_view</span>
+              </button>
+              <button className={view === "list" ? "active" : ""} onClick={() => setView("list")} title="List view">
+                <span className="material-icons">view_list</span>
+              </button>
+            </div>
+
+            {/* Upload */}
+            <button className="gs-btn-upload" onClick={() => setShowUpload(true)}>
+              <span className="material-icons">upload_file</span>
+              Share
+            </button>
+          </div>
+        </div>
+
+        {/* Filter row */}
+        <div className="gs-filter-row">
+          <div className="gs-filter-scroll">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                className={`gs-filter-pill ${selectedCategory === cat.id ? "active" : ""}`}
+                onClick={() => setSelectedCategory(cat.id)}
+              >
+                <span className="material-icons">{cat.icon}</span>
+                {cat.label}
+                {stats.categories[cat.id] > 0 && (
+                  <span className="gs-pill-count">{stats.categories[cat.id]}</span>
+                )}
+              </button>
+            ))}
+          </div>
+          <div className="gs-filter-right">
+            <div className="gs-sort-wrap" ref={sortRef}>
+              <button className="gs-sort-btn" onClick={() => setIsSortOpen((p) => !p)}>
+                <span className="material-icons gs-sort-icon">{activeSort?.icon}</span>
+                <span>{activeSort?.label}</span>
+                <span className={`material-icons gs-sort-chevron ${isSortOpen ? "open" : ""}`}>expand_more</span>
+              </button>
+              {isSortOpen && (
+                <div className="gs-sort-dropdown">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      className={`gs-sort-item ${selectedSort === opt.id ? "selected" : ""}`}
+                      onClick={() => { setSelectedSort(opt.id); setIsSortOpen(false); }}
+                    >
+                      <span className="material-icons">{opt.icon}</span>
+                      {opt.label}
+                      {selectedSort === opt.id && <span className="material-icons gs-check">check</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* File type + popular tags */}
+        <div className="gs-sub-filter-row">
+          <div className="gs-filetype-row">
+            {FILE_TYPE_FILTERS.map((ft) => (
+              <button
+                key={ft.id}
+                className={`gs-filetype-chip ${selectedFileType === ft.id ? "active" : ""}`}
+                onClick={() => setSelectedFileType(ft.id)}
+              >
+                {ft.label}
+              </button>
+            ))}
+          </div>
+          <div className="gs-tags-row">
+            <span className="gs-tags-label">Popular:</span>
+            {POPULAR_TAGS.map((tag) => (
+              <button
+                key={tag}
+                className={`gs-tag-chip ${selectedTags.includes(tag) ? "active" : ""}`}
+                onClick={() => toggleTag(tag)}
+              >
+                #{tag}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stats bar ── */}
+      <div className="gs-stats-bar">
+        <span className="gs-stats-text">
+          {loading ? "Searching…" : (
+            showSavedOnly
+              ? `${displayedResources.length} saved item${displayedResources.length !== 1 ? "s" : ""}`
+              : `${pagination.totalDocs} result${pagination.totalDocs !== 1 ? "s" : ""}${debouncedTerm ? ` for "${debouncedTerm}"` : ""}`
+          )}
+        </span>
+        {hasFilters && (
+          <button className="gs-clear-btn" onClick={clearFilters}>
+            <span className="material-icons">filter_list_off</span>
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* ── Results ── */}
+      <div className="gs-results">
+        {loading ? (
+          <div className={view === "grid" ? "gs-grid" : "gs-list-container"}>
+            {Array.from({ length: 8 }).map((_, i) => <SkeletonCard key={i} view={view} />)}
+          </div>
+        ) : displayedResources.length > 0 ? (
+          <>
+            <div className={view === "grid" ? "gs-grid" : "gs-list-container"}>
+              {displayedResources.map((r) => (
+                <ResourceCard
+                  key={r._id}
+                  resource={r}
+                  view={view}
+                  saved={bookmarks.has(r._id?.toString())}
+                  onToggleSave={handleToggleBookmark}
+                  onOpen={setPreviewResource}
+                  onAction={handleResourceAction}
+                />
+              ))}
+            </div>
+            {!showSavedOnly && pagination.hasNextPage && (
+              <div className="gs-load-more-row">
+                <button className="gs-load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
+                  {loadingMore ? <><div className="gs-spinner-sm" /> Loading…</> : <><span className="material-icons">expand_more</span> Load More</>}
+                </button>
+                <span className="gs-load-more-meta">{resources.length} of {pagination.totalDocs} items</span>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="gs-empty">
+            <div className="gs-empty-icon">
+              <span className="material-icons">manage_search</span>
+            </div>
+            <h3 className="gs-empty-title">
+              {showSavedOnly ? "No saved items yet" : "Nothing found"}
+            </h3>
+            <p className="gs-empty-sub">
+              {showSavedOnly
+                ? "Save resources to find them quickly later."
+                : hasFilters ? "Try adjusting your filters or search term." : "Be the first to share a resource!"}
+            </p>
+            {hasFilters && <button className="gs-btn-primary" onClick={clearFilters}>Clear Filters</button>}
+          </div>
+        )}
+      </div>
+
+      {/* ── Modals ── */}
+      {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onSuccess={() => fetchResources(1, false)} />}
+      {collectionModalResourceId && (
+        <SaveToCollectionModal
+          resourceId={collectionModalResourceId}
+          onClose={() => setCollectionModalResourceId(null)}
+        />
+      )}
+    </div>
+  );
+}

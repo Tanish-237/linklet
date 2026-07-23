@@ -24,14 +24,16 @@ const fileFilter = (req, file, cb) => {
     "application/vnd.ms-excel", // XLS
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
     "text/plain", // TXT
+    "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", // Images
+    "video/mp4", "video/webm", "video/ogg", "video/quicktime" // Videos
   ];
 
-  if (allowedFileTypes.includes(file.mimetype)) {
+  if (allowedFileTypes.includes(file.mimetype) || file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
     cb(null, true); // Accept the file
   } else {
     cb(
       new Error(
-        "Unsupported file type. Only PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, and TXT are allowed."
+        "Unsupported file type. Only documents, images, and videos are allowed."
       ),
       false
     );

@@ -13,7 +13,7 @@ const PostDetail = () => {
   const [loading, setLoading] = useState(true);
   const [commentLoading, setCommentLoading] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
   const modalRef = useRef(null);
@@ -36,10 +36,10 @@ const PostDetail = () => {
 
         setPost(postResponse.data.data);
 
-        // Check if post is bookmarked by user
+        // Check if post is saved by user
         if (user) {
           const bookmarkCheck = user.bookmarks?.includes(postId);
-          setIsBookmarked(bookmarkCheck || false);
+          setIsSaved(bookmarkCheck || false);
         }
       } catch (error) {
         if (error.message === "Post not found") {
@@ -144,23 +144,22 @@ const PostDetail = () => {
     setShowShareMenu(false);
   };
 
-  const handleBookmark = async () => {
+  const handleSave = async () => {
     if (!user) {
-      toast.error("Please log in to bookmark");
+      toast.error("Please log in to save");
       return;
     }
 
     try {
-      const response = await apiClient.post(
-        `/posts/${postId}/bookmark`
-      );
+      await apiClient.post(`/posts/${postId}/bookmark`);
 
-      setIsBookmarked(!isBookmarked);
+      // Optimistic update
+      setIsSaved(!isSaved);
       toast.success(
-        isBookmarked ? "Post removed from bookmarks" : "Post saved to bookmarks"
+        isSaved ? "Post removed from saved" : "Post saved"
       );
-    } catch (error) {
-      handleApiError(error);
+    } catch (err) {
+      handleApiError(err);
     }
   };
 
@@ -305,15 +304,20 @@ const PostDetail = () => {
               </button>
               
               <button
-                onClick={handleBookmark}
+                onClick={handleSave}
+                title={
+                  isSaved
+                    ? "Remove from Saved"
+                    : "Save Post"
+                }
                 className={`flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-sm transition-all duration-300 ${
-                  isBookmarked
+                  isSaved
                     ? "bg-violet-500/30 text-white"
                     : "bg-black/40 text-gray-300 hover:bg-violet-500/20"
                 } border border-violet-500/30`}
               >
                 <span className="material-icons text-xl">
-                  {isBookmarked ? "bookmark" : "bookmark_border"}
+                  {isSaved ? "bookmark" : "bookmark_border"}
                 </span>
               </button>
             </div>
