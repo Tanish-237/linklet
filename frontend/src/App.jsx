@@ -4,6 +4,7 @@ import {
   Route,
   Routes,
   Navigate,
+  useParams,
 } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { Suspense, lazy, useEffect } from "react";
@@ -49,6 +50,14 @@ const CookiePolicy = lazy(() => import("./pages/static/CookiePolicy"));
 const SecurityInfo = lazy(() => import("./pages/static/SecurityInfo"));
 const PricingPage = lazy(() => import("./pages/static/PricingPage"));
 const FAQPage = lazy(() => import("./pages/static/FAQPage"));
+
+const ProfileRedirect = () => {
+  const { username } = useParams();
+  const { user } = useAuthStore();
+  
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={`/dashboard/profile${username ? `/${username}` : ""}`} replace />;
+};
 
 function App() {
   const { user, isLoading, checkAuth } = useAuthStore();
@@ -188,14 +197,10 @@ function App() {
               }
             />
 
+            {/* Redirect old /profile route to dashboard */}
             <Route
               path="/profile/:username?"
-              element={
-                <>
-                  <Navbar />
-                  <Profile />
-                </>
-              }
+              element={<ProfileRedirect />}
             />
 
             {/* Layout Routes */}
@@ -224,6 +229,14 @@ function App() {
               element={
                 <Layout>
                   <Dashboard />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dashboard/profile/:username?"
+              element={
+                <Layout>
+                  <Profile />
                 </Layout>
               }
             />

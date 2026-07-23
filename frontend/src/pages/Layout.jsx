@@ -98,7 +98,7 @@ export default function Layout({ children }) {
         {/* Header */}
         <header className="h-[73px] bg-black/50 backdrop-blur-md shadow-lg flex justify-between items-center border-b border-gray-800 z-20">
           <h1 className="px-6 text-3xl font-extrabold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-purple-600">
-            {location.pathname === "/home" ? "Home" : "Dashboard"}
+            {location.pathname === "/home" ? "Home" : location.pathname.startsWith("/dashboard/profile") ? "Profile" : "Dashboard"}
           </h1>
           <div className="flex items-center space-x-6 pr-6" ref={dropdownRef}>
             {/* Notification Icon */}
@@ -188,6 +188,7 @@ export default function Layout({ children }) {
                     </li>
                     <li>
                       <button 
+                        onClick={() => navigate('/dashboard/profile')}
                         className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200"
                       >
                         <span className="material-icons text-violet-400">person</span>

@@ -40,12 +40,24 @@ export const updateProfile = async (req, res, next) => {
       updates.username = username;
     }
 
-    // Handle avatar upload if present
+    // Handle avatar upload or URL
     if (req.file) {
       const avatarUrl = await uploadOnCloudinary(req.file.path);
-      if (avatarUrl) {
-        updates.avatar = avatarUrl.secure_url ?? avatarUrl.url;
+      if (!avatarUrl) {
+        throw new AppError("Failed to upload image to Cloudinary", 500);
       }
+      updates.avatar = avatarUrl.secure_url ?? avatarUrl.url;
+    } else if (typeof req.body.avatarUrl === "string" && req.body.avatarUrl.trim() !== "") {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(req.body.avatarUrl);
+      } catch {
+        throw new AppError("Invalid avatarUrl", 400);
+      }
+      if (parsedUrl.protocol !== "https:") {
+        throw new AppError("avatarUrl must be an https URL", 400);
+      }
+      updates.avatar = parsedUrl.toString();
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updates, {

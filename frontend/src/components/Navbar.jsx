@@ -140,7 +140,7 @@ export const Navbar = () => {
 
               {isDropdownOpen && (
                 <DropdownMenu>
-                  <button onClick={() => navigate("/profile")}>
+                  <button onClick={() => navigate("/dashboard/profile")}>
                     <span className="material-icons">person</span>
                     Profile
                   </button>

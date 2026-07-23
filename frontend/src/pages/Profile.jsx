@@ -4,7 +4,9 @@ import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { apiClient } from "../api/apiClient";
 import defaultAvatar from "../assets/default-avatar.png";
+import defaultBanner from "../assets/mnnit-banner.png";
 import { Helmet } from "react-helmet-async";
+import "./Profile.css";
 
 const Profile = () => {
   const { username } = useParams();
@@ -22,31 +24,62 @@ const Profile = () => {
   const [editUsername, setEditUsername] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
+  const [selectedAvatarUrl, setSelectedAvatarUrl] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
+  // Hand-curated seeds mapped to cool styles (6 per row)
+  const MENS_AVATARS = [
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=Felix&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=Ryder&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/adventurer/svg?seed=Hunter&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/adventurer/svg?seed=Zane&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/micah/svg?seed=Oliver&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/notionists/svg?seed=Leo&backgroundColor=transparent`,
+  ];
+
+  const WOMENS_AVATARS = [
+    `https://api.dicebear.com/7.x/lorelei/svg?seed=Roxy&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/lorelei/svg?seed=Raven&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=Cleo&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=Jade&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/micah/svg?seed=Mia&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/notionists/svg?seed=Emma&backgroundColor=transparent`,
+  ];
+
+  const OTHER_AVATARS = [
+    `https://api.dicebear.com/7.x/shapes/svg?seed=Alpha&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/shapes/svg?seed=Beta&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/shapes/svg?seed=Gamma&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Delta&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/pixel-art/svg?seed=Omega&backgroundColor=transparent`,
+    `https://api.dicebear.com/7.x/bottts/svg?seed=RobotX&backgroundColor=transparent`,
+  ];
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
-        // If no username provided, redirect to current user's profile
-        if (!username && currentUser) {
-          navigate(`/profile/${currentUser.username}`, { replace: true });
-          return;
-        } else if (!username && !currentUser) {
+        // If no username provided, use current user's username
+        const targetUsername = username || currentUser?.username;
+        if (!targetUsername) {
           navigate("/login");
           return;
         }
+        // If on bare /dashboard/profile, redirect to include username
+        if (!username && currentUser) {
+          navigate(`/dashboard/profile/${currentUser.username}`, { replace: true });
+          return;
+        }
 
-        const res = await apiClient.get(`/profile/${username}`);
+        const res = await apiClient.get(`/profile/${targetUsername}`);
         setProfileUser(res.data.data);
-        
+
         // Initialize edit states
         setEditBio(res.data.data.bio || "");
         setEditSkills(res.data.data.skills?.join(", ") || "");
         setEditUsername(res.data.data.username || "");
       } catch (error) {
         toast.error("Profile not found");
-        navigate("/home");
+        navigate("/dashboard");
       } finally {
         setLoading(false);
       }
@@ -61,6 +94,7 @@ const Profile = () => {
     const file = e.target.files[0];
     if (file) {
       setAvatarFile(file);
+      setSelectedAvatarUrl("");
       const reader = new FileReader();
       reader.onloadend = () => {
         setAvatarPreview(reader.result);
@@ -80,6 +114,8 @@ const Profile = () => {
       }
       if (avatarFile) {
         formData.append("avatar", avatarFile);
+      } else if (selectedAvatarUrl) {
+        formData.append("avatarUrl", selectedAvatarUrl);
       }
 
       const res = await apiClient.put("/profile/edit", formData, {
@@ -89,13 +125,14 @@ const Profile = () => {
       setProfileUser(res.data.data);
       setIsEditing(false);
       setAvatarFile(null);
+      setAvatarPreview("");
       toast.success("Profile updated successfully");
-      
+
       // Update global auth state if username changed or avatar changed
       await fetchUser();
-      
+
       if (editUsername !== profileUser.username) {
-        navigate(`/profile/${editUsername}`, { replace: true });
+        navigate(`/dashboard/profile/${editUsername}`, { replace: true });
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update profile");
@@ -104,194 +141,355 @@ const Profile = () => {
     }
   };
 
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "Unknown";
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    });
+  };
+
   if (loading) {
-    return <div className="loading-screen">Loading Profile...</div>;
+    return (
+      <div className="profile-loading-container">
+        <div className="profile-loading-spinner"></div>
+        <p className="profile-loading-text">Loading profile...</p>
+      </div>
+    );
   }
 
   if (!profileUser) return null;
 
   return (
-    <div className="w-full min-h-screen pt-16 bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
+    <div className="profile-page">
       <Helmet>
-        <title>{profileUser.fullName} | Linklet Profile</title>
+        <title>{profileUser.fullName} (@{profileUser.username}) | Linklet</title>
+        <meta name="description" content={`${profileUser.fullName}'s profile on Linklet — ${profileUser.bio || "College community platform"}`} />
       </Helmet>
 
-      {/* Header Profile Section */}
-      <div className="w-full h-64 bg-violet-900/30 border-b border-violet-500/20 relative">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-1/2 left-1/4 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl transform -translate-y-1/2"></div>
-          <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-600/10 rounded-full blur-3xl transform -translate-y-1/2"></div>
-        </div>
+      {/* ── Cover Banner ── */}
+      <div className="profile-cover profile-section-fade">
+        <img src={defaultBanner} alt="Cover" className="w-full h-auto block" />
+        <div className="profile-cover-glass"></div>
+        <div className="profile-cover-mesh"></div>
+        <div className="profile-cover-noise"></div>
+        <div className="profile-cover-fade"></div>
       </div>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-24 relative z-10 pb-20">
-        <div className="glass-panel p-6 sm:p-8 rounded-xl flex flex-col md:flex-row gap-8 items-start">
+      {/* ── Main Content Container ── */}
+      <div className="w-full px-4 sm:px-8 -mt-16 relative z-10 pb-20">
+        
+        {/* ── Profile Header Card ── */}
+        <div className="profile-glass p-6 sm:p-8 profile-section-fade">
           
-          {/* Avatar Column */}
-          <div className="flex flex-col items-center gap-4 w-full md:w-1/3">
-            <div className="relative group">
-              <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full overflow-hidden border-4 border-gray-900 shadow-glow relative z-10 bg-gray-800">
-                <img 
-                  src={avatarPreview || profileUser.avatar || defaultAvatar} 
-                  alt={profileUser.fullName}
-                  className="w-full h-full object-cover"
+          {/* Avatar & Actions Row */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 -mt-20 mb-6">
+            
+            <div className="flex flex-col items-start gap-4">
+              <div className="profile-avatar-wrapper">
+                <div className="profile-avatar-glow"></div>
+                <div className="profile-avatar-ring">
+                  <img
+                    src={avatarPreview || profileUser.avatar || defaultAvatar}
+                    alt={profileUser.fullName}
+                  />
+                </div>
+                {isOwnProfile && isEditing && (
+                  <button
+                    type="button"
+                    aria-label="Change avatar"
+                    className="profile-avatar-overlay"
+                    onClick={() => document.getElementById("avatar-upload").click()}
+                  >
+                    <span className="material-icons">camera_alt</span>
+                  </button>
+                )}
+                <input
+                  type="file"
+                  id="avatar-upload"
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
                 />
               </div>
+              
               {isOwnProfile && isEditing && (
-                <div 
-                  className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-20"
-                  onClick={() => document.getElementById('avatar-upload').click()}
-                >
-                  <span className="material-icons text-white">camera_alt</span>
+                <div className="flex flex-col bg-[#0c0a1a]/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 gap-4 shadow-xl shadow-black/60 z-20 w-full sm:max-w-md mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-300 font-medium">Choose an Avatar</span>
+                    <button 
+                      className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all"
+                      onClick={() => document.getElementById("avatar-upload").click()}
+                    >
+                      <span className="material-icons text-[14px]">file_upload</span>
+                      Upload Image
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-col gap-4 w-full">
+                    {[
+                      { id: 'mens', avatars: MENS_AVATARS },
+                      { id: 'womens', avatars: WOMENS_AVATARS },
+                      { id: 'others', avatars: OTHER_AVATARS }
+                    ].map((category, catIdx) => (
+                      <React.Fragment key={category.id}>
+                        <div className="flex flex-wrap gap-3 justify-start">
+                          {category.avatars.map((preset, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              aria-label={`Select avatar preset ${idx + 1}`}
+                              className={`w-12 h-12 rounded-full cursor-pointer border-2 transition-all hover:scale-110 flex-shrink-0 bg-white/5 p-0 overflow-hidden outline-none focus:ring-2 focus:ring-purple-500 ${
+                                selectedAvatarUrl === preset ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.5)] opacity-100" : "border-transparent opacity-60 hover:opacity-100 hover:bg-white/10"
+                              }`}
+                              onClick={() => {
+                                setSelectedAvatarUrl(preset);
+                                setAvatarPreview(preset);
+                                setAvatarFile(null);
+                              }}
+                            >
+                              <img src={preset} alt="" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                        {catIdx < 2 && <div className="w-full h-[1px] bg-white/10"></div>}
+                      </React.Fragment>
+                    ))}
+                  </div>
                 </div>
               )}
-              <input type="file" id="avatar-upload" className="hidden" accept="image/*" onChange={handleAvatarChange} />
             </div>
-
-            {isOwnProfile && !isEditing && (
-              <button 
-                onClick={() => setIsEditing(true)}
-                className="w-full py-2 px-4 rounded-lg bg-gray-800 hover:bg-gray-700 text-white font-medium transition-colors border border-gray-600"
-              >
-                Edit Profile
-              </button>
-            )}
+            <div className="profile-action-row sm:pb-2">
+              {isOwnProfile ? (
+                !isEditing && (
+                  <button onClick={() => setIsEditing(true)} className="profile-btn-edit">
+                    <span className="material-icons">edit</span>
+                    Edit Profile
+                  </button>
+                )
+              ) : (
+                <>
+                  <button className="profile-btn-follow">
+                    <span className="material-icons">person_add</span>
+                    Follow
+                  </button>
+                  <button className="profile-btn-message">
+                    <span className="material-icons">mail</span>
+                    Message
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Details Column */}
-          <div className="flex-1 w-full space-y-6">
-            {!isEditing ? (
-              <>
-                <div>
-                  <h1 className="text-3xl font-bold font-display">{profileUser.fullName}</h1>
-                  <p className="text-violet-400">@{profileUser.username}</p>
+          {/* Info Section */}
+          {!isEditing ? (
+            <div className="space-y-6">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h1 className="profile-name">{profileUser.fullName}</h1>
+                  {profileUser.role && profileUser.role !== "user" && (
+                    <span className="profile-badge profile-badge-role">
+                      {profileUser.role === "admin" ? "⚡" : "🛡️"} {profileUser.role}
+                    </span>
+                  )}
                 </div>
-                
-                {profileUser.bio && (
-                  <div className="p-4 bg-gray-900/50 rounded-lg border border-gray-700">
-                    <p className="text-gray-300 whitespace-pre-wrap">{profileUser.bio}</p>
+                <p className="profile-username">@{profileUser.username}</p>
+              </div>
+
+              {profileUser.bio && (
+                <p className="profile-bio">{profileUser.bio}</p>
+              )}
+
+              <div className="profile-info-chips">
+                {profileUser.department && (
+                  <div className="profile-info-chip">
+                    <span className="material-icons">school</span>
+                    <span>{profileUser.department}</span>
                   </div>
                 )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-500 uppercase font-semibold">Email (College DB)</p>
-                    <p className="font-medium">{profileUser.email}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-500 uppercase font-semibold">Department</p>
-                    <p className="font-medium">{profileUser.department || "Not specified"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-sm text-gray-500 uppercase font-semibold">Year</p>
-                    <p className="font-medium">{profileUser.year || "Not specified"}</p>
-                  </div>
-                </div>
-
-                {profileUser.skills && profileUser.skills.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-sm text-gray-500 uppercase font-semibold">Skills & Interests</p>
-                    <div className="flex flex-wrap gap-2">
-                      {profileUser.skills.map((skill, idx) => (
-                        <span key={idx} className="px-3 py-1 bg-violet-900/30 text-violet-300 rounded-full text-sm border border-violet-500/30">
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
+                {profileUser.year && (
+                  <div className="profile-info-chip">
+                    <span className="material-icons">calendar_today</span>
+                    <span>{profileUser.year} Year</span>
                   </div>
                 )}
-              </>
-            ) : (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-400">Username</label>
-                    <input 
-                      type="text" 
-                      value={editUsername} 
-                      onChange={(e) => setEditUsername(e.target.value)}
-                      className="w-full px-4 py-2 bg-gray-900 border border-gray-700 focus:border-violet-500 rounded-lg outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-400">Full Name (Locked)</label>
-                    <input type="text" value={profileUser.fullName} disabled className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-gray-500 cursor-not-allowed" />
-                  </div>
+                <div className="profile-info-chip">
+                  <span className="material-icons">email</span>
+                  <span>{profileUser.email}</span>
                 </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-400">Bio</label>
-                  <textarea 
-                    value={editBio} 
-                    onChange={(e) => setEditBio(e.target.value)}
-                    rows={4}
-                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 focus:border-violet-500 rounded-lg outline-none resize-none"
-                    placeholder="Tell us about yourself..."
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-400">Skills (Comma separated)</label>
-                  <input 
-                    type="text" 
-                    value={editSkills} 
-                    onChange={(e) => setEditSkills(e.target.value)}
-                    placeholder="React, Node.js, Python..."
-                    className="w-full px-4 py-2 bg-gray-900 border border-gray-700 focus:border-violet-500 rounded-lg outline-none"
-                  />
-                </div>
-
-                <div className="flex gap-3 justify-end pt-4 border-t border-gray-700">
-                  <button 
-                    onClick={() => {
-                      setIsEditing(false);
-                      setAvatarPreview("");
-                      setAvatarFile(null);
-                    }}
-                    className="px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button 
-                    onClick={handleSaveProfile}
-                    disabled={isSaving}
-                    className="px-6 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 transition-colors font-medium disabled:opacity-50"
-                  >
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </button>
+                <div className="profile-info-chip">
+                  <span className="material-icons">event</span>
+                  <span>Joined {formatDate(profileUser.createdAt)}</span>
                 </div>
               </div>
-            )}
+
+              {profileUser.skills && profileUser.skills.length > 0 && (
+                <div className="pt-2">
+                  <div className="profile-skills-header">
+                    <span className="material-icons">psychology</span>
+                    <h3>Skills & Interests</h3>
+                  </div>
+                  <div className="profile-skills-grid">
+                    {profileUser.skills.map((skill, idx) => (
+                      <span key={idx} className="profile-skill-tag">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="profile-edit-section">
+              <div className="profile-edit-title">
+                <span className="material-icons">manage_accounts</span>
+                Edit Profile
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="profile-field-group">
+                  <label className="profile-field-label">Username</label>
+                  <input
+                    type="text"
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                    className="profile-input"
+                    placeholder="username"
+                  />
+                </div>
+                <div className="profile-field-group">
+                  <label className="profile-field-label">Full Name</label>
+                  <input
+                    type="text"
+                    value={profileUser.fullName}
+                    disabled
+                    className="profile-input"
+                  />
+                  <p className="profile-field-hint">Name cannot be changed</p>
+                </div>
+              </div>
+
+              <div className="profile-field-group">
+                <label className="profile-field-label">Bio</label>
+                <textarea
+                  value={editBio}
+                  onChange={(e) => setEditBio(e.target.value)}
+                  maxLength={160}
+                  className="profile-input profile-textarea"
+                  placeholder="Tell us about yourself..."
+                />
+                <div className={`profile-char-counter ${editBio.length > 150 ? 'danger' : editBio.length > 130 ? 'warning' : 'safe'}`}>
+                  {editBio.length}/160
+                </div>
+              </div>
+
+              <div className="profile-field-group">
+                <label className="profile-field-label">Skills & Interests</label>
+                <input
+                  type="text"
+                  value={editSkills}
+                  onChange={(e) => setEditSkills(e.target.value)}
+                  placeholder="React, Node.js, Python..."
+                  className="profile-input"
+                />
+                <p className="profile-field-hint">Separate skills with commas</p>
+              </div>
+
+              <div className="profile-edit-actions">
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setAvatarPreview("");
+                    setAvatarFile(null);
+                    setSelectedAvatarUrl("");
+                    setEditBio(profileUser.bio || "");
+                    setEditSkills(profileUser.skills?.join(", ") || "");
+                    setEditUsername(profileUser.username || "");
+                  }}
+                  className="profile-btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={isSaving}
+                  className="profile-btn-primary"
+                >
+                  <span className="material-icons">
+                    {isSaving ? "hourglass_empty" : "check"}
+                  </span>
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Stats Row ── */}
+        <div className="profile-stats-row mt-6 profile-section-fade">
+          <div className="profile-stat-card">
+            <div className="stat-icon-bg">
+              <span className="material-icons">group</span>
+            </div>
+            <div className="stat-value">{profileUser.followers?.length || 0}</div>
+            <div className="stat-label">Followers</div>
+          </div>
+          <div className="profile-stat-card">
+            <div className="stat-icon-bg">
+              <span className="material-icons">person_add</span>
+            </div>
+            <div className="stat-value">{profileUser.following?.length || 0}</div>
+            <div className="stat-label">Following</div>
+          </div>
+          <div className="profile-stat-card">
+            <div className="stat-icon-bg">
+              <span className="material-icons">article</span>
+            </div>
+            <div className="stat-value">—</div>
+            <div className="stat-label">Posts</div>
           </div>
         </div>
 
-        {/* Tabs Section */}
-        <div className="mt-8">
-          <div className="flex border-b border-gray-700 gap-6">
-            <button 
+        {/* ── Tabs Section ── */}
+        <div className="profile-glass mt-6 overflow-hidden profile-section-fade">
+          <div className="profile-tabs">
+            <button
               onClick={() => setActiveTab("posts")}
-              className={`pb-4 px-2 font-medium transition-colors relative ${activeTab === "posts" ? "text-violet-400" : "text-gray-400 hover:text-gray-300"}`}
+              className={`profile-tab-btn ${activeTab === "posts" ? "active" : ""}`}
             >
+              <span className="material-icons">article</span>
               Recent Posts
-              {activeTab === "posts" && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-violet-500 rounded-t-full"></div>}
             </button>
-            <button 
+            <button
               onClick={() => setActiveTab("resources")}
-              className={`pb-4 px-2 font-medium transition-colors relative ${activeTab === "resources" ? "text-violet-400" : "text-gray-400 hover:text-gray-300"}`}
+              className={`profile-tab-btn ${activeTab === "resources" ? "active" : ""}`}
             >
+              <span className="material-icons">bookmark</span>
               Saved Resources
-              {activeTab === "resources" && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-violet-500 rounded-t-full"></div>}
             </button>
           </div>
 
-          <div className="py-8 text-center text-gray-500">
-            <span className="material-icons text-4xl mb-2 opacity-50">
-              {activeTab === "posts" ? "article" : "bookmark"}
-            </span>
-            <p>User {activeTab === "posts" ? "posts" : "saved resources"} will appear here.</p>
+          <div className="profile-tab-content">
+            <div className="profile-empty-state">
+              <div className="profile-empty-icon">
+                <span className="material-icons">
+                  {activeTab === "posts" ? "article" : "bookmark"}
+                </span>
+              </div>
+              <h3 className="profile-empty-title">
+                {activeTab === "posts" ? "No posts yet" : "No saved resources"}
+              </h3>
+              <p className="profile-empty-desc">
+                {activeTab === "posts"
+                  ? "When this user creates posts, they will appear here."
+                  : "Saved resources will appear here."}
+              </p>
+            </div>
           </div>
         </div>
-      </main>
+
+      </div>
     </div>
   );
 };
