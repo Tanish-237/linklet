@@ -40,12 +40,14 @@ export const updateProfile = async (req, res, next) => {
       updates.username = username;
     }
 
-    // Handle avatar upload if present
+    // Handle avatar upload or URL
     if (req.file) {
       const avatarUrl = await uploadOnCloudinary(req.file.path);
       if (avatarUrl) {
         updates.avatar = avatarUrl.secure_url ?? avatarUrl.url;
       }
+    } else if (req.body.avatarUrl) {
+      updates.avatar = req.body.avatarUrl;
     }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updates, {

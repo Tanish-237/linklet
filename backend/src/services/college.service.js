@@ -31,7 +31,7 @@ const MOCK_COLLEGE_DB = [
   },
   {
     email: "tanish.20233288@mnnit.ac.in",
-    fullName: "Tanish",
+    fullName: "Tanish Mittal",
     department: "Computer Science and Engineering",
     year: "Final",
   }

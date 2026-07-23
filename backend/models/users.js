@@ -31,7 +31,10 @@ const userSchema = new mongoose.Schema(
     },
     avatar: {
       type: String,
-      default: "https://cdn-icons-png.flaticon.com/512/1326/1326382.png",
+      default: function () {
+        const seed = this.username || Math.random().toString(36).substring(7);
+        return `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}`;
+      },
     },
     bio: {
       type: String,

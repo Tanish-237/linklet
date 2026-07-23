@@ -188,13 +188,15 @@ function App() {
               }
             />
 
+            {/* Redirect old /profile route to dashboard */}
             <Route
               path="/profile/:username?"
               element={
-                <>
-                  <Navbar />
-                  <Profile />
-                </>
+                user ? (
+                  <Navigate to={`/dashboard/profile`} replace />
+                ) : (
+                  <Navigate to="/login" replace />
+                )
               }
             />
 
@@ -224,6 +226,14 @@ function App() {
               element={
                 <Layout>
                   <Dashboard />
+                </Layout>
+              }
+            />
+            <Route
+              path="/dashboard/profile/:username?"
+              element={
+                <Layout>
+                  <Profile />
                 </Layout>
               }
             />
