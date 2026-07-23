@@ -125,6 +125,7 @@ const Profile = () => {
       setProfileUser(res.data.data);
       setIsEditing(false);
       setAvatarFile(null);
+      setAvatarPreview("");
       toast.success("Profile updated successfully");
 
       // Update global auth state if username changed or avatar changed
