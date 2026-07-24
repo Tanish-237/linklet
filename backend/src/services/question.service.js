@@ -1,29 +1,332 @@
 import * as questionRepository from "../repositories/question.repository.js";
+import * as answerRepository from "../repositories/answer.repository.js";
+import { Answer } from "../../models/answer.js";
+import { Question } from "../../models/question.js";
 import { AppError } from "../utils/error.js";
+import { QUESTION_CATEGORIES } from "../../models/question.js";
+import mongoose from "mongoose";
 
+/**
+ * Create a new question.
+ */
 export const createQuestion = async (userId, questionData) => {
-  if (!questionData.title || !questionData.body) {
-    throw new AppError("Title and body are required", 400);
+  const { title, body, category, tags } = questionData;
+
+  if (!title || !title.trim()) throw new AppError("Title is required", 400);
+
+  // Validate category
+  const resolvedCategory =
+    category && QUESTION_CATEGORIES.includes(category) ? category : "General";
+
+  // Parse tags: accept comma-separated string or array
+  let parsedTags = [];
+  if (Array.isArray(tags)) {
+    parsedTags = tags.map((t) => t.trim().toLowerCase()).filter(Boolean);
+  } else if (typeof tags === "string" && tags.trim()) {
+    parsedTags = tags
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
   }
+
+  // Limit to 10 tags, max 30 chars each
+  parsedTags = parsedTags.slice(0, 10).map((t) => t.slice(0, 30));
 
   return await questionRepository.createQuestion({
     userId,
-    title: questionData.title,
-    body: questionData.body,
-    tags: questionData.tags || [],
+    title: title.trim(),
+    body: body ? body.trim() : "",
+    category: resolvedCategory,
+    tags: parsedTags,
   });
 };
 
-export const getQuestionsFeed = async (cursor, limit) => {
-  const questions = await questionRepository.getQuestionsFeed(cursor, parseInt(limit) || 10);
-  const nextCursor = questions.length > 0 ? questions[questions.length - 1].createdAt : null;
-  return { questions, nextCursor };
+/**
+ * Get paginated questions feed with full filtering support.
+ */
+export const getQuestionsFeed = async (queryParams) => {
+  const {
+    cursor,
+    limit,
+    search,
+    filter,
+    category,
+    tag,
+    userId: authorId,
+  } = queryParams;
+
+  const questions = await questionRepository.getQuestionsFeed({
+    cursor: cursor || null,
+    limit: Math.min(parseInt(limit) || 15, 50),
+    search: search || "",
+    filter: filter || "all",
+    category: category || "",
+    tag: tag || "",
+    userId: authorId || null,
+  });
+
+  const nextCursor =
+    questions.length > 0
+      ? questions[questions.length - 1].createdAt
+      : null;
+
+  return { questions, nextCursor, hasMore: questions.length === (parseInt(limit) || 15) };
 };
 
+/**
+ * Get a single question by ID (increments view count).
+ */
 export const getQuestion = async (questionId) => {
-  const question = await questionRepository.findQuestionById(questionId);
-  if (!question) {
+  if (!questionId || !mongoose.Types.ObjectId.isValid(questionId)) {
     throw new AppError("Question not found", 404);
   }
+  const question =
+    await questionRepository.findQuestionByIdAndIncrementViews(questionId);
+  if (!question) throw new AppError("Question not found", 404);
   return question;
+};
+
+/**
+ * Vote (upvote or downvote) on a question.
+ * Users cannot vote on their own question.
+ */
+export const voteQuestion = async (questionId, userId, voteType) => {
+  if (!["upvote", "downvote"].includes(voteType)) {
+    throw new AppError("Invalid vote type", 400);
+  }
+
+  const question = await questionRepository.findQuestionById(questionId);
+  if (!question) throw new AppError("Question not found", 404);
+
+  if (question.userId._id.toString() === userId.toString()) {
+    throw new AppError("You cannot vote on your own question", 403);
+  }
+
+  const updated = await questionRepository.voteQuestion(
+    questionId,
+    userId,
+    voteType
+  );
+  return {
+    upvotes: updated.upvotes.length,
+    downvotes: updated.downvotes.length,
+    userVote: updated.upvotes.some((id) => id.toString() === userId.toString())
+      ? "upvote"
+      : updated.downvotes.some((id) => id.toString() === userId.toString())
+      ? "downvote"
+      : null,
+  };
+};
+
+/**
+ * Post an answer to a question.
+ */
+export const postAnswer = async (questionId, userId, body) => {
+  if (!body || !body.trim()) throw new AppError("Answer body is required", 400);
+
+  const question = await questionRepository.findQuestionById(questionId);
+  if (!question) throw new AppError("Question not found", 404);
+  if (question.isClosed) throw new AppError("This question is closed", 403);
+
+  const answer = await answerRepository.createAnswer({
+    questionId,
+    userId,
+    body: body.trim(),
+  });
+
+  await questionRepository.addAnswerToQuestion(questionId, answer._id);
+  return answer;
+};
+
+/**
+ * Vote on an answer.
+ */
+export const voteAnswer = async (questionId, answerId, userId, voteType) => {
+  if (!["upvote", "downvote"].includes(voteType)) {
+    throw new AppError("Invalid vote type", 400);
+  }
+
+  const answer = await answerRepository.findAnswerById(answerId);
+  if (!answer) throw new AppError("Answer not found", 404);
+
+  // Verify answer belongs to this question
+  if (answer.questionId.toString() !== questionId) {
+    throw new AppError("Answer does not belong to this question", 400);
+  }
+
+  if (answer.userId._id.toString() === userId.toString()) {
+    throw new AppError("You cannot vote on your own answer", 403);
+  }
+
+  const updated = await answerRepository.voteAnswer(answerId, userId, voteType);
+  return {
+    upvotes: updated.upvotes.length,
+    downvotes: updated.downvotes.length,
+    userVote: updated.upvotes.some((id) => id.toString() === userId.toString())
+      ? "upvote"
+      : updated.downvotes.some((id) => id.toString() === userId.toString())
+      ? "downvote"
+      : null,
+  };
+};
+
+/**
+ * Accept an answer. Only the question author can do this.
+ */
+export const acceptAnswer = async (questionId, answerId, userId) => {
+  const question = await questionRepository.findQuestionById(questionId);
+  if (!question) throw new AppError("Question not found", 404);
+
+  if (question.userId._id.toString() !== userId.toString()) {
+    throw new AppError("Only the question author can accept an answer", 403);
+  }
+
+  const answer = await answerRepository.findAnswerById(answerId);
+  if (!answer) throw new AppError("Answer not found", 404);
+
+  // Check if answer is currently accepted
+  const isCurrentlyAccepted = answer.isAccepted === true;
+
+  if (isCurrentlyAccepted) {
+    await questionRepository.removeAcceptedAnswer(questionId, answerId);
+    await answerRepository.setAnswerAccepted(answerId, false);
+    return { accepted: false };
+  } else {
+    await questionRepository.addAcceptedAnswer(questionId, answerId);
+    await answerRepository.setAnswerAccepted(answerId, true);
+    return { accepted: true };
+  }
+};
+
+/**
+ * Add a comment to an answer.
+ */
+export const addComment = async (questionId, answerId, userId, text, parentId = null) => {
+  if (!text || !text.trim()) throw new AppError("Comment text is required", 400);
+  if (text.trim().length > 1000)
+    throw new AppError("Comment must be 1000 characters or less", 400);
+
+  const answer = await answerRepository.findAnswerById(answerId);
+  if (!answer) throw new AppError("Answer not found", 404);
+
+  if (answer.questionId.toString() !== questionId) {
+    throw new AppError("Answer does not belong to this question", 400);
+  }
+
+  if (parentId) {
+    const parentComment = answer.comments.find(
+      (c) => (c._id || c).toString() === parentId.toString()
+    );
+    if (!parentComment) throw new AppError("Parent comment not found", 404);
+  }
+
+  const updated = await answerRepository.addCommentToAnswer(
+    answerId,
+    userId,
+    text.trim(),
+    parentId
+  );
+  return updated;
+};
+
+/**
+ * Toggle upvote/downvote on a comment.
+ */
+export const voteComment = async (questionId, answerId, commentId, userId, voteType) => {
+  if (!["upvote", "downvote"].includes(voteType)) {
+    throw new AppError("Invalid vote type", 400);
+  }
+
+  const answer = await answerRepository.findAnswerById(answerId);
+  if (!answer) throw new AppError("Answer not found", 404);
+
+  const comment = answer.comments.find(
+    (c) => (c._id || c).toString() === commentId.toString()
+  );
+  if (!comment) throw new AppError("Comment not found", 404);
+
+  return await answerRepository.voteCommentOnAnswer(
+    answerId,
+    commentId,
+    userId,
+    voteType
+  );
+};
+
+/**
+ * Delete a question. Only the question author or admin can delete.
+ */
+export const deleteQuestion = async (questionId, userId, userRole) => {
+  const question = await questionRepository.findQuestionById(questionId);
+  if (!question) throw new AppError("Question not found", 404);
+
+  const isOwner = question.userId._id.toString() === userId.toString();
+  const isAdmin = userRole === "admin";
+
+  if (!isOwner && !isAdmin) {
+    throw new AppError("You are not authorized to delete this question", 403);
+  }
+
+  // Delete all associated answers
+  await Answer.deleteMany({ questionId });
+  await questionRepository.deleteQuestion(questionId);
+};
+
+/**
+ * Delete an answer. Only the answer author or admin can delete.
+ */
+export const deleteAnswer = async (questionId, answerId, userId, userRole) => {
+  const answer = await answerRepository.findAnswerById(answerId);
+  if (!answer) throw new AppError("Answer not found", 404);
+
+  const isOwner = answer.userId._id.toString() === userId.toString();
+  const isAdmin = userRole === "admin";
+
+  if (!isOwner && !isAdmin) {
+    throw new AppError("You are not authorized to delete this answer", 403);
+  }
+
+  await answerRepository.deleteAnswer(answerId);
+
+  // Remove from question's answers array
+  await Question.findByIdAndUpdate(questionId, {
+    $pull: { answers: answer._id },
+  });
+};
+
+/**
+ * Delete a comment. Only the comment author or admin can delete.
+ */
+export const deleteComment = async (questionId, answerId, commentId, userId, userRole) => {
+  const answer = await answerRepository.findAnswerById(answerId);
+  if (!answer) throw new AppError("Answer not found", 404);
+
+  const comment = answer.comments.find(
+    (c) => (c._id || c).toString() === commentId.toString()
+  );
+  if (!comment) throw new AppError("Comment not found", 404);
+
+  const commentAuthorId = (comment.userId._id || comment.userId).toString();
+  const isOwner = commentAuthorId === userId.toString();
+  const isAdmin = userRole === "admin";
+
+  if (!isOwner && !isAdmin) {
+    throw new AppError("You are not authorized to delete this comment", 403);
+  }
+
+  return await answerRepository.deleteCommentFromAnswer(answerId, commentId);
+};
+
+/**
+ * Get tag cloud — all distinct tags used across questions.
+ */
+export const getTagCloud = async () => {
+  return await questionRepository.getAllTags();
+};
+
+/**
+ * Get forum stats grouped by category.
+ */
+export const getForumStats = async () => {
+  return await questionRepository.getQuestionStats();
 };

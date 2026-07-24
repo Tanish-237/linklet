@@ -1,100 +1,207 @@
-import React, { useState } from "react";
-import { toast } from "react-toastify";
-import { handleApiError } from "../utlis/ErrorHandler";
+/**
+ * AskQuestion — standalone page (for /ask-question route).
+ * The modal version is embedded directly inside HelpForum.jsx.
+ * This page is used for the public /ask-question route in App.jsx.
+ */
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import useAuthStore from '../store/useAuthStore';
+import { createQuestion, getQuestionMetadata } from '../api/question.api';
+import './HelpForum.css';
 
 const AskQuestion = ({ onCancel, onSuccess }) => {
+  const { user } = useAuthStore();
+  const navigate = useNavigate();
+
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [tags, setTags] = useState('');
+  const [category, setCategory] = useState('General');
+  const [tagInput, setTagInput] = useState('');
+  const [tags, setTags] = useState([]);
+  const [categories, setCategories] = useState(['General']);
+  const [suggestedTags, setSuggestedTags] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    getQuestionMetadata()
+      .then((meta) => {
+        setCategories(meta.categories || []);
+        setSuggestedTags(meta.suggestedTags || []);
+      })
+      .catch((err) => console.error('[AskQuestion] Failed to load metadata:', err));
+  }, []);
+
+  const addTag = (tag) => {
+    const clean = tag.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!clean || tags.includes(clean) || tags.length >= 10) return;
+    setTags((prev) => [...prev, clean]);
+    setTagInput('');
+  };
+
+  const removeTag = (tag) => setTags((prev) => prev.filter((t) => t !== tag));
+
+  const handleTagKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(tagInput);
+    } else if (e.key === 'Backspace' && !tagInput && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!title.trim() || !body.trim()) {
-      toast.error('Please fill in all required fields');
+
+    if (!user) {
+      toast.error('Please log in to ask a question');
+      navigate('/login');
+      return;
+    }
+
+    if (!title.trim() || title.trim().length < 10) {
+      toast.error('Title must be at least 10 characters');
       return;
     }
 
     setIsSubmitting(true);
-    
+
     try {
-      // For demo, we're just simulating the API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      console.log('[AskQuestion] Submitting question:', { title, category, tags });
+      const question = await createQuestion({
+        title: title.trim(),
+        body: body.trim(),
+        category,
+        tags,
+      });
+
       toast.success('Question posted successfully!');
-      setTitle('');
-      setBody('');
-      setTags('');
-      onSuccess?.();
+
+      if (onSuccess) {
+        onSuccess(question);
+      } else {
+        navigate(`/dashboard/question/${question._id}`);
+      }
     } catch (err) {
-      handleApiError(err);
+      console.error('[AskQuestion] Failed to submit:', err);
+      toast.error(err?.response?.data?.message || 'Failed to post question');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div>
-        <label className="block text-gray-300 mb-2" htmlFor="title">
-          Title <span className="text-red-500">*</span>
+    <form onSubmit={handleSubmit} className="space-y-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* Title */}
+      <div className="hf-form-group">
+        <label className="hf-form-label" htmlFor="aq-title">
+          Title <span style={{ color: '#f87171' }}>*</span>
         </label>
         <input
-          id="title"
+          id="aq-title"
+          className="hf-form-input"
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="What's your question? Be specific."
-          className="w-full px-4 py-3 bg-gray-800/50 border border-violet-500/30 rounded-lg focus:outline-none focus:border-violet-500 text-white placeholder-gray-500"
+          placeholder="What's your question? Be specific and concise."
+          maxLength={200}
           required
         />
+        <div className="hf-char-count">{title.length}/200</div>
       </div>
 
-      <div>
-        <label className="block text-gray-300 mb-2" htmlFor="body">
-          Body <span className="text-red-500">*</span>
+      {/* Category */}
+      <div className="hf-form-group">
+        <label className="hf-form-label" htmlFor="aq-category">Category</label>
+        <select
+          id="aq-category"
+          className="hf-form-select"
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+        >
+          {categories.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Body */}
+      <div className="hf-form-group">
+        <label className="hf-form-label" htmlFor="aq-body">
+          Description <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>(optional)</span>
         </label>
         <textarea
-          id="body"
+          id="aq-body"
+          className="hf-form-textarea"
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Provide details about your question..."
-          rows="6"
-          className="w-full px-4 py-3 bg-gray-800/50 border border-violet-500/30 rounded-lg focus:outline-none focus:border-violet-500 text-white placeholder-gray-500 resize-none"
-          required
+          placeholder="Provide context or details (optional)..."
+          rows={6}
+          maxLength={5000}
         />
+        <div className="hf-char-count">{body.length}/5000</div>
       </div>
 
-      <div>
-        <label className="block text-gray-300 mb-2" htmlFor="tags">
-          Tags
-        </label>
-        <input
-          id="tags"
-          type="text"
-          value={tags}
-          onChange={(e) => setTags(e.target.value)}
-          placeholder="Add tags (comma separated, e.g., react, javascript, nodejs)"
-          className="w-full px-4 py-3 bg-gray-800/50 border border-violet-500/30 rounded-lg focus:outline-none focus:border-violet-500 text-white placeholder-gray-500"
-        />
+      {/* Tags */}
+      <div className="hf-form-group">
+        <label className="hf-form-label">Tags (up to 10)</label>
+        <div className="hf-tag-input-wrap">
+          {tags.map((t) => (
+            <span key={t} className="hf-tag-input-chip">
+              #{t}
+              <button type="button" onClick={() => removeTag(t)}>×</button>
+            </span>
+          ))}
+          <input
+            className="hf-tag-input-field"
+            type="text"
+            value={tagInput}
+            onChange={(e) => setTagInput(e.target.value)}
+            onKeyDown={handleTagKeyDown}
+            placeholder={tags.length < 10 ? 'Type a tag + Enter' : 'Max 10 tags'}
+            disabled={tags.length >= 10}
+          />
+        </div>
+        {/* Suggestions */}
+        {suggestedTags.length > 0 && (
+          <div className="hf-tag-suggestions" style={{ marginTop: '0.5rem' }}>
+            {suggestedTags
+              .filter((s) => !tags.includes(s) && s.includes(tagInput.toLowerCase()))
+              .slice(0, 12)
+              .map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  className="hf-tag-suggestion"
+                  onClick={() => addTag(s)}
+                >
+                  #{s}
+                </button>
+              ))}
+          </div>
+        )}
       </div>
 
-      <div className="flex justify-end gap-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-6 py-2 text-gray-400 hover:text-gray-300 transition-colors"
-        >
-          Cancel
-        </button>
+      {/* Actions */}
+      <div className="hf-form-actions">
+        {onCancel && (
+          <button
+            type="button"
+            className="hf-btn-secondary"
+            onClick={onCancel}
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="submit"
+          id="aq-submit-btn"
+          className="hf-btn-primary"
           disabled={isSubmitting}
-          className="px-6 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {isSubmitting ? (
             <>
-              <span className="animate-spin">⟳</span>
+              <span className="material-icons" style={{ animation: 'hf-spin 0.7s linear infinite', fontSize: '0.9rem' }}>refresh</span>
               Posting...
             </>
           ) : (
