@@ -11,7 +11,9 @@ import {
   getForumStats,
   createQuestion,
   voteQuestion as apiVoteQuestion,
+  deleteQuestion as apiDeleteQuestion,
 } from '../api/question.api';
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -232,11 +234,43 @@ const AskQuestionModal = ({ onClose, onSuccess, categories, suggestedTags }) => 
   );
 };
 
+/**
+ * Helper function to parse plain text and render URLs as clickable links.
+ */
+const renderTextWithLinks = (text) => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, index) => {
+    if (part.match(/^https?:\/\//) || part.match(/^www\./)) {
+      const href = part.startsWith('www.') ? `http://${part}` : part;
+      return (
+        <a
+          key={index}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hf-text-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 // ─── Question Card ─────────────────────────────────────────────────────────────
 
-const QuestionCard = ({ question, onVote, onTagClick, currentUserId }) => {
+const QuestionCard = ({ question, currentUserId, onVote, onTagClick, onDelete }) => {
   const navigate = useNavigate();
   const netVotes = (question.upvotes?.length || 0) - (question.downvotes?.length || 0);
+  const isOwner = currentUserId && (
+    question.userId?._id?.toString() === currentUserId ||
+    question.userId?.toString() === currentUserId
+  );
   const userVote = question.upvotes?.some(
     (id) => (id._id || id)?.toString() === currentUserId
   )
@@ -312,6 +346,18 @@ const QuestionCard = ({ question, onVote, onTagClick, currentUserId }) => {
           </div>
 
           <div className="hf-meta-pills">
+            {isOwner && (
+              <button
+                className="bm-del-btn inline-del-btn"
+                title="Delete Question"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(question._id);
+                }}
+              >
+                <span className="material-icons">delete</span>
+              </button>
+            )}
             <span className="hf-meta-pill">
               <span className="material-icons" style={{ fontSize: '0.85rem' }}>visibility</span>
               {question.views || 0} views
@@ -382,6 +428,24 @@ const HelpForum = () => {
 
   // UI state
   const [showAskModal, setShowAskModal] = useState(false);
+  const [deleteConfirmQuestionId, setDeleteConfirmQuestionId] = useState(null);
+
+  const promptDeleteQuestion = (questionId) => {
+    setDeleteConfirmQuestionId(questionId);
+  };
+
+  const handleConfirmDeleteQuestion = async () => {
+    if (!deleteConfirmQuestionId) return;
+    try {
+      await apiDeleteQuestion(deleteConfirmQuestionId);
+      setQuestions((prev) => prev.filter((q) => q._id !== deleteConfirmQuestionId));
+      toast.success("Question deleted");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to delete question");
+    } finally {
+      setDeleteConfirmQuestionId(null);
+    }
+  };
 
   const searchDebounceRef = useRef(null);
 
@@ -678,6 +742,7 @@ const HelpForum = () => {
                   question={q}
                   onVote={handleVote}
                   onTagClick={handleTagClick}
+                  onDelete={promptDeleteQuestion}
                   currentUserId={user?._id}
                   style={{ animationDelay: `${i * 0.04}s` }}
                 />
@@ -714,6 +779,16 @@ const HelpForum = () => {
           suggestedTags={suggestedTags}
         />
       )}
+
+      {/* Confirm Delete Modal */}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirmQuestionId != null}
+        title="Delete Question"
+        message="Are you sure you want to delete this question and all its answers? This action cannot be undone."
+        confirmText="Delete Question"
+        onConfirm={handleConfirmDeleteQuestion}
+        onCancel={() => setDeleteConfirmQuestionId(null)}
+      />
     </div>
   );
 };

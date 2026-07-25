@@ -530,6 +530,21 @@ describe('Question Service — Unit Tests', () => {
         questionService.deleteComment('q1', 'a1', 'c1', 'different-user', 'user')
       ).rejects.toThrow(AppError);
     });
+
+    it('should allow admin or moderator to delete any comment', async () => {
+      console.log('[TEST] deleteComment › happy path for admin/moderator');
+
+      mockFindAnswerById.mockResolvedValue({
+        _id: 'a1',
+        comments: [
+          { _id: 'c1', userId: { _id: 'author1', toString: () => 'author1' }, text: 'Hello' },
+        ],
+      });
+      mockDeleteCommentFromAnswer.mockResolvedValue({ _id: 'a1', comments: [] });
+
+      await questionService.deleteComment('q1', 'a1', 'c1', 'adminUser', 'admin');
+      expect(mockDeleteCommentFromAnswer).toHaveBeenCalledWith('a1', 'c1');
+    });
   });
 
   // ── getTagCloud ────────────────────────────────────────────────────────────

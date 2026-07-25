@@ -1,0 +1,137 @@
+/* ─── Confirm Delete Modal Styling ────────────────────────────────────────── */
+.cd-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1.5rem;
+  animation: cdFadeIn 0.2s ease-out;
+}
+
+.cd-modal {
+  background: #0f172a;
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 20px;
+  padding: 2.2rem 2rem 1.8rem;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7),
+              0 0 35px rgba(239, 68, 68, 0.12);
+  animation: cdModalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.cd-icon-badge {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.25rem auto;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+}
+
+.cd-icon {
+  font-size: 34px !important;
+  color: #f87171;
+}
+
+.cd-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.65rem 0;
+  letter-spacing: -0.01em;
+}
+
+.cd-message {
+  font-size: 0.92rem;
+  color: #94a3b8;
+  line-height: 1.5;
+  margin: 0 0 1.75rem 0;
+}
+
+.cd-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  font-family: inherit;
+}
+
+.cd-btn-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex: 1;
+}
+
+.cd-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.cd-btn-confirm {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+  flex: 1;
+}
+
+.cd-btn-confirm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5);
+}
+
+.cd-btn-confirm:disabled,
+.cd-btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cd-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: cdSpin 0.7s linear infinite;
+}
+
+@keyframes cdSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes cdFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes cdModalPop {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}

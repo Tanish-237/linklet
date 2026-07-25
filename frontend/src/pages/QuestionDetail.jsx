@@ -16,6 +16,7 @@ import {
   voteComment as apiVoteComment,
   deleteComment as apiDeleteComment,
 } from '../api/question.api';
+import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,9 +79,12 @@ const ThreadedCommentItem = ({
   const [submitting, setSubmitting] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
-  const commentAuthorId = (comment.userId?._id || comment.userId)?.toString();
-  const isCommentOwner = commentAuthorId === currentUserId;
-  const isOP = commentAuthorId === opUserId;
+  const curUserIdStr = (currentUserId?._id || currentUserId?.id || currentUserId)?.toString();
+  const commentAuthorId = (comment.userId?._id || comment.userId?.id || comment.userId)?.toString();
+  const opUserIdStr = (opUserId?._id || opUserId?.id || opUserId)?.toString();
+
+  const isCommentOwner = Boolean(commentAuthorId && curUserIdStr && commentAuthorId === curUserIdStr);
+  const isOP = Boolean(commentAuthorId && opUserIdStr && commentAuthorId === opUserIdStr);
 
   // Children matching parentId
   const childReplies = allComments.filter(
@@ -90,9 +94,9 @@ const ThreadedCommentItem = ({
   const upvotes = comment.upvotes || [];
   const downvotes = comment.downvotes || [];
   const netVotes = upvotes.length - downvotes.length;
-  const userVote = upvotes.some((id) => (id._id || id)?.toString() === currentUserId)
+  const userVote = upvotes.some((id) => (id._id || id)?.toString() === curUserIdStr)
     ? 'upvote'
-    : downvotes.some((id) => (id._id || id)?.toString() === currentUserId)
+    : downvotes.some((id) => (id._id || id)?.toString() === curUserIdStr)
     ? 'downvote'
     : null;
 
@@ -100,7 +104,7 @@ const ThreadedCommentItem = ({
     if (!replyText.trim()) return;
     setSubmitting(true);
     try {
-      await onAddComment(questionId, answerId, replyText.trim(), comment._id);
+      await onAddComment(questionId, answerId, replyText.trim(), comment._id || comment.id);
       setReplyText('');
       setIsReplying(false);
     } finally {
@@ -166,21 +170,25 @@ const ThreadedCommentItem = ({
               </div>
 
               {/* Reply trigger */}
-              {currentUserId && (
-                <button
-                  className="qd-comment-action-btn"
-                  onClick={() => setIsReplying((p) => !p)}
-                >
-                  <span className="material-icons" style={{ fontSize: '0.85rem' }}>reply</span>
-                  Reply
-                </button>
-              )}
+              <button
+                className="qd-comment-action-btn"
+                onClick={() => {
+                  if (!curUserIdStr) {
+                    toast.info('Please log in to reply');
+                    return;
+                  }
+                  setIsReplying((p) => !p);
+                }}
+              >
+                <span className="material-icons" style={{ fontSize: '0.85rem' }}>reply</span>
+                Reply
+              </button>
 
               {/* Delete trigger */}
               {isCommentOwner && (
                 <button
                   className="qd-comment-action-btn delete"
-                  onClick={() => onDeleteComment(questionId, answerId, comment._id)}
+                  onClick={() => onDeleteComment(questionId, answerId, comment._id || comment.id)}
                   title="Delete comment"
                 >
                   <span className="material-icons" style={{ fontSize: '0.85rem' }}>delete_outline</span>
@@ -641,33 +649,15 @@ const QuestionDetail = ({ basePath = '' }) => {
 
   // ─── Delete Answer ────────────────────────────────────────────────────────────
 
-  const handleDeleteAnswer = async (answerId) => {
-    if (!window.confirm('Delete this answer?')) return;
-    try {
-      await apiDeleteAnswer(questionId, answerId);
-      setAnswers((prev) => prev.filter((a) => a._id !== answerId));
-      setQuestion((prev) =>
-        prev
-          ? { ...prev, answers: prev.answers.filter((a) => (a._id || a) !== answerId) }
-          : prev
-      );
-      toast.success('Answer deleted');
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to delete answer');
-    }
+  // ─── Delete Confirmation Modal State ──────────────────────────
+  const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
+
+  const promptDeleteAnswer = (answerId) => {
+    setDeleteConfirmTarget({ type: 'answer', answerId, title: 'Delete Answer', message: 'Are you sure you want to delete this answer?' });
   };
 
-  // ─── Delete Question ──────────────────────────────────────────────────────────
-
-  const handleDeleteQuestion = async () => {
-    if (!window.confirm('Delete this question and all its answers?')) return;
-    try {
-      await apiDeleteQuestion(questionId);
-      toast.success('Question deleted');
-      navigate(`${basePath}/dashboard/help`);
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to delete question');
-    }
+  const promptDeleteQuestion = () => {
+    setDeleteConfirmTarget({ type: 'question', title: 'Delete Question', message: 'Are you sure you want to delete this question and all its answers? This action cannot be undone.' });
   };
 
   // ─── Add & Vote Comments ──────────────────────────────────────────────────────
@@ -741,16 +731,46 @@ const QuestionDetail = ({ basePath = '' }) => {
     }
   };
 
-  const handleDeleteComment = async (qId, answerId, commentId) => {
-    if (!window.confirm('Delete this comment and its replies?')) return;
-    try {
-      const updatedAnswer = await apiDeleteComment(qId, answerId, commentId);
-      setAnswers((prev) =>
-        prev.map((a) => (a._id === answerId ? { ...a, comments: updatedAnswer.comments } : a))
-      );
-      toast.success('Comment deleted');
-    } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to delete comment');
+  const promptDeleteComment = (qId, answerId, commentId) => {
+    setDeleteConfirmTarget({ type: 'comment', qId, answerId, commentId, title: 'Delete Comment', message: 'Are you sure you want to delete this comment and its replies?' });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmTarget) return;
+    const { type, answerId, qId, commentId } = deleteConfirmTarget;
+    setDeleteConfirmTarget(null);
+
+    if (type === 'answer') {
+      try {
+        await apiDeleteAnswer(questionId, answerId);
+        setAnswers((prev) => prev.filter((a) => a._id !== answerId));
+        setQuestion((prev) =>
+          prev
+            ? { ...prev, answers: prev.answers.filter((a) => (a._id || a) !== answerId) }
+            : prev
+        );
+        toast.success('Answer deleted');
+      } catch (err) {
+        toast.error(err?.response?.data?.message || 'Failed to delete answer');
+      }
+    } else if (type === 'question') {
+      try {
+        await apiDeleteQuestion(questionId);
+        toast.success('Question deleted');
+        navigate(`${basePath}/dashboard/help`);
+      } catch (err) {
+        toast.error(err?.response?.data?.message || 'Failed to delete question');
+      }
+    } else if (type === 'comment') {
+      try {
+        const updatedAnswer = await apiDeleteComment(qId, answerId, commentId);
+        setAnswers((prev) =>
+          prev.map((a) => (a._id === answerId ? { ...a, comments: updatedAnswer.comments } : a))
+        );
+        toast.success('Comment deleted');
+      } catch (err) {
+        toast.error(err?.response?.data?.message || 'Failed to delete comment');
+      }
     }
   };
 
@@ -880,7 +900,7 @@ const QuestionDetail = ({ basePath = '' }) => {
             <button
               id="qd-delete-question-btn"
               className="qd-delete-btn"
-              onClick={handleDeleteQuestion}
+              onClick={promptDeleteQuestion}
               title="Delete question"
             >
               <span className="material-icons" style={{ fontSize: '0.9rem' }}>delete_outline</span>
@@ -914,10 +934,10 @@ const QuestionDetail = ({ basePath = '' }) => {
               currentUserId={user?._id}
               onVote={handleVoteAnswer}
               onAccept={handleAcceptAnswer}
-              onDelete={handleDeleteAnswer}
+              onDelete={promptDeleteAnswer}
               onAddComment={handleAddComment}
               onVoteComment={handleVoteComment}
-              onDeleteComment={handleDeleteComment}
+              onDeleteComment={promptDeleteComment}
             />
           ))
         )}
@@ -968,6 +988,15 @@ const QuestionDetail = ({ basePath = '' }) => {
           </div>
         )}
       </div>
+
+      <ConfirmDeleteModal
+        isOpen={deleteConfirmTarget != null}
+        title={deleteConfirmTarget?.title || 'Confirm Delete'}
+        message={deleteConfirmTarget?.message || 'Are you sure you want to delete this item?'}
+        confirmText={deleteConfirmTarget?.title || 'Delete'}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setDeleteConfirmTarget(null)}
+      />
     </div>
   );
 };

@@ -62,10 +62,17 @@ export const getPreviewUrl = (resource) => {
   return { type: "external", url };
 };
 
-const PreviewModal = ({ resource, onClose }) => {
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+
+const PreviewModal = ({ resource, onClose, onDelete }) => {
+  const { user } = useAuthStore();
   const preview = getPreviewUrl(resource);
   const { icon, color } = getFileIcon(resource.fileName, resource.fileType);
   const [copying, setCopying] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+
+  const ownerId = resource.userId?._id || resource.userId;
+  const isOwner = user?._id && (ownerId?.toString() === user._id || user.role === "admin" || user.role === "moderator");
 
   const copyLink = async () => {
     try {
@@ -74,6 +81,13 @@ const PreviewModal = ({ resource, onClose }) => {
       setCopying(true);
       setTimeout(() => setCopying(false), 1500);
     } catch { toast.error("Could not copy link"); }
+  };
+
+  const handleConfirmDelete = () => {
+    setShowConfirmDelete(false);
+    if (onDelete) {
+      onDelete(resource._id);
+    }
   };
 
   return (
@@ -91,6 +105,16 @@ const PreviewModal = ({ resource, onClose }) => {
             <button className="gs-icon-btn" title={copying ? "Copied!" : "Copy link"} onClick={copyLink}>
               <span className="material-icons">{copying ? "check" : "link"}</span>
             </button>
+            {isOwner && (
+              <button
+                className="gs-icon-btn gs-delete-btn"
+                title="Delete Resource"
+                onClick={() => setShowConfirmDelete(true)}
+                style={{ color: "#ef4444" }}
+              >
+                <span className="material-icons">delete</span>
+              </button>
+            )}
             <button className="gs-icon-btn" title="Close" onClick={onClose}>
               <span className="material-icons">close</span>
             </button>
@@ -123,6 +147,14 @@ const PreviewModal = ({ resource, onClose }) => {
           )}
         </div>
       </div>
+      <ConfirmDeleteModal
+        isOpen={showConfirmDelete}
+        title="Delete Resource"
+        message="Are you sure you want to delete this resource? This action cannot be undone."
+        confirmText="Delete Resource"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
     </div>
   );
 };
