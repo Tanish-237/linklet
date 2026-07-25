@@ -7,6 +7,7 @@ export const createResource = async (resourceData) => {
 };
 
 export const findResourceById = async (id) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
   return await Resource.findById(id)
     .populate("userId", "username avatar")
     .populate("branch");
@@ -34,10 +35,14 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
       }
     }
 
-    if (filters.branchId) query.branch = new mongoose.Types.ObjectId(filters.branchId);
+    if (filters.branchId && mongoose.Types.ObjectId.isValid(filters.branchId)) {
+      query.branch = new mongoose.Types.ObjectId(filters.branchId);
+    }
     if (filters.category && filters.category !== "all") query.category = filters.category;
     if (filters.tags && filters.tags.length > 0) query.resourcetags = { $in: filters.tags };
-    if (filters.onlyMe) query.userId = new mongoose.Types.ObjectId(filters.onlyMe);
+    if (filters.onlyMe && mongoose.Types.ObjectId.isValid(filters.onlyMe)) {
+      query.userId = new mongoose.Types.ObjectId(filters.onlyMe);
+    }
 
     // File type filter (maps extension to fileType field stored at upload)
     if (filters.fileType && filters.fileType !== "all") {

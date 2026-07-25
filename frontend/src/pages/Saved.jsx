@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { apiClient } from "../api/apiClient";
 import { getCollections, deleteCollection, toggleResourceInCollection, createCollection } from "../api/collection.api";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import "./Saved.css";
 
 const timeAgo = (d) => {
@@ -35,15 +36,18 @@ export default function Saved({ username }) {
   const loadData = async () => {
     try {
       setLoading(true);
-      // Load All Saves
-      const url = username ? `/profile/${username}/bookmarks` : "/profile/me/bookmarks";
-      const res = await apiClient.get(url);
-      setSavedResources(res.data.data || []);
-
-      // Load Collections if viewing own profile
       if (isOwnProfile) {
-        const cols = await getCollections();
-        setCollections(cols);
+        const url = "/profile/me/bookmarks";
+        const [bookmarksRes, cols] = await Promise.all([
+          apiClient.get(url),
+          getCollections(),
+        ]);
+        setSavedResources(bookmarksRes.data.data || []);
+        setCollections(cols || []);
+      } else {
+        const url = `/profile/${username}/bookmarks`;
+        const res = await apiClient.get(url);
+        setSavedResources(res.data.data || []);
       }
     } catch {
       toast.error("Failed to load saved items");
@@ -85,15 +89,23 @@ export default function Saved({ username }) {
     }
   };
 
-  const handleDeleteCollection = async (e, id) => {
+  const [deleteConfirmCollectionId, setDeleteConfirmCollectionId] = useState(null);
+
+  const promptDeleteCollection = (e, id) => {
     e.stopPropagation();
-    if (!window.confirm("Are you sure you want to delete this collection? Resources will NOT be deleted.")) return;
+    setDeleteConfirmCollectionId(id);
+  };
+
+  const handleConfirmDeleteCollection = async () => {
+    if (!deleteConfirmCollectionId) return;
     try {
-      await deleteCollection(id);
-      setCollections((p) => p.filter((c) => c._id !== id));
+      await deleteCollection(deleteConfirmCollectionId);
+      setCollections((p) => p.filter((c) => c._id !== deleteConfirmCollectionId));
       toast.success("Collection deleted");
     } catch {
       toast.error("Failed to delete collection");
+    } finally {
+      setDeleteConfirmCollectionId(null);
     }
   };
 
@@ -135,8 +147,28 @@ export default function Saved({ username }) {
     }
   };
 
-  if (loading && !activeCollection && savedResources.length === 0) {
-    return <div className="gs-spinner" style={{ margin: "40px auto" }} />;
+  if (loading && !activeCollection && savedResources.length === 0 && collections.length === 0) {
+    return (
+      <div className="bm-container">
+        <Helmet>
+          <title>Saved Collections | Linklet</title>
+        </Helmet>
+        <div className="bm-header-row">
+          <h2 className="bm-title">Your Collections</h2>
+        </div>
+        <div className="bm-collections-grid">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bm-collection-card bm-skeleton-card">
+              <div className="bm-collection-cover bm-skeleton-cover" />
+              <div className="bm-collection-info">
+                <div className="bm-skeleton-text title" />
+                <div className="bm-skeleton-text subtitle" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   // 1. Another user's profile view (just a flat list)
@@ -169,8 +201,8 @@ export default function Saved({ username }) {
         </Helmet>
         <div className="bm-header-row">
           <h2 className="bm-title">Your Collections</h2>
-          <button className="gs-btn-primary-sm" onClick={() => setIsCreating(!isCreating)}>
-            <span className="material-icons">{isCreating ? "close" : "add"}</span>
+          <button className="bm-btn-create" onClick={() => setIsCreating(!isCreating)}>
+            <span className="material-icons" style={{ fontSize: '1.1rem' }}>{isCreating ? "close" : "add"}</span>
             {isCreating ? "Cancel" : "New Collection"}
           </button>
         </div>
@@ -205,7 +237,7 @@ export default function Saved({ username }) {
             <div key={c._id} className="bm-collection-card" onClick={() => loadCollectionResources(c)}>
               <div className="bm-collection-cover" style={{ backgroundColor: c.coverColor }}>
                 <span className="material-icons">folder</span>
-                <button className="bm-del-btn" onClick={(e) => handleDeleteCollection(e, c._id)}>
+                <button className="bm-del-btn" onClick={(e) => promptDeleteCollection(e, c._id)}>
                   <span className="material-icons">delete</span>
                 </button>
               </div>
@@ -217,6 +249,14 @@ export default function Saved({ username }) {
           ))}
         </div>
         {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
+        <ConfirmDeleteModal
+          isOpen={deleteConfirmCollectionId != null}
+          title="Delete Collection"
+          message="Are you sure you want to delete this collection? Saved resources will NOT be lost."
+          confirmText="Delete Collection"
+          onConfirm={handleConfirmDeleteCollection}
+          onCancel={() => setDeleteConfirmCollectionId(null)}
+        />
       </div>
     );
   }

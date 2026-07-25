@@ -3,7 +3,9 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { toast } from "react-toastify";
 import { apiClient } from "../api/apiClient";
+import useAuthStore from "../store/useAuthStore";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
+import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import "./Resource.css";
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -233,9 +235,12 @@ const UploadModal = ({ onClose, onSuccess }) => {
 };
 
 /* ──────────────────────── resource card ──────────────────────── */
-const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction }) => {
+const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, onPromptDelete, currentUser }) => {
   const { icon, color } = getFileIcon(resource.fileName, resource.fileType);
   const [copying, setCopying] = useState(false);
+
+  const ownerId = resource.userId?._id || resource.userId;
+  const isOwner = currentUser?._id && (ownerId?.toString() === currentUser._id || currentUser.role === "admin" || currentUser.role === "moderator");
 
   const copyLink = async (e) => {
     if (e) e.stopPropagation();
@@ -250,19 +255,18 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction })
   /* ── List view ── */
   if (view === "list") {
     return (
-      <div className="gs-card-list" onClick={() => onOpen(resource)} style={{ cursor: "pointer" }}>
+      <div className="gs-card-list" onClick={() => onOpen(resource)} style={{ cursor: "pointer", position: "relative" }}>
         <div className="gs-list-left">
           <div className="gs-list-icon-wrap">
             <span className="material-icons gs-list-icon" style={{ color }}>{icon}</span>
           </div>
           <div className="gs-list-info">
-            {/* Title row */}
-            <h3 className="gs-list-title">{resource.title || resource.fileName}</h3>
-            {/* Description — always visible, left-aligned */}
+            <div className="gs-list-top-row">
+              <h3 className="gs-list-title">{resource.title || resource.fileName}</h3>
+            </div>
             {resource.description && (
               <p className="gs-list-desc">{resource.description}</p>
             )}
-            {/* Tags */}
             {resource.resourcetags?.length > 0 && (
               <div className="gs-tags">
                 {resource.resourcetags.slice(0, 5).map((t, i) => (
@@ -270,7 +274,6 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction })
                 ))}
               </div>
             )}
-            {/* Meta row */}
             <div className="gs-list-meta">
               {resource.userId?.avatar
                 ? <img src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
@@ -291,17 +294,30 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction })
             </div>
           </div>
         </div>
-        {/* Right: actions */}
-        <div className="gs-list-actions">
+
+        <div className="gs-list-actions" onClick={(e) => e.stopPropagation()}>
           <button className={`gs-icon-btn ${saved ? "saved" : ""}`} title={saved ? "Remove from Saved" : "Save"} onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}>
             <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
           </button>
           <button className="gs-icon-btn" title={copying ? "Copied!" : "Copy link"} onClick={copyLink}>
             <span className="material-icons">{copying ? "check" : "link"}</span>
           </button>
+          {isOwner && (
+            <button
+              className="gs-icon-btn"
+              title="Delete Resource"
+              style={{ color: "#f87171" }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPromptDelete(resource._id);
+              }}
+            >
+              <span className="material-icons">delete</span>
+            </button>
+          )}
           {resource.fileType !== "link" && (
             <button className="gs-btn-primary-sm" onClick={(e) => { e.stopPropagation(); onAction(resource, "download"); }}>
-              <span className="material-icons">download</span>
+              <span className="material-icons">download</span> Download
             </button>
           )}
         </div>
@@ -311,42 +327,55 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction })
 
   /* ── Grid view ── */
   return (
-    <div className="gs-card-grid" onClick={() => onOpen(resource)} style={{ cursor: "pointer" }}>
+    <div className="gs-card-grid" onClick={() => onOpen(resource)} style={{ cursor: "pointer", position: "relative" }}>
       <div className="gs-card-top-row">
         <div className="gs-card-icon-wrap" style={{ "--ic": color }}>
           <span className="material-icons gs-card-icon" style={{ color }}>{icon}</span>
         </div>
-        <button
-          className={`gs-icon-btn ${saved ? "saved" : ""}`}
-          title={saved ? "Remove from Saved" : "Save"}
-          onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}
-        >
-          <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          {isOwner && (
+            <button
+              className="bm-del-btn inline-del-btn"
+              title="Delete Resource"
+              onClick={(e) => {
+                e.stopPropagation();
+                onPromptDelete(resource._id);
+              }}
+            >
+              <span className="material-icons">delete</span>
+            </button>
+          )}
+          <button
+            className={`gs-icon-btn ${saved ? "saved" : ""}`}
+            title={saved ? "Remove from Saved" : "Save"}
+            onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}
+          >
+            <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Title */}
       <h3 className="gs-card-title" title={resource.title || resource.fileName}>
         {resource.title || resource.fileName}
       </h3>
 
-      {/* Description — always visible */}
       {resource.description && (
         <p className="gs-card-desc">{resource.description}</p>
       )}
 
-      <div className="gs-card-body">
+      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", margin: "6px 0" }}>
         <span className="gs-category-badge">{resource.category}</span>
-        {/* Tags */}
         {resource.resourcetags?.length > 0 && (
           <div className="gs-tags">
-            {resource.resourcetags.slice(0, 4).map((t, i) => <span key={i} className="gs-tag">#{t}</span>)}
+            {resource.resourcetags.slice(0, 3).map((t, i) => (
+              <span key={i} className="gs-tag">#{t}</span>
+            ))}
           </div>
         )}
       </div>
 
-      <div className="gs-card-footer">
-        <div className="gs-card-user">
+      <div className="gs-card-user-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "8px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           {resource.userId?.avatar
             ? <img src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
             : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
@@ -354,15 +383,14 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction })
           <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
             {resource.userId?.username || "Anonymous"}
           </Link>
-          <span className="gs-time">{timeAgo(resource.createdAt)}</span>
         </div>
-        <div className="gs-stat-chip">
+        <span className="gs-stat-chip">
           <span className="material-icons">download</span>
           {formatCount(resource.downloadsCount)}
-        </div>
+        </span>
       </div>
 
-      <div className="gs-card-actions">
+      <div className="gs-card-actions" onClick={(e) => e.stopPropagation()}>
         <button className="gs-btn-ghost" style={{ flex: 1 }} onClick={copyLink}>
           <span className="material-icons">{copying ? "check" : "link"}</span>
           {copying ? "Copied" : "Copy Link"}
@@ -402,8 +430,35 @@ const FILE_TYPE_FILTERS = [
 
 const PAGE_SIZE = 12;
 
+/* ─────────────────────── deleted notice modal ───────────────────────── */
+const DeletedNoticeModal = ({ onClose }) => (
+  <div className="gs-modal-backdrop" onClick={onClose}>
+    <div className="gs-deleted-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="gs-deleted-icon-wrap">
+        <span className="material-icons" style={{ fontSize: 44, color: "#f87171" }}>
+          do_not_disturb_on
+        </span>
+      </div>
+      <h2 className="gs-deleted-title">Content No Longer Available</h2>
+      <p className="gs-deleted-desc">
+        The resource you are looking for has been removed by its author or is no longer available.
+      </p>
+      <p className="gs-deleted-sub">
+        If someone shared this link with you, the file may have been updated or deleted.
+      </p>
+      <div className="gs-deleted-actions">
+        <button className="gs-btn-primary" onClick={onClose}>
+          <span className="material-icons">search</span>
+          Explore Resource Library
+        </button>
+      </div>
+    </div>
+  </div>
+);
+
 /* ─────────────────────── main component ─────────────────────────── */
 export default function GlobalSearch() {
+  const { user } = useAuthStore();
   const [searchTerm, setSearchTerm]         = useState("");
   const [debouncedTerm, setDebouncedTerm]   = useState("");
   const [resources, setResources]           = useState([]);
@@ -415,9 +470,9 @@ export default function GlobalSearch() {
   const [selectedTags, setSelectedTags]     = useState([]);
   const [isSortOpen, setIsSortOpen]         = useState(false);
   const [view, setView]                     = useState("grid");
-  // bookmarks: Set of resource IDs saved by current user (from backend)
   const [bookmarks, setBookmarks]           = useState(new Set());
   const [previewResource, setPreviewResource] = useState(null);
+  const [showDeletedNotice, setShowDeletedNotice] = useState(false);
   const [showUpload, setShowUpload]         = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [showMyResourcesOnly, setShowMyResourcesOnly] = useState(false);
@@ -448,12 +503,34 @@ export default function GlobalSearch() {
         .then(res => {
           if (res.data.data) setPreviewResource(res.data.data);
         })
-        .catch(() => toast.error("Could not load preview resource"));
+        .catch(() => {
+          setShowDeletedNotice(true);
+        });
       // Clear parameter to avoid re-triggering on refresh
       setSearchParams({}, { replace: true });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const [deleteConfirmResourceId, setDeleteConfirmResourceId] = useState(null);
+
+  const promptDeleteResource = (resourceId) => {
+    setDeleteConfirmResourceId(resourceId);
+  };
+
+  const handleConfirmDeleteResource = async () => {
+    if (!deleteConfirmResourceId) return;
+    try {
+      await apiClient.delete(`/resources/${deleteConfirmResourceId}`);
+      toast.success("Resource deleted successfully");
+      setResources((prev) => prev.filter((r) => r._id !== deleteConfirmResourceId));
+      if (previewResource?._id === deleteConfirmResourceId) setPreviewResource(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete resource");
+    } finally {
+      setDeleteConfirmResourceId(null);
+    }
+  };
 
   // Fetch resources when filters change
   useEffect(() => {
@@ -747,6 +824,8 @@ export default function GlobalSearch() {
                   onToggleSave={handleToggleBookmark}
                   onOpen={setPreviewResource}
                   onAction={handleResourceAction}
+                  onPromptDelete={promptDeleteResource}
+                  currentUser={user}
                 />
               ))}
             </div>
@@ -778,7 +857,14 @@ export default function GlobalSearch() {
       </div>
 
       {/* ── Modals ── */}
-      {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
+      {previewResource && (
+        <PreviewModal
+          resource={previewResource}
+          onClose={() => setPreviewResource(null)}
+          onDelete={promptDeleteResource}
+        />
+      )}
+      {showDeletedNotice && <DeletedNoticeModal onClose={() => setShowDeletedNotice(false)} />}
       {showUpload && <UploadModal onClose={() => setShowUpload(false)} onSuccess={() => fetchResources(1, false)} />}
       {collectionModalResourceId && (
         <SaveToCollectionModal
@@ -786,6 +872,14 @@ export default function GlobalSearch() {
           onClose={() => setCollectionModalResourceId(null)}
         />
       )}
+      <ConfirmDeleteModal
+        isOpen={deleteConfirmResourceId != null}
+        title="Delete Resource"
+        message="Are you sure you want to delete this resource? This action cannot be undone."
+        confirmText="Delete Resource"
+        onConfirm={handleConfirmDeleteResource}
+        onCancel={() => setDeleteConfirmResourceId(null)}
+      />
     </div>
   );
 }

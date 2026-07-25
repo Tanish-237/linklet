@@ -39,3 +39,22 @@ export const isLoggedIn = async (req, res, next) => {
         return next(new AppError(error?.message || "Invalid access token", 401));
     }
 };
+
+export const optionalAuth = async (req, res, next) => {
+    const token = req.cookies?.accesstoken || 
+                 req.header("Authorization")?.replace("Bearer ", "");
+
+    if (!token) return next();
+
+    try {
+        const blacklisted = await isTokenBlacklisted(token);
+        if (blacklisted) return next();
+
+        const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+        const user = await User.findById(decodedToken.id).select("-password -refreshToken");
+        if (user) req.user = user;
+    } catch {
+        // Ignore errors in optional auth
+    }
+    next();
+};
