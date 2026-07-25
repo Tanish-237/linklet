@@ -7,6 +7,7 @@ import postRoutes from "./post.routes.js";
 import resourceRoutes from "./resource.routes.js";
 import questionRoutes from "./question.routes.js";
 import profileRoutes from "./profile.routes.js";
+import chatRoutes from "./chat.routes.js";
 
 const router = express.Router();
 
@@ -18,5 +19,7 @@ router.use("/posts", postRoutes);
 router.use("/resources", resourceRoutes);
 router.use("/questions", questionRoutes);
 router.use("/profile", profileRoutes);
+router.use("/chat", chatRoutes);
 
 export default router;
+

@@ -24,6 +24,7 @@ const {
   toggleBookmark,
   getMyBookmarks,
   getUserBookmarks,
+  toggleFollowUser,
 } = await import('../src/controllers/profile.controller.js');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -209,6 +210,43 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       const err = next.mock.calls[0][0];
       console.log('[TEST] error:', err?.message);
       expect(err).toBeInstanceOf(AppError);
+    });
+  });
+
+  // ── toggleFollowUser ────────────────────────────────────────────────────────
+  describe('toggleFollowUser', () => {
+    it('should prevent user from following themselves', async () => {
+      console.log('[TEST] toggleFollowUser › cannot follow self');
+      const req = makeReq({ user: { _id: 'user1' }, params: { targetUserId: 'user1' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      await toggleFollowUser(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      console.log('[TEST] self-follow error:', err?.message);
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.statusCode).toBe(400);
+    });
+
+    it('should follow a target user when not already following', async () => {
+      console.log('[TEST] toggleFollowUser › follow user');
+      const req = makeReq({ user: { _id: 'user1' }, params: { targetUserId: 'targetUser2' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindById
+        .mockResolvedValueOnce({ _id: 'targetUser2' }) // targetUser check
+        .mockResolvedValueOnce({ _id: 'user1', following: [] }); // currentUser check
+
+      await toggleFollowUser(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledTimes(2);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, isFollowing: true })
+      );
     });
   });
 });

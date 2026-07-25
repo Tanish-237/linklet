@@ -289,7 +289,14 @@ function App() {
                 </Layout>
               }
             />
-            <Route path="/dashboard/chat" element={<ChatPage />} />
+            <Route
+              path="/dashboard/chat"
+              element={
+                <Layout>
+                  <ChatPage />
+                </Layout>
+              }
+            />
 
             {/* Static Pages */}
             <Route

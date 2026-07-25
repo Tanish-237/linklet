@@ -23,6 +23,7 @@ const Profile = () => {
   const [editBio, setEditBio] = useState("");
   const [editSkills, setEditSkills] = useState("");
   const [editUsername, setEditUsername] = useState("");
+  const [editPhone, setEditPhone] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [selectedAvatarUrl, setSelectedAvatarUrl] = useState("");
@@ -78,6 +79,7 @@ const Profile = () => {
         setEditBio(res.data.data.bio || "");
         setEditSkills(res.data.data.skills?.join(", ") || "");
         setEditUsername(res.data.data.username || "");
+        setEditPhone(res.data.data.phoneNumber || "");
       } catch (error) {
         toast.error("Profile not found");
         navigate("/dashboard");
@@ -90,6 +92,50 @@ const Profile = () => {
   }, [username, currentUser, navigate]);
 
   const isOwnProfile = currentUser && profileUser && currentUser._id === profileUser._id;
+
+  const [isFollowing, setIsFollowing] = useState(false);
+
+  useEffect(() => {
+    if (profileUser && currentUser) {
+      const followingList = profileUser.followers || [];
+      setIsFollowing(
+        followingList.some((f) => (typeof f === "object" ? f._id : f) === currentUser._id)
+      );
+    }
+  }, [profileUser, currentUser]);
+
+  const handleToggleFollow = async () => {
+    if (!profileUser?._id) return;
+    try {
+      const res = await apiClient.post(`/profile/follow/${profileUser._id}`);
+      if (res.data.success) {
+        setIsFollowing(res.data.isFollowing);
+        toast.success(res.data.message);
+        setProfileUser((prev) => ({
+          ...prev,
+          followers: res.data.isFollowing
+            ? [...(prev.followers || []), currentUser._id]
+            : (prev.followers || []).filter(
+                (f) => (typeof f === "object" ? f._id : f) !== currentUser._id
+              ),
+        }));
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update follow status");
+    }
+  };
+
+  const handleMessageUser = async () => {
+    if (!profileUser?._id) return;
+    try {
+      const res = await apiClient.post("/chat", { userId: profileUser._id });
+      if (res.data.success) {
+        navigate("/dashboard/chat", { state: { selectedChat: res.data.data } });
+      }
+    } catch (err) {
+      toast.error("Failed to open conversation");
+    }
+  };
 
   const handleAvatarChange = (e) => {
     const file = e.target.files[0];
@@ -110,6 +156,7 @@ const Profile = () => {
       const formData = new FormData();
       formData.append("bio", editBio);
       formData.append("skills", editSkills);
+      formData.append("phoneNumber", editPhone);
       if (editUsername !== profileUser.username) {
         formData.append("username", editUsername);
       }
@@ -270,11 +317,13 @@ const Profile = () => {
                 )
               ) : (
                 <>
-                  <button className="profile-btn-follow">
-                    <span className="material-icons">person_add</span>
-                    Follow
+                  <button onClick={handleToggleFollow} className="profile-btn-follow">
+                    <span className="material-icons">
+                      {isFollowing ? "person_remove" : "person_add"}
+                    </span>
+                    {isFollowing ? "Unfollow" : "Follow"}
                   </button>
-                  <button className="profile-btn-message">
+                  <button onClick={handleMessageUser} className="profile-btn-message">
                     <span className="material-icons">mail</span>
                     Message
                   </button>
@@ -319,6 +368,12 @@ const Profile = () => {
                   <span className="material-icons">email</span>
                   <span>{profileUser.email}</span>
                 </div>
+                {profileUser.phoneNumber && (
+                  <div className="profile-info-chip">
+                    <span className="material-icons">phone</span>
+                    <span>{profileUser.phoneNumber}</span>
+                  </div>
+                )}
                 <div className="profile-info-chip">
                   <span className="material-icons">event</span>
                   <span>Joined {formatDate(profileUser.createdAt)}</span>
@@ -383,6 +438,17 @@ const Profile = () => {
                 <div className={`profile-char-counter ${editBio.length > 150 ? 'danger' : editBio.length > 130 ? 'warning' : 'safe'}`}>
                   {editBio.length}/160
                 </div>
+              </div>
+
+              <div className="profile-field-group">
+                <label className="profile-field-label">Phone Number</label>
+                <input
+                  type="text"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  placeholder="+91 9876543210"
+                  className="profile-input"
+                />
               </div>
 
               <div className="profile-field-group">

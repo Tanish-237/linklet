@@ -18,11 +18,11 @@ export default function Layout({ children }) {
 
   const menuItems = [
     { icon: "dynamic_feed", label: "Feed", path: "/home" },
-    { icon: "library_books", label: "Global Search", path: "/dashboard/global-search" },
+    { icon: "dashboard", label: "Dashboard", path: "/dashboard" },
+    { icon: "chat", label: "Chat", path: "/dashboard/chat" },
+    { icon: "search", label: "Global Search", path: "/dashboard/global-search" },
     { icon: "bookmark", label: "Saved", path: "/dashboard/saved" },
-    { icon: "help", label: "Help Forum", path: "/dashboard/help" },
-    { icon: "groups", label: "Clubs", path: "/dashboard/clubs" },
-    { icon: "chat", label: "Chat", path: "/dashboard/chat" }
+    { icon: "help", label: "Help Forum", path: "/dashboard/help" }
   ];
 
   const toggleDropdown = (dropdown) => {
@@ -93,6 +93,15 @@ export default function Layout({ children }) {
             ))}
           </ul>
         </nav>
+        <div className="p-4 border-t border-gray-800">
+          <button
+            onClick={handleLogout}
+            className="w-full p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer"
+          >
+            <span className="material-icons text-lg">logout</span>
+            Logout
+          </button>
+        </div>
       </aside>
 
       <div className="flex-1 flex flex-col">
@@ -179,15 +188,6 @@ export default function Layout({ children }) {
                   <ul className="py-2">
                     <li>
                       <button 
-                        onClick={() => navigate('/dashboard')}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200"
-                      >
-                        <span className="material-icons text-violet-400">dashboard</span>
-                        <span className="text-gray-300">Dashboard</span>
-                      </button>
-                    </li>
-                    <li>
-                      <button 
                         onClick={() => navigate('/dashboard/profile')}
                         className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200"
                       >
@@ -220,7 +220,7 @@ export default function Layout({ children }) {
         </header>
 
         {/* Main Content */}
-        <main className="flex-1 p-8 overflow-y-auto no-scrollbar">
+        <main className={`flex-1 ${location.pathname === '/dashboard/chat' ? 'p-0 overflow-hidden' : 'p-8 overflow-y-auto no-scrollbar'}`}>
           {children}
         </main>
       </div>

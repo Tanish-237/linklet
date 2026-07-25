@@ -1,413 +1,741 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../config";
-import { useAuth } from "../context/AuthContext";
+import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
-import { useSocket } from "../hooks/useSocket";
-import { format } from "timeago.js";
+import TimeAgo from "./TimeAgo";
+import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import ForwardMessageModal from "./ForwardMessageModal";
 
-const ChatWindow = ({ chatId }) => {
+const ChatWindow = ({
+  chat,
+  allChats = [],
+  currentUser,
+  socket,
+  onlineUsers = [],
+  onToggleInfo,
+}) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
-  const [file, setFile] = useState(null);
-  const [fileName, setFileName] = useState("");
-  const { user } = useAuth();
-  const messagesEndRef = useRef(null);
-  const socket = useSocket();
-  const [isTyping, setIsTyping] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [deletingMessageId, setDeletingMessageId] = useState(null);
+  const [selectedMessageIds, setSelectedMessageIds] = useState([]);
+  const [activeMenuMessageId, setActiveMenuMessageId] = useState(null);
+  const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handleWindowClick = () => setActiveMenuMessageId(null);
+    window.addEventListener("click", handleWindowClick);
+    return () => window.removeEventListener("click", handleWindowClick);
+  }, []);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [editContent, setEditContent] = useState("");
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [isSending, setIsSending] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const messageCacheRef = useRef({});
 
+  // Fetch messages when active chat changes
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!chat?._id) return;
 
-  useEffect(() => {
-    if (!socket || !chatId) return;
-
-    const typingTimeout = setTimeout(() => {
-      socket.emit("stop typing", chatId);
-      setIsTyping(false);
-    }, 3000);
-
-    return () => clearTimeout(typingTimeout);
-  }, [newMessage]);
-
-  useEffect(() => {
-    if (!chatId || !user) return;
+    // Check in-memory cache for instant (0ms) rendering
+    const cached = messageCacheRef.current[chat._id];
+    if (cached && cached.length > 0) {
+      setMessages(cached);
+      setLoadingMessages(false);
+    } else {
+      setMessages([]);
+      setLoadingMessages(true);
+    }
 
     const fetchMessages = async () => {
       try {
-        const res = await axios.get(
-          `${API_BASE_URL}/api/chat/message/${chatId}`,
-          {
-            withCredentials: true,
-          }
-        );
-        setMessages(res.data || []);
+        const res = await apiClient.get(`/chat/message/${chat._id}`);
+        if (res.data.success) {
+          const fetchedMsgs = res.data.data.messages || [];
+          setMessages(fetchedMsgs);
+          messageCacheRef.current[chat._id] = fetchedMsgs;
+          setHasMore(res.data.data.hasMore);
+          setNextCursor(res.data.data.nextCursor);
+          scrollToBottom();
+        }
       } catch (error) {
-        console.error("Failed to fetch messages:", error);
+        console.error("Failed to load messages:", error);
         toast.error("Failed to load messages");
+      } finally {
+        setLoadingMessages(false);
       }
     };
 
     fetchMessages();
-  }, [chatId, user]);
+    setReplyingTo(null);
+    setEditingMessage(null);
+    setSelectedMessageIds([]);
 
+    // Join room
+    if (socket) {
+      socket.emit("join chat", chat._id);
+      socket.emit("read receipt", { chatId: chat._id, userId: currentUser?._id });
+    }
+  }, [chat?._id, socket]);
+
+  // Socket event listeners
   useEffect(() => {
-    if (!socket || !chatId) return;
+    if (!socket || !chat?._id) return;
 
-    socket.on("message updated", (updatedMessage) => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg._id === updatedMessage._id ? updatedMessage : msg
-        )
-      );
-    });
+    const handleMessageReceived = (message) => {
+      if (message.chat === chat._id || message.chat?._id === chat._id) {
+        setMessages((prev) => {
+          if (prev.some((m) => m._id === message._id)) return prev;
+          return [...prev, message];
+        });
+        scrollToBottom();
+      }
+    };
 
-    socket.on("message deleted", (deletedMessageId) => {
-      setMessages((prevMessages) =>
-        prevMessages.filter((msg) => msg._id !== deletedMessageId)
+    const handleMessageUpdated = (updated) => {
+      setMessages((prev) =>
+        prev.map((m) => (m._id === updated._id ? updated : m))
       );
-    });
+    };
+
+    const handleMessageDeleted = (deletedId) => {
+      setMessages((prev) => prev.filter((m) => m._id !== deletedId));
+    };
+
+    const handleTyping = ({ username, chatId }) => {
+      if (chatId === chat._id && !typingUsers.includes(username)) {
+        setTypingUsers((prev) => [...prev, username]);
+      }
+    };
+
+    const handleStopTyping = ({ username, chatId }) => {
+      if (chatId === chat._id) {
+        setTypingUsers((prev) => prev.filter((u) => u !== username));
+      }
+    };
+
+    socket.on("message received", handleMessageReceived);
+    socket.on("message updated", handleMessageUpdated);
+    socket.on("message deleted", handleMessageDeleted);
+    socket.on("typing", handleTyping);
+    socket.on("stop typing", handleStopTyping);
 
     return () => {
-      socket.off("message updated");
-      socket.off("message deleted");
+      socket.off("message received", handleMessageReceived);
+      socket.off("message updated", handleMessageUpdated);
+      socket.off("message deleted", handleMessageDeleted);
+      socket.off("typing", handleTyping);
+      socket.off("stop typing", handleStopTyping);
     };
-  }, [socket, chatId]);
+  }, [socket, chat?._id, typingUsers]);
 
-  const handleInputChange = (e) => {
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
+    }, 100);
+  };
+
+  const handleTyping = (e) => {
     setNewMessage(e.target.value);
-    if (!isTyping) {
-      socket.emit("typing", chatId);
-      setIsTyping(true);
+    if (socket && chat?._id) {
+      socket.emit("typing", {
+        chatId: chat._id,
+        username: currentUser?.username,
+      });
+      setTimeout(() => {
+        socket.emit("stop typing", {
+          chatId: chat._id,
+          username: currentUser?.username,
+        });
+      }, 3000);
     }
   };
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const handleSendMessage = async (e) => {
+    e?.preventDefault();
+    if (editingMessage) {
+      handleEditMessage(editingMessage._id || editingMessage, newMessage);
+      return;
+    }
 
-  const handleSendMessage = async () => {
-    if (!newMessage && !file) return;
+    if (isSending || (!newMessage.trim() && selectedFiles.length === 0)) return;
 
+    setIsSending(true);
     const formData = new FormData();
-    if (newMessage) formData.append("content", newMessage);
-    if (file) formData.append("media", file);
-    formData.append("chatId", chatId);
+    formData.append("chatId", chat._id);
+    if (newMessage.trim()) formData.append("content", newMessage.trim());
+    if (replyingTo) formData.append("replyTo", replyingTo._id);
+
+    selectedFiles.forEach((file) => {
+      formData.append("media", file);
+    });
 
     try {
-      const res = await axios.post(
-        `${API_BASE_URL}/api/chat/message`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-          withCredentials: true,
-        }
-      );
+      const res = await apiClient.post("/chat/message", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
 
-      socket.emit("new message", res.data);
-      setMessages([...messages, res.data]);
-      setNewMessage("");
-      setFile(null);
-      setFileName("");
+      if (res.data.success) {
+        const data = res.data.data;
+        const newMsgs = Array.isArray(data) ? data : [data];
+        setMessages((prev) => [...prev, ...newMsgs]);
+        newMsgs.forEach((msg) => socket?.emit("new message", msg));
+
+        // Reset input state
+        setNewMessage("");
+        setSelectedFiles([]);
+        setReplyingTo(null);
+        scrollToBottom();
+      }
     } catch (error) {
       console.error("Failed to send message:", error);
       toast.error("Failed to send message");
+    } finally {
+      setIsSending(false);
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter") {
-      handleSendMessage();
-    }
-  };
-
-  const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setFileName(selectedFile.name);
-    }
-  };
-
-  const handleEditMessage = async (message) => {
-    if (!editContent.trim()) return;
-
+  const handleEditMessage = async (msgId, updatedText) => {
+    if (!updatedText || !updatedText.trim()) return;
     try {
-      const res = await axios.put(
-        `${API_BASE_URL}/api/chat/message/edit`,
-        {
-          chatId,
-          messageId: message._id,
-          content: editContent,
-        },
-        { withCredentials: true }
-      );
+      const res = await apiClient.put("/chat/message", {
+        chatId: chat._id,
+        messageId: msgId,
+        content: updatedText.trim(),
+      });
 
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) => (msg._id === message._id ? res.data : msg))
-      );
-      setEditingMessage(null);
-      setEditContent("");
+      if (res.data.success) {
+        const updated = res.data.data;
+        setMessages((prev) =>
+          prev.map((m) => (m._id === msgId ? updated : m))
+        );
+        socket?.emit("message updated", updated);
+        setEditingMessage(null);
+        setNewMessage("");
+        toast.success("Message updated");
+      }
     } catch (error) {
-      console.error("Failed to edit message:", error);
       toast.error("Failed to edit message");
     }
   };
 
-  const handleDeleteMessage = async (messageId) => {
+  const handleDeleteMessage = async (msgId) => {
     try {
-      const response = await axios.delete(
-        `${API_BASE_URL}/api/chat/message`,
-        {
-          data: { chatId, messageId },
-          withCredentials: true,
-        }
-      );
+      const res = await apiClient.delete("/chat/message", {
+        data: { chatId: chat._id, messageId: msgId },
+      });
 
-      if (response.data.success) {
-        setMessages((prevMessages) =>
-          prevMessages.filter((msg) => msg._id !== messageId)
-        );
-        toast.success("Message deleted successfully");
+      if (res.data.success) {
+        setMessages((prev) => prev.filter((m) => m._id !== msgId));
+        socket?.emit("message deleted", { chatId: chat._id, messageId: msgId });
+        toast.success("Message deleted");
       }
     } catch (error) {
-      console.error("Failed to delete message:", error);
-      toast.error(error.response?.data?.message || "Failed to delete message");
+      toast.error("Failed to delete message");
     }
   };
 
-  const handleFileView = (mediaUrl) => {
-    if (!mediaUrl) return;
+  const toggleSelectMessage = (msgId) => {
+    setSelectedMessageIds((prev) =>
+      prev.includes(msgId)
+        ? prev.filter((id) => id !== msgId)
+        : [...prev, msgId]
+    );
+  };
 
-    // Check if the URL is from Cloudinary
-    if (mediaUrl.includes("cloudinary.com")) {
-      window.open(mediaUrl, "_blank");
-    } else {
-      // If it's a local file, try to open it directly
-      window.open(`${API_BASE_URL}${mediaUrl}`, "_blank");
+  const handleBulkDelete = async () => {
+    if (selectedMessageIds.length === 0) return;
+    try {
+      const res = await apiClient.delete("/chat/message/bulk-delete", {
+        data: { chatId: chat._id, messageIds: selectedMessageIds },
+      });
+
+      if (res.data.success) {
+        const deletedIds = res.data.data.deletedIds || selectedMessageIds;
+        setMessages((prev) => prev.filter((m) => !deletedIds.includes(m._id)));
+        deletedIds.forEach((id) =>
+          socket?.emit("message deleted", { chatId: chat._id, messageId: id })
+        );
+        toast.success(`${deletedIds.length} message(s) deleted`);
+        setSelectedMessageIds([]);
+      }
+    } catch (error) {
+      toast.error("Failed to delete selected messages");
     }
   };
 
-  const handleFileDownload = (mediaUrl) => {
-    if (!mediaUrl) return;
+  const handleConfirmForward = async (targetChatId) => {
+    if (selectedMessageIds.length === 0 || !targetChatId) return;
+    try {
+      const res = await apiClient.post("/chat/message/forward", {
+        targetChatId,
+        messageIds: selectedMessageIds,
+      });
 
-    // Create a temporary link element
-    const link = document.createElement("a");
-    link.href = mediaUrl;
-    link.setAttribute("download", "");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      if (res.data.success) {
+        const forwardedMsgs = res.data.data;
+        if (targetChatId === chat._id) {
+          setMessages((prev) => [...prev, ...forwardedMsgs]);
+          scrollToBottom();
+        }
+        forwardedMsgs.forEach((msg) => socket?.emit("new message", msg));
+        toast.success(`${selectedMessageIds.length} message(s) forwarded!`);
+        setSelectedMessageIds([]);
+      }
+    } catch (error) {
+      toast.error("Failed to forward messages");
+    }
   };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const newFiles = Array.from(e.target.files);
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
+    }
+    e.target.value = "";
+  };
+
+  const removeFile = (index) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const getOtherUser = () => {
+    if (chat.isGroup) return null;
+    return chat.participants?.find(
+      (p) => p._id?.toString() !== currentUser?._id?.toString()
+    );
+  };
+
+  const otherUser = getOtherUser();
+  const isOnline =
+    otherUser &&
+    onlineUsers.some((id) => id.toString() === otherUser._id?.toString());
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-gray-900 to-gray-800">
-      <div className="flex-1 overflow-y-auto p-6">
-        {messages.map((message) => (
-          <div
-            key={message._id}
-            className={`flex mb-6 group relative ${
-              message.sender._id === user?._id ? "justify-end" : "justify-start"
-            }`}
-          >
-            {message.sender._id === user?._id && (
-              <div className="absolute top-0 right-0 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 backdrop-blur-md p-2 rounded-lg border border-purple-500/10 z-10">
-                {!message.media && (
-                  <button
-                    onClick={() => {
-                      setEditingMessage(message._id);
-                      setEditContent(message.content);
-                    }}
-                    className="text-gray-400 hover:text-purple-500 transition-colors"
-                  >
-                    Edit
-                  </button>
-                )}
-                <button
-                  onClick={() => handleDeleteMessage(message._id)}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            )}
-            <div
-              className={`flex flex-col ${
-                message.sender._id === user?._id ? "items-end" : "items-start"
-              }`}
+    <div className="chat-window relative">
+      {/* Header / Multi-Select Action Bar */}
+      {selectedMessageIds.length > 0 ? (
+        <div className="chat-header bg-slate-900 border-b border-violet-500/30 flex items-center justify-between px-6 py-3 z-20 shadow-lg">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setSelectedMessageIds([])}
+              className="text-gray-400 hover:text-white cursor-pointer flex items-center"
             >
-              {message.sender._id !== user?._id && (
-                <span className="text-sm text-purple-500 mb-1">
-                  {message.sender.username}
-                </span>
-              )}
-              {editingMessage === message._id ? (
-                <div className="w-full">
-                  <input
-                    value={editContent}
-                    onChange={(e) => setEditContent(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleEditMessage(message);
-                      } else if (e.key === "Escape") {
-                        setEditingMessage(null);
-                        setEditContent("");
-                      }
-                    }}
-                    className="w-full p-2 rounded-lg bg-black/50 backdrop-blur-md border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-white"
-                  />
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => handleEditMessage(message)}
-                      className="px-3 py-1 bg-purple-500/20 text-white rounded-lg hover:bg-purple-500/30 transition-colors"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingMessage(null);
-                        setEditContent("");
-                      }}
-                      className="px-3 py-1 bg-gray-500/20 text-white rounded-lg hover:bg-gray-500/30 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div
-                  className={`max-w-[70%] p-4 rounded-lg ${
-                    message.sender._id === user?._id
-                      ? "bg-purple-500/20 rounded-tr-none"
-                      : "bg-black/50 rounded-tl-none"
-                  } backdrop-blur-md border ${
-                    message.sender._id === user?._id
-                      ? "border-purple-500/30"
-                      : "border-purple-500/10"
-                  } transition-transform hover:scale-105`}
-                >
-                  <div className="text-white text-base mb-2">
-                    {message.content}
-                  </div>
-                  {message.media && (
-                    <div className="mt-2">
-                      {message.mediaType === "image" ? (
-                        <img
-                          src={message.media}
-                          alt="Media"
-                          className="max-w-full rounded-lg border border-purple-500/10"
-                        />
-                      ) : message.mediaType === "video" ? (
-                        <video
-                          controls
-                          className="max-w-full rounded-lg border border-purple-500/10"
-                        >
-                          <source src={message.media} type="video/mp4" />
-                          Your browser does not support the video tag.
-                        </video>
-                      ) : (
-                        <div className="flex flex-col gap-2">
-                          <button
-                            onClick={() => handleFileView(message.media)}
-                            className="text-purple-500 hover:underline text-left"
-                          >
-                            View File
-                          </button>
-                          <button
-                            onClick={() => handleFileDownload(message.media)}
-                            className="text-gray-400 hover:text-purple-500 text-sm text-left"
-                          >
-                            Download File
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div
-                    className={`flex items-center gap-2 mt-2 ${
-                      message.sender._id === user?._id
-                        ? "justify-end"
-                        : "justify-start"
-                    }`}
-                  >
-                    {message.updatedAt &&
-                    message.updatedAt !== message.createdAt ? (
-                      <span className="text-xs text-gray-400">
-                        edited {format(message.updatedAt)}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-gray-400">
-                        {format(message.createdAt)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
+              <span className="material-icons">close</span>
+            </button>
+            <span className="font-bold text-violet-300 text-sm">
+              {selectedMessageIds.length} Selected
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsForwardModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600/30 border border-violet-500/40 text-violet-200 rounded-lg text-xs font-semibold hover:bg-violet-600/50 transition-colors cursor-pointer"
+            >
+              <span className="material-icons text-sm">shortcut</span> Forward
+            </button>
+            <button
+              onClick={() => setDeletingMessageId("BULK")}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-500/20 border border-red-500/30 text-red-300 rounded-lg text-xs font-semibold hover:bg-red-500/30 transition-colors cursor-pointer"
+            >
+              <span className="material-icons text-sm">delete</span> Delete
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="chat-header">
+          <div onClick={onToggleInfo} className="chat-header-user cursor-pointer hover:opacity-90 transition-opacity">
+            <img
+              src={
+                chat.isGroup
+                  ? chat.groupImage ||
+                    "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
+                  : otherUser?.avatar
+              }
+              alt="Avatar"
+              className="w-10 h-10 rounded-full border border-violet-500/30 object-cover"
+            />
+            <div>
+              <div className="chat-header-name">
+                {chat.isGroup ? chat.chatName : otherUser?.username}
+              </div>
+              <div className="chat-header-status">
+                {chat.isGroup
+                  ? `${chat.participants?.length || 0} members`
+                  : isOnline
+                  ? "Online"
+                  : "Offline"}
+              </div>
             </div>
           </div>
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {typingUsers.length > 0 && (
-        <div className="px-6 py-2 text-gray-400 italic">
-          {typingUsers.join(", ")} {typingUsers.length > 1 ? "are" : "is"}{" "}
-          typing...
         </div>
       )}
 
-      <div className="p-4 border-t border-gray-700 bg-gray-800/50">
-        <div className="flex items-center gap-4">
-          <label className="cursor-pointer text-gray-400 hover:text-purple-500 relative group">
-            <input
-              type="file"
-              onChange={handleFileChange}
-              className="hidden"
-              accept="*/*"
-            />
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
-              />
-            </svg>
-            {fileName && (
-              <div className="absolute top-0 left-0 bg-purple-500/20 text-white text-xs px-2 py-1 rounded-lg whitespace-nowrap">
-                {fileName}
+      {/* Messages Feed */}
+      <div className="chat-messages">
+        {loadingMessages && messages.length === 0 ? (
+          <div className="chat-empty-state">
+            <span className="material-icons animate-spin text-violet-400 text-3xl mb-2">
+              sync
+            </span>
+            <p className="text-sm text-gray-400">Loading conversation...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="chat-empty-state">
+            <span className="material-icons chat-empty-icon">chat</span>
+            <p className="font-semibold text-lg">No messages yet</p>
+            <p className="text-sm">Send a message to start the conversation!</p>
+          </div>
+        ) : (
+          messages.map((msg, index) => {
+            const isSent = msg.sender?._id === currentUser?._id;
+            const isSelected = selectedMessageIds.includes(msg._id);
+            const isNearTop = index < 2;
+
+            return (
+              <div
+                key={msg._id}
+                className="flex items-center gap-3 w-full my-1 relative group"
+                onClick={() => {
+                  if (selectedMessageIds.length > 0) {
+                    toggleSelectMessage(msg._id);
+                  }
+                }}
+              >
+                {/* Selection Checkbox - Fixed Far Left Gutter like WhatsApp */}
+                {selectedMessageIds.length > 0 && (
+                  <div
+                    className="flex-shrink-0 flex items-center justify-center cursor-pointer pl-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSelectMessage(msg._id);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {}}
+                      className="glass-checkbox"
+                    />
+                  </div>
+                )}
+
+                <div
+                  className={`flex-1 flex ${
+                    isSent ? "justify-end" : "justify-start"
+                  }`}
+                >
+                  <div
+                    className={`message-bubble-wrapper ${
+                      isSent ? "sent" : "received"
+                    }`}
+                  >
+                  {!isSent && chat.isGroup && (
+                    <div className="message-sender-name">
+                      {msg.sender?.username}
+                    </div>
+                  )}
+
+                    <div
+                      className={`message-bubble ${
+                        isSelected ? "ring-2 ring-violet-500/60" : ""
+                      }`}
+                    >
+                      {/* Reply Context */}
+                      {msg.replyTo && (
+                        <div className="p-2 mb-1 rounded bg-black/20 border-l-2 border-violet-400 text-xs text-gray-300">
+                          <span className="font-bold text-violet-300 block">
+                            {msg.replyTo.sender?.username}
+                          </span>
+                          {msg.replyTo.content || "Media"}
+                        </div>
+                      )}
+
+                      {msg.content && <div>{msg.content}</div>}
+
+                      {/* Media Display */}
+                      {msg.media && (
+                        <div>
+                          {msg.mediaType === "image" ? (
+                            <img
+                              src={msg.media}
+                              alt="Uploaded"
+                              className="message-media-img"
+                              onClick={() => window.open(msg.media, "_blank")}
+                            />
+                          ) : msg.mediaType === "video" ? (
+                            <video
+                              controls
+                              src={msg.media}
+                              className="message-media-img"
+                            />
+                          ) : (
+                            <a
+                              href={msg.media}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="message-media-doc text-violet-300 hover:underline"
+                            >
+                              <span className="material-icons">description</span>
+                              Download Document
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Timestamp & Meta */}
+                      <div className="message-meta">
+                        {msg.isEdited && <span>(edited)</span>}
+                        <TimeAgo date={msg.createdAt} />
+                        {isSent && (
+                          <span className="material-icons text-xs">
+                            {msg.readBy?.length > 1 ? "done_all" : "done"}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Dropdown Trigger */}
+                      <button
+                        className={`msg-dropdown-trigger ${
+                          activeMenuMessageId === msg._id ? "active" : ""
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuMessageId(
+                            activeMenuMessageId === msg._id ? null : msg._id
+                          );
+                        }}
+                        title="Message options"
+                      >
+                        <span className="material-icons text-base">
+                          keyboard_arrow_down
+                        </span>
+                      </button>
+
+                      {/* WhatsApp Context Menu Dropdown */}
+                      {activeMenuMessageId === msg._id && (
+                        <div
+                          className={`msg-context-menu ${
+                            isNearTop ? "pop-down" : "pop-up"
+                          }`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => {
+                              setReplyingTo(msg);
+                              setEditingMessage(null);
+                              if (editingMessage) setNewMessage("");
+                              setActiveMenuMessageId(null);
+                            }}
+                            className="msg-menu-item"
+                          >
+                            <span className="material-icons">reply</span> Reply
+                          </button>
+
+                          {msg.content && (
+                            <button
+                              onClick={() => {
+                                if (msg.content) {
+                                  navigator.clipboard.writeText(msg.content);
+                                  toast.info("Copied to clipboard");
+                                }
+                                setActiveMenuMessageId(null);
+                              }}
+                              className="msg-menu-item"
+                            >
+                              <span className="material-icons">
+                                content_copy
+                              </span>{" "}
+                              Copy
+                            </button>
+                          )}
+
+                          <button
+                            onClick={() => {
+                              setSelectedMessageIds([msg._id]);
+                              setActiveMenuMessageId(null);
+                            }}
+                            className="msg-menu-item"
+                          >
+                            <span className="material-icons">shortcut</span>{" "}
+                            Forward
+                          </button>
+
+                          {isSent && !msg.media && (Date.now() - new Date(msg.createdAt).getTime() <= 15 * 60 * 1000) && (
+                            <button
+                              onClick={() => {
+                                setEditingMessage(msg);
+                                setNewMessage(msg.content || "");
+                                setReplyingTo(null);
+                                setActiveMenuMessageId(null);
+                              }}
+                              className="msg-menu-item"
+                            >
+                              <span className="material-icons">edit</span> Edit
+                            </button>
+                          )}
+
+                          {isSent && (
+                            <button
+                              onClick={() => {
+                                setSelectedMessageIds([msg._id]);
+                                setActiveMenuMessageId(null);
+                              }}
+                              className="msg-menu-item text-red-400 hover:bg-red-500/20"
+                            >
+                              <span className="material-icons text-red-400">
+                                delete
+                              </span>
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                </div>
               </div>
-            )}
-          </label>
-          <input
-            type="text"
-            value={newMessage}
-            onChange={handleInputChange}
-            onKeyPress={handleKeyPress}
-            placeholder="Type a message..."
-            className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
-          />
+            </div>
+          );
+          })
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Typing Indicator */}
+      {typingUsers.length > 0 && (
+        <div className="typing-indicator">
+          <span>{typingUsers.join(", ")} typing...</span>
+          <div className="typing-dot" />
+          <div className="typing-dot" />
+          <div className="typing-dot" />
+        </div>
+      )}
+
+      {/* Replying-to Preview Bar */}
+      {replyingTo && (
+        <div className="px-6 py-2 bg-slate-900/80 border-t border-violet-500/15 flex justify-between items-center text-xs text-violet-300">
+          <div>
+            Replying to <span className="font-bold">{replyingTo.sender?.username}</span>: "{replyingTo.content}"
+          </div>
           <button
-            onClick={handleSendMessage}
-            disabled={!newMessage && !file}
-            className="bg-purple-500 text-white rounded-lg px-4 py-2 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => setReplyingTo(null)}
+            className="text-gray-400 hover:text-white"
           >
-            Send
+            &times;
           </button>
         </div>
-      </div>
+      )}
+
+      {/* Editing Message Preview Bar */}
+      {editingMessage && (
+        <div className="px-6 py-2 bg-slate-900/90 border-t border-violet-500/20 flex justify-between items-center text-xs text-amber-300">
+          <div className="flex items-center gap-2">
+            <span className="material-icons text-sm text-amber-400">edit</span>
+            <span>
+              Editing message: <span className="font-semibold text-white">"{editingMessage.content || "Media"}"</span>
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setEditingMessage(null);
+              setNewMessage("");
+            }}
+            className="text-gray-400 hover:text-white text-base font-bold cursor-pointer"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Input Composer */}
+      <form onSubmit={handleSendMessage} className="chat-composer">
+        <input
+          type="file"
+          multiple
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className="chat-icon-btn"
+          title="Attach files (multiple)"
+        >
+          <span className="material-icons">attach_file</span>
+        </button>
+
+        {selectedFiles.length > 0 && (
+          <div className="flex flex-wrap gap-2 max-w-xs overflow-x-auto">
+            {selectedFiles.map((file, idx) => (
+              <span
+                key={idx}
+                className="text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-lg flex items-center gap-1"
+              >
+                {file.name}
+                <button
+                  type="button"
+                  onClick={() => removeFile(idx)}
+                  className="ml-1 text-red-400 hover:text-red-300 font-bold"
+                >
+                  &times;
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        <input
+          type="text"
+          placeholder="Type a message..."
+          value={newMessage}
+          onChange={handleTyping}
+          className="chat-input"
+        />
+
+        <button
+          type="submit"
+          disabled={isSending || (!newMessage.trim() && selectedFiles.length === 0)}
+          className="send-btn disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="material-icons">{isSending ? "hourglass_top" : "send"}</span>
+        </button>
+      </form>
+
+      {/* Custom Delete Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={!!deletingMessageId}
+        title={deletingMessageId === "BULK" ? "Delete Messages" : "Delete Message"}
+        message={
+          deletingMessageId === "BULK"
+            ? `Are you sure you want to delete ${selectedMessageIds.length} selected message(s)?`
+            : "Are you sure you want to delete this message? This action cannot be undone."
+        }
+        confirmText="Delete"
+        onConfirm={() => {
+          if (deletingMessageId === "BULK") {
+            handleBulkDelete();
+          } else if (deletingMessageId) {
+            handleDeleteMessage(deletingMessageId);
+          }
+          setDeletingMessageId(null);
+        }}
+        onCancel={() => setDeletingMessageId(null)}
+      />
+
+      {/* Forward Message Modal */}
+      <ForwardMessageModal
+        isOpen={isForwardModalOpen}
+        chats={allChats}
+        selectedMessageCount={selectedMessageIds.length}
+        onConfirmForward={handleConfirmForward}
+        onClose={() => setIsForwardModalOpen(false)}
+      />
     </div>
   );
 };

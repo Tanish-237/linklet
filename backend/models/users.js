@@ -41,6 +41,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       maxlength: 160,
     },
+    phoneNumber: {
+      type: String,
+      trim: true,
+    },
     followers: [
       {
         type: mongoose.Schema.Types.ObjectId,

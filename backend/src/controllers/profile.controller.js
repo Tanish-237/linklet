@@ -21,10 +21,11 @@ export const getProfile = async (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { bio, skills, username } = req.body;
+    const { bio, skills, username, phoneNumber } = req.body;
 
     const updates = {};
     if (bio !== undefined) updates.bio = bio;
+    if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber.trim();
     if (skills !== undefined) {
       const skillsArray = Array.isArray(skills) ? skills : skills.split(",");
       updates.skills = skillsArray
@@ -123,6 +124,44 @@ export const getUserBookmarks = async (req, res, next) => {
 
     const validBookmarks = (user?.bookmarks || []).filter(Boolean);
     res.status(200).json({ success: true, data: validBookmarks });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Toggle follow/unfollow a user */
+export const toggleFollowUser = async (req, res, next) => {
+  try {
+    const currentUserId = req.user._id;
+    const { targetUserId } = req.params;
+
+    if (currentUserId.toString() === targetUserId.toString()) {
+      throw new AppError("You cannot follow yourself", 400);
+    }
+
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) throw new AppError("User not found", 404);
+
+    const currentUser = await User.findById(currentUserId);
+    const isFollowing = currentUser.following.some(
+      (id) => id.toString() === targetUserId.toString()
+    );
+
+    if (isFollowing) {
+      // Unfollow
+      await User.findByIdAndUpdate(currentUserId, { $pull: { following: targetUserId } });
+      await User.findByIdAndUpdate(targetUserId, { $pull: { followers: currentUserId } });
+    } else {
+      // Follow
+      await User.findByIdAndUpdate(currentUserId, { $addToSet: { following: targetUserId } });
+      await User.findByIdAndUpdate(targetUserId, { $addToSet: { followers: currentUserId } });
+    }
+
+    res.status(200).json({
+      success: true,
+      isFollowing: !isFollowing,
+      message: isFollowing ? "Unfollowed user" : "Following user",
+    });
   } catch (error) {
     next(error);
   }
