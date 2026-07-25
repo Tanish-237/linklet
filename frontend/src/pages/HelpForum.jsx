@@ -1,124 +1,466 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+import useAuthStore from '../store/useAuthStore';
 import defaultAvatar from '../assets/default-avatar.png';
-import AskQuestion from './AskQuestion';
+import './HelpForum.css';
+import {
+  getQuestions,
+  getQuestionMetadata,
+  getTagCloud,
+  getForumStats,
+  createQuestion,
+  voteQuestion as apiVoteQuestion,
+} from '../api/question.api';
 
-// Style constants - updated for dashboard integration
-const Container = "w-full";
-const Title = "text-2xl font-semibold text-violet-300 flex items-center gap-3 mb-2";
-const SearchInput = "w-full p-3 pl-10 bg-gray-800/50 border border-violet-500/30 rounded-lg text-white placeholder-gray-400 focus:border-violet-500 transition-colors";
-const FilterContainer = "flex items-center gap-4 mb-6 flex-wrap";
-const FilterButton = "px-4 py-2 rounded-lg bg-gray-800/50 border border-violet-500/30 text-gray-300 hover:border-violet-500 hover:text-violet-400 transition-all";
-const QuestionCard = "bg-gray-800/30 backdrop-blur border border-violet-500/20 rounded-lg p-6 hover:border-violet-500/40 transition-all group";
-const QuestionTitle = "text-xl font-semibold text-violet-300 hover:text-violet-200 transition-colors mb-2";
-const QuestionBody = "text-gray-300 mb-3 line-clamp-2";
-const UserInfo = "flex flex-col text-sm text-gray-400";
-const AnswerCard = "bg-gray-800/30 backdrop-blur border border-violet-500/20 rounded-lg p-6 hover:border-violet-500/40 transition-all mb-6";
-const AnswerBody = "text-gray-300 mb-3";
-const VoteButton = "p-1.5 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded group-hover:bg-violet-500/10";
-const VoteCount = "text-violet-400 font-medium text-sm";
-const CommentSection = "mt-4 pl-4 border-l-2 border-violet-500/30";
-const CommentCard = "bg-gray-800/50 rounded-lg p-3 mb-3";
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const DUMMY_QUESTIONS = [
-  {
-    _id: '1',
-    title: 'How to implement authentication in React?',
-    body: 'I\'m building a React application and need to implement user authentication. What\'s the best approach using JWT tokens and how should I handle protected routes?',
-    tags: ['react', 'authentication', 'jwt'],
-    userId: {
-      username: 'reactdev',
-      avatar: null
-    },
-    createdAt: '2025-04-19T10:00:00.000Z',
-    views: 45,
-    answers: [
-      {
-        _id: 'a1',
-        body: 'I recommend using JWT tokens with localStorage. Here\'s how...',
-        userId: {
-          username: 'auth_expert',
-          avatar: null
-        },
-        createdAt: '2025-04-19T11:00:00.000Z',
-        upvotes: ['user1', 'user2'],
-        downvotes: [],
-        comments: [
-          {
-            _id: 'c1',
-            body: 'Great explanation! Could you elaborate on refresh tokens?',
-            userId: {
-              username: 'learner',
-              avatar: null
-            },
-            createdAt: '2025-04-19T12:00:00.000Z'
-          }
-        ]
-      }
-    ],
-    upvotes: ['user1', 'user2', 'user3'],
-    downvotes: ['user4']
-  },
-  {
-    _id: '2',
-    title: 'Best practices for state management in large React applications',
-    body: 'As my React application grows, I\'m finding it harder to manage state effectively. Should I use Redux, Context API, or other alternatives? What are the pros and cons?',
-    tags: ['react', 'redux', 'state-management'],
-    userId: {
-      username: 'frontend_guru',
-      avatar: null
-    },
-    createdAt: '2025-04-18T15:30:00.000Z',
-    views: 122,
-    answers: ['answer1', 'answer2'],
-    upvotes: ['user1', 'user2', 'user3', 'user4', 'user5'],
-    downvotes: ['user6']
-  },
-  {
-    _id: '3',
-    title: 'Optimizing React performance with useMemo and useCallback',
-    body: 'I\'ve noticed my React application is getting slower as it grows. When should I use useMemo and useCallback hooks? Are there any performance pitfalls to watch out for?',
-    tags: ['react', 'performance', 'hooks'],
-    userId: {
-      username: 'performance_ninja',
-      avatar: null
-    },
-    createdAt: '2025-04-20T09:15:00.000Z',
-    views: 67,
-    answers: ['answer1'],
-    upvotes: ['user1', 'user2'],
-    downvotes: []
-  }
+const timeAgo = (dateStr) => {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(dateStr).toLocaleDateString();
+};
+
+// ─── Skeleton Card ─────────────────────────────────────────────────────────────
+
+const SkeletonCard = () => (
+  <div className="hf-skeleton-card">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', minWidth: 44 }}>
+      <div className="hf-skeleton" style={{ width: 32, height: 32, borderRadius: 8 }} />
+      <div className="hf-skeleton" style={{ width: 32, height: 14, borderRadius: 4 }} />
+      <div className="hf-skeleton" style={{ width: 32, height: 32, borderRadius: 8 }} />
+    </div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div className="hf-skeleton" style={{ height: 20, width: '75%', borderRadius: 6 }} />
+      <div className="hf-skeleton" style={{ height: 14, width: '100%', borderRadius: 4 }} />
+      <div className="hf-skeleton" style={{ height: 14, width: '60%', borderRadius: 4 }} />
+      <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+        <div className="hf-skeleton" style={{ height: 20, width: 60, borderRadius: 12 }} />
+        <div className="hf-skeleton" style={{ height: 20, width: 70, borderRadius: 12 }} />
+      </div>
+    </div>
+  </div>
+);
+
+// ─── Tag Input Component ───────────────────────────────────────────────────────
+
+const TagInput = ({ tags, onChange, suggestions = [] }) => {
+  const [inputVal, setInputVal] = useState('');
+  const inputRef = useRef(null);
+
+  const addTag = (tag) => {
+    const clean = tag.trim().toLowerCase().replace(/\s+/g, '-');
+    if (!clean || tags.includes(clean) || tags.length >= 10) return;
+    onChange([...tags, clean]);
+    setInputVal('');
+  };
+
+  const removeTag = (tag) => onChange(tags.filter((t) => t !== tag));
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addTag(inputVal);
+    } else if (e.key === 'Backspace' && !inputVal && tags.length > 0) {
+      removeTag(tags[tags.length - 1]);
+    }
+  };
+
+  const filteredSuggestions = suggestions
+    .filter((s) => !tags.includes(s) && s.includes(inputVal.toLowerCase()))
+    .slice(0, 12);
+
+  return (
+    <div>
+      <div className="hf-tag-input-wrap" onClick={() => inputRef.current?.focus()}>
+        {tags.map((t) => (
+          <span key={t} className="hf-tag-input-chip">
+            #{t}
+            <button type="button" onClick={() => removeTag(t)}>×</button>
+          </span>
+        ))}
+        <input
+          ref={inputRef}
+          className="hf-tag-input-field"
+          value={inputVal}
+          onChange={(e) => setInputVal(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={tags.length < 10 ? 'Type tag + Enter' : 'Max 10 tags'}
+          disabled={tags.length >= 10}
+        />
+      </div>
+      {filteredSuggestions.length > 0 && (
+        <div className="hf-tag-suggestions">
+          {filteredSuggestions.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="hf-tag-suggestion"
+              onClick={() => addTag(s)}
+            >
+              #{s}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Ask Question Modal ────────────────────────────────────────────────────────
+
+const AskQuestionModal = ({ onClose, onSuccess, categories, suggestedTags }) => {
+  const [title, setTitle] = useState('');
+  const [body, setBody] = useState('');
+  const [category, setCategory] = useState('General');
+  const [tags, setTags] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!title.trim() || title.trim().length < 10) {
+      toast.error('Title must be at least 10 characters');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await createQuestion({ title: title.trim(), body: body.trim(), category, tags });
+      toast.success('Question posted successfully!');
+      onSuccess();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to post question');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="hf-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="hf-modal" role="dialog" aria-modal="true" aria-labelledby="ask-modal-title">
+        <div className="hf-modal-header">
+          <h2 id="ask-modal-title" className="hf-modal-title">Ask a Question</h2>
+          <button className="hf-modal-close" onClick={onClose} aria-label="Close">
+            <span className="material-icons">close</span>
+          </button>
+        </div>
+        <div className="hf-modal-body">
+          <form onSubmit={handleSubmit}>
+            <div className="hf-form-group">
+              <label className="hf-form-label" htmlFor="q-title">
+                Title <span style={{ color: '#f87171' }}>*</span>
+              </label>
+              <input
+                id="q-title"
+                className="hf-form-input"
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="What's your question? Be specific and concise."
+                maxLength={200}
+              />
+              <div className="hf-char-count">{title.length}/200</div>
+            </div>
+
+            <div className="hf-form-group">
+              <label className="hf-form-label" htmlFor="q-category">Category</label>
+              <select
+                id="q-category"
+                className="hf-form-select"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+              >
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="hf-form-group">
+              <label className="hf-form-label" htmlFor="q-body">
+                Description <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>(optional)</span>
+              </label>
+              <textarea
+                id="q-body"
+                className="hf-form-textarea"
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Provide context or details (optional)..."
+                rows={6}
+                maxLength={5000}
+              />
+              <div className="hf-char-count">{body.length}/5000</div>
+            </div>
+
+            <div className="hf-form-group">
+              <label className="hf-form-label">Tags (up to 10)</label>
+              <TagInput tags={tags} onChange={setTags} suggestions={suggestedTags} />
+            </div>
+
+            <div className="hf-form-actions">
+              <button type="button" className="hf-btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="hf-btn-primary"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <span className="material-icons" style={{ animation: 'hf-spin 0.7s linear infinite' }}>refresh</span>
+                    Posting...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-icons" style={{ fontSize: '1rem' }}>send</span>
+                    Post Question
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Question Card ─────────────────────────────────────────────────────────────
+
+const QuestionCard = ({ question, onVote, onTagClick, currentUserId }) => {
+  const navigate = useNavigate();
+  const netVotes = (question.upvotes?.length || 0) - (question.downvotes?.length || 0);
+  const userVote = question.upvotes?.some(
+    (id) => (id._id || id)?.toString() === currentUserId
+  )
+    ? 'upvote'
+    : question.downvotes?.some((id) => (id._id || id)?.toString() === currentUserId)
+      ? 'downvote'
+      : null;
+
+  const hasAccepted =
+    (Array.isArray(question.acceptedAnswers) && question.acceptedAnswers.length > 0) ||
+    (Array.isArray(question.answers) && question.answers.some((a) => a && typeof a === 'object' && a.isAccepted === true));
+  const answerCount = question.answers?.length || 0;
+
+  return (
+    <article
+      className="hf-question-card"
+      onClick={() => navigate(`/dashboard/question/${question._id}`)}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(`/dashboard/question/${question._id}`)}
+    >
+      {/* Body */}
+      <div className="hf-card-body">
+        <div className="hf-card-header">
+          <h2 className="hf-card-title">{question.title}</h2>
+          <div className="hf-badge-group">
+            {hasAccepted && (
+              <span className="hf-solved-badge">
+                <span className="material-icons" style={{ fontSize: '0.85rem' }}>check_circle</span>
+                Solved
+              </span>
+            )}
+            <span className="hf-answer-pill">
+              <span className="material-icons" style={{ fontSize: '0.85rem' }}>chat_bubble_outline</span>
+              {answerCount} {answerCount === 1 ? 'answer' : 'answers'}
+            </span>
+          </div>
+        </div>
+
+        {question.body && <p className="hf-card-excerpt">{question.body}</p>}
+
+        {/* Tags & Category */}
+        <div className="hf-tags-row" onClick={(e) => e.stopPropagation()}>
+          <span className="hf-category-badge">{question.category}</span>
+          {question.tags?.slice(0, 5).map((tag) => (
+            <button
+              key={tag}
+              className="hf-tag"
+              onClick={() => onTagClick(tag)}
+            >
+              #{tag}
+            </button>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="hf-card-footer">
+          <div className="hf-author-row" onClick={(e) => e.stopPropagation()}>
+            <Link
+              to={`/dashboard/profile/${question.userId?.username}`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={question.userId?.avatar || defaultAvatar}
+                alt={question.userId?.username || 'User'}
+                className="hf-author-avatar"
+              />
+              <span className="hf-author-name">{question.userId?.username || 'Unknown'}</span>
+            </Link>
+            <span>·</span>
+            <span>{timeAgo(question.createdAt)}</span>
+          </div>
+
+          <div className="hf-meta-pills">
+            <span className="hf-meta-pill">
+              <span className="material-icons" style={{ fontSize: '0.85rem' }}>visibility</span>
+              {question.views || 0} views
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Vote Column on Right */}
+      <div className="hf-vote-col" onClick={(e) => e.stopPropagation()}>
+        <button
+          className={`hf-vote-btn ${userVote === 'upvote' ? 'voted-up' : ''}`}
+          onClick={() => onVote(question._id, 'upvote')}
+          aria-label="Upvote"
+          title="Upvote"
+        >
+          <span className="material-icons" style={{ fontSize: '1rem' }}>arrow_upward</span>
+        </button>
+        <span className="hf-vote-count">{netVotes}</span>
+        <button
+          className={`hf-vote-btn ${userVote === 'downvote' ? 'voted-down' : ''}`}
+          onClick={() => onVote(question._id, 'downvote')}
+          aria-label="Downvote"
+          title="Downvote"
+        >
+          <span className="material-icons" style={{ fontSize: '1rem' }}>arrow_downward</span>
+        </button>
+      </div>
+    </article>
+  );
+};
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
+const FILTERS = [
+  { id: 'all', label: 'Latest' },
+  { id: 'oldest', label: 'Oldest' },
+  { id: 'popular', label: 'Most Upvoted' },
+  { id: 'views', label: 'Most Viewed' },
+  { id: 'solved', label: 'Solved' },
+  { id: 'unanswered', label: 'Unanswered' },
+  { id: 'answered', label: 'Answered' },
+  { id: 'mine', label: 'My Questions' },
 ];
 
-const HelpForum = ({ basePath = '' }) => {
-  const [questions, setQuestions] = useState(DUMMY_QUESTIONS);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [currentFilter, setCurrentFilter] = useState('all');
-  const [showAskForm, setShowAskForm] = useState(false);
-  const [selectedQuestion, setSelectedQuestion] = useState(null);
-  const [answerText, setAnswerText] = useState('');
-  const [attachment, setAttachment] = useState(null);
-  const [attachmentName, setAttachmentName] = useState('');
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [expandedAnswers, setExpandedAnswers] = useState(new Set());
+const HelpForum = () => {
+  const { user } = useAuthStore();
 
-  const handleAskQuestion = () => {
-    setShowAskForm(true);
-  };
+  // Data state
+  const [questions, setQuestions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
 
-  const handleCancelAsk = () => {
-    setShowAskForm(false);
-  };
+  // Filter / search state
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedTag, setSelectedTag] = useState('');
 
-  const handleQuestionSubmitSuccess = () => {
-    setShowAskForm(false);
-    toast.success('Question posted successfully!');
-  };
+  // Metadata
+  const [categories, setCategories] = useState(['General']);
+  const [suggestedTags, setSuggestedTags] = useState([]);
+  const [tagCloud, setTagCloud] = useState([]);
+  const [categoryStats, setCategoryStats] = useState([]);
+
+  // UI state
+  const [showAskModal, setShowAskModal] = useState(false);
+
+  const searchDebounceRef = useRef(null);
+
+  // ─── Load Metadata ───────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const loadMeta = async () => {
+      try {
+        const [meta, tags, stats] = await Promise.all([
+          getQuestionMetadata(),
+          getTagCloud(),
+          getForumStats(),
+        ]);
+        setCategories(meta.categories || []);
+        setSuggestedTags(meta.suggestedTags || []);
+        setTagCloud(tags || []);
+        setCategoryStats(stats || []);
+      } catch (err) {
+        console.error('[HelpForum] Failed to load metadata:', err);
+      }
+    };
+    loadMeta();
+  }, []);
+
+  // ─── Debounce Search ─────────────────────────────────────────────────────────
+
+  useEffect(() => {
+    clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 500);
+    return () => clearTimeout(searchDebounceRef.current);
+  }, [search]);
+
+  // ─── Fetch Questions ─────────────────────────────────────────────────────────
+
+  const fetchQuestions = useCallback(
+    async (cursor = null) => {
+      if (cursor) setLoadingMore(true);
+      else setLoading(true);
+
+      try {
+        const params = {
+          search: debouncedSearch,
+          filter: filter === 'mine' ? 'all' : filter,
+          category: selectedCategory,
+          tag: selectedTag,
+          limit: 15,
+        };
+        if (cursor) params.cursor = cursor;
+        if (filter === 'mine' && user?._id) params.userId = user._id;
+
+        const res = await getQuestions(params);
+        const newQuestions = res.data || [];
+
+        if (cursor) {
+          setQuestions((prev) => [...prev, ...newQuestions]);
+        } else {
+          setQuestions(newQuestions);
+        }
+        setNextCursor(res.nextCursor || null);
+        setHasMore(res.hasMore || false);
+      } catch (err) {
+        console.error('[HelpForum] Failed to load questions:', err);
+        toast.error('Failed to load questions. Please try again.');
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [debouncedSearch, filter, selectedCategory, selectedTag, user?._id]
+  );
+
+  useEffect(() => {
+    setNextCursor(null);
+    fetchQuestions(null);
+  }, [fetchQuestions]);
+
+  // ─── Handlers ────────────────────────────────────────────────────────────────
 
   const handleVote = async (questionId, voteType) => {
     if (!user) {
@@ -126,492 +468,252 @@ const HelpForum = ({ basePath = '' }) => {
       return;
     }
 
-    // Simulating vote update for dummy data
-    setQuestions(prev => prev.map(q => {
-      if (q._id === questionId) {
-        if (voteType === 'upvote') {
-          return {
-            ...q,
-            upvotes: [...q.upvotes, user.id],
-            downvotes: q.downvotes.filter(id => id !== user.id)
-          };
-        } else {
-          return {
-            ...q,
-            downvotes: [...q.downvotes, user.id],
-            upvotes: q.upvotes.filter(id => id !== user.id)
-          };
-        }
-      }
-      return q;
-    }));
-    
-    toast.success(voteType === 'upvote' ? 'Upvoted!' : 'Downvoted!');
-  };
+    const targetQ = questions.find((q) => q._id === questionId);
+    const isQuestionOwner = targetQ?.userId?._id?.toString() === user._id ||
+      targetQ?.userId?.toString() === user._id;
 
-  const handleQuestionClick = (question) => {
-    setSelectedQuestion(question);
-  };
-
-  const handleAttachmentChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setAttachment(file);
-      setAttachmentName(file.name);
-    }
-  };
-
-  const handleSubmitAnswer = async (e) => {
-    e.preventDefault();
-    if (!answerText.trim()) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('body', answerText);
-      if (attachment) {
-        formData.append('attachment', attachment);
-      }
-
-      const response = await fetch(`/api/questions/${selectedQuestion._id}/answers`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`,
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to submit answer');
-      }
-
-      const data = await response.json();
-      // Add new answer to the list
-      setQuestions(prev => prev.map(q => q._id === selectedQuestion._id ? { ...q, answers: [data.answer, ...q.answers] } : q));
-      // Clear form
-      setAnswerText('');
-      setAttachment(null);
-      setAttachmentName('');
-    } catch (error) {
-      console.error('Error submitting answer:', error);
-      // Show error notification to user
-    }
-  };
-
-  const handleAnswerVote = async (answerId, voteType) => {
-    if (!user) {
-      toast.info('Please log in to vote');
+    if (isQuestionOwner) {
+      toast.error("You cannot vote on your own question");
       return;
     }
 
-    try {
-      const response = await fetch(`/api/answers/${answerId}/${voteType}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
-      });
+    const prevQuestions = questions;
 
-      if (!response.ok) {
-        throw new Error('Failed to vote');
-      }
+    // Optimistic update
+    setQuestions((prev) =>
+      prev.map((q) => {
+        if (q._id !== questionId) return q;
+        const userId = user._id;
+        const alreadyUpvoted = q.upvotes?.some((id) => (id._id || id)?.toString() === userId);
+        const alreadyDownvoted = q.downvotes?.some((id) => (id._id || id)?.toString() === userId);
 
-      setQuestions(prev => prev.map(q => ({
-        ...q,
-        answers: q.answers?.map(a => {
-          if (a._id === answerId) {
-            const updatedAnswer = { ...a };
-            if (voteType === 'upvote') {
-              if (!updatedAnswer.upvotes.includes(user.id)) {
-                updatedAnswer.upvotes = [...updatedAnswer.upvotes, user.id];
-                updatedAnswer.downvotes = updatedAnswer.downvotes.filter(id => id !== user.id);
-              }
-            } else {
-              if (!updatedAnswer.downvotes.includes(user.id)) {
-                updatedAnswer.downvotes = [...updatedAnswer.downvotes, user.id];
-                updatedAnswer.upvotes = updatedAnswer.upvotes.filter(id => id !== user.id);
-              }
-            }
-            return updatedAnswer;
+        let upvotes = [...(q.upvotes || [])];
+        let downvotes = [...(q.downvotes || [])];
+
+        if (voteType === 'upvote') {
+          if (alreadyUpvoted) {
+            upvotes = upvotes.filter((id) => (id._id || id)?.toString() !== userId);
+          } else {
+            upvotes = [...upvotes, { _id: userId }];
+            downvotes = downvotes.filter((id) => (id._id || id)?.toString() !== userId);
           }
-          return a;
-        })
-      })));
+        } else {
+          if (alreadyDownvoted) {
+            downvotes = downvotes.filter((id) => (id._id || id)?.toString() !== userId);
+          } else {
+            downvotes = [...downvotes, { _id: userId }];
+            upvotes = upvotes.filter((id) => (id._id || id)?.toString() !== userId);
+          }
+        }
+        return { ...q, upvotes, downvotes };
+      })
+    );
 
-      toast.success(voteType === 'upvote' ? 'Upvoted!' : 'Downvoted!');
-    } catch (error) {
-      toast.error('Failed to vote. Please try again.');
+    try {
+      await apiVoteQuestion(questionId, voteType);
+    } catch (err) {
+      setQuestions(prevQuestions); // Rollback cleanly without re-fetching feed
+      const msg = err?.response?.data?.message;
+      if (msg) toast.error(msg);
     }
   };
 
-  const toggleAnswer = (answerId) => {
-    setExpandedAnswers(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(answerId)) {
-        newSet.delete(answerId);
-      } else {
-        newSet.add(answerId);
-      }
-      return newSet;
-    });
+  const handleTagClick = (tag) => {
+    setSelectedTag((prev) => (prev === tag ? '' : tag));
   };
 
-  const filteredQuestions = questions.filter(q => {
-    const matchesSearch = q.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.body.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    
-    switch (currentFilter) {
-      case 'unanswered':
-        return q.answers?.length === 0 && matchesSearch;
-      case 'answered':
-        return (q.answers?.length || 0) > 0 && matchesSearch;
-      case 'popular':
-        return (q.views || 0) > 20 && matchesSearch;
-      default:
-        return matchesSearch;
-    }
-  });
+  const handleCategoryClick = (cat) => {
+    setSelectedCategory((prev) => (prev === cat ? '' : cat));
+  };
+
+  const handleAskSuccess = () => {
+    setShowAskModal(false);
+    // Refresh list
+    setNextCursor(null);
+    fetchQuestions(null);
+  };
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className={Container}>
-      <div className="flex">
-        {/* Left panel - Questions list */}
-        <div className={`flex-1 ${selectedQuestion ? 'max-w-2xl border-r border-gray-800' : ''}`}>
-          <div className="max-w-6xl mx-auto pr-6">
-            {showAskForm ? (
-              <div className="mb-8">
-                <div className="flex justify-between items-center mb-6">
-                  <h1 className={Title}>
-                    <span className="material-icons text-violet-400">help_outline</span>
-                    Ask a Question
-                  </h1>
-                  <button
-                    onClick={handleCancelAsk}
-                    className="p-2 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
-                  >
-                    <span className="material-icons">close</span>
-                  </button>
-                </div>
-                <AskQuestion onCancel={handleCancelAsk} onSuccess={handleQuestionSubmitSuccess} />
+    <div className="hf-root">
+      <div className="hf-layout">
+
+        {/* ── Sidebar ── */}
+        <aside className="hf-sidebar">
+          {/* Categories */}
+          <div className="hf-sidebar-card">
+            <h3>Categories</h3>
+            <div>
+              <div
+                className={`hf-stat-row ${selectedCategory === '' ? 'active' : ''}`}
+                onClick={() => setSelectedCategory('')}
+              >
+                <span>All Categories</span>
               </div>
-            ) : (
-              <>
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                  <div>
-                    <h1 className={Title}>Help Forum</h1>
-                    <p className="text-gray-400">Get help from the community and share your knowledge</p>
-                  </div>
-                  <button
-                    onClick={handleAskQuestion}
-                    className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg flex items-center gap-2 transition-colors whitespace-nowrap shadow-lg"
+              {categories.map((cat) => {
+                const stat = categoryStats.find((s) => s._id === cat);
+                return (
+                  <div
+                    key={cat}
+                    className={`hf-stat-row ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => handleCategoryClick(cat)}
                   >
-                    <span className="material-icons">add</span>
-                    Ask Question
-                  </button>
-                </div>
-
-                <div className="relative mb-6">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 material-icons">
-                    search
-                  </span>
-                  <input
-                    type="text"
-                    placeholder="Search questions..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className={SearchInput}
-                  />
-                </div>
-
-                <div className={FilterContainer}>
-                  <button 
-                    className={`${FilterButton} ${currentFilter === 'all' ? 'border-violet-500 text-violet-400' : ''}`}
-                    onClick={() => setCurrentFilter('all')}
-                  >
-                    All Questions
-                  </button>
-                  <button 
-                    className={`${FilterButton} ${currentFilter === 'unanswered' ? 'border-violet-500 text-violet-400' : ''}`}
-                    onClick={() => setCurrentFilter('unanswered')}
-                  >
-                    Unanswered
-                  </button>
-                  <button 
-                    className={`${FilterButton} ${currentFilter === 'answered' ? 'border-violet-500 text-violet-400' : ''}`}
-                    onClick={() => setCurrentFilter('answered')}
-                  >
-                    Answered
-                  </button>
-                  <button 
-                    className={`${FilterButton} ${currentFilter === 'popular' ? 'border-violet-500 text-violet-400' : ''}`}
-                    onClick={() => setCurrentFilter('popular')}
-                  >
-                    Popular
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Questions list */}
-            <div className="space-y-6">
-              {loading ? (
-                <div className="text-center py-20">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-violet-500"></div>
-                </div>
-              ) : filteredQuestions.length === 0 ? (
-                <div className="text-center py-20 text-gray-400">
-                  <span className="material-icons text-6xl mb-4">search_off</span>
-                  <p className="text-xl">No questions found</p>
-                  <p className="mt-2">Try adjusting your search or filters</p>
-                </div>
-              ) : (
-                filteredQuestions.map(question => (
-                  <div 
-                    key={question._id} 
-                    className={`${QuestionCard} cursor-pointer ${selectedQuestion?._id === question._id ? 'border-green-500' : ''}`}
-                    onClick={() => handleQuestionClick(question)}
-                  >
-                    <div className="flex items-start gap-6">
-                      {/* Vote buttons */}
-                      <div className="flex flex-col items-center gap-1">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleVote(question._id, 'upvote');
-                          }}
-                          className="p-1 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
-                        >
-                          <span className="material-icons text-xl">arrow_upward</span>
-                        </button>
-                        <span className="text-violet-400 font-medium">
-                          {(question.upvotes?.length || 0) - (question.downvotes?.length || 0)}
-                        </span>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleVote(question._id, 'downvote');
-                          }}
-                          className="p-1 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
-                        >
-                          <span className="material-icons text-xl">arrow_downward</span>
-                        </button>
-                      </div>
-
-                      {/* Question content */}
-                      <div className="flex-1">
-                        <h2 className={QuestionTitle}>{question.title}</h2>
-                        <p className={QuestionBody}>{question.body}</p>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className={UserInfo}>
-                            <div className="flex items-center gap-2">
-                              <img
-                                src={question.userId.avatar || defaultAvatar}
-                                alt={question.userId.username}
-                                className="w-6 h-6 rounded-full border border-violet-500/30"
-                              />
-                              <span className="text-violet-400">{question.userId.username}</span>
-                            </div>
-                            <span className="text-sm text-gray-500 mt-1">
-                              {new Date(question.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-
-                          {/* Answer section */}
-                          <div className="flex flex-col items-end">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedQuestion(question);
-                              }}
-                              className="px-4 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded transition-colors flex items-center gap-1"
-                            >
-                              <span className="material-icons text-sm">add</span>
-                              Answer
-                            </button>
-                            <div className="mt-2 text-sm text-gray-400">
-                              {question.answers?.length || 0} Answers
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right panel - Answers */}
-        {selectedQuestion && (
-          <div className="w-full max-w-xl pl-6">
-            <div className="sticky top-0 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-violet-300">
-                  <span className="material-icons mr-2">question_answer</span>
-                  Answers ({selectedQuestion.answers?.length || 0})
-                </h2>
-                <button
-                  onClick={() => setSelectedQuestion(null)}
-                  className="p-2 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 transition-colors rounded"
-                >
-                  <span className="material-icons">close</span>
-                </button>
-              </div>
-
-              {/* Answer form */}
-              <div className="mb-6">
-                <form onSubmit={handleSubmitAnswer} className="space-y-4">
-                  <textarea
-                    value={answerText}
-                    onChange={(e) => setAnswerText(e.target.value)}
-                    placeholder="Write your answer..."
-                    rows="4"
-                    className="w-full px-4 py-3 bg-gray-800/50 border border-violet-500/30 rounded-lg focus:outline-none focus:border-violet-500 text-white placeholder-gray-500 resize-none"
-                  />
-                  <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 border border-violet-500/30 rounded-lg cursor-pointer hover:bg-gray-700/50 transition-colors">
-                      <span className="material-icons text-violet-400">attach_file</span>
-                      <span className="text-gray-300">Add Attachment</span>
-                      <input
-                        type="file"
-                        onChange={handleAttachmentChange}
-                        className="hidden"
-                        accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png"
-                      />
-                    </label>
-                    {attachmentName && (
-                      <div className="flex items-center gap-2 text-gray-300">
-                        <span className="material-icons text-violet-400">description</span>
-                        <span>{attachmentName}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAttachment(null);
-                            setAttachmentName('');
-                          }}
-                          className="p-1 hover:bg-violet-500/20 text-gray-400 hover:text-violet-400 rounded"
-                        >
-                          <span className="material-icons text-sm">close</span>
-                        </button>
-                      </div>
+                    <span>{cat}</span>
+                    {stat && (
+                      <span className="hf-stat-badge">{stat.count}</span>
                     )}
                   </div>
-                  <div className="flex justify-end">
-                    <button 
-                      type="submit"
-                      disabled={!answerText.trim()}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-                    >
-                      Post Answer
-                    </button>
-                  </div>
-                </form>
-              </div>
-
-              {/* Answers list */}
-              <div className="space-y-4">
-                {selectedQuestion.answers?.length > 0 ? (
-                  selectedQuestion.answers.map(answer => (
-                    <div key={answer._id} className={AnswerCard}>
-                      <div className="flex items-start gap-4">
-                        {/* Vote buttons */}
-                        <div className="flex flex-col items-center gap-1">
-                          <button 
-                            onClick={() => handleAnswerVote(answer._id, 'upvote')}
-                            className={`${VoteButton} ${answer.upvotes?.includes(user?.id) ? 'text-violet-400' : ''}`}
-                          >
-                            <span className="material-icons text-xl">arrow_upward</span>
-                          </button>
-                          <span className={VoteCount}>
-                            {(answer.upvotes?.length || 0) - (answer.downvotes?.length || 0)}
-                          </span>
-                          <button 
-                            onClick={() => handleAnswerVote(answer._id, 'downvote')}
-                            className={`${VoteButton} ${answer.downvotes?.includes(user?.id) ? 'text-violet-400' : ''}`}
-                          >
-                            <span className="material-icons text-xl">arrow_downward</span>
-                          </button>
-                        </div>
-
-                        {/* Answer content */}
-                        <div className="flex-1">
-                          <div 
-                            className={`${AnswerBody} cursor-pointer`}
-                            onClick={() => toggleAnswer(answer._id)}
-                          >
-                            {expandedAnswers.has(answer._id) ? (
-                              <p>{answer.body}</p>
-                            ) : (
-                              <p className="line-clamp-3">{answer.body}</p>
-                            )}
-                            {answer.body.length > 150 && (
-                              <button className="text-violet-400 hover:text-violet-300 text-sm mt-2">
-                                {expandedAnswers.has(answer._id) ? 'Show less' : 'Show more'}
-                              </button>
-                            )}
-                          </div>
-
-                          {/* User info and timestamp */}
-                          <div className="flex items-center gap-3 text-sm text-gray-400 mb-4">
-                            <img
-                              src={answer.userId.avatar || defaultAvatar}
-                              alt={answer.userId.username}
-                              className="w-6 h-6 rounded-full border border-violet-500/30"
-                            />
-                            <span className="text-violet-400">{answer.userId.username}</span>
-                            <span>•</span>
-                            <span>{new Date(answer.createdAt).toLocaleDateString()}</span>
-                          </div>
-
-                          {/* Comments section */}
-                          <div className={CommentSection}>
-                            {answer.comments?.map(comment => (
-                              <div key={comment._id} className={CommentCard}>
-                                <p className="text-gray-300">{comment.body}</p>
-                                <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-                                  <img
-                                    src={comment.userId.avatar || defaultAvatar}
-                                    alt={comment.userId.username}
-                                    className="w-4 h-4 rounded-full border border-violet-500/30"
-                                  />
-                                  <span className="text-violet-400">{comment.userId.username}</span>
-                                  <span>•</span>
-                                  <span>{new Date(comment.createdAt).toLocaleDateString()}</span>
-                                </div>
-                              </div>
-                            ))}
-                            
-                            {/* Add comment form */}
-                            <div className="mt-3 flex items-center gap-2">
-                              <input
-                                type="text"
-                                placeholder="Add a comment..."
-                                className="flex-1 px-3 py-2 bg-gray-800/50 border border-violet-500/30 rounded text-sm focus:outline-none focus:border-violet-500 text-white placeholder-gray-500"
-                              />
-                              <button className="px-4 py-2 text-sm bg-violet-600 hover:bg-violet-700 text-white rounded transition-colors flex items-center gap-1">
-                                <span className="material-icons text-sm">send</span>
-                                Add
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-400">
-                    <span className="material-icons text-4xl mb-2">question_answer</span>
-                    <p>No answers yet</p>
-                    <p className="text-sm mt-1">Be the first to answer this question!</p>
-                  </div>
-                )}
-              </div>
+                );
+              })}
             </div>
           </div>
-        )}
+
+          {/* Tag Cloud */}
+          {tagCloud.length > 0 && (
+            <div className="hf-sidebar-card">
+              <h3>Popular Tags</h3>
+              <div className="hf-tag-cloud">
+                {tagCloud.slice(0, 30).map((tag) => (
+                  <button
+                    key={tag}
+                    className={`hf-tag-chip ${selectedTag === tag ? 'active' : ''}`}
+                    onClick={() => handleTagClick(tag)}
+                    style={{ background: 'none', border: '1px solid rgba(139,92,246,0.25)', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+
+        {/* ── Main ── */}
+        <main className="hf-main">
+          {/* Header */}
+          <div className="hf-header">
+            <div>
+              <h1 className="hf-header-title">Help Forum</h1>
+              <p className="hf-header-sub">
+                Ask questions, get answers from the Linklet community
+              </p>
+            </div>
+            {user && (
+              <button
+                id="ask-question-btn"
+                className="hf-ask-btn"
+                onClick={() => setShowAskModal(true)}
+              >
+                <span className="material-icons" style={{ fontSize: '1rem' }}>add</span>
+                Ask Question
+              </button>
+            )}
+          </div>
+
+          {/* Search */}
+          <div className="hf-search-wrap">
+            <span className="material-icons hf-search-icon">search</span>
+            <input
+              id="hf-search-input"
+              type="text"
+              className="hf-search-input"
+              placeholder="Search questions, tags, or topics..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search questions"
+            />
+          </div>
+
+          {/* Active filters banner */}
+          {(selectedTag || selectedCategory) && (
+            <div className="hf-active-filter-banner">
+              <span className="material-icons" style={{ fontSize: '1rem' }}>filter_alt</span>
+              Filtering by:
+              {selectedCategory && <strong>{selectedCategory}</strong>}
+              {selectedTag && <strong>#{selectedTag}</strong>}
+              <button
+                className="hf-active-filter-clear"
+                onClick={() => { setSelectedTag(''); setSelectedCategory(''); }}
+              >
+                Clear ×
+              </button>
+            </div>
+          )}
+
+          {/* Filter Pills */}
+          <div className="hf-filter-bar">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                id={`hf-filter-${f.id}`}
+                className={`hf-filter-btn ${filter === f.id ? 'active' : ''}`}
+                onClick={() => setFilter(f.id)}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Questions List */}
+          <div className="hf-question-list">
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
+            ) : questions.length === 0 ? (
+              <div className="hf-empty">
+                <div className="hf-empty-icon">
+                  <span className="material-icons" style={{ fontSize: '4rem' }}>help_outline</span>
+                </div>
+                <h3>No questions found</h3>
+                <p>
+                  {debouncedSearch
+                    ? 'Try adjusting your search terms or filters.'
+                    : 'Be the first to ask a question!'}
+                </p>
+              </div>
+            ) : (
+              questions.map((q, i) => (
+                <QuestionCard
+                  key={q._id}
+                  question={q}
+                  onVote={handleVote}
+                  onTagClick={handleTagClick}
+                  currentUserId={user?._id}
+                  style={{ animationDelay: `${i * 0.04}s` }}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Load More */}
+          {hasMore && !loading && (
+            <div className="hf-load-more">
+              <button
+                id="hf-load-more-btn"
+                className="hf-load-more-btn"
+                onClick={() => fetchQuestions(nextCursor)}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <><span className="material-icons" style={{ animation: 'hf-spin 0.7s linear infinite', fontSize: '0.9rem', verticalAlign: 'middle', marginRight: 4 }}>refresh</span>Loading...</>
+                ) : (
+                  'Load More Questions'
+                )}
+              </button>
+            </div>
+          )}
+        </main>
       </div>
+
+      {/* Ask Question Modal */}
+      {showAskModal && (
+        <AskQuestionModal
+          onClose={() => setShowAskModal(false)}
+          onSuccess={handleAskSuccess}
+          categories={categories}
+          suggestedTags={suggestedTags}
+        />
+      )}
     </div>
   );
 };

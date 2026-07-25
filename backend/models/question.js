@@ -1,6 +1,37 @@
 import mongoose from "mongoose";
 import aggregatePaginate from "mongoose-aggregate-paginate-v2";
 
+// Predefined categories for the help forum
+export const QUESTION_CATEGORIES = [
+  "Academic",
+  "Technical",
+  "Campus Life",
+  "Career & Placement",
+  "Research",
+  "Events & Clubs",
+  "Hostel & Facilities",
+  "General",
+];
+
+// Predefined tag suggestions (users can also add custom ones)
+export const SUGGESTED_TAGS = [
+  // Academic
+  "exam", "assignment", "project", "syllabus", "attendance", "cgpa",
+  "marks", "grading", "lab", "viva", "internship", "sem",
+  // Technical
+  "react", "nodejs", "python", "java", "cpp", "javascript",
+  "html", "css", "mongodb", "sql", "git", "linux", "dsa",
+  "algorithms", "machine-learning", "web-dev", "competitive-coding",
+  // Campus
+  "hostel", "mess", "wi-fi", "library", "sports", "fest",
+  "scholarship", "noc", "bonafide", "transfer-cert",
+  // Career
+  "placement", "resume", "interview", "internship", "hackathon",
+  "open-source", "gsoc", "github",
+  // General
+  "tips", "help", "advice", "discussion",
+];
+
 const questionSchema = new mongoose.Schema(
   {
     userId: {
@@ -16,7 +47,12 @@ const questionSchema = new mongoose.Schema(
     },
     body: {
       type: String,
-      required: true,
+      default: "",
+    },
+    category: {
+      type: String,
+      enum: QUESTION_CATEGORIES,
+      default: "General",
     },
     tags: [
       {
@@ -26,6 +62,12 @@ const questionSchema = new mongoose.Schema(
       },
     ],
     answers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Answer",
+      },
+    ],
+    acceptedAnswers: [
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Answer",
@@ -47,9 +89,20 @@ const questionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    isClosed: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
+
+// Text index for full-text search on title, body, and tags
+questionSchema.index({ title: "text", body: "text", tags: "text" });
+// Index for efficient category+date filtering
+questionSchema.index({ category: 1, createdAt: -1 });
+// Compound index for vote count sorting
+questionSchema.index({ createdAt: -1 });
 
 questionSchema.plugin(aggregatePaginate);
 
