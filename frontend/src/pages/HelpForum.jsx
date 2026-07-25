@@ -276,7 +276,7 @@ const QuestionCard = ({ question, onVote, onTagClick, currentUserId }) => {
           </div>
         </div>
 
-        {question.body && <p className="hf-card-excerpt">{question.body}</p>}
+        {question.body && <p className="hf-card-excerpt">{renderTextWithLinks(question.body)}</p>}
 
         {/* Tags & Category */}
         <div className="hf-tags-row" onClick={(e) => e.stopPropagation()}>
