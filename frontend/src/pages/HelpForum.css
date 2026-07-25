@@ -1557,3 +1557,17 @@
   font-style: italic;
   margin: 0.5rem 0;
 }
+
+/* ─── Clickable Text Links ────────────────────────────────────────────────── */
+.hf-text-link {
+  color: #a78bfa;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-all;
+  transition: color 0.15s ease;
+}
+
+.hf-text-link:hover {
+  color: #c4b5fd;
+  text-decoration: underline;
+}

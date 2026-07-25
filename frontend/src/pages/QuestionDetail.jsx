@@ -31,6 +31,34 @@ const timeAgo = (dateStr) => {
   return new Date(dateStr).toLocaleDateString();
 };
 
+/**
+ * Helper function to parse plain text and render URLs as clickable links.
+ */
+const renderTextWithLinks = (text) => {
+  if (!text) return null;
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+  const parts = text.split(urlRegex);
+
+  return parts.map((part, index) => {
+    if (part.match(/^https?:\/\//) || part.match(/^www\./)) {
+      const href = part.startsWith('www.') ? `http://${part}` : part;
+      return (
+        <a
+          key={index}
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hf-text-link"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 // ─── Reddit-Style Threaded Comment Single Node ─────────────────────────────────
 
 const ThreadedCommentItem = ({
@@ -114,7 +142,7 @@ const ThreadedCommentItem = ({
         {/* Body & Actions (Hidden if collapsed) */}
         {!collapsed && (
           <div className="qd-comment-content">
-            <p className="qd-comment-text-body">{comment.text}</p>
+            <p className="qd-comment-text-body">{renderTextWithLinks(comment.text)}</p>
 
             {/* Comment Controls Footer */}
             <div className="qd-comment-footer">
@@ -372,7 +400,7 @@ const AnswerCard = ({
 
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="qd-answer-body">{answer.body}</div>
+          <div className="qd-answer-body">{renderTextWithLinks(answer.body)}</div>
 
           {/* Author footer */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -796,7 +824,7 @@ const QuestionDetail = ({ basePath = '' }) => {
           ))}
         </div>
 
-        <p className="qd-question-body">{question.body}</p>
+        <p className="qd-question-body">{renderTextWithLinks(question.body)}</p>
 
         {/* Meta row */}
         <div className="qd-meta-row">
