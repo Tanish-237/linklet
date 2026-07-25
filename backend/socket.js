@@ -5,6 +5,9 @@ import logger from "./src/utils/logger.js";
 
 export let io;
 
+// Track online users in memory (and Redis if available)
+const onlineUsers = new Map(); // userId -> socketId
+
 export const initializeSocket = async (server) => {
   io = new Server(server, {
     cors: {
@@ -32,37 +35,75 @@ export const initializeSocket = async (server) => {
     return data ? JSON.parse(data) : null;
   };
 
-  // Helper to save room state to Redis (expires in 24 hours to prevent memory leaks)
+  // Helper to save room state to Redis
   const setRoomState = async (roomId, state) => {
     if (!redisClient) return;
     await redisClient.setEx(`room:${roomId}`, 86400, JSON.stringify(state));
   };
 
-  const deleteRoomState = async (roomId) => {
-    if (!redisClient) return;
-    await redisClient.del(`room:${roomId}`);
-  };
-
   io.on("connection", (socket) => {
     logger.info(`A user connected: ${socket.id}`);
 
-    // Chat events
+    // Setup user session
+    socket.on("setup", (userData) => {
+      if (userData && userData._id) {
+        socket.userId = userData._id;
+        socket.join(userData._id);
+        onlineUsers.set(userData._id.toString(), socket.id);
+        io.emit("user online status", {
+          onlineUsers: Array.from(onlineUsers.keys()),
+        });
+        logger.info(`User ${userData._id} registered on socket ${socket.id}`);
+      }
+    });
+
+    // Chat room events
     socket.on("join chat", (room) => {
       socket.join(room);
       logger.info(`User ${socket.id} joined room: ${room}`);
     });
 
+    socket.on("leave chat", (room) => {
+      socket.leave(room);
+      logger.info(`User ${socket.id} left room: ${room}`);
+    });
+
     socket.on("new message", (newMessage) => {
       if (!newMessage || !newMessage.chat) return;
-      io.to(newMessage.chat._id).emit("message received", newMessage);
+      const chatId = typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
+      io.to(chatId).emit("message received", newMessage);
+    });
+
+    socket.on("message updated", (updatedMessage) => {
+      if (!updatedMessage || !updatedMessage.chat) return;
+      const chatId = typeof updatedMessage.chat === "object" ? updatedMessage.chat._id : updatedMessage.chat;
+      io.to(chatId).emit("message updated", updatedMessage);
+    });
+
+    socket.on("message deleted", ({ chatId, messageId }) => {
+      if (!chatId || !messageId) return;
+      io.to(chatId).emit("message deleted", messageId);
     });
 
     socket.on("typing", (data) => {
-      socket.to(data.chatId).emit("typing", { chatId: data.chatId, username: data.username });
+      if (data && data.chatId) {
+        socket.to(data.chatId).emit("typing", data);
+      }
     });
 
     socket.on("stop typing", (data) => {
-      socket.to(data.chatId).emit("stop typing", { chatId: data.chatId, username: data.username });
+      if (data && data.chatId) {
+        socket.to(data.chatId).emit("stop typing", data);
+      }
+    });
+
+    socket.on("read receipt", ({ chatId, userId }) => {
+      socket.to(chatId).emit("read receipt", { chatId, userId });
+    });
+
+    socket.on("group updated", (updatedChat) => {
+      if (!updatedChat || !updatedChat._id) return;
+      io.to(updatedChat._id).emit("group updated", updatedChat);
     });
 
     // Room / Game / Video events
@@ -75,7 +116,7 @@ export const initializeSocket = async (server) => {
           videoUrl: null,
           videoState: { isPlaying: false, currentTime: 0 },
         };
-        
+
         await setRoomState(roomId, roomData);
         socket.join(roomId);
         socket.emit("room-created", roomId);
@@ -106,39 +147,14 @@ export const initializeSocket = async (server) => {
       if (room.videoState) socket.emit("video-state-update", room.videoState);
     });
 
-    socket.on("game-move", async ({ roomId, move }) => {
-      const room = await getRoomState(roomId);
-      if (room) {
-        room.gameState = move;
-        await setRoomState(roomId, room);
-        io.to(roomId).emit("game-state-update", move);
-      }
-    });
-
-    socket.on("video-url-change", async ({ roomId, url }) => {
-      const room = await getRoomState(roomId);
-      if (room) {
-        room.videoUrl = url;
-        await setRoomState(roomId, room);
-        io.to(roomId).emit("video-url-change", url);
-      }
-    });
-
-    socket.on("video-state-change", async ({ roomId, state }) => {
-      const room = await getRoomState(roomId);
-      if (room) {
-        room.videoState = state;
-        await setRoomState(roomId, room);
-        io.to(roomId).emit("video-state-update", state);
-      }
-    });
-
     socket.on("disconnect", async () => {
       logger.info(`Client disconnected: ${socket.id}`);
-      // In a Redis scaled env, scanning keys on disconnect is slow. 
-      // Ideally, players should leave rooms explicitly or room state is managed via presence sets.
-      // For now, we will let room data expire automatically (TTL) if everyone disconnects,
-      // and we just broadcast the standard socket.io disconnect events.
+      if (socket.userId) {
+        onlineUsers.delete(socket.userId.toString());
+        io.emit("user online status", {
+          onlineUsers: Array.from(onlineUsers.keys()),
+        });
+      }
     });
   });
 };

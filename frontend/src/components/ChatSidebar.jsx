@@ -1,171 +1,186 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../config";
-import { useAuth } from "../context/AuthContext";
-import { useSocket } from "../hooks/useSocket";
+import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
-import { useNavigate } from "react-router-dom";
+import TimeAgo from "./TimeAgo";
 
-const ChatSidebar = ({ onSelectChat, activeChat }) => {
-  const [chats, setChats] = useState([]);
+const ChatSidebar = ({
+  chats,
+  activeChat,
+  onSelectChat,
+  onOpenCreateGroup,
+  currentUser,
+  onlineUsers = [],
+}) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState([]);
-  const { user } = useAuth();
-  const socket = useSocket();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchChats = async () => {
-      try {
-        const res = await axios.get(`${API_BASE_URL}/api/chat`, {
-          withCredentials: true,
-        });
-        setChats(res.data);
-      } catch (error) {
-        toast.error("Failed to fetch chats");
-      }
-    };
-
-    if (user) {
-      fetchChats();
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (!socket || !user) return;
-
-    const handleMessageReceived = (message) => {
-      // Update chat list with new message
-      setChats((prevChats) =>
-        prevChats.map((chat) =>
-          chat._id === message.chatId ? { ...chat, lastMessage: message } : chat
-        )
-      );
-    };
-
-    socket.on("message received", handleMessageReceived);
-
-    return () => {
-      socket.off("message received", handleMessageReceived);
-    };
-  }, [socket, user]);
+  const [userSearchResults, setUserSearchResults] = useState([]);
 
   const handleSearch = async (e) => {
     const query = e.target.value;
     setSearchQuery(query);
 
-    if (query.length > 2) {
+    if (query.trim().length >= 2) {
       try {
-        const res = await axios.get(
-          `${API_BASE_URL}/api/chat/search?query=${query}`,
-          {
-            withCredentials: true,
-          }
-        );
-        setSearchResults(res.data);
+        const res = await apiClient.get(`/chat/search?query=${query}`);
+        if (res.data.success) {
+          setUserSearchResults(res.data.data);
+        }
       } catch (error) {
-        toast.error("Search failed");
+        console.error("Failed to search users:", error);
       }
     } else {
-      setSearchResults([]);
+      setUserSearchResults([]);
     }
   };
 
-  const startNewChat = async (userId) => {
+  const startDirectChat = async (targetUserId) => {
     try {
-      const res = await axios.post(
-        `${API_BASE_URL}/api/chat`,
-        { userId },
-        { withCredentials: true }
-      );
-      setChats([res.data, ...chats]);
-      onSelectChat(res.data._id);
-      setSearchQuery("");
-      setSearchResults([]);
+      const res = await apiClient.post("/chat", { userId: targetUserId });
+      if (res.data.success) {
+        onSelectChat(res.data.data);
+        setSearchQuery("");
+        setUserSearchResults([]);
+      }
     } catch (error) {
-      toast.error("Failed to start chat");
+      toast.error(error.response?.data?.message || "Failed to start chat");
     }
   };
 
-  const handleChatSelect = (chatId) => {
-    onSelectChat(chatId);
+  const getChatDisplayName = (chat) => {
+    if (chat.isGroup) return chat.chatName;
+    const otherUser = chat.participants?.find((p) => p._id !== currentUser?._id);
+    return otherUser ? otherUser.username : "User";
+  };
+
+  const getChatDisplayAvatar = (chat) => {
+    if (chat.isGroup) {
+      return (
+        chat.groupImage ||
+        "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
+      );
+    }
+    const otherUser = chat.participants?.find((p) => p._id !== currentUser?._id);
+    return (
+      otherUser?.avatar ||
+      "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+    );
+  };
+
+  const isUserOnline = (chat) => {
+    if (chat.isGroup) return false;
+    const otherUser = chat.participants?.find(
+      (p) => p._id?.toString() !== currentUser?._id?.toString()
+    );
+    return otherUser
+      ? onlineUsers.some((id) => id.toString() === otherUser._id?.toString())
+      : false;
   };
 
   return (
-    <div className="w-80 h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white p-6 overflow-y-auto border-r border-purple-500/10">
-      <input
-        type="text"
-        placeholder="Search users..."
-        value={searchQuery}
-        onChange={handleSearch}
-        className="w-full p-3 mb-6 rounded-lg bg-black/50 backdrop-blur-md border border-purple-500/20 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 text-white placeholder-gray-400"
-      />
+    <div className="chat-sidebar">
+      {/* Header */}
+      <div className="chat-sidebar-header">
+        <h2 className="chat-sidebar-title">Messages</h2>
+        <div className="chat-sidebar-actions">
+          <button
+            onClick={onOpenCreateGroup}
+            className="chat-icon-btn"
+            title="Create New Group"
+          >
+            <span className="material-icons text-xl">group_add</span>
+          </button>
+        </div>
+      </div>
 
-      {searchResults.length > 0 && (
-        <div className="space-y-2">
-          {searchResults.map((user) => (
-            <div
-              key={user._id}
-              onClick={() => startNewChat(user._id)}
-              className="flex items-center p-3 rounded-lg cursor-pointer hover:bg-purple-500/20 transition-colors border border-purple-500/10 hover:scale-105"
-            >
-              <img
-                src={
-                  user.avatar ||
-                  "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
-                }
-                alt={user.username}
-                className="w-10 h-10 rounded-full border border-purple-500/10"
-              />
-              <div className="ml-3 flex-1">
-                <div className="font-bold text-purple-500">{user.username}</div>
-                <div className="text-sm text-gray-400 truncate">
-                  {user.fullName}
+      {/* Search Input */}
+      <div className="chat-search-box">
+        <div className="chat-input-wrapper">
+          <span className="material-icons chat-search-icon">search</span>
+          <input
+            type="text"
+            placeholder="Search contacts or users..."
+            value={searchQuery}
+            onChange={handleSearch}
+            className="chat-search-input"
+          />
+        </div>
+
+        {/* User Search Results Dropdown */}
+        {userSearchResults.length > 0 && (
+          <div className="chat-user-search-results">
+            {userSearchResults.map((user) => (
+              <div
+                key={user._id}
+                onClick={() => startDirectChat(user._id)}
+                className="chat-user-result-item"
+              >
+                <img
+                  src={user.avatar}
+                  alt={user.username}
+                  className="w-9 h-9 rounded-full border border-violet-500/30"
+                />
+                <div>
+                  <div className="text-sm font-semibold text-violet-300">
+                    {user.username}
+                  </div>
+                  <div className="text-xs text-gray-400">{user.fullName}</div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="space-y-2">
-        {chats.map((chat) => (
-          <div
-            key={chat._id}
-            onClick={() => handleChatSelect(chat._id)}
-            className={`flex items-center p-3 rounded-lg cursor-pointer transition-colors border ${
-              activeChat === chat._id
-                ? "bg-purple-500/20 border-purple-500/30"
-                : "border-purple-500/10 hover:bg-purple-500/20"
-            } hover:scale-105`}
-          >
-            <img
-              src={
-                chat.isGroup
-                  ? chat.groupImage ||
-                    "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
-                  : chat.participants.find((p) => p._id !== user?._id)
-                      ?.avatar ||
-                    "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
-              }
-              alt={chat.isGroup ? chat.groupName : "User"}
-              className="w-10 h-10 rounded-full border border-purple-500/10"
-            />
-            <div className="ml-3 flex-1">
-              <div className="font-bold text-purple-500">
-                {chat.isGroup
-                  ? chat.groupName
-                  : chat.participants.find((p) => p._id !== user?._id)
-                      ?.username}
-              </div>
-              {/* <div className="text-sm text-gray-400 truncate">
-                {chat.lastMessage
-                  ? chat.lastMessage.content || (chat.lastMessage.media ? "Media" : "")
-                  : "No messages yet"}
-              </div> */}
-            </div>
+            ))}
           </div>
-        ))}
+        )}
+      </div>
+
+      {/* Conversation List */}
+      <div className="chat-list">
+        {chats.length === 0 ? (
+          <div className="text-center text-gray-400 py-10 text-sm">
+            No conversations yet.<br />Search users above or create a group!
+          </div>
+        ) : (
+          chats.map((chat) => {
+            const isActive = activeChat?._id === chat._id;
+            const online = isUserOnline(chat);
+
+            return (
+              <div
+                key={chat._id}
+                onClick={() => onSelectChat(chat)}
+                className={`chat-item ${isActive ? "active" : ""}`}
+              >
+                <div className="chat-avatar-container">
+                  <img
+                    src={getChatDisplayAvatar(chat)}
+                    alt={getChatDisplayName(chat)}
+                    className="chat-avatar"
+                  />
+                  {online && <div className="online-dot" />}
+                </div>
+
+                <div className="chat-item-info">
+                  <div className="chat-item-top">
+                    <span className="chat-item-name">
+                      {getChatDisplayName(chat)}
+                    </span>
+                    {chat.lastMessage && (
+                      <TimeAgo
+                        date={chat.lastMessage.createdAt}
+                        className="chat-item-time"
+                      />
+                    )}
+                  </div>
+
+                  <div className="chat-item-bottom">
+                    <span className="chat-item-preview">
+                      {chat.lastMessage
+                        ? chat.lastMessage.content || (chat.lastMessage.media ? "📷 Media" : "")
+                        : "No messages yet"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </div>
   );
