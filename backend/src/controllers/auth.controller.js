@@ -1,9 +1,11 @@
 import * as authService from "../services/auth.service.js";
 
-const cookieOptions = {
+const isProduction = process.env.NODE_ENV === "production";
+
+export const cookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
 };
 
 export const sendOtp = async (req, res, next) => {

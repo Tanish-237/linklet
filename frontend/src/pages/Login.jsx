@@ -14,7 +14,7 @@ export default function Login() {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { fetchUser } = useAuth();
+  const { fetchUser, setUser } = useAuth();
 
   const handleGoogleLogin = () => {
     // TODO: Implement Google OAuth
@@ -41,6 +41,9 @@ export default function Login() {
       
       if (res.status === 200) {
         toast.success("Welcome back!");
+        if (res.data?.user) {
+          setUser(res.data.user);
+        }
         await fetchUser();
         navigate("/home");
       }
