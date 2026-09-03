@@ -10,6 +10,18 @@ export const apiClient = axios.create({
   },
 });
 
+// Request interceptor: attach Authorization header fallback for Safari / browsers blocking 3rd-party cookies
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 // Interceptor to handle token refresh logic automatically on 401 errors
 apiClient.interceptors.response.use(
   (response) => {
@@ -25,19 +37,24 @@ apiClient.interceptors.response.use(
 
       try {
         // Attempt to refresh the token
-        await axios.post(
+        const refreshResponse = await axios.post(
           `${API_BASE_URL}/api/v1/auth/refresh`,
           {},
           { withCredentials: true } // Must send refresh cookie
         );
 
+        if (refreshResponse.data?.accessToken) {
+          localStorage.setItem('accessToken', refreshResponse.data.accessToken);
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.accessToken}`;
+          }
+        }
+
         // If successful, the new token is automatically set in cookies by the backend.
         // Retry the original request
         return apiClient(originalRequest);
       } catch (refreshError) {
-        // If refresh fails, it means the refresh token is expired or invalid.
-        // The user must log in again.
-        // We could trigger a Zustand state change here to log the user out globally.
+        localStorage.removeItem('accessToken');
         window.dispatchEvent(new Event('auth-expired'));
         return Promise.reject(refreshError);
       }

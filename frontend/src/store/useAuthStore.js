@@ -15,6 +15,7 @@ const useAuthStore = create((set) => ({
       console.error('Logout failed:', error);
     } finally {
       // Clear state regardless of backend success to ensure UI reflects logout
+      localStorage.removeItem("accessToken");
       set({ user: null, isAuthenticated: false });
       window.location.href = '/login';
     }
