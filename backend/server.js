@@ -28,14 +28,11 @@ app.use("/api", limiter); // Apply rate limiting to all /api routes
 
 // Standard Middlewares
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  process.env.CLIENT_URL, // e.g. https://linklet.vercel.app
-].filter(Boolean);
+import { corsOriginHandler } from "./src/utils/cors.js";
 
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: corsOriginHandler,
     credentials: true,
   })
 );

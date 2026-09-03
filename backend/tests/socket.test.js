@@ -53,23 +53,26 @@ describe('Socket Initialization Unit Tests', () => {
     process.env = originalEnv;
   });
 
-  test('configures CORS origin with CLIENT_URL when provided', async () => {
+  test('configures CORS origin handler with credentials', async () => {
     console.log('\n──────────────────────────────────────');
-    console.log('[TEST] initializeSocket › configures CORS with CLIENT_URL');
+    console.log('[TEST] initializeSocket › configures CORS origin handler');
 
     process.env.CLIENT_URL = 'https://linklet-frontend.vercel.app';
     mockGetRedisClient.mockReturnValue(null);
 
-    const { initializeSocket, io } = await import('../socket.js');
+    const { initializeSocket } = await import('../socket.js');
     const mockHttpServer = http.createServer();
 
     await initializeSocket(mockHttpServer);
 
     console.log('[TEST] Captured Socket Server CORS options:', capturedOptions?.cors);
     expect(capturedOptions).toBeDefined();
-    expect(capturedOptions.cors.origin).toContain('http://localhost:5173');
-    expect(capturedOptions.cors.origin).toContain('https://linklet-frontend.vercel.app');
     expect(capturedOptions.cors.credentials).toBe(true);
+    expect(typeof capturedOptions.cors.origin).toBe('function');
+
+    const cb = jest.fn();
+    capturedOptions.cors.origin('https://linklet-frontend.vercel.app', cb);
+    expect(cb).toHaveBeenCalledWith(null, true);
   });
 
   test('falls back safely to in-memory mode when Redis is uninitialized', async () => {

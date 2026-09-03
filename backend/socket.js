@@ -3,20 +3,17 @@ import { createAdapter } from "@socket.io/redis-adapter";
 import { getRedisClient } from "./src/utils/redis.js";
 import logger from "./src/utils/logger.js";
 
+import { corsOriginHandler } from "./src/utils/cors.js";
+
 export let io;
 
 // Track online users in memory (and Redis if available)
 const onlineUsers = new Map(); // userId -> socketId
 
 export const initializeSocket = async (server) => {
-  const allowedOrigins = [
-    "http://localhost:5173",
-    process.env.CLIENT_URL,
-  ].filter(Boolean);
-
   io = new Server(server, {
     cors: {
-      origin: allowedOrigins,
+      origin: corsOriginHandler,
       credentials: true,
     },
     pingTimeout: 5000,
