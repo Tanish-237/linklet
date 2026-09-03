@@ -9,14 +9,15 @@ import linkletLogo from "../assets/linklet-logo.png";
 import { apiClient } from "../api/apiClient";
 
 export default function Register() {
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [department, setDepartment] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { fetchUser } = useAuth();
-
 
   const handleGoogleSignup = () => {
     // TODO: Implement Google OAuth
@@ -25,6 +26,22 @@ export default function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (step === 1) {
+      if (!fullName.trim()) {
+        toast.error("Please enter your full name");
+        return;
+      }
+      if (!email.toLowerCase().endsWith("@mnnit.ac.in")) {
+        toast.error("Only @mnnit.ac.in email addresses are allowed");
+        return;
+      }
+      if (!department) {
+        toast.error("Please select your department");
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       if (step === 1) {
@@ -34,7 +51,13 @@ export default function Register() {
           setStep(2);
         }
       } else {
-        const payload = { email, password, otp };
+        const payload = {
+          email,
+          password,
+          fullName: fullName.trim(),
+          department,
+          otp,
+        };
         const res = await apiClient.post(`/auth/register`, payload);
 
         if (res.status === 201) {
@@ -149,10 +172,24 @@ export default function Register() {
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-300" htmlFor="fullName">
+                    Full Name <span className="text-violet-400">*</span>
+                  </label>
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    disabled={step === 2}
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
+                  />
+                </div>
 
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-300" htmlFor="email">
-                    College Email
+                    College Email <span className="text-violet-400">*</span>
                   </label>
                   <input
                     id="email"
@@ -167,7 +204,7 @@ export default function Register() {
 
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-300" htmlFor="password">
-                    Password
+                    Password <span className="text-violet-400">*</span>
                   </label>
                   <input
                     id="password"
@@ -178,6 +215,31 @@ export default function Register() {
                     disabled={step === 2}
                     className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
                   />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-300" htmlFor="department">
+                    Department <span className="text-violet-400">*</span>
+                  </label>
+                  <select
+                    id="department"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    required
+                    disabled={step === 2}
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
+                  >
+                    <option value="">Select Branch / Department</option>
+                    <option value="Computer Science and Engineering">Computer Science and Engineering</option>
+                    <option value="Mathematics and Computing">Mathematics and Computing</option>
+                    <option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option>
+                    <option value="Electrical Engineering">Electrical Engineering</option>
+                    <option value="Mechanical Engineering">Mechanical Engineering</option>
+                    <option value="Engineering and Computational Mechanics">Engineering and Computational Mechanics</option>
+                    <option value="Civil Engineering">Civil Engineering</option>
+                    <option value="Chemical Engineering">Chemical Engineering</option>
+                    <option value="Biotechnology">Biotechnology</option>
+                  </select>
                 </div>
 
                 {step === 2 && (
@@ -194,10 +256,9 @@ export default function Register() {
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                       required
-                      placeholder="123456"
                       className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white tracking-widest text-center text-lg font-bold"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Please check your email inbox.</p>
+                    <p className="text-xs text-gray-400 mt-1">Please check your email inbox ({email}).</p>
                   </div>
                 )}
 
@@ -215,28 +276,11 @@ export default function Register() {
                     onClick={() => setStep(1)}
                     className="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors"
                   >
-                    Change Email or Password
+                    Change Details or Email
                   </button>
                 )}
               </form>
             </div>
-
-            <p className="mt-6 text-center text-gray-400">
-              By signing up, you agree to our{" "}
-              <Link
-                to="/terms"
-                className="text-violet-400 hover:text-violet-300"
-              >
-                Terms of Service
-              </Link>{" "}
-              and{" "}
-              <Link
-                to="/privacy"
-                className="text-violet-400 hover:text-violet-300"
-              >
-                Privacy Policy
-              </Link>
-            </p>
           </div>
         </section>
       </main>

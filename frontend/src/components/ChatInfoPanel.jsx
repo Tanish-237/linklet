@@ -8,9 +8,10 @@ const getBranchAbbr = (b) => {
   const str = typeof b === "object" ? (b.name || "") : String(b);
   const lower = str.toLowerCase();
   if (lower.includes("computer science") || lower.includes("cse")) return "CSE";
-  if (lower.includes("information tech") || lower.includes("it")) return "IT";
+  if (lower.includes("mathematics") || lower.includes("mnc")) return "MnC";
   if (lower.includes("electronics") || lower.includes("ece")) return "ECE";
   if (lower.includes("electrical") || lower.includes("ee")) return "EE";
+  if (lower.includes("computational mechanics") || lower.includes("ecm")) return "ECM";
   if (lower.includes("mechanical") || lower.includes("me")) return "ME";
   if (lower.includes("civil") || lower.includes("ce")) return "CE";
   if (lower.includes("chemical") || lower.includes("che")) return "CHE";

@@ -61,9 +61,14 @@ app.use((req, res, next) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-  logger.error(err.stack);
-
   const statusCode = err.statusCode || 500;
+
+  if (statusCode >= 500) {
+    logger.error(err.stack);
+  } else {
+    logger.warn(`${statusCode} - ${err.message} - ${req.originalUrl} - ${req.method}`);
+  }
+
   res.status(statusCode).json({
     success: false,
     message: err.message || "Internal Server Error",

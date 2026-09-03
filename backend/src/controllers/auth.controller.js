@@ -108,8 +108,17 @@ export const refreshAccessToken = async (req, res, next) => {
 
 export const checkAuth = async (req, res, next) => {
   try {
+    if (!req.user) {
+      return res.status(200).json({
+        success: true,
+        isAuthenticated: false,
+        user: null,
+      });
+    }
+
     res.status(200).json({
       success: true,
+      isAuthenticated: true,
       user: req.user,
     });
   } catch (error) {

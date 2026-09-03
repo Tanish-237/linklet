@@ -352,6 +352,41 @@
   opacity: 0.7;
 }
 
+/* Glowing light yellow badge for Alumni */
+.profile-info-chip.profile-info-chip-alumni {
+  background: rgba(254, 240, 138, 0.12);
+  border: 1px solid rgba(250, 204, 21, 0.5);
+  color: #fef08a;
+  box-shadow: 0 0 12px rgba(250, 204, 21, 0.35), inset 0 0 8px rgba(250, 204, 21, 0.12);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  animation: alumniGlow 3s ease-in-out infinite alternate;
+}
+
+.profile-info-chip.profile-info-chip-alumni .material-icons {
+  color: #facc15;
+  opacity: 1;
+  text-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}
+
+.profile-info-chip.profile-info-chip-alumni:hover {
+  background: rgba(254, 240, 138, 0.22);
+  border-color: rgba(250, 204, 21, 0.8);
+  color: #ffffff;
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.6), inset 0 0 10px rgba(250, 204, 21, 0.2);
+}
+
+@keyframes alumniGlow {
+  0% {
+    box-shadow: 0 0 10px rgba(250, 204, 21, 0.25), inset 0 0 6px rgba(250, 204, 21, 0.08);
+    border-color: rgba(250, 204, 21, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 18px rgba(250, 204, 21, 0.5), inset 0 0 10px rgba(250, 204, 21, 0.2);
+    border-color: rgba(250, 204, 21, 0.75);
+  }
+}
+
 /* Action buttons */
 .profile-action-row {
   display: flex;

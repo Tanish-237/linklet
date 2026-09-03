@@ -7,6 +7,7 @@ import defaultAvatar from "../assets/default-avatar.png";
 import defaultBanner from "../assets/mnnit-banner.png";
 import { Helmet } from "react-helmet-async";
 import Saved from "./Saved";
+import { calculateAcademicYear } from "../utlis/academicYear";
 import "./Profile.css";
 
 const Profile = () => {
@@ -358,12 +359,17 @@ const Profile = () => {
                     <span>{profileUser.department}</span>
                   </div>
                 )}
-                {profileUser.year && (
-                  <div className="profile-info-chip">
-                    <span className="material-icons">calendar_today</span>
-                    <span>{profileUser.year} Year</span>
-                  </div>
-                )}
+                {(() => {
+                  const y = profileUser.year || calculateAcademicYear(profileUser.email);
+                  if (!y) return null;
+                  const isAlumni = y === "Alumni";
+                  return (
+                    <div className={`profile-info-chip ${isAlumni ? "profile-info-chip-alumni" : ""}`}>
+                      <span className="material-icons">{isAlumni ? "school" : "calendar_today"}</span>
+                      <span>{isAlumni ? "Alumni" : `${y} Year`}</span>
+                    </div>
+                  );
+                })()}
                 <div className="profile-info-chip">
                   <span className="material-icons">email</span>
                   <span>{profileUser.email}</span>

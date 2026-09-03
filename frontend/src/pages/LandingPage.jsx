@@ -488,22 +488,6 @@ export default function LandingPage() {
               <ul className="space-y-2">
                 <li>
                   <Link
-                    to="/privacy"
-                    className="text-gray-400 hover:text-violet-400 transition-colors"
-                  >
-                    Privacy Policy
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/terms"
-                    className="text-gray-400 hover:text-violet-400 transition-colors"
-                  >
-                    Terms of Service
-                  </Link>
-                </li>
-                <li>
-                  <Link
                     to="/cookies"
                     className="text-gray-400 hover:text-violet-400 transition-colors"
                   >

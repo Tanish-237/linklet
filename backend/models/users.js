@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { calculateAcademicYear } from "../src/utils/academicYear.js";
 
 const userSchema = new mongoose.Schema(
   {
@@ -57,7 +58,12 @@ const userSchema = new mongoose.Schema(
         ref: "User",
       },
     ],
-    year: { type: String }, // e.g., "First", "Second"
+    year: {
+      type: String,
+      default: function () {
+        return calculateAcademicYear(this.email);
+      },
+    },
     department: { type: String },
     skills: [{ type: String }], // e.g., ["Python", "React"]
     userType: { type: String, enum: ["Student", "Alumni"], default: "Student" },
@@ -68,7 +74,27 @@ const userSchema = new mongoose.Schema(
       type: String,
     },
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: {
+      transform: (doc, ret) => {
+        const dynYear = calculateAcademicYear(ret.email);
+        if (dynYear) {
+          ret.year = dynYear;
+        }
+        return ret;
+      },
+    },
+    toObject: {
+      transform: (doc, ret) => {
+        const dynYear = calculateAcademicYear(ret.email);
+        if (dynYear) {
+          ret.year = dynYear;
+        }
+        return ret;
+      },
+    },
+  }
 );
 
 //here we are hashing the password before saving it to the database

@@ -3,15 +3,14 @@ import crypto from "crypto";
 import { AppError } from "../utils/error.js";
 import { blacklistToken } from "../utils/blacklist.js";
 import jwt from "jsonwebtoken";
-import { verifyStudent } from "./college.service.js";
 import { getRedisClient } from "../utils/redis.js";
 import { sendEmail } from "../utils/email.service.js";
+import { calculateAcademicYear } from "../utils/academicYear.js";
 
 export const generateAndSendOtp = async (email) => {
-  // Validate against Mock College DB first
-  const collegeRecord = await verifyStudent(email);
-  if (!collegeRecord) {
-    throw new AppError("Your email is not present in the college database. Registration denied.", 403);
+  // Enforce @mnnit.ac.in domain restriction
+  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+    throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
   }
 
   // Then check if user already exists
@@ -33,14 +32,30 @@ export const generateAndSendOtp = async (email) => {
   await redisClient.setEx(`otp:${email}`, 600, otp);
 
   // Send Email
-  const text = `Hello ${collegeRecord.fullName},\n\nYour OTP for registering on Linklet is: ${otp}\nThis OTP is valid for 10 minutes.\n\nWelcome to the community!`;
+  const text = `Hello,\n\nYour OTP for registering on Linklet is: ${otp}\nThis OTP is valid for 10 minutes.\n\nWelcome to the community!`;
   await sendEmail(email, "Linklet Registration OTP", text);
 
   return { message: "OTP sent to your email" };
 };
 
 export const register = async (userData) => {
-  const { email, password, otp } = userData;
+  const { email, password, fullName, otp, department } = userData;
+
+  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+    throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
+  }
+
+  if (!fullName || !fullName.trim()) {
+    throw new AppError("Full name is required", 400);
+  }
+
+  if (!department || !department.trim()) {
+    throw new AppError("Department is required", 400);
+  }
+
+  if (!password) {
+    throw new AppError("Password is required", 400);
+  }
 
   if (!otp) {
     throw new AppError("OTP is required", 400);
@@ -56,12 +71,6 @@ export const register = async (userData) => {
   const storedOtp = await redisClient.get(`otp:${email}`);
   if (!storedOtp || storedOtp !== otp) {
     throw new AppError("Invalid or expired OTP", 400);
-  }
-
-  // Validate against Mock College DB again just in case
-  const collegeRecord = await verifyStudent(email);
-  if (!collegeRecord) {
-    throw new AppError("Your email is not present in the college database.", 403);
   }
 
   // Re-check email uniqueness to avoid race conditions
@@ -84,13 +93,15 @@ export const register = async (userData) => {
     }
   }
 
+  const dynamicYear = calculateAcademicYear(email);
+
   const enrichedUserData = {
     email,
     password,
     username: generatedUsername,
-    fullName: collegeRecord.fullName,
-    department: collegeRecord.department,
-    year: collegeRecord.year,
+    fullName: fullName.trim(),
+    department: department.trim(),
+    year: dynamicYear || undefined,
   };
 
   const user = await userRepository.createUser(enrichedUserData);

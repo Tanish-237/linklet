@@ -45,8 +45,6 @@ const BlogPage = lazy(() => import("./pages/static/BlogPage"));
 const BlogPostDetail = lazy(() => import("./pages/static/BlogPostDetail"));
 const CareersPage = lazy(() => import("./pages/static/CareersPage"));
 const ContactPage = lazy(() => import("./pages/static/ContactPage"));
-const PrivacyPolicy = lazy(() => import("./pages/static/PrivacyPolicy"));
-const TermsOfService = lazy(() => import("./pages/static/TermsOfService"));
 const CookiePolicy = lazy(() => import("./pages/static/CookiePolicy"));
 const SecurityInfo = lazy(() => import("./pages/static/SecurityInfo"));
 const PricingPage = lazy(() => import("./pages/static/PricingPage"));
@@ -341,24 +339,6 @@ function App() {
                 <>
                   <Navbar />
                   <ContactPage />
-                </>
-              }
-            />
-            <Route
-              path="/privacy"
-              element={
-                <>
-                  <Navbar />
-                  <PrivacyPolicy />
-                </>
-              }
-            />
-            <Route
-              path="/terms"
-              element={
-                <>
-                  <Navbar />
-                  <TermsOfService />
                 </>
               }
             />
