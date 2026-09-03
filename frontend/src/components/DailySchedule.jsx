@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'react-toastify';
+import { useAuth } from '../context/AuthContext';
+import TimetableUploadModal from './TimetableUploadModal';
+import WeeklyTimetableModal from './WeeklyTimetableModal';
 import {
   fetchSchedule,
   createScheduleEvent,
@@ -59,11 +62,14 @@ const getTypeIcon = (type) => {
 };
 
 export default function DailySchedule({ onScheduleChanged }) {
+  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showEventDetails, setShowEventDetails] = useState(null);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showWeeklyTimetableModal, setShowWeeklyTimetableModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
   const [viewMode, setViewMode] = useState('all'); // 'all', 'upcoming', 'past'
@@ -291,6 +297,24 @@ export default function DailySchedule({ onScheduleChanged }) {
               Today
             </button>
           )}
+
+          <button
+            onClick={() => setShowWeeklyTimetableModal(true)}
+            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-750 text-gray-200 border border-gray-700 px-3.5 py-2 rounded-xl text-sm font-semibold transition cursor-pointer"
+            title="View complete weekly routine"
+          >
+            <span className="material-icons text-base text-violet-400">calendar_view_week</span>
+            Weekly Timetable
+          </button>
+
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 bg-violet-950/40 hover:bg-violet-900/50 text-violet-300 border border-violet-700/50 px-3.5 py-2 rounded-xl text-sm font-semibold transition cursor-pointer"
+            title="Upload MNNIT Timetable PDF with Gemini Vision"
+          >
+            <span className="material-icons text-base text-violet-400">upload_file</span>
+            Import Timetable
+          </button>
 
           <button
             onClick={() => setShowAddEventModal(true)}
@@ -717,7 +741,7 @@ export default function DailySchedule({ onScheduleChanged }) {
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="px-5 bg-gray-800 hover:bg-gray-700 text-gray-300 py-2.5 rounded-xl transition text-sm cursor-pointer"
+                className="px-5 bg-gray-800 hover:bg-gray-750 text-gray-300 py-2.5 rounded-xl transition text-sm cursor-pointer"
               >
                 Cancel
               </button>
@@ -725,6 +749,27 @@ export default function DailySchedule({ onScheduleChanged }) {
           </div>
         </div>
       )}
+
+      {/* Timetable Upload & Verification Modal */}
+      <TimetableUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onTimetableSynced={() => {
+          loadSchedule();
+          if (onScheduleChanged) onScheduleChanged();
+        }}
+        userSection={user?.section}
+      />
+
+      {/* Full Weekly Timetable Modal */}
+      <WeeklyTimetableModal
+        isOpen={showWeeklyTimetableModal}
+        onClose={() => setShowWeeklyTimetableModal(false)}
+        onTimetableAbandoned={() => {
+          loadSchedule();
+          if (onScheduleChanged) onScheduleChanged();
+        }}
+      />
     </div>
   );
 }

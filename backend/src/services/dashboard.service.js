@@ -2,6 +2,7 @@ import { Question } from "../../models/question.js";
 import { Answer } from "../../models/answer.js";
 import { Resource } from "../../models/resource.js";
 import { User } from "../../models/users.js";
+import { Timetable } from "../models/timetable.model.js";
 import * as scheduleRepo from "../repositories/schedule.repository.js";
 import * as attendanceRepo from "../repositories/attendance.repository.js";
 import { AppError } from "../utils/error.js";
@@ -81,7 +82,45 @@ export const getDashboardStats = async (userId) => {
 
 export const getDailySchedule = async (userId, date) => {
   const targetDate = date || getTodayDateString();
-  return await scheduleRepo.findByUserIdAndDate(userId, targetDate);
+  const specificEvents = await scheduleRepo.findByUserIdAndDate(userId, targetDate);
+
+  // Compute day of week for targetDate: 0 (Sunday) to 6 (Saturday)
+  const [year, month, day] = targetDate.split("-").map(Number);
+  const dateObj = new Date(year, month - 1, day);
+  const dayOfWeek = dateObj.getDay();
+
+  if (dayOfWeek >= 1 && dayOfWeek <= 6) {
+    const userTimetable = await Timetable.findOne({ userId }).lean();
+    if (userTimetable && Array.isArray(userTimetable.classes)) {
+      const dayClasses = userTimetable.classes.filter(
+        (c) => c.dayOfWeek === dayOfWeek
+      );
+
+      const timetableEvents = dayClasses.map((c) => ({
+        _id: `tt_${c._id || Math.random().toString(36).substr(2, 9)}`,
+        userId,
+        type: "class",
+        title: c.title || `${c.subjectName} (${c.classType || "Lecture"})`,
+        subjectName: c.subjectName,
+        courseCode: c.courseCode,
+        startTime: c.startTime,
+        endTime: c.endTime,
+        deadline: c.endTime || c.startTime,
+        date: targetDate,
+        priority: "medium",
+        status: "pending",
+        location: c.location || "",
+        professor: c.professor || "",
+        isFromTimetable: true,
+      }));
+
+      const combined = [...timetableEvents, ...specificEvents];
+      combined.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
+      return combined;
+    }
+  }
+
+  return specificEvents;
 };
 
 export const createScheduleEvent = async (userId, eventData) => {
@@ -113,6 +152,9 @@ export const createScheduleEvent = async (userId, eventData) => {
 };
 
 export const updateScheduleEvent = async (userId, eventId, updateData) => {
+  if (typeof eventId === "string" && eventId.startsWith("tt_")) {
+    throw new AppError("Timetable classes cannot be edited from here. Use the Weekly Timetable to manage them.", 400);
+  }
   const existing = await scheduleRepo.findEventById(eventId, userId);
   if (!existing) {
     throw new AppError("Schedule event not found or unauthorized", 404);
@@ -123,6 +165,9 @@ export const updateScheduleEvent = async (userId, eventId, updateData) => {
 };
 
 export const deleteScheduleEvent = async (userId, eventId) => {
+  if (typeof eventId === "string" && eventId.startsWith("tt_")) {
+    throw new AppError("Timetable classes cannot be deleted from here. Use the Weekly Timetable to manage them.", 400);
+  }
   const deleted = await scheduleRepo.deleteEvent(eventId, userId);
   if (!deleted) {
     throw new AppError("Schedule event not found or unauthorized", 404);

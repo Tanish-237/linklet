@@ -9,6 +9,7 @@ import questionRoutes from "./question.routes.js";
 import profileRoutes from "./profile.routes.js";
 import chatRoutes from "./chat.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
+import timetableRoutes from "./timetable.routes.js";
 
 const router = express.Router();
 
@@ -22,6 +23,7 @@ router.use("/questions", questionRoutes);
 router.use("/profile", profileRoutes);
 router.use("/chat", chatRoutes);
 router.use("/dashboard", dashboardRoutes);
+router.use("/timetable", timetableRoutes);
 
 export default router;
 
