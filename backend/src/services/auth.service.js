@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { getRedisClient } from "../utils/redis.js";
 import { sendEmail } from "../utils/email.service.js";
 import { calculateAcademicYear } from "../utils/academicYear.js";
+import logger from "../utils/logger.js";
 
 export const generateAndSendOtp = async (email) => {
   // Enforce @mnnit.ac.in domain restriction
@@ -31,7 +32,13 @@ export const generateAndSendOtp = async (email) => {
   }
   await redisClient.setEx(`otp:${email}`, 600, otp);
 
-  // Send Email
+  // Log OTP in server console for development & deployment monitoring
+  console.log(`========================================================`);
+  console.log(`[REGISTRATION OTP] Code for ${email}: ${otp}`);
+  console.log(`========================================================`);
+  logger.info(`[REGISTRATION OTP] Code for ${email}: ${otp}`);
+
+  // Send Email via Brevo HTTPS API or fallback SMTP
   const text = `Hello,\n\nYour OTP for registering on Linklet is: ${otp}\nThis OTP is valid for 10 minutes.\n\nWelcome to the community!`;
   await sendEmail(email, "Linklet Registration OTP", text);
 
