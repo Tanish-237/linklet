@@ -9,9 +9,14 @@ export let io;
 const onlineUsers = new Map(); // userId -> socketId
 
 export const initializeSocket = async (server) => {
+  const allowedOrigins = [
+    "http://localhost:5173",
+    process.env.CLIENT_URL,
+  ].filter(Boolean);
+
   io = new Server(server, {
     cors: {
-      origin: "http://localhost:5173",
+      origin: allowedOrigins,
       credentials: true,
     },
     pingTimeout: 5000,
@@ -19,7 +24,13 @@ export const initializeSocket = async (server) => {
     allowEIO3: true,
   });
 
-  const redisClient = getRedisClient();
+  let redisClient = null;
+  try {
+    redisClient = getRedisClient();
+  } catch (error) {
+    logger.warn("Redis client not initialized; Socket.io running with default in-memory adapter");
+  }
+
   if (redisClient) {
     const pubClient = redisClient;
     const subClient = pubClient.duplicate();

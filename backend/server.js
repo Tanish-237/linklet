@@ -27,12 +27,19 @@ const limiter = rateLimit({
 app.use("/api", limiter); // Apply rate limiting to all /api routes
 
 // Standard Middlewares
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  process.env.CLIENT_URL, // e.g. https://linklet.vercel.app
+].filter(Boolean);
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     credentials: true,
   })
 );
+
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(cookieParser());
