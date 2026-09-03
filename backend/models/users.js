@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { calculateAcademicYear } from "../src/utils/academicYear.js";
+import { calculateAcademicYear, calculateDefaultSemester } from "../src/utils/academicYear.js";
 
 const userSchema = new mongoose.Schema(
   {
@@ -64,6 +64,26 @@ const userSchema = new mongoose.Schema(
         return calculateAcademicYear(this.email);
       },
     },
+    semester: {
+      type: Number,
+      min: 1,
+      max: 10,
+      default: function () {
+        return calculateDefaultSemester(this.email) || null;
+      },
+    },
+    section: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      validate: {
+        validator: function (v) {
+          return !v || /^[A-Z][12]$/.test(v);
+        },
+        message: "Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)",
+      },
+      default: "",
+    },
     department: { type: String },
     skills: [{ type: String }], // e.g., ["Python", "React"]
     userType: { type: String, enum: ["Student", "Alumni"], default: "Student" },
@@ -82,6 +102,10 @@ const userSchema = new mongoose.Schema(
         if (dynYear) {
           ret.year = dynYear;
         }
+        if (ret.semester === undefined || ret.semester === null) {
+          const dynSem = calculateDefaultSemester(ret.email);
+          if (dynSem) ret.semester = dynSem;
+        }
         return ret;
       },
     },
@@ -90,6 +114,10 @@ const userSchema = new mongoose.Schema(
         const dynYear = calculateAcademicYear(ret.email);
         if (dynYear) {
           ret.year = dynYear;
+        }
+        if (ret.semester === undefined || ret.semester === null) {
+          const dynSem = calculateDefaultSemester(ret.email);
+          if (dynSem) ret.semester = dynSem;
         }
         return ret;
       },

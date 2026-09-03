@@ -25,6 +25,7 @@ const {
   getMyBookmarks,
   getUserBookmarks,
   toggleFollowUser,
+  updateProfile,
 } = await import('../src/controllers/profile.controller.js');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -247,6 +248,126 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, isFollowing: true })
       );
+    });
+  });
+
+  // ── updateProfile ──────────────────────────────────────────────────────────
+  describe('updateProfile', () => {
+    it('should successfully update section and semester', async () => {
+      console.log('[TEST] updateProfile › updating section and semester');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          section: ' b1 ',
+          semester: '5',
+          bio: 'CS Student',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          section: 'B1',
+          semester: 5,
+          bio: 'CS Student',
+        }),
+      });
+
+      await updateProfile(req, res, next);
+
+      console.log('[TEST] updateProfile called with updates:', mockFindByIdAndUpdate.mock.calls[0][1]);
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({
+          section: 'B1',
+          semester: 5,
+          bio: 'CS Student',
+        }),
+        expect.any(Object)
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: true,
+          data: expect.objectContaining({ section: 'B1', semester: 5 }),
+        })
+      );
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid section format (not First Alphabet and 1or2)', async () => {
+      console.log('[TEST] updateProfile › invalid section B3 → AppError');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          section: 'B3',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      await updateProfile(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      console.log('[TEST] invalid section error caught:', err?.message);
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.statusCode).toBe(400);
+      expect(err.message).toMatch(/followed by 1 or 2/i);
+    });
+
+    it('should reject invalid semester value with AppError 400', async () => {
+      console.log('[TEST] updateProfile › invalid semester 15 → AppError');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          semester: '15',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      await updateProfile(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      console.log('[TEST] invalid semester error caught:', err?.message);
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.statusCode).toBe(400);
+      expect(err.message).toMatch(/between 1 and 10/i);
+    });
+
+    it('should allow clearing semester by passing empty string', async () => {
+      console.log('[TEST] updateProfile › clear semester');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          semester: '',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          semester: null,
+        }),
+      });
+
+      await updateProfile(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({
+          semester: null,
+        }),
+        expect.any(Object)
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(next).not.toHaveBeenCalled();
     });
   });
 });

@@ -35,7 +35,7 @@ jest.unstable_mockModule('../src/utils/email.service.js', () => ({
 
 const { generateAndSendOtp, register } = await import('../src/services/auth.service.js');
 const { cookieOptions } = await import('../src/controllers/auth.controller.js');
-const { calculateAcademicYear } = await import('../src/utils/academicYear.js');
+const { calculateAcademicYear, calculateDefaultSemester } = await import('../src/utils/academicYear.js');
 
 describe('Auth Cookie Configuration Unit Tests', () => {
   const originalEnv = process.env;
@@ -98,6 +98,25 @@ describe('Dynamic Academic Year Calculation Unit Tests', () => {
     const yearAlumni = calculateAcademicYear('oldstudent.20201010@mnnit.ac.in', aug2025);
     console.log('[TEST] 2020 admit in Aug 2025:', yearAlumni);
     expect(yearAlumni).toBe('Alumni');
+  });
+
+  test('calculates correct default semester based on admission year and semester cycle', () => {
+    console.log('[TEST] calculateDefaultSemester › odd and even semesters');
+    // Admitted in 2023, in August 2023 (Odd sem) -> Sem 1
+    const aug2023 = new Date(2023, 7, 1);
+    expect(calculateDefaultSemester('revan.20233291@mnnit.ac.in', aug2023)).toBe(1);
+
+    // Admitted in 2023, in March 2024 (Even sem) -> Sem 2
+    const mar2024 = new Date(2024, 2, 15);
+    expect(calculateDefaultSemester('revan.20233291@mnnit.ac.in', mar2024)).toBe(2);
+
+    // Admitted in 2023, in August 2024 -> Sem 3
+    const aug2024 = new Date(2024, 7, 1);
+    expect(calculateDefaultSemester('revan.20233291@mnnit.ac.in', aug2024)).toBe(3);
+
+    // Admitted in 2020 (Alumni) -> null
+    const aug2026 = new Date(2026, 7, 1);
+    expect(calculateDefaultSemester('old.20201010@mnnit.ac.in', aug2026)).toBeNull();
   });
 });
 
@@ -242,6 +261,60 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       );
       expect(mockRedisDel).toHaveBeenCalledWith('otp:revan.20233291@mnnit.ac.in');
       console.log('[TEST] Registration completed successfully with dynamic year.');
+    });
+
+    test('registers user with section trimmed and uppercased', async () => {
+      console.log('[TEST] register › registers user with section A1');
+      mockRedisGet.mockResolvedValueOnce('654321');
+      mockFindUserByEmail.mockResolvedValueOnce(null);
+      mockFindUserByUsername.mockResolvedValueOnce(null);
+
+      const mockCreatedUser = {
+        _id: 'new_user_sec',
+        username: 'tanish_sec',
+        email: 'tanish.20231111@mnnit.ac.in',
+        fullName: 'Tanish Sharma',
+        department: 'Computer Science and Engineering',
+        section: 'A1',
+        generateAccessToken: jest.fn().mockReturnValue('mock-token'),
+        generateRefreshToken: jest.fn().mockReturnValue('mock-refresh'),
+      };
+      mockCreateUser.mockResolvedValueOnce(mockCreatedUser);
+      mockFindUserById.mockResolvedValueOnce(mockCreatedUser);
+
+      await register({
+        email: 'tanish.20231111@mnnit.ac.in',
+        fullName: 'Tanish Sharma',
+        password: 'Password123',
+        department: 'Computer Science and Engineering',
+        section: ' a1 ',
+        otp: '654321',
+      });
+
+      console.log('[TEST] mockCreateUser called with section:', mockCreateUser.mock.calls[mockCreateUser.mock.calls.length - 1][0].section);
+      expect(mockCreateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          section: 'A1',
+        })
+      );
+    });
+
+    test('rejects section if not letter followed by 1 or 2 during registration', async () => {
+      console.log('[TEST] register › rejects section A3');
+      mockRedisGet.mockResolvedValueOnce('654321');
+      mockFindUserByEmail.mockResolvedValueOnce(null);
+      mockFindUserByUsername.mockResolvedValueOnce(null);
+
+      await expect(
+        register({
+          email: 'tanish.20231111@mnnit.ac.in',
+          fullName: 'Tanish Sharma',
+          password: 'Password123',
+          department: 'Computer Science and Engineering',
+          section: 'A3',
+          otp: '654321',
+        })
+      ).rejects.toThrow(/followed by 1 or 2/i);
     });
   });
 });

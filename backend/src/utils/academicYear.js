@@ -38,3 +38,31 @@ export const calculateAcademicYear = (email, currentDateObj = new Date()) => {
   if (yearNumber === 4) return 'Final';
   return 'Alumni';
 };
+
+/**
+ * Calculates an initial estimated semester (1 to 8) based on MNNIT email and date.
+ * July 20 – Dec 31: Odd semester (Sem 1, 3, 5, 7)
+ * Jan 1 – July 19: Even semester (Sem 2, 4, 6, 8)
+ *
+ * @param {string} email
+ * @param {Date} [currentDateObj]
+ * @returns {number|null} 1 - 8, or null for alumni / non-student
+ */
+export const calculateDefaultSemester = (email, currentDateObj = new Date()) => {
+  const academicYear = calculateAcademicYear(email, currentDateObj);
+  if (!academicYear || academicYear === 'Alumni') return null;
+
+  const currentMonth = currentDateObj.getMonth();
+  const currentDate = currentDateObj.getDate();
+
+  // Odd semester starts around July 20 and runs until end of December
+  const isOddSemester = currentMonth > 6 || (currentMonth === 6 && currentDate >= 20);
+
+  let baseSem = 1;
+  if (academicYear === 'Second') baseSem = 3;
+  if (academicYear === 'Third') baseSem = 5;
+  if (academicYear === 'Final') baseSem = 7;
+
+  return isOddSemester ? baseSem : baseSem + 1;
+};
+

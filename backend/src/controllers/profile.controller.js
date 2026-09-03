@@ -21,7 +21,7 @@ export const getProfile = async (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { bio, skills, username, phoneNumber } = req.body;
+    const { bio, skills, username, phoneNumber, section, semester } = req.body;
 
     const updates = {};
     if (bio !== undefined) updates.bio = bio;
@@ -31,6 +31,31 @@ export const updateProfile = async (req, res, next) => {
       updates.skills = skillsArray
         .map((s) => (typeof s === "string" ? s.trim() : s))
         .filter((s) => s !== "");
+    }
+
+    if (section !== undefined) {
+      if (section === "" || section === null) {
+        updates.section = "";
+      } else {
+        const formattedSec = String(section).trim().toUpperCase();
+        if (!/^[A-Z][12]$/.test(formattedSec)) {
+          throw new AppError("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)", 400);
+        }
+        updates.section = formattedSec;
+      }
+    }
+
+    if (semester !== undefined) {
+      if (semester === "" || semester === null) {
+        updates.semester = null;
+      } else {
+        const semNum = parseInt(semester, 10);
+        if (!isNaN(semNum) && semNum >= 1 && semNum <= 10) {
+          updates.semester = semNum;
+        } else {
+          throw new AppError("Semester must be a valid number between 1 and 10", 400);
+        }
+      }
     }
 
     if (username) {

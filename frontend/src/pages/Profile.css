@@ -758,6 +758,7 @@
 
 .profile-input::placeholder {
   color: #4b5563;
+  text-transform: none;
 }
 
 .profile-input:disabled {

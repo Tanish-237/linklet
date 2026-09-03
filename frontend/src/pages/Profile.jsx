@@ -10,6 +10,16 @@ import Saved from "./Saved";
 import { calculateAcademicYear } from "../utlis/academicYear";
 import "./Profile.css";
 
+const formatSectionInput = (val) => {
+  if (!val) return "";
+  const upper = val.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!upper) return "";
+  const first = upper[0].replace(/[^A-Z]/g, "");
+  if (!first) return "";
+  const second = upper.length > 1 ? upper[1].replace(/[^12]/g, "") : "";
+  return (first + second).slice(0, 2);
+};
+
 const Profile = () => {
   const { username } = useParams();
   const { user: currentUser, fetchUser } = useAuth();
@@ -25,6 +35,8 @@ const Profile = () => {
   const [editSkills, setEditSkills] = useState("");
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editSection, setEditSection] = useState("");
+  const [editSemester, setEditSemester] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [selectedAvatarUrl, setSelectedAvatarUrl] = useState("");
@@ -81,6 +93,8 @@ const Profile = () => {
         setEditSkills(res.data.data.skills?.join(", ") || "");
         setEditUsername(res.data.data.username || "");
         setEditPhone(res.data.data.phoneNumber || "");
+        setEditSection(res.data.data.section || "");
+        setEditSemester(res.data.data.semester ?? "");
       } catch (error) {
         toast.error("Profile not found");
         navigate("/dashboard");
@@ -152,12 +166,19 @@ const Profile = () => {
   };
 
   const handleSaveProfile = async () => {
+    if (editSection && !/^[A-Z][12]$/.test(editSection)) {
+      toast.error("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)");
+      return;
+    }
+
     try {
       setIsSaving(true);
       const formData = new FormData();
       formData.append("bio", editBio);
       formData.append("skills", editSkills);
       formData.append("phoneNumber", editPhone);
+      formData.append("section", editSection);
+      formData.append("semester", editSemester);
       if (editUsername !== profileUser.username) {
         formData.append("username", editUsername);
       }
@@ -370,6 +391,18 @@ const Profile = () => {
                     </div>
                   );
                 })()}
+                {profileUser.semester && (
+                  <div className="profile-info-chip">
+                    <span className="material-icons">auto_stories</span>
+                    <span>Semester {profileUser.semester}</span>
+                  </div>
+                )}
+                {profileUser.section && (
+                  <div className="profile-info-chip">
+                    <span className="material-icons">groups</span>
+                    <span>Section {profileUser.section}</span>
+                  </div>
+                )}
                 <div className="profile-info-chip">
                   <span className="material-icons">email</span>
                   <span>{profileUser.email}</span>
@@ -432,6 +465,36 @@ const Profile = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="profile-field-group">
+                  <label className="profile-field-label">Current Semester</label>
+                  <select
+                    value={editSemester}
+                    onChange={(e) => setEditSemester(e.target.value)}
+                    className="profile-input"
+                  >
+                    <option value="">Select Semester</option>
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((s) => (
+                      <option key={s} value={s}>
+                        Semester {s}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="profile-field-hint">Update anytime your semester changes</p>
+                </div>
+                <div className="profile-field-group">
+                  <label className="profile-field-label">Section</label>
+                  <input
+                    type="text"
+                    placeholder="Eg. A1, B2, etc"
+                    value={editSection}
+                    onChange={(e) => setEditSection(formatSectionInput(e.target.value))}
+                    className="profile-input uppercase placeholder:normal-case"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+
               <div className="profile-field-group">
                 <label className="profile-field-label">Bio</label>
                 <textarea
@@ -479,6 +542,9 @@ const Profile = () => {
                     setEditBio(profileUser.bio || "");
                     setEditSkills(profileUser.skills?.join(", ") || "");
                     setEditUsername(profileUser.username || "");
+                    setEditPhone(profileUser.phoneNumber || "");
+                    setEditSection(profileUser.section || "");
+                    setEditSemester(profileUser.semester ?? "");
                   }}
                   className="profile-btn-secondary"
                 >

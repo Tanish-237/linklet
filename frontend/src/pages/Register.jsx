@@ -8,11 +8,22 @@ import { Helmet } from "react-helmet-async";
 import linkletLogo from "../assets/linklet-logo.png";
 import { apiClient } from "../api/apiClient";
 
+const formatSectionInput = (val) => {
+  if (!val) return "";
+  const upper = val.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (!upper) return "";
+  const first = upper[0].replace(/[^A-Z]/g, "");
+  if (!first) return "";
+  const second = upper.length > 1 ? upper[1].replace(/[^12]/g, "") : "";
+  return (first + second).slice(0, 2);
+};
+
 export default function Register() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [department, setDepartment] = useState("");
+  const [section, setSection] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -37,7 +48,11 @@ export default function Register() {
         return;
       }
       if (!department) {
-        toast.error("Please select your department");
+        toast.error("Please select your branch");
+        return;
+      }
+      if (section && !/^[A-Z][12]$/.test(section)) {
+        toast.error("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)");
         return;
       }
     }
@@ -56,6 +71,7 @@ export default function Register() {
           password,
           fullName: fullName.trim(),
           department,
+          section: section.trim().toUpperCase(),
           otp,
         };
         const res = await apiClient.post(`/auth/register`, payload);
@@ -219,7 +235,7 @@ export default function Register() {
 
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-gray-300" htmlFor="department">
-                    Department <span className="text-violet-400">*</span>
+                    Branch <span className="text-violet-400">*</span>
                   </label>
                   <select
                     id="department"
@@ -229,7 +245,7 @@ export default function Register() {
                     disabled={step === 2}
                     className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
                   >
-                    <option value="">Select Branch / Department</option>
+                    <option value="">Select Branch</option>
                     <option value="Computer Science and Engineering">Computer Science and Engineering</option>
                     <option value="Mathematics and Computing">Mathematics and Computing</option>
                     <option value="Electronics and Communication Engineering">Electronics and Communication Engineering</option>
@@ -240,6 +256,22 @@ export default function Register() {
                     <option value="Chemical Engineering">Chemical Engineering</option>
                     <option value="Biotechnology">Biotechnology</option>
                   </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-sm font-medium text-gray-300" htmlFor="section">
+                    Class Section
+                  </label>
+                  <input
+                    id="section"
+                    type="text"
+                    placeholder="Eg. A1, B2, etc"
+                    value={section}
+                    onChange={(e) => setSection(formatSectionInput(e.target.value))}
+                    maxLength={2}
+                    disabled={step === 2}
+                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50 uppercase placeholder:normal-case"
+                  />
                 </div>
 
                 {step === 2 && (
