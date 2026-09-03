@@ -34,6 +34,12 @@ const MOCK_COLLEGE_DB = [
     fullName: "Tanish Mittal",
     department: "Computer Science and Engineering",
     year: "Final",
+  },
+  {
+    email: "revan.20238020@mnnit.ac.in",
+    fullName: "Revan Channa",
+    department: "Computer Science and Engineering",
+    year: "Final",
   }
 ];
 
