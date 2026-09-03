@@ -63,6 +63,7 @@ export const getPreviewUrl = (resource) => {
 };
 
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
+import useAuthStore from "../store/useAuthStore";
 
 const PreviewModal = ({ resource, onClose, onDelete }) => {
   const { user } = useAuthStore();
