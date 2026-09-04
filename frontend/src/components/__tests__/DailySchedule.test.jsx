@@ -180,7 +180,7 @@ describe("DailySchedule Component Tests", () => {
     render(<DailySchedule onScheduleChanged={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText("Image Processing and Computer Vision")[0]).toBeInTheDocument();
+      expect(screen.getByText("Image Processing and Computer Vision")).toBeInTheDocument();
     });
 
     // Check that Lab badge is present
@@ -190,8 +190,8 @@ describe("DailySchedule Component Tests", () => {
     console.log("TRACE [DailySchedule.test.jsx]: Lab badge verified");
   });
 
-  it("renders multi-hour ongoing session indicator for 15:00-17:00 lab at hour 16", async () => {
-    console.log("TRACE [DailySchedule.test.jsx]: Testing multi-hour in session indicator at hour 16");
+  it("renders multi-hour 15:00-17:00 events together as a single combined slot without duplicate in-session rows", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing multi-hour 15:00-17:00 combined slot");
 
     dashboardApi.fetchSchedule.mockResolvedValue([
       {
@@ -208,9 +208,16 @@ describe("DailySchedule Component Tests", () => {
     render(<DailySchedule onScheduleChanged={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/In session/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Loading schedule/i)).not.toBeInTheDocument();
     });
-    console.log("TRACE [DailySchedule.test.jsx]: Multi-hour ongoing indicator verified");
+
+    // Expect the combined multi-hour slot label 15:00–17:00
+    expect(screen.getByText("15:00–17:00")).toBeInTheDocument();
+    // Expect the card to appear exactly once
+    expect(screen.getByText("Image Processing and Computer Vision")).toBeInTheDocument();
+    // Ensure no redundant "In session" strip is displayed
+    expect(screen.queryByText(/In session/i)).not.toBeInTheDocument();
+    console.log("TRACE [DailySchedule.test.jsx]: Combined 15:00-17:00 slot verified without duplicate rows");
   });
 
   it("displays Task and Event badges without location or lecture label, and omits time from cards", async () => {
@@ -252,7 +259,7 @@ describe("DailySchedule Component Tests", () => {
     });
 
     expect(screen.getByText("Submit OS Assignment")).toBeInTheDocument();
-    expect(screen.getAllByText("Hackathon Intro").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Hackathon Intro")).toBeInTheDocument();
     expect(screen.getByText("Networks")).toBeInTheDocument();
 
     // Task badge should be present, but NOT Lecture for the task

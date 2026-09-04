@@ -452,15 +452,15 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
     }
   };
 
-  // ── Build overlap groups and dynamic hour range ───────────────────────────
+  // ── Build timeline slots: merge multi-hour events (e.g. 15:00–17:00) together ───
   const overlapGroups = buildOverlapGroups(schedule);
 
   // Map: startHour (floor) → overlap groups that start in that hour
-  const groupsByHour = {};
+  const groupStarts = {};
   for (const g of overlapGroups) {
     const h = Math.floor(g.start);
-    if (!groupsByHour[h]) groupsByHour[h] = [];
-    groupsByHour[h].push(g);
+    if (!groupStarts[h]) groupStarts[h] = [];
+    groupStarts[h].push(g);
   }
 
   // Only render hours that have events, ±1 buffer hour
@@ -478,7 +478,46 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
     maxHour = Math.max(maxHour, Math.min(23, Math.floor(nowHours) + 1));
   }
 
-  const HOURS = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i);
+  // Build sequential slots: multi-hour blocks (e.g. 15:00-17:00) form a single slot together
+  const SLOTS = [];
+  let h = minHour;
+  while (h <= maxHour) {
+    const groups = groupStarts[h];
+    if (groups && groups.length > 0) {
+      const maxEnd = Math.max(...groups.map((g) => Math.ceil(g.end)));
+      const spanEnd = Math.max(h + 1, maxEnd);
+      const isMultiHour = (spanEnd - h) > 1;
+
+      const startLabel = `${String(h).padStart(2, '0')}:00`;
+      const endLabel = `${String(spanEnd).padStart(2, '0')}:00`;
+      const label = isMultiHour ? `${startLabel}–${endLabel}` : startLabel;
+
+      SLOTS.push({
+        key: `slot-${h}-${spanEnd}`,
+        startHour: h,
+        endHour: spanEnd,
+        isMultiHour,
+        label,
+        groups,
+        hasEvents: true,
+      });
+
+      // Jump forward by the group duration so intermediate hours (e.g. 16:00) aren't duplicated
+      h = spanEnd;
+    } else {
+      const label = `${String(h).padStart(2, '0')}:00`;
+      SLOTS.push({
+        key: `slot-${h}-${h + 1}`,
+        startHour: h,
+        endHour: h + 1,
+        isMultiHour: false,
+        label,
+        groups: [],
+        hasEvents: false,
+      });
+      h += 1;
+    }
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -604,43 +643,32 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
         <div className="relative">
           <div className="max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-gray-900 scrollbar-thumb-gray-700">
             <div className="relative pt-3">
-              {HOURS.map((hour, idx) => {
-                const groups = groupsByHour[hour] || [];
-                const hasStartingEvents = groups.length > 0;
-
-                // Find events that started earlier and are STILL ongoing during this hour
-                const ongoingEvents = schedule.filter((ev) => {
-                  const s = Math.floor(eventStartHour(ev) ?? 0);
-                  const e = Math.ceil(eventEndHour(ev));
-                  return s < hour && e > hour;
-                });
-                const hasOngoingEvents = ongoingEvents.length > 0;
-                const hasAnyEvents = hasStartingEvents || hasOngoingEvents;
-
-                const isNowHour = isToday && Math.floor(nowHours) === hour;
-                const hourLabel = `${String(hour).padStart(2, '0')}:00`;
-                const fracInHour = Math.min(Math.max(nowHours - hour, 0), 1);
-                const isLastHour = idx === HOURS.length - 1;
+              {SLOTS.map((slot, idx) => {
+                const isNowInSlot = isToday && nowHours >= slot.startHour && nowHours < slot.endHour;
+                const fracInSlot = slot.endHour > slot.startHour
+                  ? Math.min(Math.max((nowHours - slot.startHour) / (slot.endHour - slot.startHour), 0), 1)
+                  : 0;
+                const isLastSlot = idx === SLOTS.length - 1;
 
                 return (
                   <div
-                    key={hour}
+                    key={slot.key}
                     className={`flex relative ${
-                      hasAnyEvents ? 'min-h-[84px]' : 'min-h-[26px]'
+                      slot.hasEvents ? 'min-h-[84px]' : 'min-h-[26px]'
                     }`}
                   >
                     {/* ── Left: time label ── */}
-                    <div className="w-[52px] flex-shrink-0 select-none flex justify-end pr-2">
+                    <div className="w-[68px] sm:w-[74px] flex-shrink-0 select-none flex justify-end pr-2">
                       <span
-                        className={`text-[10px] font-mono leading-none -translate-y-[5px] tabular-nums ${
-                          isNowHour
+                        className={`text-[10px] sm:text-[11px] font-mono leading-none -translate-y-[5px] tabular-nums whitespace-nowrap ${
+                          isNowInSlot
                             ? 'text-violet-400 font-bold'
-                            : hasAnyEvents
-                              ? 'text-gray-400'
+                            : slot.hasEvents
+                              ? 'text-gray-300'
                               : 'text-gray-600'
                         }`}
                       >
-                        {hourLabel}
+                        {slot.label}
                       </span>
                     </div>
 
@@ -649,61 +677,36 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                       {/* Tick mark */}
                       <div
                         className={`h-px flex-shrink-0 ${
-                          hasAnyEvents ? 'w-[10px] bg-gray-500' : 'w-[6px] bg-gray-700'
+                          slot.hasEvents ? 'w-[10px] bg-gray-500' : 'w-[6px] bg-gray-700'
                         }`}
                       />
                       {/* Connector */}
-                      {!isLastHour && (
+                      {!isLastSlot && (
                         <div
                           className={`flex-1 w-px ${
-                            hasAnyEvents ? 'bg-gray-600' : 'bg-gray-800'
+                            slot.hasEvents ? 'bg-gray-600' : 'bg-gray-800'
                           }`}
-                          style={!hasAnyEvents ? { backgroundImage: 'repeating-linear-gradient(to bottom, #374151 0, #374151 3px, transparent 3px, transparent 7px)', backgroundSize: '1px 7px', width: '1px', background: 'none' } : {}}
+                          style={!slot.hasEvents ? { backgroundImage: 'repeating-linear-gradient(to bottom, #374151 0, #374151 3px, transparent 3px, transparent 7px)', backgroundSize: '1px 7px', width: '1px', background: 'none' } : {}}
                         />
                       )}
 
                       {/* Now dot */}
-                      {isNowHour && (
+                      {isNowInSlot && (
                         <div
                           ref={nowLineRef}
                           className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-none"
-                          style={{ top: `${fracInHour * 100}%` }}
+                          style={{ top: `${fracInSlot * 100}%` }}
                         >
                           <div className="w-2.5 h-2.5 rounded-full bg-violet-400 ring-2 ring-violet-300/40 shadow-lg shadow-violet-500/50 -translate-x-1/2 relative left-1/2" />
                         </div>
                       )}
                     </div>
 
-                    {/* ── Right: event cards & ongoing session blocks ── */}
+                    {/* ── Right: event cards ── */}
                     <div className="flex-1 pl-2 py-0.5 min-w-0">
-                      {hasStartingEvents || hasOngoingEvents ? (
+                      {slot.hasEvents ? (
                         <div className="space-y-2 pb-2">
-                          {/* Ongoing sessions continuing from previous hour */}
-                          {hasOngoingEvents && (
-                            <div className="space-y-1">
-                              {ongoingEvents.map((ev) => {
-                                const cType = getClassType(ev);
-                                const cfg = TYPE_CONFIG[cType] || TYPE_CONFIG.Lecture;
-                                return (
-                                  <div
-                                    key={`ongoing-${ev._id}-${hour}`}
-                                    className={`flex items-center justify-between gap-2 rounded-r-xl border border-dashed border-gray-700/60 border-l-2 px-3 py-1.5 bg-gray-850/40 text-xs ${cfg.accent}`}
-                                  >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                      <span className={`w-2 h-2 rounded-full flex-shrink-0 animate-pulse ${cfg.dot}`} />
-                                      <span className="font-semibold text-gray-200 truncate">{getCleanTitle(ev)}</span>
-                                    </div>
-                                    <span className="text-[11px] text-gray-400 font-mono shrink-0">
-                                      In session
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-
-                          {/* Groups that start in this hour */}
-                          {groups.map((group, gi) => {
+                          {slot.groups.map((group, gi) => {
                             const isOverlap = group.events.length > 1;
                             return (
                               <div key={gi} className="space-y-1.5">
@@ -796,10 +799,10 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                     </div>
 
                     {/* Now horizontal line */}
-                    {isNowHour && (
+                    {isNowInSlot && (
                       <div
-                        className="absolute left-[70px] right-0 h-px bg-gradient-to-r from-violet-500 via-violet-400/40 to-transparent pointer-events-none z-10"
-                        style={{ top: `${fracInHour * 100}%` }}
+                        className="absolute left-[86px] sm:left-[92px] right-0 h-px bg-gradient-to-r from-violet-500 via-violet-400/40 to-transparent pointer-events-none z-10"
+                        style={{ top: `${fracInSlot * 100}%` }}
                       />
                     )}
                   </div>
