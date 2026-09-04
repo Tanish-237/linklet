@@ -8,6 +8,7 @@ import {
   deleteScheduleEvent,
 } from '../api/dashboard.api';
 
+// ─── Date helpers ────────────────────────────────────────────────────────────
 const getTodayDateStr = () => {
   const now = new Date();
   const y = now.getFullYear();
@@ -29,69 +30,74 @@ const formatDateStr = (date) => {
   return `${y}-${m}-${d}`;
 };
 
-const formatTime = (timeString) => {
-  if (!timeString) return '';
-  try {
-    const [hours, minutes] = timeString.split(':');
-    return `${hours}:${minutes}`;
-  } catch (e) {
-    return timeString;
-  }
+// Convert "HH:MM" → fractional hours (e.g. "09:30" → 9.5)
+const timeToHours = (t) => {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  return h + m / 60;
 };
 
-const getPriorityColor = (priority) => {
-  switch (priority) {
-    case 'high':
-      return 'text-rose-400 bg-rose-500/10 border-rose-500/30';
-    case 'medium':
-      return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
-    case 'low':
-      return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
-    default:
-      return 'text-gray-400 bg-gray-500/10 border-gray-500/30';
-  }
+// Return the effective start hour for an event
+const eventStartHour = (ev) => {
+  if (ev.type === 'task') return timeToHours(ev.deadline);
+  return timeToHours(ev.startTime);
 };
 
-const getStatusColor = (status) => {
-  switch (status) {
-    case 'completed':
-      return 'bg-emerald-500/20 border-emerald-500 text-emerald-400';
-    case 'in-progress':
-      return 'bg-amber-500/20 border-amber-500 text-amber-400';
-    case 'pending':
-      return 'bg-violet-500/20 border-violet-500 text-violet-300';
-    case 'cancelled':
-      return 'bg-gray-700/50 border-gray-600 text-gray-400';
-    default:
-      return 'bg-gray-800 border-gray-700 text-gray-400';
-  }
+// Attendance button configs
+const ATTENDANCE_STYLES = {
+  present: {
+    active: 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/40',
+    idle: 'bg-gray-800/70 border-gray-700 text-emerald-400 hover:bg-emerald-900/30 hover:border-emerald-600',
+    icon: 'check_circle',
+    label: 'Present',
+  },
+  absent: {
+    active: 'bg-rose-600 border-rose-500 text-white shadow-lg shadow-rose-900/40',
+    idle: 'bg-gray-800/70 border-gray-700 text-rose-400 hover:bg-rose-900/30 hover:border-rose-600',
+    icon: 'cancel',
+    label: 'Absent',
+  },
+  off: {
+    active: 'bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-900/40',
+    idle: 'bg-gray-800/70 border-gray-700 text-amber-400 hover:bg-amber-900/30 hover:border-amber-600',
+    icon: 'event_busy',
+    label: 'Class Off',
+  },
 };
 
-const getTypeIcon = (type) => {
-  switch (type) {
-    case 'class':
-      return 'school';
-    case 'task':
-      return 'assignment';
-    case 'event':
-      return 'event';
-    default:
-      return 'event';
-  }
-};
+// ─── Attendance Button ────────────────────────────────────────────────────────
+function AttendanceBtn({ which, current, onClick }) {
+  const s = ATTENDANCE_STYLES[which];
+  const isActive = current === which;
+  return (
+    <button
+      onClick={() => onClick(which)}
+      title={s.label}
+      aria-label={s.label}
+      className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] font-semibold transition-all duration-150 cursor-pointer min-w-[48px] ${
+        isActive ? s.active : s.idle
+      }`}
+    >
+      <span className="material-icons text-sm">{s.icon}</span>
+      <span className="leading-none">{s.label}</span>
+    </button>
+  );
+}
 
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function DailySchedule({ onScheduleChanged, addEventTrigger, refreshTrigger }) {
   const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(getTodayDateStr);
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showEventDetails, setShowEventDetails] = useState(null);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null); // { id, title, type }
   const [currentTime, setCurrentTime] = useState('');
-  const [cancelReason, setCancelReason] = useState('');
+  const [nowHours, setNowHours] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attendanceState, setAttendanceState] = useState({}); // { [eventId]: 'present'|'absent'|'off'|null }
   const dateInputRef = useRef(null);
+  const nowLineRef = useRef(null);
 
   const [newEvent, setNewEvent] = useState({
     type: 'class',
@@ -99,162 +105,53 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
     startTime: '09:00',
     endTime: '10:00',
     deadline: '17:00',
-    priority: 'medium',
-    status: 'pending',
     location: '',
     professor: '',
   });
 
-  // Track live clock for timeline
+  // Live clock
   useEffect(() => {
-    const updateCurrentTime = () => {
+    const tick = () => {
       const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', {
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      );
+      const h = now.getHours();
+      const min = now.getMinutes();
+      setCurrentTime(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+      setNowHours(h + min / 60);
     };
-
-    updateCurrentTime();
-    const interval = setInterval(updateCurrentTime, 60000);
-    return () => clearInterval(interval);
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
   }, []);
 
-  // Fetch schedule from backend
+  // Scroll now-line into view on today (guard for jsdom/test environments)
+  useEffect(() => {
+    if (selectedDate === getTodayDateStr() && nowLineRef.current) {
+      if (typeof nowLineRef.current.scrollIntoView === 'function') {
+        nowLineRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+    }
+  }, [selectedDate, loading]);
+
+  // Fetch schedule
   const loadSchedule = useCallback(async () => {
     try {
       setLoading(true);
       const data = await fetchSchedule(selectedDate);
       setSchedule(data);
-    } catch (err) {
+    } catch {
       toast.error('Failed to load schedule');
     } finally {
       setLoading(false);
     }
   }, [selectedDate]);
 
-  useEffect(() => {
-    loadSchedule();
-  }, [loadSchedule, refreshTrigger]);
+  useEffect(() => { loadSchedule(); }, [loadSchedule, refreshTrigger]);
 
   useEffect(() => {
-    if (addEventTrigger) {
-      setShowAddEventModal(true);
-    }
+    if (addEventTrigger) setShowAddEventModal(true);
   }, [addEventTrigger]);
 
-  const isEventPast = (event) => {
-    if (!currentTime) return false;
-    const today = getTodayDateStr();
-    if (selectedDate < today) return true;
-    if (selectedDate > today) return false;
-
-    const eventEndTime = event.type === 'task' ? event.deadline : event.endTime;
-    if (!eventEndTime) return false;
-    return eventEndTime < currentTime;
-  };
-
-  const handleAddEvent = async () => {
-    if (!newEvent.title.trim()) {
-      toast.warn('Please enter a title or subject name');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-      const created = await createScheduleEvent({
-        ...newEvent,
-        date: selectedDate,
-      });
-      setSchedule((prev) =>
-        [...prev, created].sort((a, b) => {
-          const timeA = a.type === 'task' ? a.deadline || '' : a.startTime || '';
-          const timeB = b.type === 'task' ? b.deadline || '' : b.startTime || '';
-          return timeA.localeCompare(timeB);
-        })
-      );
-      toast.success('Event added successfully');
-      setShowAddEventModal(false);
-      setNewEvent({
-        type: 'class',
-        title: '',
-        startTime: '09:00',
-        endTime: '10:00',
-        deadline: '17:00',
-        priority: 'medium',
-        status: 'pending',
-        location: '',
-        professor: '',
-      });
-      if (onScheduleChanged) onScheduleChanged();
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to add event');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleToggleTaskStatus = async (event) => {
-    if (event.type !== 'task') return;
-    const nextStatus = event.status === 'completed' ? 'pending' : 'completed';
-    try {
-      const updated = await updateScheduleEvent(event._id, { status: nextStatus });
-      setSchedule((prev) =>
-        prev.map((item) => (item._id === event._id ? { ...item, status: updated.status } : item))
-      );
-      toast.success(nextStatus === 'completed' ? 'Task completed! 🎉' : 'Task marked pending');
-      if (onScheduleChanged) onScheduleChanged();
-    } catch (err) {
-      toast.error('Failed to update task status');
-    }
-  };
-
-  const handleCutClass = (event) => {
-    setShowDeleteConfirm({ id: event._id, title: event.title, type: event.type, mode: 'cut' });
-    setCancelReason('');
-  };
-
-  const handleDeleteEventClick = (event) => {
-    setShowDeleteConfirm({ id: event._id, title: event.title, type: event.type, mode: 'delete' });
-  };
-
-  const confirmCutClass = async (id) => {
-    try {
-      if (cancelReason.trim()) {
-        const updated = await updateScheduleEvent(id, {
-          status: 'cancelled',
-          cancelReason: cancelReason.trim(),
-        });
-        setSchedule((prev) =>
-          prev.map((item) => (item._id === id ? { ...item, ...updated } : item))
-        );
-        toast.info('Class marked as cancelled');
-      } else {
-        await deleteScheduleEvent(id);
-        setSchedule((prev) => prev.filter((item) => item._id !== id));
-        toast.success('Class removed from schedule');
-      }
-      setShowDeleteConfirm(null);
-      setCancelReason('');
-      if (onScheduleChanged) onScheduleChanged();
-    } catch (err) {
-      toast.error('Failed to update schedule');
-    }
-  };
-
-  const getTimelinePosition = () => {
-    if (!currentTime) return 0;
-    try {
-      const [hours, minutes] = currentTime.split(':').map(Number);
-      return (hours * 60 + minutes) / 4;
-    } catch (e) {
-      return 0;
-    }
-  };
-
+  // ── Helpers ───────────────────────────────────────────────────────────────
   const changeDateByDays = (offset) => {
     const current = parseDateStr(selectedDate);
     current.setDate(current.getDate() + offset);
@@ -263,35 +160,97 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
 
   const isToday = selectedDate === getTodayDateStr();
 
-  const formattedSelectedDate = parseDateStr(selectedDate).toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "short",
-    day: "numeric",
-    year: "numeric",
+  const formattedSelectedDate = parseDateStr(selectedDate).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'short', day: 'numeric', year: 'numeric',
   });
 
   const surroundingDays = (() => {
     const center = parseDateStr(selectedDate);
     const todayStr = getTodayDateStr();
-    const days = [];
-    for (let i = -3; i <= 3; i++) {
+    return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(center);
-      d.setDate(d.getDate() + i);
+      d.setDate(d.getDate() + (i - 3));
       const dateStr = formatDateStr(d);
-      days.push({
+      return {
         dateStr,
-        dayName: d.toLocaleDateString("en-US", { weekday: "short" }),
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
         dayNum: d.getDate(),
         isDayToday: dateStr === todayStr,
         isSelected: dateStr === selectedDate,
-      });
-    }
-    return days;
+      };
+    });
   })();
 
+  // ── Attendance toggle ─────────────────────────────────────────────────────
+  const handleAttendance = async (event, status) => {
+    const prev = attendanceState[event._id] ?? event.attendanceStatus ?? null;
+    const next = prev === status ? null : status; // toggle off if same
+    setAttendanceState((s) => ({ ...s, [event._id]: next }));
+    try {
+      await updateScheduleEvent(event._id, { attendanceStatus: next });
+      if (onScheduleChanged) onScheduleChanged();
+    } catch {
+      toast.error('Failed to save attendance');
+      setAttendanceState((s) => ({ ...s, [event._id]: prev }));
+    }
+  };
+
+  // ── Add event ─────────────────────────────────────────────────────────────
+  const handleAddEvent = async () => {
+    if (!newEvent.title.trim()) {
+      toast.warn('Please enter a title or subject name');
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const created = await createScheduleEvent({ ...newEvent, date: selectedDate });
+      setSchedule((prev) =>
+        [...prev, created].sort((a, b) => (eventStartHour(a) ?? 99) - (eventStartHour(b) ?? 99))
+      );
+      toast.success('Event added successfully');
+      setShowAddEventModal(false);
+      setNewEvent({ type: 'class', title: '', startTime: '09:00', endTime: '10:00', deadline: '17:00', location: '', professor: '' });
+      if (onScheduleChanged) onScheduleChanged();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to add event');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ── Delete event ──────────────────────────────────────────────────────────
+  const handleDeleteEventClick = (event) => {
+    setShowDeleteConfirm({ id: event._id, title: event.title, type: event.type });
+  };
+
+  const confirmDelete = async () => {
+    const id = showDeleteConfirm.id;
+    setShowDeleteConfirm(null);
+    try {
+      await deleteScheduleEvent(id);
+      setSchedule((prev) => prev.filter((item) => item._id !== id));
+      toast.success('Removed from schedule');
+      if (onScheduleChanged) onScheduleChanged();
+    } catch {
+      toast.error('Failed to remove event');
+    }
+  };
+
+  // ── Build 24-hour slots ───────────────────────────────────────────────────
+  const eventsByHour = {};
+  schedule.forEach((ev) => {
+    const h = Math.floor(eventStartHour(ev) ?? 0);
+    if (!eventsByHour[h]) eventsByHour[h] = [];
+    eventsByHour[h].push(ev);
+  });
+
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl relative">
-      {/* Header with Title and Quick Date Controls */}
+
+      {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-gray-800/80 pb-6">
         <div className="flex items-center gap-3">
           <span className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400 material-icons">
@@ -299,15 +258,11 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
           </span>
           <div>
             <h2 className="text-2xl font-bold text-white tracking-wide">Daily Schedule</h2>
-            <p className="text-sm text-gray-400">
-              {formattedSelectedDate}
-            </p>
+            <p className="text-sm text-gray-400">{formattedSelectedDate}</p>
           </div>
         </div>
 
-        {/* Quick Date Jumps & Actions: Add Event (left of Pick Date), Pick Date */}
         <div className="flex items-center gap-2">
-          {/* Add Event Button (moved to left of Pick Date) */}
           <button
             id="daily-schedule-add-event-btn"
             onClick={() => setShowAddEventModal(true)}
@@ -317,18 +272,13 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
             <span>Add Event</span>
           </button>
 
-          {/* Styled Date Picker with interactive click handler */}
           <div className="relative">
             <button
               type="button"
               id="daily-schedule-pick-date-btn"
               onClick={() => {
                 if (dateInputRef.current) {
-                  try {
-                    dateInputRef.current.showPicker();
-                  } catch (e) {
-                    dateInputRef.current.focus();
-                  }
+                  try { dateInputRef.current.showPicker(); } catch { dateInputRef.current.focus(); }
                 }
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white border border-gray-700 text-xs font-medium cursor-pointer transition shadow-sm"
@@ -341,11 +291,7 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
               ref={dateInputRef}
               type="date"
               value={selectedDate}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setSelectedDate(e.target.value);
-                }
-              }}
+              onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value); }}
               className="sr-only pointer-events-none"
               aria-label="Pick Date"
             />
@@ -353,7 +299,7 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
         </div>
       </div>
 
-      {/* Interactive 7-Day Navigation Strip */}
+      {/* ── 7-Day Strip ── */}
       <div className="mb-6 p-2 rounded-2xl bg-black/40 border border-gray-800/80 flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto">
         <button
           onClick={() => changeDateByDays(-1)}
@@ -375,17 +321,11 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 font-medium'
               }`}
             >
-              <span className="text-[10px] uppercase tracking-wider opacity-80">
-                {day.dayName}
-              </span>
-              <span className="text-sm sm:text-base font-mono mt-0.5">
-                {day.dayNum}
-              </span>
+              <span className="text-[10px] uppercase tracking-wider opacity-80">{day.dayName}</span>
+              <span className="text-sm sm:text-base font-mono mt-0.5">{day.dayNum}</span>
               {day.isDayToday && (
                 <span
-                  className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
-                    day.isSelected ? 'bg-white' : 'bg-violet-400'
-                  }`}
+                  className={`w-1.5 h-1.5 rounded-full mt-0.5 ${day.isSelected ? 'bg-white' : 'bg-violet-400'}`}
                   title="Today"
                 />
               )}
@@ -403,13 +343,12 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
         </button>
       </div>
 
-      {/* Current Time & Switch to Today Strip */}
+      {/* ── Current Time & Switch to Today ── */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-950/40 border border-violet-800/40 text-violet-300">
-          <span className="w-2 h-2 rounded-full bg-violet-400 animate-ping"></span>
+          <span className="w-2 h-2 rounded-full bg-violet-400 animate-ping flex-shrink-0" />
           <span>Current Time: {currentTime}</span>
         </div>
-
         {!isToday && (
           <button
             onClick={() => setSelectedDate(getTodayDateStr())}
@@ -421,207 +360,167 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
         )}
       </div>
 
-      {/* Schedule Items Section */}
+      {/* ── Timeline ── */}
       {loading ? (
         <div className="py-16 text-center">
-          <div className="inline-block w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="inline-block w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
           <p className="mt-3 text-sm text-gray-400">Loading schedule...</p>
         </div>
-      ) : schedule.length === 0 ? (
-        <div className="p-10 rounded-2xl bg-gray-950/40 border border-dashed border-gray-800 text-center">
-          <span className="material-icons text-5xl text-violet-500/40 mb-3">event_available</span>
-          <h4 className="text-lg font-bold text-gray-300">No events scheduled for this day</h4>
-          <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-            Your schedule for {formattedSelectedDate} is clear. Add your classes or tasks to stay organized.
-          </p>
-          <div className="mt-5 flex justify-center">
-            <button
-              onClick={() => setShowAddEventModal(true)}
-              className="px-5 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 transition shadow-lg shadow-violet-900/30 cursor-pointer"
-            >
-              + Add Event
-            </button>
-          </div>
-        </div>
       ) : (
-        <div className="relative space-y-3">
-          {/* Visual current time indicator line for today */}
-          {isToday && (
-            <div
-              className="absolute left-0 right-0 flex items-center gap-2 z-10 pointer-events-none opacity-80"
-              style={{ top: `${Math.min(Math.max(getTimelinePosition(), 0), 450)}px` }}
-            >
-              <div className="h-0.5 flex-1 bg-gradient-to-r from-violet-500 to-transparent"></div>
-              <span className="px-2 py-0.5 bg-violet-600 text-[10px] text-white font-mono rounded-full shadow">
-                NOW {currentTime}
-              </span>
-            </div>
-          )}
+        <div className="relative">
+          <div className="max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-gray-900 scrollbar-thumb-gray-700">
+            <div className="relative">
+              {HOURS.map((hour) => {
+                const events = eventsByHour[hour] || [];
+                const hasEvents = events.length > 0;
+                const isNowHour = isToday && Math.floor(nowHours) === hour;
+                const hourLabel = `${String(hour).padStart(2, '0')}:00`;
+                const fracInHour = nowHours - hour; // 0..1
 
-          {schedule.map((event) => {
-            const past = isEventPast(event);
-            const isCompleted = event.status === 'completed';
-            const isCancelled = event.status === 'cancelled';
-
-            return (
-              <div
-                key={event._id}
-                className={`relative flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl border transition-all duration-200 group ${
-                  isCancelled
-                    ? 'bg-gray-900/30 border-gray-800 opacity-60'
-                    : isCompleted
-                    ? 'bg-emerald-950/20 border-emerald-900/40'
-                    : past
-                    ? 'bg-gray-800/30 border-gray-800'
-                    : 'bg-gray-800/60 hover:bg-gray-800/90 border-gray-700/60 hover:border-violet-500/40'
-                }`}
-                onMouseEnter={() => setShowEventDetails(event._id)}
-                onMouseLeave={() => setShowEventDetails(null)}
-              >
-                {/* Left Side: Icon & Details */}
-                <div className="flex items-start gap-4">
+                return (
                   <div
-                    className={`w-11 h-11 rounded-xl flex items-center justify-center border flex-shrink-0 mt-0.5 ${
-                      isCancelled
-                        ? 'border-gray-700 bg-gray-800 text-gray-500'
-                        : isCompleted
-                        ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400'
-                        : event.type === 'class'
-                        ? 'border-violet-500/50 bg-violet-500/20 text-violet-400'
-                        : event.type === 'task'
-                        ? 'border-blue-500/50 bg-blue-500/20 text-blue-400'
-                        : 'border-amber-500/50 bg-amber-500/20 text-amber-400'
-                    }`}
+                    key={hour}
+                    className={`flex gap-0 relative ${hasEvents ? 'min-h-[88px]' : 'min-h-[28px]'}`}
                   >
-                    <span className="material-icons text-xl">
-                      {isCancelled ? 'block' : isCompleted ? 'check_circle' : getTypeIcon(event.type)}
-                    </span>
-                  </div>
-
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3
-                        className={`text-base font-bold ${
-                          isCancelled
-                            ? 'text-gray-500 line-through'
-                            : isCompleted
-                            ? 'text-gray-300 line-through decoration-emerald-500'
-                            : 'text-white'
-                        }`}
-                      >
-                        {event.title}
-                      </h3>
-
+                    {/* Left: time label */}
+                    <div className="flex flex-col items-end w-14 flex-shrink-0 select-none">
                       <span
-                        className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider ${
-                          event.type === 'class'
-                            ? 'bg-violet-900/50 text-violet-300 border border-violet-800'
-                            : event.type === 'task'
-                            ? 'bg-blue-900/50 text-blue-300 border border-blue-800'
-                            : 'bg-amber-900/50 text-amber-300 border border-amber-800'
+                        className={`text-[11px] font-mono leading-none -translate-y-[6px] ${
+                          isNowHour ? 'text-violet-400 font-bold' : 'text-gray-600'
                         }`}
                       >
-                        {event.type}
+                        {hourLabel}
                       </span>
+                    </div>
 
-                      {event.priority && (
-                        <span
-                          className={`px-2 py-0.5 rounded text-[11px] font-medium border ${getPriorityColor(
-                            event.priority
-                          )}`}
+                    {/* Centre: tick + connector */}
+                    <div className="relative flex flex-col w-5 flex-shrink-0 items-center">
+                      <div className={`w-2 h-px flex-shrink-0 ${hasEvents ? 'bg-gray-600' : 'bg-gray-800'}`} />
+                      <div className="flex-1 w-px bg-gray-800/70" />
+
+                      {/* Now dot */}
+                      {isNowHour && (
+                        <div
+                          ref={nowLineRef}
+                          className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-none"
+                          style={{ top: `${fracInHour * 100}%` }}
                         >
-                          {event.priority}
-                        </span>
+                          <div className="w-3 h-3 rounded-full bg-violet-400 border-2 border-violet-300 shadow-md shadow-violet-900/60 -translate-x-1/2 relative left-1/2" />
+                        </div>
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 mt-1 text-xs text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <span className="material-icons text-xs text-violet-400">schedule</span>
-                        {event.type === 'task'
-                          ? `Due: ${formatTime(event.deadline)}`
-                          : `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`}
-                      </span>
+                    {/* Right: cards or empty */}
+                    <div className="flex-1 pl-2 py-0.5">
+                      {hasEvents ? (
+                        <div className="space-y-2 pb-2">
+                          {events.map((ev) => {
+                            const attendance = attendanceState[ev._id] ?? ev.attendanceStatus ?? null;
+                            const timeLabel =
+                              ev.type === 'task'
+                                ? `Due ${ev.deadline}`
+                                : ev.startTime && ev.endTime
+                                  ? `${ev.startTime} – ${ev.endTime}`
+                                  : '';
 
-                      {event.location && (
-                        <span className="flex items-center gap-1 text-gray-300">
-                          <span className="material-icons text-xs text-gray-400">location_on</span>
-                          {event.location}
-                        </span>
-                      )}
+                            const accent =
+                              ev.type === 'class'
+                                ? 'border-l-violet-500 bg-violet-500/5'
+                                : ev.type === 'task'
+                                  ? 'border-l-blue-500 bg-blue-500/5'
+                                  : 'border-l-amber-500 bg-amber-500/5';
 
-                      {event.professor && (
-                        <span className="flex items-center gap-1 text-gray-300">
-                          <span className="material-icons text-xs text-gray-400">person</span>
-                          {event.professor}
-                        </span>
+                            return (
+                              <div
+                                key={ev._id}
+                                className={`flex items-center justify-between gap-3 rounded-r-xl border border-gray-700/60 border-l-2 px-3 py-2.5 transition-all duration-200 hover:border-gray-600 hover:bg-gray-800/60 group ${accent}`}
+                              >
+                                {/* Left: title + meta */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-semibold text-white truncate leading-snug">
+                                    {ev.title}
+                                  </p>
+                                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                                    {timeLabel && (
+                                      <span className="text-[11px] text-gray-500 font-mono">{timeLabel}</span>
+                                    )}
+                                    {ev.location && (
+                                      <span className="flex items-center gap-0.5 text-[11px] text-gray-500">
+                                        <span className="material-icons text-[11px]">location_on</span>
+                                        {ev.location}
+                                      </span>
+                                    )}
+                                    {ev.professor && (
+                                      <span className="flex items-center gap-0.5 text-[11px] text-gray-500">
+                                        <span className="material-icons text-[11px]">person</span>
+                                        {ev.professor}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Right: attendance + delete */}
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  {ev.type === 'class' && (
+                                    <>
+                                      <AttendanceBtn which="present" current={attendance} onClick={(s) => handleAttendance(ev, s)} />
+                                      <AttendanceBtn which="absent"  current={attendance} onClick={(s) => handleAttendance(ev, s)} />
+                                      <AttendanceBtn which="off"     current={attendance} onClick={(s) => handleAttendance(ev, s)} />
+                                    </>
+                                  )}
+                                  <button
+                                    onClick={() => handleDeleteEventClick(ev)}
+                                    className="p-1.5 rounded-lg text-gray-500/40 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer group-hover:text-gray-500 focus:text-rose-400"
+                                    title="Delete"
+                                    aria-label="Delete Event"
+                                  >
+                                    <span className="material-icons text-sm">delete_outline</span>
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="h-full" />
                       )}
                     </div>
 
-                    {isCancelled && event.cancelReason && (
-                      <p className="text-xs text-rose-400 mt-1 font-medium">
-                        Reason: {event.cancelReason}
-                      </p>
+                    {/* Now horizontal line */}
+                    {isNowHour && (
+                      <div
+                        className="absolute left-14 right-0 h-px bg-gradient-to-r from-violet-500/80 to-transparent pointer-events-none z-10"
+                        style={{ top: `${fracInHour * 100}%` }}
+                      />
                     )}
                   </div>
+                );
+              })}
+
+              {/* 24:00 end label */}
+              <div className="flex gap-0">
+                <div className="w-14 flex-shrink-0 flex justify-end">
+                  <span className="text-[11px] font-mono text-gray-600 -translate-y-[6px]">24:00</span>
                 </div>
-
-                {/* Right Side: Status Badge & Interactive Actions */}
-                <div className="flex items-center gap-3 self-end md:self-center">
-                  {/* Task Toggle Button */}
-                  {event.type === 'task' && !isCancelled && (
-                    <button
-                      onClick={() => handleToggleTaskStatus(event)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition border cursor-pointer ${
-                        isCompleted
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-                          : 'bg-gray-800 text-gray-300 hover:text-white border-gray-700 hover:border-emerald-500'
-                      }`}
-                    >
-                      <span className="material-icons text-sm">
-                        {isCompleted ? 'check_circle' : 'radio_button_unchecked'}
-                      </span>
-                      <span>{isCompleted ? 'Completed' : 'Mark Done'}</span>
-                    </button>
-                  )}
-
-                  {/* Cut / Cancel Class Button */}
-                  {event.type === 'class' && !isCancelled && !isCompleted && (
-                    <button
-                      onClick={() => handleCutClass(event._id)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <span className="material-icons text-xs">close</span>
-                      <span>Cut Class</span>
-                    </button>
-                  )}
-
-                  {/* Delete Button */}
-                  <button
-                    onClick={() => handleDeleteEventClick(event)}
-                    className="p-1.5 rounded-lg text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
-                    title="Delete permanently"
-                    aria-label="Delete Event"
-                  >
-                    <span className="material-icons text-sm">delete_outline</span>
-                  </button>
-
-                  {/* Status Indicator */}
-                  <span
-                    className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${getStatusColor(
-                      event.status
-                    )}`}
-                  >
-                    {event.status}
-                  </span>
+                <div className="w-5 flex-shrink-0 flex items-center">
+                  <div className="w-2 h-px bg-gray-700" />
                 </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
+
+          {/* Empty state overlay */}
+          {schedule.length === 0 && !loading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-32">
+              <span className="material-icons text-5xl text-violet-500/20 mb-3">event_available</span>
+              <h4 className="text-base font-semibold text-gray-500">No events scheduled</h4>
+              <p className="text-xs text-gray-600 mt-1">Add classes or tasks to see them on the timeline.</p>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Add Event Modal */}
+      {/* ── Add Event Modal ── */}
       {showAddEventModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-violet-700/40 shadow-2xl">
@@ -632,14 +531,14 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
               </h3>
               <button
                 onClick={() => setShowAddEventModal(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800"
+                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 cursor-pointer"
               >
                 <span className="material-icons">close</span>
               </button>
             </div>
 
             <div className="space-y-4 text-sm">
-              {/* Event Type */}
+              {/* Type */}
               <div>
                 <label className="block text-gray-300 mb-1.5 font-medium">Type</label>
                 <div className="grid grid-cols-3 gap-2">
@@ -648,7 +547,7 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                       key={type}
                       type="button"
                       onClick={() => setNewEvent((prev) => ({ ...prev, type }))}
-                      className={`py-2 px-3 rounded-xl border text-center font-semibold capitalize transition ${
+                      className={`py-2 px-3 rounded-xl border text-center font-semibold capitalize transition cursor-pointer ${
                         newEvent.type === type
                           ? 'bg-violet-600 border-violet-500 text-white'
                           : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:bg-gray-700'
@@ -697,9 +596,7 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                     <input
                       type="time"
                       value={newEvent.startTime}
-                      onChange={(e) =>
-                        setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))
-                      }
+                      onChange={(e) => setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))}
                       className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
                     />
                   </div>
@@ -715,42 +612,26 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                 </div>
               )}
 
-              {/* Priority & Location */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Priority</label>
-                  <select
-                    value={newEvent.priority}
-                    onChange={(e) => setNewEvent((prev) => ({ ...prev, priority: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Location (Room/Hall)</label>
-                  <input
-                    type="text"
-                    value={newEvent.location}
-                    onChange={(e) => setNewEvent((prev) => ({ ...prev, location: e.target.value }))}
-                    placeholder="e.g. CC-1 / Lab 2"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
-                  />
-                </div>
+              {/* Location */}
+              <div>
+                <label className="block text-gray-300 mb-1.5 font-medium">Location (Room/Hall)</label>
+                <input
+                  type="text"
+                  value={newEvent.location}
+                  onChange={(e) => setNewEvent((prev) => ({ ...prev, location: e.target.value }))}
+                  placeholder="e.g. CC-1 / Lab 2"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                />
               </div>
 
-              {/* Professor for Classes */}
+              {/* Professor (classes only) */}
               {newEvent.type === 'class' && (
                 <div>
                   <label className="block text-gray-300 mb-1.5 font-medium">Professor Name</label>
                   <input
                     type="text"
                     value={newEvent.professor}
-                    onChange={(e) =>
-                      setNewEvent((prev) => ({ ...prev, professor: e.target.value }))
-                    }
+                    onChange={(e) => setNewEvent((prev) => ({ ...prev, professor: e.target.value }))}
                     placeholder="e.g. Dr. A. Sharma"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
                   />
@@ -769,93 +650,38 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
         </div>
       )}
 
-      {/* Confirmation Modal for Cutting or Deleting Event */}
+      {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-rose-900/50 shadow-2xl">
-            {showDeleteConfirm.mode === 'cut' ? (
-              <>
-                <h3 className="text-xl font-bold text-rose-400 mb-2 flex items-center gap-2">
-                  <span className="material-icons">event_busy</span>
-                  Cut / Cancel Class
-                </h3>
-                <p className="text-sm text-gray-300 mb-4">
-                  Would you like to mark <strong className="text-white">"{showDeleteConfirm.title}"</strong> as cancelled with a reason, or completely delete it?
-                </p>
-
-                <div className="mb-5">
-                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-                    Cancellation Reason (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    placeholder="e.g. Professor on leave, Sick, Fest preparation"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500"
-                  />
-                  <p className="text-[11px] text-gray-500 mt-1">
-                    Providing a reason marks the class as Cancelled. Leaving blank deletes it.
-                  </p>
-                </div>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => confirmCutClass(showDeleteConfirm.id)}
-                    className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-lg shadow-rose-900/30 cursor-pointer"
-                  >
-                    {cancelReason.trim() ? 'Mark Cancelled' : 'Delete Permanently'}
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteConfirm(null)}
-                    className="px-5 bg-gray-800 hover:bg-gray-750 text-gray-300 py-2.5 rounded-xl transition text-sm cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-2 mb-2 text-rose-400">
-                  <span className="material-icons text-xl">delete_forever</span>
-                  <h3 className="text-lg font-bold text-white">
-                    Delete {showDeleteConfirm.type === 'class' ? 'Class' : showDeleteConfirm.type === 'task' ? 'Task' : 'Event'}?
-                  </h3>
-                </div>
-                <p className="text-sm text-gray-300 mb-5">
-                  Are you sure you want to permanently delete <strong className="text-white">"{showDeleteConfirm.title}"</strong> from your schedule? This action cannot be undone.
-                </p>
-
-                <div className="flex gap-3 justify-end">
-                  <button
-                    onClick={() => setShowDeleteConfirm(null)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-750 text-gray-300 transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={async () => {
-                      const id = showDeleteConfirm.id;
-                      setShowDeleteConfirm(null);
-                      try {
-                        await deleteScheduleEvent(id);
-                        setSchedule((prev) => prev.filter((item) => item._id !== id));
-                        toast.success('Removed from schedule');
-                        if (onScheduleChanged) onScheduleChanged();
-                      } catch (err) {
-                        toast.error('Failed to remove event');
-                      }
-                    }}
-                    className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow-lg shadow-rose-900/30 cursor-pointer"
-                  >
-                    Delete Permanently
-                  </button>
-                </div>
-              </>
-            )}
+            <div className="flex items-center gap-2 mb-2 text-rose-400">
+              <span className="material-icons text-xl">delete_forever</span>
+              <h3 className="text-lg font-bold text-white">
+                Delete {showDeleteConfirm.type === 'class' ? 'Class' : showDeleteConfirm.type === 'task' ? 'Task' : 'Event'}?
+              </h3>
+            </div>
+            <p className="text-sm text-gray-300 mb-5">
+              Are you sure you want to permanently delete{' '}
+              <strong className="text-white">"{showDeleteConfirm.title}"</strong> from your schedule? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(null)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow-lg shadow-rose-900/30 cursor-pointer"
+              >
+                Delete Permanently
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
+

@@ -7,10 +7,7 @@ import * as dashboardApi from "../../api/dashboard.api";
 // Mock Auth Context
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({
-    user: {
-      username: "tanish",
-      fullName: "Tanish Sharma",
-    },
+    user: { username: "tanish", fullName: "Tanish Sharma" },
   }),
 }));
 
@@ -27,13 +24,13 @@ describe("DailySchedule Component Tests", () => {
     vi.clearAllMocks();
   });
 
-  it("renders Add Event button to the left of Pick Date and excludes viewMode filter tabs", async () => {
+  it("renders Add Event button to the left of Pick Date and omits old filter tabs", async () => {
     console.log("TRACE [DailySchedule.test.jsx]: Testing button layout and absence of viewMode filter tabs");
 
     dashboardApi.fetchSchedule.mockResolvedValue([
       {
         _id: "evt-1",
-        title: "Database Systems Lecture",
+        title: "Database Systems",
         type: "class",
         startTime: "10:00",
         endTime: "11:00",
@@ -46,27 +43,91 @@ describe("DailySchedule Component Tests", () => {
     render(<DailySchedule onScheduleChanged={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Database Systems Lecture")).toBeInTheDocument();
+      expect(screen.getByText("Database Systems")).toBeInTheDocument();
     });
 
     // Check that Add Event button is present
     const addEventBtn = screen.getByRole("button", { name: /Add Event/i });
     expect(addEventBtn).toBeInTheDocument();
 
-    // Check that Pick Date input / button is present
+    // Check that Pick Date input is present
     const pickDateInput = screen.getByLabelText("Pick Date");
     expect(pickDateInput).toBeInTheDocument();
 
-    // Verify ordering: Add Event comes before Pick Date in the DOM
+    // Verify Add Event comes before Pick Date in the DOM
     expect(addEventBtn.compareDocumentPosition(pickDateInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    // Verify "All Items", "Upcoming", and "Past / Done" tabs are NOT rendered
+    // Old filter tabs must not exist
     expect(screen.queryByText("All Items")).not.toBeInTheDocument();
     expect(screen.queryByText("Upcoming")).not.toBeInTheDocument();
     expect(screen.queryByText("Past / Done")).not.toBeInTheDocument();
   });
 
-  it("navigates left and right by 1 day cleanly without timezone drift and re-centers", async () => {
+  it("renders attendance buttons (Present, Absent, Class Off) for class-type events", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing attendance button rendering for class events");
+
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "cls-1",
+        title: "Operating Systems",
+        type: "class",
+        startTime: "09:00",
+        endTime: "10:00",
+        status: "pending",
+      },
+    ]);
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Operating Systems")).toBeInTheDocument();
+    });
+
+    // All three attendance buttons should be visible
+    expect(screen.getByRole("button", { name: /Present/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Absent/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Class Off/i })).toBeInTheDocument();
+
+    // Old cut-class / status buttons must not exist
+    expect(screen.queryByText("Cut Class")).not.toBeInTheDocument();
+    expect(screen.queryByText("Mark Done")).not.toBeInTheDocument();
+  });
+
+  it("calls updateScheduleEvent with attendanceStatus when clicking attendance button", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing attendance toggle -> updateScheduleEvent");
+
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "cls-2",
+        title: "Data Structures",
+        type: "class",
+        startTime: "11:00",
+        endTime: "12:00",
+        status: "pending",
+        attendanceStatus: null,
+      },
+    ]);
+    dashboardApi.updateScheduleEvent.mockResolvedValue({ attendanceStatus: "present" });
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Data Structures")).toBeInTheDocument();
+    });
+
+    const presentBtn = screen.getByRole("button", { name: /Present/i });
+    fireEvent.click(presentBtn);
+
+    await waitFor(() => {
+      expect(dashboardApi.updateScheduleEvent).toHaveBeenCalledWith(
+        "cls-2",
+        expect.objectContaining({ attendanceStatus: "present" })
+      );
+    });
+    console.log("TRACE [DailySchedule.test.jsx]: updateScheduleEvent called correctly with attendanceStatus=present");
+  });
+
+  it("navigates left and right by 1 day and switches back to today", async () => {
     console.log("TRACE [DailySchedule.test.jsx]: Testing date navigation chevron buttons");
 
     dashboardApi.fetchSchedule.mockResolvedValue([]);
@@ -79,7 +140,6 @@ describe("DailySchedule Component Tests", () => {
 
     const initialCallsCount = dashboardApi.fetchSchedule.mock.calls.length;
 
-    // Click Previous Day (<)
     const prevBtn = screen.getByRole("button", { name: "Previous Day" });
     fireEvent.click(prevBtn);
 
@@ -87,15 +147,14 @@ describe("DailySchedule Component Tests", () => {
       expect(dashboardApi.fetchSchedule.mock.calls.length).toBeGreaterThan(initialCallsCount);
     });
 
-    const prevDateArg = dashboardApi.fetchSchedule.mock.calls[dashboardApi.fetchSchedule.mock.calls.length - 1][0];
-    console.log("TRACE [DailySchedule.test.jsx]: Date requested after clicking Previous Day:", prevDateArg);
+    const prevDateArg = dashboardApi.fetchSchedule.mock.calls.at(-1)[0];
+    console.log("TRACE [DailySchedule.test.jsx]: Date after Previous Day click:", prevDateArg);
 
-    // "Switch to Today" button should now be visible because we are not on today
+    // Switch to Today button should now be visible
     const todayBtn = screen.getByRole("button", { name: /Switch to Today/i });
     expect(todayBtn).toBeInTheDocument();
     expect(screen.getByText(/Current Time:/i)).toBeInTheDocument();
 
-    // Click Next Day (>)
     const nextBtn = screen.getByRole("button", { name: "Next Day" });
     fireEvent.click(nextBtn);
 
@@ -103,20 +162,18 @@ describe("DailySchedule Component Tests", () => {
       expect(dashboardApi.fetchSchedule.mock.calls.length).toBeGreaterThan(initialCallsCount + 1);
     });
 
-    const nextDateArg = dashboardApi.fetchSchedule.mock.calls[dashboardApi.fetchSchedule.mock.calls.length - 1][0];
-    console.log("TRACE [DailySchedule.test.jsx]: Date requested after clicking Next Day:", nextDateArg);
+    const nextDateArg = dashboardApi.fetchSchedule.mock.calls.at(-1)[0];
+    console.log("TRACE [DailySchedule.test.jsx]: Date after Next Day click:", nextDateArg);
 
-    // Click Next Day again to move +1 from today
+    // Move one more day forward, then switch to today
     fireEvent.click(nextBtn);
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Switch to Today/i })).toBeInTheDocument();
     });
 
-    // Click Switch to Today button to jump back
     fireEvent.click(screen.getByRole("button", { name: /Switch to Today/i }));
     await waitFor(() => {
       expect(screen.queryByRole("button", { name: /Switch to Today/i })).not.toBeInTheDocument();
-      // Current Time remains visible
       expect(screen.getByText(/Current Time:/i)).toBeInTheDocument();
     });
   });
@@ -138,6 +195,7 @@ describe("DailySchedule Component Tests", () => {
     await waitFor(() => {
       expect(dashboardApi.fetchSchedule).toHaveBeenCalledWith("2026-10-15");
     });
+    console.log("TRACE [DailySchedule.test.jsx]: fetchSchedule called with 2026-10-15");
   });
 
   it("shows custom confirmation popup when clicking delete on a schedule event", async () => {
@@ -161,7 +219,7 @@ describe("DailySchedule Component Tests", () => {
       expect(screen.getByText("Calculus Lab")).toBeInTheDocument();
     });
 
-    // Click delete icon
+    // Delete button is opacity-0 but focusable; trigger via aria-label
     const deleteBtn = screen.getByLabelText("Delete Event");
     fireEvent.click(deleteBtn);
 
@@ -175,6 +233,7 @@ describe("DailySchedule Component Tests", () => {
     await waitFor(() => {
       expect(dashboardApi.deleteScheduleEvent).toHaveBeenCalledWith("evt-to-delete");
     });
+    console.log("TRACE [DailySchedule.test.jsx]: deleteScheduleEvent called correctly for Calculus Lab");
   });
 
   it("allows adding a new event via Add Event modal", async () => {
@@ -213,11 +272,12 @@ describe("DailySchedule Component Tests", () => {
 
     await waitFor(() => {
       expect(dashboardApi.createScheduleEvent).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "AI Workshop",
-        })
+        expect.objectContaining({ title: "AI Workshop" })
       );
       expect(screen.getByText("AI Workshop")).toBeInTheDocument();
     });
+    console.log("TRACE [DailySchedule.test.jsx]: createScheduleEvent called and event rendered");
   });
 });
+
+
