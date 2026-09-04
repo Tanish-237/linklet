@@ -61,6 +61,21 @@ const scheduleSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
+    classType: {
+      type: String,
+      enum: ["Lecture", "Lab", "Tutorial", "Class"],
+      default: "Lecture",
+    },
+    subjectName: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    attendanceStatus: {
+      type: String,
+      enum: ["present", "absent", "off", null],
+      default: null,
+    },
   },
   {
     timestamps: true,

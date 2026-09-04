@@ -24,6 +24,13 @@ const mockDeleteCourse = jest.fn();
 const mockUpsertAttendanceRecord = jest.fn();
 const mockRemoveAttendanceRecord = jest.fn();
 const mockBulkCreateCourses = jest.fn();
+const mockTimetableFindOne = jest.fn();
+
+jest.unstable_mockModule("../src/models/timetable.model.js", () => ({
+  Timetable: {
+    findOne: mockTimetableFindOne,
+  },
+}));
 
 jest.unstable_mockModule("../models/question.js", () => ({
   Question: {
@@ -212,6 +219,77 @@ describe("Dashboard Service & Controller Unit Tests", () => {
 
       expect(created.title).toBe("Compiler Lab");
       expect(mockCreateEvent).toHaveBeenCalled();
+    });
+  });
+
+  describe("dashboardService.updateScheduleEvent & deleteScheduleEvent", () => {
+    it("updates a regular schedule event successfully", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing regular updateScheduleEvent");
+      mockFindEventById.mockResolvedValue({ _id: "evt123", userId: "user123" });
+      mockUpdateEvent.mockResolvedValue({ _id: "evt123", title: "Updated Title" });
+
+      const updated = await dashboardService.updateScheduleEvent("user123", "evt123", { title: "Updated Title" });
+      expect(updated.title).toBe("Updated Title");
+      expect(mockUpdateEvent).toHaveBeenCalledWith("evt123", "user123", { title: "Updated Title" });
+    });
+
+    it("updates a timetable class directly in timetable model", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing timetable class updateScheduleEvent");
+      const mockSave = jest.fn();
+      const mockClass = {
+        _id: "class456",
+        title: "Old Title",
+        subjectName: "Networks",
+        classType: "Lecture",
+        startTime: "15:00",
+        endTime: "16:00",
+      };
+      mockTimetableFindOne.mockResolvedValue({
+        classes: {
+          id: jest.fn().mockReturnValue(mockClass),
+        },
+        save: mockSave,
+      });
+
+      const updated = await dashboardService.updateScheduleEvent("user123", "tt_class456", {
+        subjectName: "Advanced Networks",
+        classType: "Lab",
+        startTime: "15:00",
+        endTime: "17:00",
+      });
+
+      expect(mockClass.subjectName).toBe("Advanced Networks");
+      expect(mockClass.classType).toBe("Lab");
+      expect(mockClass.endTime).toBe("17:00");
+      expect(mockSave).toHaveBeenCalled();
+      expect(updated.isFromTimetable).toBe(true);
+    });
+
+    it("deletes a regular schedule event", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing regular deleteScheduleEvent");
+      mockDeleteEvent.mockResolvedValue({ _id: "evt123" });
+
+      const result = await dashboardService.deleteScheduleEvent("user123", "evt123");
+      expect(result).toBeDefined();
+      expect(mockDeleteEvent).toHaveBeenCalledWith("evt123", "user123");
+    });
+
+    it("deletes a timetable class directly from timetable", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing timetable class deleteScheduleEvent");
+      const mockPull = jest.fn();
+      const mockSave = jest.fn();
+      mockTimetableFindOne.mockResolvedValue({
+        classes: {
+          id: jest.fn().mockReturnValue({ _id: "class456" }),
+          pull: mockPull,
+        },
+        save: mockSave,
+      });
+
+      const res = await dashboardService.deleteScheduleEvent("user123", "tt_class456");
+      expect(res.message).toContain("successfully");
+      expect(mockPull).toHaveBeenCalledWith({ _id: "class456" });
+      expect(mockSave).toHaveBeenCalled();
     });
   });
 

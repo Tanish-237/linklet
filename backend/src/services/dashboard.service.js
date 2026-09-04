@@ -101,8 +101,9 @@ export const getDailySchedule = async (userId, date) => {
         userId,
         type: "class",
         title: c.title || `${c.subjectName} (${c.classType || "Lecture"})`,
-        subjectName: c.subjectName,
-        courseCode: c.courseCode,
+        subjectName: c.subjectName || "",
+        courseCode: c.courseCode || "",
+        classType: c.classType || "Lecture",
         startTime: c.startTime,
         endTime: c.endTime,
         deadline: c.endTime || c.startTime,
@@ -124,7 +125,7 @@ export const getDailySchedule = async (userId, date) => {
 };
 
 export const createScheduleEvent = async (userId, eventData) => {
-  const { title, type, startTime, endTime, deadline, date, priority, status, location, professor } = eventData;
+  const { title, type, classType, subjectName, startTime, endTime, deadline, date, priority, status, location, professor, attendanceStatus } = eventData;
 
   if (!title || !title.trim()) {
     throw new AppError("Title or subject name is required", 400);
@@ -140,6 +141,8 @@ export const createScheduleEvent = async (userId, eventData) => {
     userId,
     title: title.trim(),
     type: type || "event",
+    classType: classType || "Lecture",
+    subjectName: subjectName || title.trim(),
     startTime: startTime || "",
     endTime: endTime || "",
     deadline: deadline || startTime || "",
@@ -148,12 +151,52 @@ export const createScheduleEvent = async (userId, eventData) => {
     status: status || "pending",
     location: location || "",
     professor: professor || "",
+    attendanceStatus: attendanceStatus || null,
   });
 };
 
 export const updateScheduleEvent = async (userId, eventId, updateData) => {
   if (typeof eventId === "string" && eventId.startsWith("tt_")) {
-    throw new AppError("Timetable classes cannot be edited from here. Use the Weekly Timetable to manage them.", 400);
+    const classId = eventId.replace("tt_", "");
+    const timetable = await Timetable.findOne({ userId });
+    if (timetable && timetable.classes) {
+      const cls = typeof timetable.classes.id === "function"
+        ? timetable.classes.id(classId)
+        : Array.isArray(timetable.classes)
+          ? timetable.classes.find((c) => String(c._id) === classId)
+          : null;
+      if (cls) {
+        if (updateData.title !== undefined) cls.title = updateData.title;
+        if (updateData.subjectName !== undefined) cls.subjectName = updateData.subjectName;
+        if (updateData.classType !== undefined) cls.classType = updateData.classType;
+        if (updateData.startTime !== undefined) cls.startTime = updateData.startTime;
+        if (updateData.endTime !== undefined) cls.endTime = updateData.endTime;
+        if (updateData.location !== undefined) cls.location = updateData.location;
+        if (updateData.professor !== undefined) cls.professor = updateData.professor;
+        await timetable.save();
+        return {
+          _id: eventId,
+          userId,
+          type: "class",
+          title: cls.title || `${cls.subjectName} (${cls.classType || "Lecture"})`,
+          subjectName: cls.subjectName,
+          courseCode: cls.courseCode,
+          classType: cls.classType || "Lecture",
+          startTime: cls.startTime,
+          endTime: cls.endTime,
+          deadline: cls.endTime || cls.startTime,
+          location: cls.location || "",
+          professor: cls.professor || "",
+          attendanceStatus: updateData.attendanceStatus !== undefined ? updateData.attendanceStatus : null,
+          isFromTimetable: true,
+        };
+      }
+    }
+    // If only attendanceStatus is being updated on a timetable item whose parent model isn't found
+    if (updateData.attendanceStatus !== undefined) {
+      return { _id: eventId, ...updateData };
+    }
+    throw new AppError("Timetable class not found", 404);
   }
   const existing = await scheduleRepo.findEventById(eventId, userId);
   if (!existing) {
@@ -166,7 +209,25 @@ export const updateScheduleEvent = async (userId, eventId, updateData) => {
 
 export const deleteScheduleEvent = async (userId, eventId) => {
   if (typeof eventId === "string" && eventId.startsWith("tt_")) {
-    throw new AppError("Timetable classes cannot be deleted from here. Use the Weekly Timetable to manage them.", 400);
+    const classId = eventId.replace("tt_", "");
+    const timetable = await Timetable.findOne({ userId });
+    if (timetable && timetable.classes) {
+      const cls = typeof timetable.classes.id === "function"
+        ? timetable.classes.id(classId)
+        : Array.isArray(timetable.classes)
+          ? timetable.classes.find((c) => String(c._id) === classId)
+          : null;
+      if (cls) {
+        if (typeof timetable.classes.pull === "function") {
+          timetable.classes.pull({ _id: classId });
+        } else if (Array.isArray(timetable.classes)) {
+          timetable.classes = timetable.classes.filter((c) => String(c._id) !== classId);
+        }
+        await timetable.save();
+        return { message: "Timetable class deleted successfully" };
+      }
+    }
+    throw new AppError("Timetable class not found", 404);
   }
   const deleted = await scheduleRepo.deleteEvent(eventId, userId);
   if (!deleted) {

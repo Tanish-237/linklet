@@ -298,6 +298,10 @@ export default function Dashboard() {
         <div className="relative z-10 grid grid-cols-1 xl:grid-cols-2 gap-8">
           <DailySchedule
             onScheduleChanged={loadStats}
+            onAttendanceChanged={() => {
+              loadStats();
+              triggerRefresh();
+            }}
             addEventTrigger={addEventTrigger}
             refreshTrigger={refreshTrigger}
           />
