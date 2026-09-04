@@ -53,6 +53,11 @@
 }
 
 /* Custom Scrollbar */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.3) rgba(0, 0, 0, 0.2);
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 4px;
 }

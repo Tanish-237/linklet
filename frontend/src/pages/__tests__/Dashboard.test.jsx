@@ -243,6 +243,70 @@ describe("Dashboard Component Tests", () => {
     // Open dropdown again and click Upload New Timetable (second option)
     fireEvent.click(timetableOptionsBtn);
     fireEvent.click(screen.getByText("Upload New Timetable"));
+
+    // Warning confirmation modal should be displayed warning about wipe
+    expect(screen.getByText("Upload New Timetable?")).toBeInTheDocument();
+    expect(screen.getByText(/permanently wipe/i)).toBeInTheDocument();
+
+    // Click Proceed to Upload
+    fireEvent.click(screen.getByRole("button", { name: /Proceed to Upload/i }));
     expect(screen.getByTestId("mock-upload-modal")).toBeInTheDocument();
+  });
+
+  it("handles attendance click from DailySchedule and triggers stats reload without crashing on triggerRefresh", async () => {
+    console.log("TRACE [Dashboard.test.jsx]: Testing onAttendanceChanged trigger in Dashboard");
+
+    dashboardApi.fetchDashboardStats.mockResolvedValue({
+      metrics: { questionsCount: 1, answersCount: 1, resourcesCount: 1, bookmarksCount: 1 },
+      recentActivity: { questions: [], resources: [] },
+    });
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "s-dash-1",
+        title: "Compiler Design",
+        subjectName: "Compiler Design",
+        type: "class",
+        classType: "Lecture",
+        startTime: "09:00",
+        endTime: "10:00",
+        status: "pending",
+      },
+    ]);
+    dashboardApi.fetchAttendance.mockResolvedValue({
+      overall: { totalPresent: 1, totalAbsent: 0, totalClasses: 1, percentage: 100 },
+      courses: [
+        {
+          _id: "c-dash-1",
+          courseName: "Compiler Design",
+          stats: { present: 1, absent: 0, total: 1, percentage: 100, isSafe: true },
+          records: [],
+        },
+      ],
+    });
+    dashboardApi.markAttendance.mockResolvedValue({ success: true });
+    dashboardApi.updateScheduleEvent.mockResolvedValue({ attendanceStatus: "present" });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Compiler Design").length).toBeGreaterThan(0);
+    });
+
+    const presentBtn = screen.getByRole("button", { name: /Present/i });
+    expect(presentBtn).toBeInTheDocument();
+
+    fireEvent.click(presentBtn);
+
+    await waitFor(() => {
+      expect(dashboardApi.markAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseId: "c-dash-1",
+          status: "present",
+        })
+      );
+      // Verify fetchDashboardStats was re-triggered without ReferenceError
+      expect(dashboardApi.fetchDashboardStats.mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
+    console.log("TRACE [Dashboard.test.jsx]: onAttendanceChanged executed successfully without triggerRefresh error");
   });
 });

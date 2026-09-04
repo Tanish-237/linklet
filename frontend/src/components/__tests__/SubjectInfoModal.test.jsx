@@ -171,6 +171,10 @@ describe("SubjectInfoModal Component Tests", () => {
       target: { value: "Dr. R. K. Singh" },
     });
 
+    // Check Includes Lab Component
+    const labCheckbox = screen.getByLabelText(/Includes Lab Component/i);
+    fireEvent.click(labCheckbox);
+
     // Submit
     fireEvent.click(screen.getByRole("button", { name: /^add subject$/i }));
 
@@ -180,10 +184,44 @@ describe("SubjectInfoModal Component Tests", () => {
           courseName: "Computer Networks",
           courseCode: "CS302",
           professor: "Dr. R. K. Singh",
+          hasLab: true,
         })
       );
       expect(mockChanged).toHaveBeenCalled();
     });
+  });
+
+  it("renders Class + Lab badge when course hasLab: true and Class Only when false", async () => {
+    console.log("TRACE [SubjectInfoModal.test.jsx]: Testing Class + Lab vs Class Only badges");
+
+    dashboardApi.fetchAttendance.mockResolvedValue({
+      courses: [
+        {
+          _id: "c1",
+          courseName: "Compiler Design",
+          courseCode: "CS301",
+          hasLab: true,
+        },
+        {
+          _id: "c2",
+          courseName: "Economics",
+          courseCode: "HS201",
+          hasLab: false,
+        },
+      ],
+    });
+
+    render(
+      <SubjectInfoModal isOpen={true} onClose={vi.fn()} onSubjectsChanged={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Compiler Design")).toBeInTheDocument();
+      expect(screen.getByText("Economics")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Class + Lab")).toBeInTheDocument();
+    expect(screen.getByText("Class Only")).toBeInTheDocument();
   });
 
   it("allows deleting a subject with confirmation", async () => {

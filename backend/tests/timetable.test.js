@@ -6,6 +6,8 @@ const mockTimetableFindOne = jest.fn();
 const mockTimetableFindOneAndDelete = jest.fn();
 const mockAttendanceFindOne = jest.fn();
 const mockAttendanceCreate = jest.fn();
+const mockAttendanceDeleteMany = jest.fn();
+const mockScheduleDeleteMany = jest.fn();
 const mockScheduleFindByUserIdAndDate = jest.fn();
 
 jest.unstable_mockModule('../src/models/timetable.model.js', () => ({
@@ -21,6 +23,13 @@ jest.unstable_mockModule('../src/models/attendance.model.js', () => ({
     findOne: mockAttendanceFindOne,
     create: mockAttendanceCreate,
     updateOne: jest.fn().mockResolvedValue({}),
+    deleteMany: mockAttendanceDeleteMany,
+  },
+}));
+
+jest.unstable_mockModule('../src/models/schedule.model.js', () => ({
+  Schedule: {
+    deleteMany: mockScheduleDeleteMany,
   },
 }));
 
@@ -168,8 +177,10 @@ describe('Timetable Unit Tests', () => {
 
   // ── 4. confirmAndSaveTimetable ─────────────────────────────────────────────
   describe('confirmAndSaveTimetable', () => {
-    it('should save timetable and auto-register distinct courses in Attendance Guardian', async () => {
-      console.log('[TEST] confirmAndSaveTimetable › saving timetable and auto-syncing attendance');
+    it('should save timetable and auto-register distinct courses in Attendance Guardian, wiping existing schedule and attendance by default', async () => {
+      console.log('[TEST] confirmAndSaveTimetable › saving timetable and auto-syncing attendance with wipe');
+      mockScheduleDeleteMany.mockResolvedValue({ deletedCount: 5 });
+      mockAttendanceDeleteMany.mockResolvedValue({ deletedCount: 3 });
       mockTimetableFindOneAndUpdate.mockResolvedValue({
         _id: 'tt123', userId: 'user1', branch: 'CSE',
       });
@@ -191,15 +202,73 @@ describe('Timetable Unit Tests', () => {
       });
 
       console.log('[TEST] Attendance courses created count:', result.attendanceCoursesAddedCount);
+      expect(mockScheduleDeleteMany).toHaveBeenCalledWith({ userId: 'user1' });
+      expect(mockAttendanceDeleteMany).toHaveBeenCalledWith({ userId: 'user1' });
       expect(mockTimetableFindOneAndUpdate).toHaveBeenCalledWith(
         { userId: 'user1' },
         expect.objectContaining({ section: 'A1', semester: 4 }),
         expect.any(Object)
       );
       expect(mockAttendanceCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'user1', courseName: 'Microprocessors', professor: 'Dr. Test Prof', totalClasses: 0, attendedClasses: 0 })
+        expect.objectContaining({
+          userId: 'user1',
+          courseName: 'Microprocessors',
+          professor: 'Dr. Test Prof',
+          hasLab: true,
+          totalClasses: 0,
+          attendedClasses: 0,
+        })
       );
       expect(result.attendanceCoursesAddedCount).toBe(1);
+    });
+
+    it('should auto-detect hasLab: true only when classes include Lab type', async () => {
+      console.log('[TEST] confirmAndSaveTimetable › auto-detects hasLab flag accurately');
+      mockScheduleDeleteMany.mockClear();
+      mockAttendanceDeleteMany.mockClear();
+      mockAttendanceCreate.mockClear();
+      mockAttendanceFindOne.mockResolvedValue(null);
+      mockTimetableFindOneAndUpdate.mockResolvedValue({ _id: 'tt123', userId: 'user1' });
+
+      await confirmAndSaveTimetable('user1', {
+        branch: 'CSE',
+        section: 'A1',
+        semester: 4,
+        classes: [
+          { day: 'Monday', dayOfWeek: 1, startTime: '09:00', endTime: '10:00', subjectName: 'Software Engineering', classType: 'Lecture' },
+          { day: 'Tuesday', dayOfWeek: 2, startTime: '11:00', endTime: '13:00', subjectName: 'Computer Networks', classType: 'Lab' },
+        ],
+      });
+
+      expect(mockAttendanceCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseName: 'Software Engineering',
+          hasLab: false,
+        })
+      );
+      expect(mockAttendanceCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseName: 'Computer Networks',
+          hasLab: true,
+        })
+      );
+    });
+
+    it('should NOT wipe schedule and attendance when wipeExisting is false', async () => {
+      console.log('[TEST] confirmAndSaveTimetable › preserves schedule and attendance when wipeExisting is false');
+      mockScheduleDeleteMany.mockClear();
+      mockAttendanceDeleteMany.mockClear();
+      mockTimetableFindOneAndUpdate.mockResolvedValue({ _id: 'tt123', userId: 'user1' });
+      mockAttendanceFindOne.mockResolvedValue({ _id: 'c1', courseName: 'OS' });
+
+      await confirmAndSaveTimetable('user1', {
+        branch: 'CSE',
+        classes: [{ day: 'Monday', dayOfWeek: 1, startTime: '09:00', endTime: '10:00', subjectName: 'OS' }],
+        wipeExisting: false,
+      });
+
+      expect(mockScheduleDeleteMany).not.toHaveBeenCalled();
+      expect(mockAttendanceDeleteMany).not.toHaveBeenCalled();
     });
 
     it('should reject empty classes array', async () => {

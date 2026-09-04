@@ -101,4 +101,56 @@ describe("TimetableUploadModal Component Tests", () => {
 
     console.log("TRACE [TimetableUploadModal.test.jsx]: Re-upload flow verified");
   });
+
+  it("renders reset warning banner and confirms timetable with wipeExisting: true", async () => {
+    console.log("TRACE [TimetableUploadModal.test.jsx]: Testing reset warning banner and wipeExisting flag");
+
+    timetableApi.uploadTimetablePdf.mockResolvedValue({
+      success: true,
+      message: "Extracted 2 classes",
+      data: {
+        branch: "CSE",
+        semester: 5,
+        targetSection: "A1",
+        totalExtracted: 2,
+        totalClassesFound: 2,
+        attendanceSubjects: ["OS"],
+        classes: [
+          { day: "Monday", dayOfWeek: 1, startTime: "09:00", endTime: "10:00", subjectName: "OS", classType: "Lecture" },
+        ],
+      },
+    });
+    timetableApi.confirmTimetable.mockResolvedValue({ success: true, message: "Timetable synced!" });
+
+    render(
+      <TimetableUploadModal isOpen={true} onClose={vi.fn()} userSection="A1" />
+    );
+
+    // Verify warning banner exists in upload state
+    expect(screen.getByText(/Schedule & Attendance Reset Notice/i)).toBeInTheDocument();
+    expect(screen.getByText(/Uploading a new timetable will wipe your existing Daily Schedule/i)).toBeInTheDocument();
+
+    // Upload and scan
+    const fileInput = document.getElementById("timetable-file-input");
+    fireEvent.change(fileInput, { target: { files: [new File(["%PDF"], "sample.pdf", { type: "application/pdf" })] } });
+    fireEvent.click(screen.getByRole("button", { name: /Scan & Extract/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Verify Extracted Classes")).toBeInTheDocument();
+      expect(screen.getByText(/Wipes previous schedule & attendance/i)).toBeInTheDocument();
+    });
+
+    // Confirm & sync
+    fireEvent.click(screen.getByRole("button", { name: /Confirm & Sync/i }));
+
+    await waitFor(() => {
+      expect(timetableApi.confirmTimetable).toHaveBeenCalledWith(
+        expect.objectContaining({
+          wipeExisting: true,
+          section: "A1",
+        })
+      );
+    });
+    console.log("TRACE [TimetableUploadModal.test.jsx]: confirmTimetable successfully invoked with wipeExisting: true");
+  });
 });

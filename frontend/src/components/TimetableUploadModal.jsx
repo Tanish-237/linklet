@@ -128,6 +128,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
         semester: previewData.semester,
         section: previewData.targetSection,
         classes: previewData.classes,
+        wipeExisting: true,
       });
 
       toast.success(res.message || "Schedule & Attendance synced successfully!");
@@ -191,6 +192,17 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                   </div>
                 </div>
               )}
+
+              {/* Wipe Warning Alert */}
+              <div className="p-3.5 bg-amber-950/30 border border-amber-500/30 rounded-xl flex items-start gap-3">
+                <span className="material-icons text-amber-400 text-lg mt-0.5 shrink-0">warning</span>
+                <div>
+                  <div className="text-xs font-semibold text-amber-300">Schedule & Attendance Reset Notice</div>
+                  <p className="text-[11.5px] text-amber-200/80 mt-0.5 leading-relaxed">
+                    Uploading a new timetable will wipe your existing Daily Schedule and reset all Attendance Guardian records for a clean start.
+                  </p>
+                </div>
+              </div>
 
               {/* Drag & Drop Zone */}
               <div
@@ -454,6 +466,10 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
             </>
           ) : (
             <>
+              <div className="mr-auto hidden sm:flex items-center gap-1.5 text-[11.5px] text-amber-400 font-medium">
+                <span className="material-icons text-xs">warning</span>
+                <span>Wipes previous schedule & attendance</span>
+              </div>
               <button
                 type="button"
                 onClick={handleReUpload}

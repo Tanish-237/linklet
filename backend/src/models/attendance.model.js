@@ -12,6 +12,11 @@ const attendanceRecordSchema = new mongoose.Schema(
       enum: ["present", "absent"],
       required: true,
     },
+    recordType: {
+      type: String,
+      enum: ["class", "lab"],
+      default: "class",
+    },
     note: {
       type: String,
       trim: true,
@@ -45,6 +50,10 @@ const attendanceCourseSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: "",
+    },
+    hasLab: {
+      type: Boolean,
+      default: false,
     },
     records: [attendanceRecordSchema],
   },

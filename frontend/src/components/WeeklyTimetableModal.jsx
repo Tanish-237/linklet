@@ -102,6 +102,7 @@ export default function WeeklyTimetableModal({
         semester,
         section,
         classes: updatedClasses,
+        wipeExisting: false,
       });
 
       setTimetable((prev) => ({

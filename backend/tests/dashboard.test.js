@@ -187,6 +187,90 @@ describe("Dashboard Service & Controller Unit Tests", () => {
       // ceil((75 * 2 - 0) / (100 - 75)) = ceil(150 / 25) = 6 classes needed
       expect(overview.courses[0].stats.neededClasses).toBe(6);
     });
+
+    it("separates class and lab stats for courses with hasLab: true, but keeps lab: null for courses without lab", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing separate class and lab stats");
+      mockFindAllByUserId.mockResolvedValue([
+        {
+          _id: "courseWithLab",
+          courseName: "Compiler Design",
+          courseCode: "CS501",
+          hasLab: true,
+          records: [
+            { date: "2026-09-01", status: "present", recordType: "class" },
+            { date: "2026-09-02", status: "absent", recordType: "class" },
+            { date: "2026-09-03", status: "present", recordType: "lab" },
+            { date: "2026-09-04", status: "present", recordType: "lab" },
+          ],
+        },
+        {
+          _id: "courseWithoutLab",
+          courseName: "Engineering Economics",
+          courseCode: "HS201",
+          hasLab: false,
+          records: [
+            { date: "2026-09-01", status: "present", recordType: "class" },
+          ],
+        },
+      ]);
+
+      const overview = await dashboardService.getAttendanceOverview("user123");
+      const c1 = overview.courses.find((c) => c._id === "courseWithLab");
+      const c2 = overview.courses.find((c) => c._id === "courseWithoutLab");
+
+      expect(c1.hasLab).toBe(true);
+      expect(c1.stats.class.total).toBe(2);
+      expect(c1.stats.class.present).toBe(1);
+      expect(c1.stats.class.absent).toBe(1);
+      expect(c1.stats.class.percentage).toBe(50);
+      expect(c1.stats.lab.total).toBe(2);
+      expect(c1.stats.lab.present).toBe(2);
+      expect(c1.stats.lab.absent).toBe(0);
+      expect(c1.stats.lab.percentage).toBe(100);
+
+      expect(c2.hasLab).toBe(false);
+      expect(c2.stats.class.total).toBe(1);
+      expect(c2.stats.class.percentage).toBe(100);
+      expect(c2.stats.lab).toBeNull();
+    });
+  });
+
+  describe("dashboardService.logAttendanceRecord and deleteAttendanceRecord", () => {
+    it("passes recordType to repository upsertAttendanceRecord", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing logAttendanceRecord with recordType");
+      mockUpsertAttendanceRecord.mockResolvedValue({ _id: "c1", records: [] });
+
+      await dashboardService.logAttendanceRecord("user123", {
+        courseId: "c1",
+        date: "2026-09-05",
+        status: "present",
+        recordType: "lab",
+        note: "Lab experiment 1",
+      });
+
+      expect(mockUpsertAttendanceRecord).toHaveBeenCalledWith(
+        "c1",
+        "user123",
+        "2026-09-05",
+        "present",
+        "Lab experiment 1",
+        "lab"
+      );
+    });
+
+    it("passes recordType to repository removeAttendanceRecord", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing deleteAttendanceRecord with recordType");
+      mockRemoveAttendanceRecord.mockResolvedValue({ _id: "c1", records: [] });
+
+      await dashboardService.deleteAttendanceRecord("user123", "c1", "2026-09-05", "lab");
+
+      expect(mockRemoveAttendanceRecord).toHaveBeenCalledWith(
+        "c1",
+        "user123",
+        "2026-09-05",
+        "lab"
+      );
+    });
   });
 
   describe("dashboardService.createScheduleEvent", () => {
@@ -219,6 +303,79 @@ describe("Dashboard Service & Controller Unit Tests", () => {
 
       expect(created.title).toBe("Compiler Lab");
       expect(mockCreateEvent).toHaveBeenCalled();
+    });
+  });
+
+  describe("dashboardService.getDailySchedule", () => {
+    it("matches timetable class attendance even when class title has suffix like (Lecture) or (Lab)", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing getDailySchedule timetable class title suffix stripping");
+
+      mockFindByUserIdAndDate.mockResolvedValue([]);
+      mockTimetableFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          classes: [
+            {
+              _id: "ttcls1",
+              dayOfWeek: 3, // Wednesday
+              title: "Machine Learning with Python (Lab)",
+              classType: "Lab",
+              startTime: "10:00",
+              endTime: "12:00",
+            },
+          ],
+        }),
+      });
+      mockFindAllByUserId.mockResolvedValue([
+        {
+          _id: "ac1",
+          courseName: "Machine Learning with Python",
+          hasLab: true,
+          records: [
+            { date: "2026-09-02", status: "present", recordType: "lab" }, // 2026-09-02 was Wednesday
+          ],
+        },
+      ]);
+
+      const schedule = await dashboardService.getDailySchedule("user123", "2026-09-02");
+      console.log("TRACE [dashboard.test.js]: Daily schedule result:", schedule);
+
+      expect(schedule).toHaveLength(1);
+      expect(schedule[0].title).toBe("Machine Learning with Python (Lab)");
+      expect(schedule[0].attendanceStatus).toBe("present");
+    });
+
+    it("matches lecture classes with recordType 'class' and ignores 'lab' records", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing lecture matching with recordType class");
+      mockFindByUserIdAndDate.mockResolvedValue([]);
+      mockTimetableFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          classes: [
+            {
+              _id: "ttcls2",
+              dayOfWeek: 3,
+              title: "Compiler Design (Lecture)",
+              classType: "Lecture",
+              startTime: "09:00",
+              endTime: "10:00",
+            },
+          ],
+        }),
+      });
+      mockFindAllByUserId.mockResolvedValue([
+        {
+          _id: "ac2",
+          courseName: "Compiler Design",
+          hasLab: true,
+          records: [
+            { date: "2026-09-02", status: "absent", recordType: "lab" },
+            { date: "2026-09-02", status: "present", recordType: "class" },
+          ],
+        },
+      ]);
+
+      const schedule = await dashboardService.getDailySchedule("user123", "2026-09-02");
+      expect(schedule).toHaveLength(1);
+      expect(schedule[0].attendanceStatus).toBe("present");
     });
   });
 

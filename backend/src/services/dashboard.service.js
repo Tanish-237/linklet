@@ -90,30 +90,56 @@ export const getDailySchedule = async (userId, date) => {
   const dayOfWeek = dateObj.getDay();
 
   if (dayOfWeek >= 0 && dayOfWeek <= 6) {
-    const userTimetable = await Timetable.findOne({ userId }).lean();
+    const [userTimetable, userCourses] = await Promise.all([
+      Timetable.findOne({ userId }).lean(),
+      attendanceRepo.findAllByUserId(userId),
+    ]);
+
     if (userTimetable && Array.isArray(userTimetable.classes)) {
       const dayClasses = userTimetable.classes.filter(
         (c) => c.dayOfWeek === dayOfWeek
       );
 
-      const timetableEvents = dayClasses.map((c) => ({
-        _id: `tt_${c._id || Math.random().toString(36).substr(2, 9)}`,
-        userId,
-        type: "class",
-        title: c.title || `${c.subjectName} (${c.classType || "Lecture"})`,
-        subjectName: c.subjectName || "",
-        courseCode: c.courseCode || "",
-        classType: c.classType || "Lecture",
-        startTime: c.startTime,
-        endTime: c.endTime,
-        deadline: c.endTime || c.startTime,
-        date: targetDate,
-        priority: "medium",
-        status: "pending",
-        location: c.location || "",
-        professor: c.professor || "",
-        isFromTimetable: true,
-      }));
+      const timetableEvents = dayClasses.map((c) => {
+        const cSubject = (c.subjectName || c.title || "")
+          .replace(/\s*\((Lab|Lecture|Tutorial|Class)\)/gi, "")
+          .toLowerCase()
+          .trim();
+        const cCode = (c.courseCode || "").toLowerCase().trim();
+        const matchedCourse = (userCourses || []).find((ac) => {
+          const acName = (ac.courseName || "").toLowerCase().trim();
+          const acCode = (ac.courseCode || "").toLowerCase().trim();
+          return (
+            (acName && (acName === cSubject || acName.includes(cSubject) || cSubject.includes(acName))) ||
+            (acCode && (acCode === cCode || cSubject.includes(acCode)))
+          );
+        });
+        const isLabClass = (c.classType || "").toLowerCase() === "lab";
+        const targetRecordType = isLabClass ? "lab" : "class";
+        const dateRecord = matchedCourse?.records?.find(
+          (r) => r.date === targetDate && (r.recordType || "class") === targetRecordType
+        );
+
+        return {
+          _id: `tt_${c._id || Math.random().toString(36).substr(2, 9)}`,
+          userId,
+          type: "class",
+          title: c.title || `${c.subjectName} (${c.classType || "Lecture"})`,
+          subjectName: c.subjectName || "",
+          courseCode: c.courseCode || "",
+          classType: c.classType || "Lecture",
+          startTime: c.startTime,
+          endTime: c.endTime,
+          deadline: c.endTime || c.startTime,
+          date: targetDate,
+          priority: "medium",
+          status: "pending",
+          location: c.location || "",
+          professor: c.professor || "",
+          attendanceStatus: dateRecord?.status || null,
+          isFromTimetable: true,
+        };
+      });
 
       const combined = [...timetableEvents, ...specificEvents];
       combined.sort((a, b) => (a.startTime || "").localeCompare(b.startTime || ""));
@@ -166,14 +192,17 @@ export const updateScheduleEvent = async (userId, eventId, updateData) => {
           ? timetable.classes.find((c) => String(c._id) === classId)
           : null;
       if (cls) {
-        if (updateData.title !== undefined) cls.title = updateData.title;
-        if (updateData.subjectName !== undefined) cls.subjectName = updateData.subjectName;
-        if (updateData.classType !== undefined) cls.classType = updateData.classType;
-        if (updateData.startTime !== undefined) cls.startTime = updateData.startTime;
-        if (updateData.endTime !== undefined) cls.endTime = updateData.endTime;
-        if (updateData.location !== undefined) cls.location = updateData.location;
-        if (updateData.professor !== undefined) cls.professor = updateData.professor;
-        await timetable.save();
+        let hasChanges = false;
+        if (updateData.title !== undefined) { cls.title = updateData.title; hasChanges = true; }
+        if (updateData.subjectName !== undefined) { cls.subjectName = updateData.subjectName; hasChanges = true; }
+        if (updateData.classType !== undefined) { cls.classType = updateData.classType; hasChanges = true; }
+        if (updateData.startTime !== undefined) { cls.startTime = updateData.startTime; hasChanges = true; }
+        if (updateData.endTime !== undefined) { cls.endTime = updateData.endTime; hasChanges = true; }
+        if (updateData.location !== undefined) { cls.location = updateData.location; hasChanges = true; }
+        if (updateData.professor !== undefined) { cls.professor = updateData.professor; hasChanges = true; }
+        if (hasChanges) {
+          await timetable.save();
+        }
         return {
           _id: eventId,
           userId,
@@ -198,8 +227,12 @@ export const updateScheduleEvent = async (userId, eventId, updateData) => {
     }
     throw new AppError("Timetable class not found", 404);
   }
+
   const existing = await scheduleRepo.findEventById(eventId, userId);
   if (!existing) {
+    if (updateData.attendanceStatus !== undefined) {
+      return { _id: eventId, ...updateData };
+    }
     throw new AppError("Schedule event not found or unauthorized", 404);
   }
 
@@ -237,25 +270,29 @@ export const deleteScheduleEvent = async (userId, eventId) => {
 };
 
 export const getAttendanceOverview = async (userId) => {
-  const courses = await attendanceRepo.findAllByUserId(userId);
+  const timetableQuery = Timetable.findOne({ userId });
+  const userTimetablePromise =
+    timetableQuery && typeof timetableQuery.lean === "function"
+      ? timetableQuery.lean()
+      : Promise.resolve(timetableQuery || null);
+
+  const [courses, userTimetable] = await Promise.all([
+    attendanceRepo.findAllByUserId(userId),
+    userTimetablePromise,
+  ]);
 
   let totalPresentOverall = 0;
   let totalClassesOverall = 0;
 
-  const coursesWithStats = courses.map((course) => {
-    const records = course.records || [];
-    const present = records.filter((r) => r.status === "present").length;
-    const absent = records.filter((r) => r.status === "absent").length;
+  const calculateStats = (recordsList) => {
+    const present = recordsList.filter((r) => r.status === "present").length;
+    const absent = recordsList.filter((r) => r.status === "absent").length;
     const total = present + absent;
     const target = 75; // Standard 75% requirement
-
-    totalPresentOverall += present;
-    totalClassesOverall += total;
 
     const percentage = total > 0 ? ((present / total) * 100).toFixed(1) : "0.0";
     const numPercentage = parseFloat(percentage);
 
-    // Bunk safety: how many classes can safely be skipped while staying >= target
     let skippableClasses = 0;
     let neededClasses = 0;
 
@@ -272,19 +309,61 @@ export const getAttendanceOverview = async (userId) => {
     }
 
     return {
+      present,
+      absent,
+      total,
+      percentage: numPercentage,
+      skippableClasses,
+      neededClasses,
+      isSafe: numPercentage >= target,
+    };
+  };
+
+  const coursesWithStats = courses.map((course) => {
+    const records = course.records || [];
+    const classRecords = records.filter((r) => (r.recordType || "class") !== "lab");
+    const labRecords = records.filter((r) => r.recordType === "lab");
+
+    const hasLab = Boolean(
+      course.hasLab ||
+      userTimetable?.classes?.some((c) => {
+        const cSubject = (c.subjectName || c.title || "")
+          .replace(/\s*\((Lab|Lecture|Tutorial|Class)\)/gi, "")
+          .toLowerCase()
+          .trim();
+        const cCode = (c.courseCode || "").toLowerCase().trim();
+        const acName = (course.courseName || "").toLowerCase().trim();
+        const acCode = (course.courseCode || "").toLowerCase().trim();
+        const isMatch =
+          (acName && (acName === cSubject || acName.includes(cSubject) || cSubject.includes(acName))) ||
+          (acCode && (acCode === cCode || cSubject.includes(acCode)));
+        const isLab = (c.classType || "").toLowerCase() === "lab";
+        return isMatch && isLab;
+      }) ||
+      records.some((r) => r.recordType === "lab")
+    );
+
+    const classStats = calculateStats(classRecords);
+    const labStats = hasLab ? calculateStats(labRecords) : null;
+
+    const present = records.filter((r) => r.status === "present").length;
+    const absent = records.filter((r) => r.status === "absent").length;
+    const total = present + absent;
+
+    totalPresentOverall += present;
+    totalClassesOverall += total;
+
+    return {
       _id: course._id,
       courseName: course.courseName,
       courseCode: course.courseCode,
       professor: course.professor || "",
+      hasLab: Boolean(hasLab),
       records: course.records,
       stats: {
-        present,
-        absent,
-        total,
-        percentage: numPercentage,
-        skippableClasses,
-        neededClasses,
-        isSafe: numPercentage >= target,
+        ...classStats,
+        class: classStats,
+        lab: labStats,
       },
     };
   });
@@ -306,7 +385,7 @@ export const getAttendanceOverview = async (userId) => {
 };
 
 export const createAttendanceCourse = async (userId, courseData) => {
-  const { courseName, courseCode, professor } = courseData;
+  const { courseName, courseCode, professor, hasLab } = courseData;
   if (!courseName || !courseName.trim()) {
     throw new AppError("Course name is required", 400);
   }
@@ -324,12 +403,13 @@ export const createAttendanceCourse = async (userId, courseData) => {
     courseName: courseName.trim(),
     courseCode: (courseCode || "").trim(),
     professor: (professor || "").trim(),
+    hasLab: Boolean(hasLab),
     records: [],
   });
 };
 
 export const updateAttendanceCourse = async (userId, courseId, updateData) => {
-  const { courseName, courseCode, professor } = updateData;
+  const { courseName, courseCode, professor, hasLab } = updateData;
 
   const existing = await attendanceRepo.findById(courseId, userId);
   if (!existing) {
@@ -352,6 +432,7 @@ export const updateAttendanceCourse = async (userId, courseId, updateData) => {
   if (courseName !== undefined) fieldsToUpdate.courseName = courseName.trim();
   if (courseCode !== undefined) fieldsToUpdate.courseCode = courseCode.trim();
   if (professor !== undefined) fieldsToUpdate.professor = professor.trim();
+  if (hasLab !== undefined) fieldsToUpdate.hasLab = Boolean(hasLab);
 
   const updated = await attendanceRepo.updateCourse(courseId, userId, fieldsToUpdate);
   return updated;
@@ -365,19 +446,24 @@ export const deleteAttendanceCourse = async (userId, courseId) => {
   return deleted;
 };
 
-export const logAttendanceRecord = async (userId, { courseId, date, status, note }) => {
+export const logAttendanceRecord = async (
+  userId,
+  { courseId, date, status, recordType = "class", note }
+) => {
   if (!courseId) throw new AppError("Course ID is required", 400);
   if (!date) throw new AppError("Date is required", 400);
   if (!["present", "absent"].includes(status)) {
     throw new AppError("Status must be 'present' or 'absent'", 400);
   }
 
+  const type = recordType === "lab" ? "lab" : "class";
   const updatedCourse = await attendanceRepo.upsertAttendanceRecord(
     courseId,
     userId,
     date,
     status,
-    note
+    note,
+    type
   );
 
   if (!updatedCourse) {
@@ -387,13 +473,15 @@ export const logAttendanceRecord = async (userId, { courseId, date, status, note
   return updatedCourse;
 };
 
-export const deleteAttendanceRecord = async (userId, courseId, date) => {
+export const deleteAttendanceRecord = async (userId, courseId, date, recordType = "class") => {
   if (!courseId || !date) throw new AppError("Course ID and date are required", 400);
 
+  const type = recordType === "lab" ? "lab" : "class";
   const updatedCourse = await attendanceRepo.removeAttendanceRecord(
     courseId,
     userId,
-    date
+    date,
+    type
   );
 
   if (!updatedCourse) {

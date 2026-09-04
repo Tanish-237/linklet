@@ -19,6 +19,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
     courseName: "",
     courseCode: "",
     professor: "",
+    hasLab: false,
   });
 
   // New subject form state
@@ -26,6 +27,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
     courseName: "",
     courseCode: "",
     professor: "",
+    hasLab: false,
   });
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -61,6 +63,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
       courseName: course.courseName || "",
       courseCode: course.courseCode || "",
       professor: course.professor || "",
+      hasLab: Boolean(course.hasLab),
     });
   };
 
@@ -77,6 +80,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
         courseName: editForm.courseName.trim(),
         courseCode: editForm.courseCode.trim(),
         professor: editForm.professor.trim(),
+        hasLab: Boolean(editForm.hasLab),
       });
 
       toast.success("Subject updated successfully!");
@@ -103,6 +107,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
         courseName: newSubject.courseName.trim(),
         courseCode: newSubject.courseCode.trim(),
         professor: newSubject.professor.trim(),
+        hasLab: Boolean(newSubject.hasLab),
       });
 
       toast.success(`Subject "${newSubject.courseName}" added!`);
@@ -110,6 +115,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
         courseName: "",
         courseCode: "",
         professor: "",
+        hasLab: false,
       });
       setShowAddForm(false);
       await loadCourses();
@@ -246,6 +252,21 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                 </div>
               </div>
 
+              <div className="pt-1">
+                <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-300 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={newSubject.hasLab}
+                    onChange={(e) => setNewSubject({ ...newSubject, hasLab: e.target.checked })}
+                    className="w-4 h-4 rounded text-pink-500 focus:ring-pink-500/40 bg-gray-900 border-gray-700 cursor-pointer"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-icons text-sm text-pink-400">science</span>
+                    Includes Lab Component
+                  </span>
+                </label>
+              </div>
+
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
@@ -342,6 +363,23 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                         </div>
                       </div>
 
+                      <div className="pt-1">
+                        <label className="inline-flex items-center gap-2 text-xs font-semibold text-gray-300 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={editForm.hasLab}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, hasLab: e.target.checked })
+                            }
+                            className="w-4 h-4 rounded text-pink-500 focus:ring-pink-500/40 bg-gray-900 border-gray-700 cursor-pointer"
+                          />
+                          <span className="flex items-center gap-1.5">
+                            <span className="material-icons text-sm text-pink-400">science</span>
+                            Includes Lab Component
+                          </span>
+                        </label>
+                      </div>
+
                       <div className="flex justify-end gap-2 pt-2 border-t border-gray-700/80">
                         <button
                           type="button"
@@ -377,6 +415,16 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                           {course.courseCode && (
                             <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-semibold bg-gray-700/80 text-gray-300 border border-gray-600/50">
                               {course.courseCode}
+                            </span>
+                          )}
+                          {course.hasLab ? (
+                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-pink-500/20 text-pink-300 border border-pink-500/30 flex items-center gap-1">
+                              <span className="material-icons text-[11px]">science</span>
+                              Class + Lab
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                              Class Only
                             </span>
                           )}
                         </div>

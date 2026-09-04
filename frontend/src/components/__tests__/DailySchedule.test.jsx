@@ -18,6 +18,7 @@ vi.mock("../../api/dashboard.api", () => ({
   updateScheduleEvent: vi.fn(),
   deleteScheduleEvent: vi.fn(),
   fetchAttendance: vi.fn(),
+  createAttendanceCourse: vi.fn(),
   markAttendance: vi.fn(),
   deleteAttendanceRecord: vi.fn(),
 }));
@@ -121,11 +122,63 @@ describe("DailySchedule Component Tests", () => {
         expect.objectContaining({
           courseId: "c2",
           status: "present",
+          recordType: "class",
         })
       );
       expect(mockAttendanceChanged).toHaveBeenCalled();
     });
     console.log("TRACE [DailySchedule.test.jsx]: markAttendance successfully called for Operating Systems");
+  });
+
+  it("automatically creates course in Attendance Guardian if not present when marking attendance", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing auto-creation of AttendanceCourse when marking attendance");
+
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "cls-new-subj",
+        title: "Artificial Intelligence (Lecture)",
+        subjectName: "Artificial Intelligence",
+        courseCode: "AI301",
+        type: "class",
+        classType: "Lecture",
+        startTime: "14:00",
+        endTime: "15:00",
+        status: "pending",
+      },
+    ]);
+    dashboardApi.createAttendanceCourse.mockResolvedValue({
+      _id: "new-course-id",
+      courseName: "Artificial Intelligence",
+      courseCode: "AI301",
+    });
+    dashboardApi.updateScheduleEvent.mockResolvedValue({ attendanceStatus: "present" });
+    dashboardApi.markAttendance.mockResolvedValue({ success: true });
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} onAttendanceChanged={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Artificial Intelligence")).toBeInTheDocument();
+    });
+
+    const presentBtn = screen.getAllByRole("button", { name: /Present/i })[0];
+    fireEvent.click(presentBtn);
+
+    await waitFor(() => {
+      expect(dashboardApi.createAttendanceCourse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseName: "Artificial Intelligence",
+          hasLab: false,
+        })
+      );
+      expect(dashboardApi.markAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseId: "new-course-id",
+          status: "present",
+          recordType: "class",
+        })
+      );
+    });
+    console.log("TRACE [DailySchedule.test.jsx]: Successfully auto-created course and marked attendance");
   });
 
   it("calls deleteAttendanceRecord when class off is marked", async () => {
@@ -157,9 +210,49 @@ describe("DailySchedule Component Tests", () => {
     fireEvent.click(offBtn);
 
     await waitFor(() => {
-      expect(dashboardApi.deleteAttendanceRecord).toHaveBeenCalledWith("c1", expect.any(String));
+      expect(dashboardApi.deleteAttendanceRecord).toHaveBeenCalledWith("c1", expect.any(String), "class");
     });
     console.log("TRACE [DailySchedule.test.jsx]: deleteAttendanceRecord called correctly on class off");
+  });
+
+  it("marks Lab attendance with recordType 'lab' when clicking on a Lab event", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing markAttendance with recordType 'lab'");
+
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "lab-event-1",
+        title: "Operating Systems (Lab)",
+        subjectName: "Operating Systems",
+        type: "class",
+        classType: "Lab",
+        startTime: "14:00",
+        endTime: "16:00",
+        status: "pending",
+        attendanceStatus: null,
+      },
+    ]);
+    dashboardApi.updateScheduleEvent.mockResolvedValue({ attendanceStatus: "present" });
+    dashboardApi.markAttendance.mockResolvedValue({ success: true });
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Operating Systems")).toBeInTheDocument();
+    });
+
+    const presentBtn = screen.getByRole("button", { name: /Present/i });
+    fireEvent.click(presentBtn);
+
+    await waitFor(() => {
+      expect(dashboardApi.markAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseId: "c2",
+          status: "present",
+          recordType: "lab",
+        })
+      );
+    });
+    console.log("TRACE [DailySchedule.test.jsx]: markAttendance called with recordType 'lab'");
   });
 
   it("renders separated type badge (Lab, Tutorial, Lecture) on top-left of card with specific colors", async () => {
@@ -190,7 +283,7 @@ describe("DailySchedule Component Tests", () => {
     console.log("TRACE [DailySchedule.test.jsx]: Lab badge verified");
   });
 
-  it("renders multi-hour 15:00-17:00 events together as a single combined slot without duplicate in-session rows", async () => {
+  it("renders multi-hour 15:00-17:00 events together as a single slot starting at 15:00 without duplicate in-session rows", async () => {
     console.log("TRACE [DailySchedule.test.jsx]: Testing multi-hour 15:00-17:00 combined slot");
 
     dashboardApi.fetchSchedule.mockResolvedValue([
@@ -211,13 +304,14 @@ describe("DailySchedule Component Tests", () => {
       expect(screen.queryByText(/Loading schedule/i)).not.toBeInTheDocument();
     });
 
-    // Expect the combined multi-hour slot label 15:00–17:00
-    expect(screen.getByText("15:00–17:00")).toBeInTheDocument();
+    // Expect the slot label to be 15:00 (clean hour mark)
+    expect(screen.getByText("15:00")).toBeInTheDocument();
     // Expect the card to appear exactly once
     expect(screen.getByText("Image Processing and Computer Vision")).toBeInTheDocument();
-    // Ensure no redundant "In session" strip is displayed
+    // Ensure no redundant "In session" strip or 16:00 intermediate slot is displayed
     expect(screen.queryByText(/In session/i)).not.toBeInTheDocument();
-    console.log("TRACE [DailySchedule.test.jsx]: Combined 15:00-17:00 slot verified without duplicate rows");
+    expect(screen.queryByText("16:00")).not.toBeInTheDocument();
+    console.log("TRACE [DailySchedule.test.jsx]: Combined 15:00 slot verified without duplicate rows");
   });
 
   it("displays Task and Event badges without location or lecture label, and omits time from cards", async () => {
@@ -468,4 +562,51 @@ describe("DailySchedule Component Tests", () => {
     });
     console.log("TRACE [DailySchedule.test.jsx]: deleteScheduleEvent called correctly for Calculus Lab");
   });
+
+  it("handles throwing parent callbacks gracefully without rolling back attendance state", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing error isolation when onAttendanceChanged throws");
+
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "cls-error-isolate",
+        title: "Operating Systems (Lecture)",
+        subjectName: "Operating Systems",
+        type: "class",
+        classType: "Lecture",
+        startTime: "10:00",
+        endTime: "11:00",
+        status: "pending",
+      },
+    ]);
+    dashboardApi.updateScheduleEvent.mockResolvedValue({ attendanceStatus: "present" });
+    dashboardApi.markAttendance.mockResolvedValue({ success: true });
+
+    // Mock parent callback that throws an error (e.g. triggerRefresh is not defined)
+    const buggyOnAttendanceChanged = vi.fn(() => {
+      throw new ReferenceError("triggerRefresh is not defined");
+    });
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} onAttendanceChanged={buggyOnAttendanceChanged} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Operating Systems")).toBeInTheDocument();
+    });
+
+    const presentBtn = screen.getByRole("button", { name: /Present/i });
+    fireEvent.click(presentBtn);
+
+    await waitFor(() => {
+      expect(dashboardApi.markAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseId: "c2",
+          status: "present",
+        })
+      );
+      expect(buggyOnAttendanceChanged).toHaveBeenCalled();
+      // Button should still reflect active present state because markAttendance succeeded
+      expect(presentBtn.className).toContain("bg-emerald-600");
+    });
+    console.log("TRACE [DailySchedule.test.jsx]: Attendance successfully remained present despite throwing parent callback");
+  });
 });
+

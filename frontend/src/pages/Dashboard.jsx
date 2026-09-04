@@ -30,6 +30,7 @@ export default function Dashboard() {
 
   // Timetable Options dropdown & modal states
   const [isTimetableMenuOpen, setIsTimetableMenuOpen] = useState(false);
+  const [showUploadWarningModal, setShowUploadWarningModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showWeeklyTimetableModal, setShowWeeklyTimetableModal] = useState(false);
   const timetableDropdownRef = useRef(null);
@@ -278,7 +279,7 @@ export default function Dashboard() {
                     id="dashboard-upload-timetable-option"
                     onClick={() => {
                       setIsTimetableMenuOpen(false);
-                      setShowUploadModal(true);
+                      setShowUploadWarningModal(true);
                     }}
                     className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-gray-200 hover:text-white hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
                   >
@@ -300,7 +301,7 @@ export default function Dashboard() {
             onScheduleChanged={loadStats}
             onAttendanceChanged={() => {
               loadStats();
-              triggerRefresh();
+              setRefreshTrigger((prev) => prev + 1);
             }}
             addEventTrigger={addEventTrigger}
             refreshTrigger={refreshTrigger}
@@ -387,6 +388,53 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* Warning Confirmation Modal before Uploading New Timetable */}
+        {showUploadWarningModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-gray-900 border border-amber-500/40 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl p-6 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <span className="material-icons text-2xl">warning</span>
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Upload New Timetable?</h3>
+                  <p className="text-xs text-amber-400/90 font-medium">Important: Data Reset Notice</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-amber-950/30 border border-amber-500/30 rounded-xl text-xs text-amber-200/90 space-y-2 leading-relaxed">
+                <p>
+                  Uploading a new timetable will <strong>permanently wipe</strong> all current <strong>Daily Schedule</strong> events and reset all <strong>Attendance Guardian</strong> records.
+                </p>
+                <p className="text-[11px] text-gray-400">
+                  This ensures a clean start with your new semester subjects and prevents conflicting schedule items.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadWarningModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUploadWarningModal(false);
+                    setShowUploadModal(true);
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-900/30 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <span className="material-icons text-sm">upload_file</span>
+                  Proceed to Upload
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Timetable Upload & Verification Modal */}
         <TimetableUploadModal

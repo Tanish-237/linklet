@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { AttendanceCourse } from "../models/attendance.model.js";
 
 export const findAllByUserId = async (userId) => {
@@ -5,6 +6,7 @@ export const findAllByUserId = async (userId) => {
 };
 
 export const findById = async (courseId, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(courseId)) return null;
   return await AttendanceCourse.findOne({ _id: courseId, userId });
 };
 
@@ -14,10 +16,12 @@ export const createCourse = async (courseData) => {
 };
 
 export const deleteCourse = async (courseId, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(courseId)) return null;
   return await AttendanceCourse.findOneAndDelete({ _id: courseId, userId });
 };
 
 export const updateCourse = async (courseId, userId, updateData) => {
+  if (!mongoose.Types.ObjectId.isValid(courseId)) return null;
   return await AttendanceCourse.findOneAndUpdate(
     { _id: courseId, userId },
     { $set: updateData },
@@ -25,16 +29,28 @@ export const updateCourse = async (courseId, userId, updateData) => {
   );
 };
 
-export const upsertAttendanceRecord = async (courseId, userId, date, status, note = "") => {
+export const upsertAttendanceRecord = async (
+  courseId,
+  userId,
+  date,
+  status,
+  note = "",
+  recordType = "class"
+) => {
+  if (!mongoose.Types.ObjectId.isValid(courseId)) return null;
   const course = await AttendanceCourse.findOne({ _id: courseId, userId });
   if (!course) return null;
 
-  const existingRecordIndex = course.records.findIndex((r) => r.date === date);
+  const type = recordType === "lab" ? "lab" : "class";
+  const existingRecordIndex = course.records.findIndex(
+    (r) => r.date === date && (r.recordType || "class") === type
+  );
   if (existingRecordIndex !== -1) {
     course.records[existingRecordIndex].status = status;
+    course.records[existingRecordIndex].recordType = type;
     if (note !== undefined) course.records[existingRecordIndex].note = note;
   } else {
-    course.records.push({ date, status, note });
+    course.records.push({ date, status, recordType: type, note });
   }
 
   // Keep records sorted descending by date
@@ -42,10 +58,17 @@ export const upsertAttendanceRecord = async (courseId, userId, date, status, not
   return await course.save();
 };
 
-export const removeAttendanceRecord = async (courseId, userId, date) => {
+export const removeAttendanceRecord = async (courseId, userId, date, recordType = "class") => {
+  if (!mongoose.Types.ObjectId.isValid(courseId)) return null;
+  const type = recordType === "lab" ? "lab" : "class";
+  const pullFilter =
+    type === "lab"
+      ? { date, recordType: "lab" }
+      : { date, recordType: { $ne: "lab" } };
+
   return await AttendanceCourse.findOneAndUpdate(
     { _id: courseId, userId },
-    { $pull: { records: { date } } },
+    { $pull: { records: pullFilter } },
     { new: true }
   );
 };

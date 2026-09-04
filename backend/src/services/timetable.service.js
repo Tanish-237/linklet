@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { Timetable } from "../models/timetable.model.js";
 import { AttendanceCourse } from "../models/attendance.model.js";
+import { Schedule } from "../models/schedule.model.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 
@@ -288,13 +289,21 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
  * Confirm and save parsed timetable to database, and auto-register subjects in Attendance Guardian.
  */
 export const confirmAndSaveTimetable = async (userId, timetableData) => {
-  const { branch, semester, section, classes } = timetableData;
+  const { branch, semester, section, classes, wipeExisting = true } = timetableData;
 
   if (!userId) {
     throw new AppError("User ID is required to save timetable", 400);
   }
   if (!Array.isArray(classes) || classes.length === 0) {
     throw new AppError("At least one class is required to save timetable", 400);
+  }
+
+  // Wipe entire daily schedule and attendance when uploading/replacing a timetable
+  if (wipeExisting !== false) {
+    await Promise.all([
+      Schedule.deleteMany({ userId }),
+      AttendanceCourse.deleteMany({ userId }),
+    ]);
   }
 
   // 1. Save or replace weekly timetable
@@ -310,24 +319,31 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
     { upsert: true, new: true, runValidators: true }
   );
 
-  // 2. Auto-sync distinct subjects into Attendance Guardian with professor info
+  // 2. Auto-sync distinct subjects into Attendance Guardian with professor info and lab detection
   const distinctSubjectMap = new Map();
   for (const item of classes) {
     if (item.subjectName) {
+      const isLab = (item.classType || "").toLowerCase() === "lab";
       const existing = distinctSubjectMap.get(item.subjectName);
       if (!existing) {
         distinctSubjectMap.set(item.subjectName, {
           courseCode: item.courseCode || "",
           professor: item.professor || "",
+          hasLab: isLab,
         });
-      } else if (item.professor && !existing.professor) {
-        existing.professor = item.professor;
+      } else {
+        if (item.professor && !existing.professor) {
+          existing.professor = item.professor;
+        }
+        if (isLab) {
+          existing.hasLab = true;
+        }
       }
     }
   }
 
   const attendanceCoursesCreated = [];
-  for (const [subjectName, { courseCode, professor }] of distinctSubjectMap.entries()) {
+  for (const [subjectName, { courseCode, professor, hasLab }] of distinctSubjectMap.entries()) {
     const existing = await AttendanceCourse.findOne({ userId, courseName: subjectName });
     if (!existing) {
       const created = await AttendanceCourse.create({
@@ -335,6 +351,7 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
         courseName: subjectName,
         courseCode,
         professor: professor || "",
+        hasLab: Boolean(hasLab),
         totalClasses: 0,
         attendedClasses: 0,
       });
@@ -349,13 +366,23 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
         existing.courseCode = courseCode;
         updated = true;
       }
+      if (hasLab && !existing.hasLab) {
+        existing.hasLab = true;
+        updated = true;
+      }
       if (updated) {
         if (typeof existing.save === "function") {
           await existing.save();
         } else {
           await AttendanceCourse.updateOne(
             { _id: existing._id },
-            { $set: { professor: existing.professor, courseCode: existing.courseCode } }
+            {
+              $set: {
+                professor: existing.professor,
+                courseCode: existing.courseCode,
+                hasLab: existing.hasLab,
+              },
+            }
           );
         }
       }

@@ -7,6 +7,7 @@ import {
   updateScheduleEvent,
   deleteScheduleEvent,
   fetchAttendance,
+  createAttendanceCourse,
   markAttendance,
   deleteAttendanceRecord,
 } from '../api/dashboard.api';
@@ -319,34 +320,114 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
     setAttendanceState((s) => ({ ...s, [event._id]: next }));
 
     try {
-      // 1. Update on schedule event
-      await updateScheduleEvent(event._id, { attendanceStatus: next });
+      // 1. Direct sync with Attendance Guardian
+      const eventSubject = (event.subjectName || getCleanTitle(event) || event.title || '').trim();
+      let currentCourses = courses;
 
-      // 2. Direct sync with Attendance Guardian
-      const eventSubject = (event.subjectName || getCleanTitle(event))?.toLowerCase().trim();
-      const matchedCourse = courses.find((c) => {
-        const cName = c.courseName?.toLowerCase().trim();
-        return cName === eventSubject || cName?.includes(eventSubject) || eventSubject?.includes(cName);
-      });
+      const findMatchingCourse = (courseList, targetName, targetCode) => {
+        if (!Array.isArray(courseList) || !courseList.length) return null;
+        const normName = targetName?.toLowerCase().trim();
+        const normCode = targetCode?.toLowerCase().trim();
+        return courseList.find((c) => {
+          const cName = c.courseName?.toLowerCase().trim();
+          const cCode = c.courseCode?.toLowerCase().trim();
+          if (normName && cName) {
+            if (cName === normName || cName.includes(normName) || normName.includes(cName)) return true;
+          }
+          if (normCode && cCode && cCode === normCode) return true;
+          if (normName && cCode && (cCode === normName || normName.includes(cCode))) return true;
+          return false;
+        });
+      };
+
+      let matchedCourse = findMatchingCourse(currentCourses, eventSubject, event.courseCode);
+
+      // If not found in local state, fetch latest courses from backend
+      if (!matchedCourse) {
+        try {
+          const data = await fetchAttendance();
+          if (data?.courses && Array.isArray(data.courses)) {
+            currentCourses = data.courses;
+            setCourses(data.courses);
+            matchedCourse = findMatchingCourse(currentCourses, eventSubject, event.courseCode);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      const isLab = getClassType(event) === 'Lab' || (event.classType || '').toLowerCase() === 'lab';
+      const recordType = isLab ? 'lab' : 'class';
+
+      // Auto-create course in Attendance Guardian if still not present and marking attendance
+      if (!matchedCourse && next && next !== 'off') {
+        const subjectToCreate = eventSubject || 'Class';
+        try {
+          const created = await createAttendanceCourse({
+            courseName: subjectToCreate,
+            courseCode: event.courseCode || '',
+            hasLab: isLab,
+          });
+          if (created) {
+            matchedCourse = created;
+            setCourses((prevList) => [...prevList, created]);
+          }
+        } catch (createErr) {
+          // If already exists on backend under duplicate-name, re-fetch and match
+          try {
+            const data = await fetchAttendance();
+            if (data?.courses && Array.isArray(data.courses)) {
+              setCourses(data.courses);
+              matchedCourse = findMatchingCourse(data.courses, subjectToCreate, event.courseCode);
+            }
+          } catch {
+            // ignore
+          }
+        }
+      }
 
       if (matchedCourse) {
         if (!next || next === 'off') {
-          // Off or untoggled: remove record from attendance guardian
-          await deleteAttendanceRecord(matchedCourse._id, selectedDate);
+          // Off or untoggled: remove record from attendance guardian (non-fatal)
+          try {
+            await deleteAttendanceRecord(matchedCourse._id, selectedDate, recordType);
+          } catch (delErr) {
+            console.warn('deleteAttendanceRecord non-fatal warning:', delErr);
+          }
         } else {
           // Present or Absent
           await markAttendance({
             courseId: matchedCourse._id,
             date: selectedDate,
             status: next,
+            recordType,
           });
         }
       }
 
-      if (onScheduleChanged) onScheduleChanged();
-      if (onAttendanceChanged) onAttendanceChanged();
-    } catch {
-      toast.error('Failed to save attendance');
+      // 2. Update on schedule event (non-fatal if event is virtual/timetable)
+      if (event._id) {
+        try {
+          await updateScheduleEvent(event._id, { attendanceStatus: next });
+        } catch (scheduleErr) {
+          console.warn('Schedule event status update non-fatal warning:', scheduleErr);
+        }
+      }
+
+      // 3. Notify parent components safely so parent callback errors never revert attendance
+      try {
+        if (onScheduleChanged) onScheduleChanged();
+      } catch (cbErr) {
+        console.warn('onScheduleChanged callback non-fatal warning:', cbErr);
+      }
+      try {
+        if (onAttendanceChanged) onAttendanceChanged();
+      } catch (cbErr) {
+        console.warn('onAttendanceChanged callback non-fatal warning:', cbErr);
+      }
+    } catch (err) {
+      console.error('Failed to save attendance:', err);
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to save attendance');
       setAttendanceState((s) => ({ ...s, [event._id]: prev }));
     }
   };
@@ -489,8 +570,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       const isMultiHour = (spanEnd - h) > 1;
 
       const startLabel = `${String(h).padStart(2, '0')}:00`;
-      const endLabel = `${String(spanEnd).padStart(2, '0')}:00`;
-      const label = isMultiHour ? `${startLabel}–${endLabel}` : startLabel;
+      const label = startLabel;
 
       SLOTS.push({
         key: `slot-${h}-${spanEnd}`,
@@ -521,7 +601,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl relative">
+    <div id="daily-schedule" className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl relative">
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-gray-800/80 pb-6">
@@ -641,7 +721,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
         </div>
       ) : (
         <div className="relative">
-          <div className="max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-gray-900 scrollbar-thumb-gray-700">
+          <div className="max-h-[70vh] overflow-y-auto pl-1 pr-1 scrollbar-thin scrollbar-track-gray-900 scrollbar-thumb-gray-700">
             <div className="relative pt-3">
               {SLOTS.map((slot, idx) => {
                 const isNowInSlot = isToday && nowHours >= slot.startHour && nowHours < slot.endHour;
@@ -658,7 +738,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                     }`}
                   >
                     {/* ── Left: time label ── */}
-                    <div className="w-[68px] sm:w-[74px] flex-shrink-0 select-none flex justify-end pr-2">
+                    <div className="w-[54px] sm:w-[60px] flex-shrink-0 select-none flex justify-end pr-2">
                       <span
                         className={`text-[10px] sm:text-[11px] font-mono leading-none -translate-y-[5px] tabular-nums whitespace-nowrap ${
                           isNowInSlot
@@ -801,7 +881,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                     {/* Now horizontal line */}
                     {isNowInSlot && (
                       <div
-                        className="absolute left-[86px] sm:left-[92px] right-0 h-px bg-gradient-to-r from-violet-500 via-violet-400/40 to-transparent pointer-events-none z-10"
+                        className="absolute left-[72px] sm:left-[78px] right-0 h-px bg-gradient-to-r from-violet-500 via-violet-400/40 to-transparent pointer-events-none z-10"
                         style={{ top: `${fracInSlot * 100}%` }}
                       />
                     )}
@@ -811,7 +891,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
               {/* End-of-range label */}
               <div className="flex">
-                <div className="w-[52px] flex-shrink-0 flex justify-end pr-2">
+                <div className="w-[54px] sm:w-[60px] flex-shrink-0 flex justify-end pr-2">
                   <span className="text-[10px] font-mono text-gray-600 -translate-y-[5px] tabular-nums">
                     {String(maxHour + 1 > 24 ? 24 : maxHour + 1).padStart(2, '0')}:00
                   </span>

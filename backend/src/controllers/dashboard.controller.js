@@ -128,10 +128,12 @@ export const logAttendance = async (req, res, next) => {
 export const deleteAttendanceRecord = async (req, res, next) => {
   try {
     const { courseId, date } = req.params;
+    const { recordType } = req.query;
     const updatedCourse = await dashboardService.deleteAttendanceRecord(
       req.user._id,
       courseId,
-      date
+      date,
+      recordType
     );
     res.status(200).json({
       success: true,

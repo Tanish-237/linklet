@@ -34,7 +34,7 @@ export const uploadAndParseTimetable = async (req, res, next) => {
  */
 export const confirmTimetable = async (req, res, next) => {
   try {
-    const { branch, semester, section, classes } = req.body;
+    const { branch, semester, section, classes, wipeExisting } = req.body;
 
     if (!Array.isArray(classes)) {
       throw new AppError("Classes array is required", 400);
@@ -45,6 +45,7 @@ export const confirmTimetable = async (req, res, next) => {
       semester: semester || req.user.semester,
       section: section || req.user.section,
       classes,
+      wipeExisting,
     });
 
     return res.status(200).json({

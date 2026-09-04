@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Schedule } from "../models/schedule.model.js";
 
 export const findByUserIdAndDate = async (userId, date) => {
@@ -5,6 +6,7 @@ export const findByUserIdAndDate = async (userId, date) => {
 };
 
 export const findEventById = async (id, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
   return await Schedule.findOne({ _id: id, userId });
 };
 
@@ -14,6 +16,7 @@ export const createEvent = async (eventData) => {
 };
 
 export const updateEvent = async (id, userId, updateData) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
   return await Schedule.findOneAndUpdate(
     { _id: id, userId },
     { $set: updateData },
@@ -22,6 +25,7 @@ export const updateEvent = async (id, userId, updateData) => {
 };
 
 export const deleteEvent = async (id, userId) => {
+  if (!mongoose.Types.ObjectId.isValid(id)) return null;
   return await Schedule.findOneAndDelete({ _id: id, userId });
 };
 

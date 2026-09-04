@@ -57,18 +57,21 @@ export const deleteAttendanceCourse = async (id) => {
 };
 
 // Mark / Update attendance record for a course on a date
-export const markAttendance = async ({ courseId, date, status, note }) => {
+export const markAttendance = async ({ courseId, date, status, recordType = "class", note }) => {
   const response = await apiClient.post("/dashboard/attendance/record", {
     courseId,
     date,
     status,
+    recordType,
     note,
   });
   return response.data?.data;
 };
 
 // Delete attendance record for a course on a date
-export const deleteAttendanceRecord = async (courseId, date) => {
-  const response = await apiClient.delete(`/dashboard/attendance/record/${courseId}/${date}`);
+export const deleteAttendanceRecord = async (courseId, date, recordType = "class") => {
+  const response = await apiClient.delete(`/dashboard/attendance/record/${courseId}/${date}`, {
+    params: { recordType },
+  });
   return response.data?.data;
 };

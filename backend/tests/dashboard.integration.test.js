@@ -167,30 +167,55 @@ describe("Dashboard API Integration Tests", () => {
     expect(res.body.data.courses[0].courseName).toBe("Operating Systems");
   });
 
-  it("POST /api/v1/dashboard/attendance/record — Logs an attendance record for a course", async () => {
-    console.log("TRACE [dashboard.integration.test.js]: Testing POST /api/v1/dashboard/attendance/record");
+  it("POST /api/v1/dashboard/attendance/record — Logs an attendance record for a course with recordType", async () => {
+    console.log("TRACE [dashboard.integration.test.js]: Testing POST /api/v1/dashboard/attendance/record with recordType lab");
     mockLogAttendanceRecord.mockResolvedValue({
       _id: "c1",
       courseName: "Operating Systems",
-      records: [{ date: "2026-09-04", status: "present" }],
+      records: [{ date: "2026-09-04", status: "present", recordType: "lab" }],
     });
 
     const res = await request
       .post("/api/v1/dashboard/attendance/record")
-      .send({ courseId: "c1", date: "2026-09-04", status: "present" });
+      .send({ courseId: "c1", date: "2026-09-04", status: "present", recordType: "lab" });
 
     console.log("TRACE [dashboard.integration.test.js]: Log attendance response:", res.status);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(mockLogAttendanceRecord).toHaveBeenCalledWith(
+      "testUserId123",
+      expect.objectContaining({ courseId: "c1", recordType: "lab" })
+    );
   });
 
-  it("POST /api/v1/dashboard/attendance/courses — Creates a new course with professor", async () => {
-    console.log("TRACE [dashboard.integration.test.js]: Testing POST /api/v1/dashboard/attendance/courses");
+  it("DELETE /api/v1/dashboard/attendance/record/:courseId/:date — Deletes a record by course, date, and recordType", async () => {
+    console.log("TRACE [dashboard.integration.test.js]: Testing DELETE /api/v1/dashboard/attendance/record with recordType");
+    mockDeleteAttendanceRecord.mockResolvedValue({
+      _id: "c1",
+      records: [],
+    });
+
+    const res = await request
+      .delete("/api/v1/dashboard/attendance/record/c1/2026-09-04?recordType=lab");
+
+    console.log("TRACE [dashboard.integration.test.js]: Delete record response:", res.status);
+    expect(res.status).toBe(200);
+    expect(mockDeleteAttendanceRecord).toHaveBeenCalledWith(
+      "testUserId123",
+      "c1",
+      "2026-09-04",
+      "lab"
+    );
+  });
+
+  it("POST /api/v1/dashboard/attendance/courses — Creates a new course with professor and hasLab", async () => {
+    console.log("TRACE [dashboard.integration.test.js]: Testing POST /api/v1/dashboard/attendance/courses with hasLab");
     mockCreateAttendanceCourse.mockResolvedValue({
       _id: "c10",
       courseName: "Cloud Computing",
       courseCode: "CS502",
       professor: "Dr. A. Verma",
+      hasLab: true,
     });
 
     const res = await request
@@ -199,12 +224,14 @@ describe("Dashboard API Integration Tests", () => {
         courseName: "Cloud Computing",
         courseCode: "CS502",
         professor: "Dr. A. Verma",
+        hasLab: true,
       });
 
     console.log("TRACE [dashboard.integration.test.js]: Create course response:", res.body);
     expect(res.status).toBe(201);
     expect(res.body.data.professor).toBe("Dr. A. Verma");
     expect(res.body.data.courseCode).toBe("CS502");
+    expect(res.body.data.hasLab).toBe(true);
   });
 
   it("PUT /api/v1/dashboard/attendance/courses/:id — Updates a course with new info", async () => {
