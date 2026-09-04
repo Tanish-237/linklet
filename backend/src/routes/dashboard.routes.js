@@ -19,6 +19,7 @@ router.delete("/schedule/:id", dashboardController.deleteScheduleEvent);
 // Attendance Tracker & Courses
 router.get("/attendance", dashboardController.getAttendance);
 router.post("/attendance/courses", dashboardController.createCourse);
+router.put("/attendance/courses/:id", dashboardController.updateCourse);
 router.delete("/attendance/courses/:id", dashboardController.deleteCourse);
 router.post("/attendance/record", dashboardController.logAttendance);
 router.delete("/attendance/record/:courseId/:date", dashboardController.deleteAttendanceRecord);

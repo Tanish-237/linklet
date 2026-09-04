@@ -17,6 +17,14 @@ export const deleteCourse = async (courseId, userId) => {
   return await AttendanceCourse.findOneAndDelete({ _id: courseId, userId });
 };
 
+export const updateCourse = async (courseId, userId, updateData) => {
+  return await AttendanceCourse.findOneAndUpdate(
+    { _id: courseId, userId },
+    { $set: updateData },
+    { new: true, runValidators: true }
+  );
+};
+
 export const upsertAttendanceRecord = async (courseId, userId, date, status, note = "") => {
   const course = await AttendanceCourse.findOne({ _id: courseId, userId });
   if (!course) return null;

@@ -20,6 +20,7 @@ jest.unstable_mockModule('../src/models/attendance.model.js', () => ({
   AttendanceCourse: {
     findOne: mockAttendanceFindOne,
     create: mockAttendanceCreate,
+    updateOne: jest.fn().mockResolvedValue({}),
   },
 }));
 
@@ -178,13 +179,13 @@ describe('Timetable Unit Tests', () => {
         .mockResolvedValueOnce({ _id: 'c2', courseName: 'Operating System' }); // OS already registered
 
       mockAttendanceCreate.mockResolvedValueOnce({
-        _id: 'c1', courseName: 'Microprocessors', targetPercentage: 75,
+        _id: 'c1', courseName: 'Microprocessors', professor: 'Dr. Test Prof',
       });
 
       const result = await confirmAndSaveTimetable('user1', {
         branch: 'Computer Science and Engineering', semester: 4, section: 'A1',
         classes: [
-          { day: 'Monday', dayOfWeek: 1, startTime: '11:00', endTime: '13:00', subjectName: 'Microprocessors', courseCode: 'CSN14400', classType: 'Lab' },
+          { day: 'Monday', dayOfWeek: 1, startTime: '11:00', endTime: '13:00', subjectName: 'Microprocessors', courseCode: 'CSN14400', professor: 'Dr. Test Prof', classType: 'Lab' },
           { day: 'Tuesday', dayOfWeek: 2, startTime: '09:00', endTime: '10:00', subjectName: 'Operating System', courseCode: 'CSN14401', classType: 'Lecture' },
         ],
       });
@@ -196,7 +197,7 @@ describe('Timetable Unit Tests', () => {
         expect.any(Object)
       );
       expect(mockAttendanceCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ userId: 'user1', courseName: 'Microprocessors', targetPercentage: 75, totalClasses: 0, attendedClasses: 0 })
+        expect.objectContaining({ userId: 'user1', courseName: 'Microprocessors', professor: 'Dr. Test Prof', totalClasses: 0, attendedClasses: 0 })
       );
       expect(result.attendanceCoursesAddedCount).toBe(1);
     });

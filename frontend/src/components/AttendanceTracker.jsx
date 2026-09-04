@@ -5,7 +5,6 @@ import { toast } from 'react-toastify';
 import {
   fetchAttendance,
   createAttendanceCourse,
-  deleteAttendanceCourse,
   markAttendance,
   deleteAttendanceRecord,
 } from '../api/dashboard.api';
@@ -45,7 +44,7 @@ const getStatusBadge = (percentage, total = 0, skippable = 0) => {
   };
 };
 
-export default function AttendanceTracker({ onAttendanceChanged }) {
+export default function AttendanceTracker({ onAttendanceChanged, addSubjectTrigger, refreshTrigger }) {
   const [courses, setCourses] = useState([]);
   const [overallStats, setOverallStats] = useState({ totalPresent: 0, totalAbsent: 0, percentage: 0 });
   const [selectedCourseId, setSelectedCourseId] = useState(null);
@@ -95,7 +94,13 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
 
   useEffect(() => {
     loadAttendanceData();
-  }, [loadAttendanceData]);
+  }, [loadAttendanceData, refreshTrigger]);
+
+  useEffect(() => {
+    if (addSubjectTrigger) {
+      setShowAddCourseModal(true);
+    }
+  }, [addSubjectTrigger]);
 
   // Selected course details
   const activeCourse = courses.find((c) => c._id === selectedCourseId) || courses[0];
@@ -157,9 +162,23 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
     }
   };
 
+  // Delete confirmation state
+  const [deleteRecordTarget, setDeleteRecordTarget] = useState(null);
+
   // Handle Delete Attendance Record
-  const handleDeleteRecord = async (date) => {
+  const requestDeleteRecord = (record) => {
     if (!activeCourse) return;
+    setDeleteRecordTarget({
+      date: record.date,
+      status: record.status,
+      courseName: activeCourse.courseName,
+    });
+  };
+
+  const confirmDeleteRecord = async () => {
+    if (!deleteRecordTarget || !activeCourse) return;
+    const { date } = deleteRecordTarget;
+    setDeleteRecordTarget(null);
     try {
       await deleteAttendanceRecord(activeCourse._id, date);
       toast.info('Attendance record removed');
@@ -183,7 +202,6 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
       const created = await createAttendanceCourse({
         courseName: newCourseName.trim(),
         courseCode: newCourseCode.trim(),
-        targetPercentage: 75,
       });
 
       toast.success(`Course "${created.courseName}" created!`);
@@ -197,22 +215,6 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
       toast.error(err.response?.data?.message || 'Failed to create course');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // Handle Delete Course
-  const handleDeleteCourse = async (courseId, courseName) => {
-    if (!window.confirm(`Are you sure you want to delete "${courseName}" and its attendance logs?`)) {
-      return;
-    }
-
-    try {
-      await deleteAttendanceCourse(courseId);
-      toast.success(`Deleted ${courseName}`);
-      await loadAttendanceData();
-      if (onAttendanceChanged) onAttendanceChanged();
-    } catch (err) {
-      toast.error('Failed to delete course');
     }
   };
 
@@ -274,14 +276,6 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setShowAddCourseModal(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-200 border border-gray-700 transition cursor-pointer"
-          >
-            <span className="material-icons text-sm text-violet-400">add</span>
-            Add Subject
-          </button>
-
           {activeCourse && (
             <button
               onClick={() => {
@@ -360,8 +354,7 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
                         </div>
                         <span
                           className={`text-xs px-2 py-0.5 rounded-full font-mono font-semibold ${getAttendanceColor(
-                            c.stats?.percentage || 0,
-                            c.targetPercentage
+                            c.stats?.percentage || 0
                           )}`}
                         >
                           {c.stats?.percentage || 0}%
@@ -373,16 +366,6 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleDeleteCourse(activeCourse._id, activeCourse.courseName)}
-                className="text-gray-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition"
-                title="Delete this course"
-                aria-label="Delete Course"
-              >
-                <span className="material-icons text-sm">delete_outline</span>
-              </button>
-            </div>
           </div>
 
           {/* Main Visual Section: Chart on Left, KPIs on Right */}
@@ -572,7 +555,7 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
                         {rec.status}
                       </span>
                       <button
-                        onClick={() => handleDeleteRecord(rec.date)}
+                        onClick={() => requestDeleteRecord(rec)}
                         className="text-gray-500 hover:text-rose-400 transition"
                         title="Delete log entry"
                         aria-label="Delete Record"
@@ -729,6 +712,35 @@ export default function AttendanceTracker({ onAttendanceChanged }) {
               {isSubmitting ? 'Creating...' : 'Add Subject'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Delete Record Confirmation Modal */}
+      {deleteRecordTarget && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm border border-rose-900/60 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2 mb-2 text-rose-400">
+              <span className="material-icons text-xl">delete_outline</span>
+              <h3 className="text-base font-bold text-white">Delete Attendance Log?</h3>
+            </div>
+            <p className="text-xs text-gray-300 mb-4">
+              Are you sure you want to remove the <strong className="text-white capitalize">{deleteRecordTarget.status}</strong> record on <strong className="text-white">{deleteRecordTarget.date}</strong> for <strong className="text-white">{deleteRecordTarget.courseName}</strong>?
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setDeleteRecordTarget(null)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-750 text-gray-300 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteRecord}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow-sm cursor-pointer"
+              >
+                Delete Log
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

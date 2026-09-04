@@ -247,30 +247,23 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 </div>
               )}
 
-              {/* How it Works */}
-              <div className="p-4 bg-violet-950/20 border border-violet-500/20 rounded-xl space-y-2.5">
-                <div className="flex items-center gap-2 text-xs font-semibold text-violet-300">
-                  <span className="material-icons text-sm">auto_awesome</span>
-                  How It Works
+              {/* AI Processing Status Card / Spinner */}
+              {isUploading ? (
+                <div className="p-8 bg-violet-950/30 border border-violet-500/30 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
+                  <div className="w-12 h-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin"></div>
+                  <div className="text-sm font-bold text-violet-200">
+                    Scanning & parsing timetable PDF with Gemini AI...
+                  </div>
+                  <p className="text-xs text-gray-400 max-w-md">
+                    Visually reading grid, resolving subjects, faculty, and room numbers. This may take 1–2 minutes, please wait.
+                  </p>
                 </div>
-                <ul className="text-xs text-gray-400 space-y-1.5 list-disc list-inside">
-                  <li>
-                    Gemini AI visually scans your PDF and reads the timetable grid precisely.
-                  </li>
-                  <li>
-                    Filters strictly for your Section{" "}
-                    <strong className="text-white">{userSection || "—"}</strong> (e.g. matches CSA & CSA1 for
-                    A1).
-                  </li>
-                  <li>Resolves full subject names & professor names from the bottom legend.</li>
-                  <li>Merges 2-hour lab sessions automatically.</li>
-                  <li>Excludes electives, minors, and online courses (NPTEL).</li>
-                  <li>
-                    <strong className="text-white">You review everything</strong> before it syncs — nothing
-                    saves without your confirmation.
-                  </li>
-                </ul>
-              </div>
+              ) : (
+                <div className="p-4 bg-gray-950/40 border border-gray-800 rounded-xl flex items-center gap-3 text-xs text-gray-400">
+                  <span className="material-icons text-violet-400 text-base">auto_awesome</span>
+                  <span>AI scans your official timetable PDF, matching section {userSection || "—"} and auto-filling subjects & professors.</span>
+                </div>
+              )}
             </div>
           ) : (
             /* ───── Preview & Verification State ───── */
@@ -302,8 +295,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
                     <span className="material-icons text-sm">verified</span>
-                    {previewData.attendanceSubjects.length} subjects will be auto-registered in Attendance
-                    Guardian (75% target)
+                    {previewData.attendanceSubjects.length} subjects will be auto-registered in Attendance Guardian
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {previewData.attendanceSubjects.map((sub) => (

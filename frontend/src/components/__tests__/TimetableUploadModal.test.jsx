@@ -24,13 +24,14 @@ describe("TimetableUploadModal Component Tests", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it("renders upload dropzone with How It Works section when open", () => {
+  it("renders upload dropzone without verbose How It Works section when open", () => {
     console.log("TRACE [TimetableUploadModal.test.jsx]: Testing visible upload state");
     render(
       <TimetableUploadModal isOpen={true} onClose={vi.fn()} userSection="A1" />
     );
     expect(screen.getByText(/Import Timetable/i)).toBeInTheDocument();
-    expect(screen.getByText(/How It Works/i)).toBeInTheDocument();
+    expect(screen.queryByText(/How It Works/i)).toBeNull();
+    expect(screen.getByText(/AI scans your official timetable PDF/i)).toBeInTheDocument();
     expect(screen.getAllByText(/A1/).length).toBeGreaterThanOrEqual(1);
   });
 
@@ -95,7 +96,8 @@ describe("TimetableUploadModal Component Tests", () => {
 
     // Should be back to upload state
     expect(screen.getByText(/Import Timetable/i)).toBeInTheDocument();
-    expect(screen.getByText(/How It Works/i)).toBeInTheDocument();
+    expect(screen.queryByText(/How It Works/i)).toBeNull();
+    expect(screen.getByText(/AI scans your official timetable PDF/i)).toBeInTheDocument();
 
     console.log("TRACE [TimetableUploadModal.test.jsx]: Re-upload flow verified");
   });

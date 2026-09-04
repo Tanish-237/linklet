@@ -5,6 +5,7 @@ import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 
 const DAY_NAME_TO_INDEX = {
+  Sunday: 0,
   Monday: 1,
   Tuesday: 2,
   Wednesday: 3,
@@ -309,27 +310,55 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
     { upsert: true, new: true, runValidators: true }
   );
 
-  // 2. Auto-sync distinct subjects into Attendance Guardian (locked 75% target)
+  // 2. Auto-sync distinct subjects into Attendance Guardian with professor info
   const distinctSubjectMap = new Map();
   for (const item of classes) {
-    if (item.subjectName && !distinctSubjectMap.has(item.subjectName)) {
-      distinctSubjectMap.set(item.subjectName, item.courseCode || "");
+    if (item.subjectName) {
+      const existing = distinctSubjectMap.get(item.subjectName);
+      if (!existing) {
+        distinctSubjectMap.set(item.subjectName, {
+          courseCode: item.courseCode || "",
+          professor: item.professor || "",
+        });
+      } else if (item.professor && !existing.professor) {
+        existing.professor = item.professor;
+      }
     }
   }
 
   const attendanceCoursesCreated = [];
-  for (const [subjectName, courseCode] of distinctSubjectMap.entries()) {
+  for (const [subjectName, { courseCode, professor }] of distinctSubjectMap.entries()) {
     const existing = await AttendanceCourse.findOne({ userId, courseName: subjectName });
     if (!existing) {
       const created = await AttendanceCourse.create({
         userId,
         courseName: subjectName,
         courseCode,
-        targetPercentage: 75,
+        professor: professor || "",
         totalClasses: 0,
         attendedClasses: 0,
       });
       attendanceCoursesCreated.push(created);
+    } else {
+      let updated = false;
+      if (professor && !existing.professor) {
+        existing.professor = professor;
+        updated = true;
+      }
+      if (courseCode && !existing.courseCode) {
+        existing.courseCode = courseCode;
+        updated = true;
+      }
+      if (updated) {
+        if (typeof existing.save === "function") {
+          await existing.save();
+        } else {
+          await AttendanceCourse.updateOne(
+            { _id: existing._id },
+            { $set: { professor: existing.professor, courseCode: existing.courseCode } }
+          );
+        }
+      }
     }
   }
 

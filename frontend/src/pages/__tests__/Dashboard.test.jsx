@@ -39,6 +39,34 @@ vi.mock("react-chartjs-2", () => ({
   Doughnut: () => <div data-testid="mock-doughnut">Doughnut Chart</div>,
 }));
 
+// Mock Timetable modals to keep test fast and focused
+vi.mock("../../components/TimetableUploadModal", () => ({
+  default: ({ isOpen, onClose }) =>
+    isOpen ? (
+      <div data-testid="mock-upload-modal">
+        Mock Upload Modal <button onClick={onClose}>Close Upload</button>
+      </div>
+    ) : null,
+}));
+
+vi.mock("../../components/WeeklyTimetableModal", () => ({
+  default: ({ isOpen, onClose }) =>
+    isOpen ? (
+      <div data-testid="mock-weekly-modal">
+        Mock Weekly Modal <button onClick={onClose}>Close Weekly</button>
+      </div>
+    ) : null,
+}));
+
+vi.mock("../../components/SubjectInfoModal", () => ({
+  default: ({ isOpen, onClose }) =>
+    isOpen ? (
+      <div data-testid="mock-subject-info-modal">
+        Mock Subject Info Modal <button onClick={onClose}>Close Subject Info</button>
+      </div>
+    ) : null,
+}));
+
 describe("Dashboard Component Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -54,8 +82,8 @@ describe("Dashboard Component Tests", () => {
     );
   };
 
-  it("renders user greeting, academic year badge, and real-time KPI metrics", async () => {
-    console.log("TRACE [Dashboard.test.jsx]: Testing initial render and metric cards");
+  it("renders user greeting, academic chips, and 4 KPI metrics (with Tasks banner removed)", async () => {
+    console.log("TRACE [Dashboard.test.jsx]: Testing initial render with tasks banner removed");
 
     dashboardApi.fetchDashboardStats.mockResolvedValue({
       metrics: {
@@ -92,7 +120,6 @@ describe("Dashboard Component Tests", () => {
           _id: "c1",
           courseName: "Compiler Design",
           courseCode: "CS301",
-          targetPercentage: 75,
           stats: { present: 18, absent: 2, total: 20, percentage: 90, skippableClasses: 4, isSafe: true },
           records: [{ date: "2026-09-04", status: "present" }],
         },
@@ -109,18 +136,45 @@ describe("Dashboard Component Tests", () => {
       expect(screen.getByText("Sem 5")).toBeInTheDocument();
       expect(screen.getByText("Sec A")).toBeInTheDocument();
 
-      // Check card titles rendered for the 5 banner cards
+      // Check card titles rendered for the 4 metrics cards
       expect(screen.getByText("My Questions")).toBeInTheDocument();
       expect(screen.getByText("My Answers")).toBeInTheDocument();
       expect(screen.getByText("Resources")).toBeInTheDocument();
       expect(screen.getByText("Bookmarks")).toBeInTheDocument();
-      expect(screen.getByText("Tasks Today")).toBeInTheDocument();
+
+      // Ensure "Tasks Today" banner card has been removed
+      expect(screen.queryByText("Tasks Today")).not.toBeInTheDocument();
+
       expect(screen.getByText("How does Dijkstra algorithm work?")).toBeInTheDocument();
     });
   });
 
-  it("switches tabs between Overview, Daily Schedule, and Attendance Guardian", async () => {
-    console.log("TRACE [Dashboard.test.jsx]: Testing tab switching");
+  it("never displays 'Good night' even at late night hours (displays 'Good evening')", async () => {
+    console.log("TRACE [Dashboard.test.jsx]: Verifying 'Good night' is never displayed at night");
+
+    const getHoursSpy = vi.spyOn(Date.prototype, "getHours").mockReturnValue(23);
+
+    dashboardApi.fetchDashboardStats.mockResolvedValue({
+      metrics: { questionsCount: 0, answersCount: 0, resourcesCount: 0, bookmarksCount: 0 },
+      recentActivity: { questions: [], resources: [] },
+    });
+    dashboardApi.fetchSchedule.mockResolvedValue([]);
+    dashboardApi.fetchAttendance.mockResolvedValue({ overall: { percentage: 0 }, courses: [] });
+
+    renderComponent();
+
+    await waitFor(() => {
+      // Ensure "Good night" is never present
+      expect(screen.queryByText(/Good night/i)).not.toBeInTheDocument();
+      // Ensure "Good evening" is displayed instead
+      expect(screen.getByText(/Good evening/i)).toBeInTheDocument();
+    });
+
+    getHoursSpy.mockRestore();
+  });
+
+  it("verifies Action Bar renders Add Event first, Subject Info second, and Timetable Options dropdown", async () => {
+    console.log("TRACE [Dashboard.test.jsx]: Testing Action Bar order (Add Event first, Subject Info second) and modals");
 
     dashboardApi.fetchDashboardStats.mockResolvedValue({
       metrics: {
@@ -144,21 +198,51 @@ describe("Dashboard Component Tests", () => {
     renderComponent();
 
     await waitFor(() => {
-      expect(screen.getByText("Overview & Highlights")).toBeInTheDocument();
+      // Ensure the old tab switcher banner is removed
+      expect(screen.queryByText("Overview & Highlights")).not.toBeInTheDocument();
+
+      // Ensure both Daily Schedule and Attendance Guardian are rendered concurrently
+      expect(screen.getAllByText("Daily Schedule").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Attendance Guardian").length).toBeGreaterThan(0);
+
+      // Verify Action Bar buttons exist with Add Event first, then Subject Info
+      const addEventBtn = screen.getByRole("button", { name: /Add Event/i });
+      const subjectInfoBtn = screen.getByRole("button", { name: /Subject Info/i });
+      const timetableOptionsBtn = screen.getByRole("button", { name: /Timetable Options/i });
+
+      expect(addEventBtn).toBeInTheDocument();
+      expect(subjectInfoBtn).toBeInTheDocument();
+      expect(timetableOptionsBtn).toBeInTheDocument();
     });
 
-    // Click on Daily Schedule tab
-    const scheduleTab = screen.getByRole("button", { name: /Daily Schedule/i });
-    fireEvent.click(scheduleTab);
+    // Test Subject Info opens SubjectInfoModal
+    const subjectInfoBtn = screen.getByRole("button", { name: /Subject Info/i });
+    fireEvent.click(subjectInfoBtn);
+    expect(screen.getByTestId("mock-subject-info-modal")).toBeInTheDocument();
 
-    // Verify Schedule view is active
-    expect(screen.getAllByText("Daily Schedule").length).toBeGreaterThan(0);
+    // Close Subject Info modal
+    fireEvent.click(screen.getByText("Close Subject Info"));
+    expect(screen.queryByTestId("mock-subject-info-modal")).not.toBeInTheDocument();
 
-    // Click on Attendance Guardian tab
-    const attendanceTab = screen.getByRole("button", { name: /Attendance Guardian/i });
-    fireEvent.click(attendanceTab);
+    // Test Timetable Options dropdown toggle
+    const timetableOptionsBtn = screen.getByRole("button", { name: /Timetable Options/i });
+    fireEvent.click(timetableOptionsBtn);
 
-    // Verify Attendance Guardian view is active
-    expect(screen.getAllByText("Attendance Guardian").length).toBeGreaterThan(0);
+    // Dropdown items should now be visible: View Timetable first, Upload New Timetable second
+    expect(screen.getByText("View Timetable")).toBeInTheDocument();
+    expect(screen.getByText("Upload New Timetable")).toBeInTheDocument();
+
+    // Click View Timetable (first option)
+    fireEvent.click(screen.getByText("View Timetable"));
+    expect(screen.getByTestId("mock-weekly-modal")).toBeInTheDocument();
+
+    // Close weekly modal
+    fireEvent.click(screen.getByText("Close Weekly"));
+    expect(screen.queryByTestId("mock-weekly-modal")).not.toBeInTheDocument();
+
+    // Open dropdown again and click Upload New Timetable (second option)
+    fireEvent.click(timetableOptionsBtn);
+    fireEvent.click(screen.getByText("Upload New Timetable"));
+    expect(screen.getByTestId("mock-upload-modal")).toBeInTheDocument();
   });
 });

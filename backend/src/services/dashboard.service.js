@@ -89,7 +89,7 @@ export const getDailySchedule = async (userId, date) => {
   const dateObj = new Date(year, month - 1, day);
   const dayOfWeek = dateObj.getDay();
 
-  if (dayOfWeek >= 1 && dayOfWeek <= 6) {
+  if (dayOfWeek >= 0 && dayOfWeek <= 6) {
     const userTimetable = await Timetable.findOne({ userId }).lean();
     if (userTimetable && Array.isArray(userTimetable.classes)) {
       const dayClasses = userTimetable.classes.filter(
@@ -186,7 +186,7 @@ export const getAttendanceOverview = async (userId) => {
     const present = records.filter((r) => r.status === "present").length;
     const absent = records.filter((r) => r.status === "absent").length;
     const total = present + absent;
-    const target = course.targetPercentage || 75;
+    const target = 75; // Standard 75% requirement
 
     totalPresentOverall += present;
     totalClassesOverall += total;
@@ -214,7 +214,7 @@ export const getAttendanceOverview = async (userId) => {
       _id: course._id,
       courseName: course.courseName,
       courseCode: course.courseCode,
-      targetPercentage: target,
+      professor: course.professor || "",
       records: course.records,
       stats: {
         present,
@@ -245,7 +245,7 @@ export const getAttendanceOverview = async (userId) => {
 };
 
 export const createAttendanceCourse = async (userId, courseData) => {
-  const { courseName, courseCode, targetPercentage } = courseData;
+  const { courseName, courseCode, professor } = courseData;
   if (!courseName || !courseName.trim()) {
     throw new AppError("Course name is required", 400);
   }
@@ -262,9 +262,38 @@ export const createAttendanceCourse = async (userId, courseData) => {
     userId,
     courseName: courseName.trim(),
     courseCode: (courseCode || "").trim(),
-    targetPercentage: targetPercentage ? Number(targetPercentage) : 75,
+    professor: (professor || "").trim(),
     records: [],
   });
+};
+
+export const updateAttendanceCourse = async (userId, courseId, updateData) => {
+  const { courseName, courseCode, professor } = updateData;
+
+  const existing = await attendanceRepo.findById(courseId, userId);
+  if (!existing) {
+    throw new AppError("Course not found or unauthorized", 404);
+  }
+
+  if (courseName && courseName.trim()) {
+    const allUserCourses = await attendanceRepo.findAllByUserId(userId);
+    const duplicate = allUserCourses.find(
+      (c) =>
+        c._id.toString() !== courseId.toString() &&
+        c.courseName.toLowerCase() === courseName.trim().toLowerCase()
+    );
+    if (duplicate) {
+      throw new AppError("Another course with this name already exists", 400);
+    }
+  }
+
+  const fieldsToUpdate = {};
+  if (courseName !== undefined) fieldsToUpdate.courseName = courseName.trim();
+  if (courseCode !== undefined) fieldsToUpdate.courseCode = courseCode.trim();
+  if (professor !== undefined) fieldsToUpdate.professor = professor.trim();
+
+  const updated = await attendanceRepo.updateCourse(courseId, userId, fieldsToUpdate);
+  return updated;
 };
 
 export const deleteAttendanceCourse = async (userId, courseId) => {

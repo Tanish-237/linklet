@@ -36,8 +36,8 @@ export const confirmTimetable = async (req, res, next) => {
   try {
     const { branch, semester, section, classes } = req.body;
 
-    if (!Array.isArray(classes) || classes.length === 0) {
-      throw new AppError("No classes provided to confirm", 400);
+    if (!Array.isArray(classes)) {
+      throw new AppError("Classes array is required", 400);
     }
 
     const result = await confirmAndSaveTimetable(req.user._id, {

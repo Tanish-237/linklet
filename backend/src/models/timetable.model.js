@@ -5,13 +5,13 @@ const timetableClassSchema = new mongoose.Schema(
     day: {
       type: String,
       required: true,
-      enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+      enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
     },
     dayOfWeek: {
       type: Number,
       required: true,
-      min: 1,
-      max: 6, // 1 for Monday, ..., 6 for Saturday
+      min: 0,
+      max: 7, // 0 for Sunday (or 7), 1 for Monday, ..., 6 for Saturday
     },
     startTime: {
       type: String,

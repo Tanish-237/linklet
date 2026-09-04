@@ -83,6 +83,23 @@ export const createCourse = async (req, res, next) => {
   }
 };
 
+export const updateCourse = async (req, res, next) => {
+  try {
+    const updated = await dashboardService.updateAttendanceCourse(
+      req.user._id,
+      req.params.id,
+      req.body
+    );
+    res.status(200).json({
+      success: true,
+      message: "Course updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteCourse = async (req, res, next) => {
   try {
     await dashboardService.deleteAttendanceCourse(req.user._id, req.params.id);

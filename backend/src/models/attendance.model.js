@@ -41,11 +41,10 @@ const attendanceCourseSchema = new mongoose.Schema(
       trim: true,
       default: "",
     },
-    targetPercentage: {
-      type: Number,
-      default: 75,
-      min: 1,
-      max: 100,
+    professor: {
+      type: String,
+      trim: true,
+      default: "",
     },
     records: [attendanceRecordSchema],
   },

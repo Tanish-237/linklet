@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import AttendanceTracker from "../components/AttendanceTracker";
 import DailySchedule from "../components/DailySchedule";
+import TimetableUploadModal from "../components/TimetableUploadModal";
+import WeeklyTimetableModal from "../components/WeeklyTimetableModal";
+import SubjectInfoModal from "../components/SubjectInfoModal";
 import Resource from "./Resource";
 import HelpForum from "./HelpForum";
 import QuestionDetail from "./QuestionDetail";
@@ -15,9 +18,32 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("overview"); // 'overview', 'schedule', 'attendance'
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Triggers for child components & modals
+  const [addEventTrigger, setAddEventTrigger] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  // Subject Info Modal state
+  const [showSubjectInfoModal, setShowSubjectInfoModal] = useState(false);
+
+  // Timetable Options dropdown & modal states
+  const [isTimetableMenuOpen, setIsTimetableMenuOpen] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showWeeklyTimetableModal, setShowWeeklyTimetableModal] = useState(false);
+  const timetableDropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (timetableDropdownRef.current && !timetableDropdownRef.current.contains(event.target)) {
+        setIsTimetableMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Load real-time dashboard metrics
   const loadStats = useCallback(async () => {
@@ -39,8 +65,7 @@ export default function Dashboard() {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) return "Good morning";
     if (hour >= 12 && hour < 17) return "Good afternoon";
-    if (hour >= 17 && hour < 22) return "Good evening";
-    return "Good night";
+    return "Good evening";
   };
 
   const renderMainContent = () => {
@@ -101,8 +126,8 @@ export default function Dashboard() {
               {(user?.department || user?.semester || user?.section) && (
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   {user?.department && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/80 text-gray-300 border border-gray-700/80 flex items-center gap-1">
-                      <span className="material-icons text-[13px] text-gray-400">school</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-indigo-950/50 text-indigo-300 border border-indigo-700/40 flex items-center gap-1">
+                      <span className="material-icons text-[13px] text-indigo-400">school</span>
                       {user.department}
                     </span>
                   )}
@@ -143,30 +168,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-2 p-1.5 bg-black/40 rounded-2xl border border-gray-800 w-fit">
-          {[
-            { id: "overview", label: "Overview & Highlights", icon: "space_dashboard" },
-            { id: "schedule", label: "Daily Schedule", icon: "calendar_today" },
-            { id: "attendance", label: "Attendance Guardian", icon: "how_to_reg" },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                activeTab === tab.id
-                  ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-900/30"
-                  : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-              }`}
-            >
-              <span className="material-icons text-base">{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Real-time KPI Stats Grid (5 Cards) */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        {/* Real-time KPI Stats Grid (4 Cards - Tasks Banner Removed) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             {
               icon: "quiz",
@@ -200,14 +203,6 @@ export default function Dashboard() {
               color: "text-amber-400 border-amber-500/20 bg-amber-950/20",
               onClick: () => navigate("/dashboard/saved"),
             },
-            {
-              icon: "task_alt",
-              title: "Tasks Today",
-              count: metrics.pendingTasksCount,
-              badge: "Pending",
-              color: "text-pink-400 border-pink-500/20 bg-pink-950/20",
-              onClick: () => setActiveTab("schedule"),
-            },
           ].map(({ icon, title, count, badge, color, onClick }) => (
             <div
               key={title}
@@ -230,105 +225,199 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Tab Content Display */}
-        {activeTab === "overview" && (
-          <div className="space-y-8">
-            {/* Side-by-side or stacked view of Today's Schedule & Attendance */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-              <DailySchedule onScheduleChanged={loadStats} />
-              <AttendanceTracker onAttendanceChanged={loadStats} />
-            </div>
+        {/* Action Bar: Subject Info and Timetable Options */}
+        <div className="relative z-30 flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800/80 shadow-lg">
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              id="dashboard-subject-info-btn"
+              onClick={() => setShowSubjectInfoModal(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-all hover:scale-[1.02] cursor-pointer shadow-sm"
+            >
+              <span className="material-icons text-base text-violet-400">auto_stories</span>
+              <span>Subject Info</span>
+            </button>
+          </div>
 
-            {/* Recent Contributions Section */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Recent Questions */}
-              <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 border border-gray-800">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <span className="material-icons text-sm text-violet-400">help</span>
-                    Recent Questions Asked
-                  </h3>
+          {/* Timetable Options Dropdown */}
+          <div className="relative z-50" ref={timetableDropdownRef}>
+            <button
+              id="dashboard-timetable-options-btn"
+              onClick={() => setIsTimetableMenuOpen((prev) => !prev)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-gradient-to-r from-violet-950/60 to-purple-950/60 hover:from-violet-900/70 hover:to-purple-900/70 text-violet-200 border border-violet-700/50 transition-all hover:scale-[1.02] cursor-pointer shadow-md"
+            >
+              <span className="material-icons text-base text-violet-400">calendar_month</span>
+              <span>Timetable Options</span>
+              <span
+                className={`material-icons text-sm text-violet-300 transition-transform duration-200 ${
+                  isTimetableMenuOpen ? "rotate-180" : ""
+                }`}
+              >
+                expand_more
+              </span>
+            </button>
+
+            {isTimetableMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-gray-900/95 backdrop-blur-xl border border-violet-800/40 shadow-2xl z-50 py-2 divide-y divide-gray-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="p-1">
                   <button
-                    onClick={() => navigate("/dashboard/help")}
-                    className="text-xs text-violet-400 hover:text-violet-300 transition"
+                    id="dashboard-view-timetable-option"
+                    onClick={() => {
+                      setIsTimetableMenuOpen(false);
+                      setShowWeeklyTimetableModal(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-gray-200 hover:text-white hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
                   >
-                    View All
+                    <span className="material-icons text-base text-violet-400">calendar_view_week</span>
+                    <div className="text-left">
+                      <div className="font-semibold">View Timetable</div>
+                      <div className="text-[11px] text-gray-400">View & edit weekly schedule</div>
+                    </div>
+                  </button>
+
+                  <button
+                    id="dashboard-upload-timetable-option"
+                    onClick={() => {
+                      setIsTimetableMenuOpen(false);
+                      setShowUploadModal(true);
+                    }}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-gray-200 hover:text-white hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
+                  >
+                    <span className="material-icons text-base text-purple-400">upload_file</span>
+                    <div className="text-left">
+                      <div className="font-semibold">Upload New Timetable</div>
+                      <div className="text-[11px] text-gray-400">Scan & sync PDF timetable</div>
+                    </div>
                   </button>
                 </div>
-
-                {recentActivity.questions.length === 0 ? (
-                  <p className="text-xs text-gray-500 py-6 text-center">
-                    No questions asked yet. Ask the community when in doubt!
-                  </p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {recentActivity.questions.map((q) => (
-                      <div
-                        key={q._id}
-                        onClick={() => navigate(`/dashboard/question/${q._id}`)}
-                        className="p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800/80 border border-gray-800/80 hover:border-violet-500/30 cursor-pointer transition flex items-center justify-between text-xs"
-                      >
-                        <span className="font-semibold text-gray-200 truncate pr-2">{q.title}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-violet-900/40 text-violet-300 whitespace-nowrap">
-                          {q.category || "General"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
+            )}
+          </div>
+        </div>
 
-              {/* Recent Resources */}
-              <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 border border-gray-800">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <span className="material-icons text-sm text-emerald-400">menu_book</span>
-                    Recent Uploaded Resources
-                  </h3>
-                  <button
+        {/* Daily Schedule & Attendance Guardian */}
+        <div className="relative z-10 grid grid-cols-1 xl:grid-cols-2 gap-8">
+          <DailySchedule
+            onScheduleChanged={loadStats}
+            addEventTrigger={addEventTrigger}
+            refreshTrigger={refreshTrigger}
+          />
+          <AttendanceTracker
+            onAttendanceChanged={loadStats}
+            refreshTrigger={refreshTrigger}
+          />
+        </div>
+
+        {/* Recent Contributions Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Recent Questions */}
+          <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 border border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span className="material-icons text-sm text-violet-400">help</span>
+                Recent Questions Asked
+              </h3>
+              <button
+                onClick={() => navigate("/dashboard/help")}
+                className="text-xs text-violet-400 hover:text-violet-300 transition"
+              >
+                View All
+              </button>
+            </div>
+
+            {recentActivity.questions.length === 0 ? (
+              <p className="text-xs text-gray-500 py-6 text-center">
+                No questions asked yet. Ask the community when in doubt!
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {recentActivity.questions.map((q) => (
+                  <div
+                    key={q._id}
+                    onClick={() => navigate(`/dashboard/question/${q._id}`)}
+                    className="p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800/80 border border-gray-800/80 hover:border-violet-500/30 cursor-pointer transition flex items-center justify-between text-xs"
+                  >
+                    <span className="font-semibold text-gray-200 truncate pr-2">{q.title}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-violet-900/40 text-violet-300 whitespace-nowrap">
+                      {q.category || "General"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Recent Resources */}
+          <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 border border-gray-800">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <span className="material-icons text-sm text-emerald-400">menu_book</span>
+                Recent Uploaded Resources
+              </h3>
+              <button
+                onClick={() => navigate("/dashboard/global-search")}
+                className="text-xs text-violet-400 hover:text-violet-300 transition"
+              >
+                Browse
+              </button>
+            </div>
+
+            {recentActivity.resources.length === 0 ? (
+              <p className="text-xs text-gray-500 py-6 text-center">
+                No resources uploaded yet. Share notes and papers with your batch!
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {recentActivity.resources.map((r) => (
+                  <div
+                    key={r._id}
                     onClick={() => navigate("/dashboard/global-search")}
-                    className="text-xs text-violet-400 hover:text-violet-300 transition"
+                    className="p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800/80 border border-gray-800/80 hover:border-emerald-500/30 cursor-pointer transition flex items-center justify-between text-xs"
                   >
-                    Browse
-                  </button>
-                </div>
-
-                {recentActivity.resources.length === 0 ? (
-                  <p className="text-xs text-gray-500 py-6 text-center">
-                    No resources uploaded yet. Share notes and papers with your batch!
-                  </p>
-                ) : (
-                  <div className="space-y-2.5">
-                    {recentActivity.resources.map((r) => (
-                      <div
-                        key={r._id}
-                        onClick={() => navigate("/dashboard/global-search")}
-                        className="p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800/80 border border-gray-800/80 hover:border-emerald-500/30 cursor-pointer transition flex items-center justify-between text-xs"
-                      >
-                        <span className="font-semibold text-gray-200 truncate pr-2">{r.title}</span>
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 uppercase font-mono">
-                          {r.fileType || "doc"}
-                        </span>
-                      </div>
-                    ))}
+                    <span className="font-semibold text-gray-200 truncate pr-2">{r.title}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 uppercase font-mono">
+                      {r.fileType || "doc"}
+                    </span>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
-        {activeTab === "schedule" && (
-          <div className="space-y-6">
-            <DailySchedule onScheduleChanged={loadStats} />
-          </div>
-        )}
+        {/* Timetable Upload & Verification Modal */}
+        <TimetableUploadModal
+          isOpen={showUploadModal}
+          onClose={() => setShowUploadModal(false)}
+          onTimetableSynced={() => {
+            loadStats();
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+          userSection={user?.section}
+        />
 
-        {activeTab === "attendance" && (
-          <div className="space-y-6">
-            <AttendanceTracker onAttendanceChanged={loadStats} />
-          </div>
-        )}
+        {/* Full Weekly Timetable Modal */}
+        <WeeklyTimetableModal
+          isOpen={showWeeklyTimetableModal}
+          onClose={() => setShowWeeklyTimetableModal(false)}
+          onTimetableChanged={() => {
+            loadStats();
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+          onTimetableAbandoned={() => {
+            loadStats();
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+        />
+
+        {/* Subject Information Management Modal */}
+        <SubjectInfoModal
+          isOpen={showSubjectInfoModal}
+          onClose={() => setShowSubjectInfoModal(false)}
+          onSubjectsChanged={() => {
+            loadStats();
+            setRefreshTrigger((prev) => prev + 1);
+          }}
+        />
       </div>
     );
   };

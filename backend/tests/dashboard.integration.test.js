@@ -10,6 +10,7 @@ const mockUpdateScheduleEvent = jest.fn();
 const mockDeleteScheduleEvent = jest.fn();
 const mockGetAttendanceOverview = jest.fn();
 const mockCreateAttendanceCourse = jest.fn();
+const mockUpdateAttendanceCourse = jest.fn();
 const mockDeleteAttendanceCourse = jest.fn();
 const mockLogAttendanceRecord = jest.fn();
 const mockDeleteAttendanceRecord = jest.fn();
@@ -22,6 +23,7 @@ jest.unstable_mockModule("../src/services/dashboard.service.js", () => ({
   deleteScheduleEvent: mockDeleteScheduleEvent,
   getAttendanceOverview: mockGetAttendanceOverview,
   createAttendanceCourse: mockCreateAttendanceCourse,
+  updateAttendanceCourse: mockUpdateAttendanceCourse,
   deleteAttendanceCourse: mockDeleteAttendanceCourse,
   logAttendanceRecord: mockLogAttendanceRecord,
   deleteAttendanceRecord: mockDeleteAttendanceRecord,
@@ -178,6 +180,62 @@ describe("Dashboard API Integration Tests", () => {
       .send({ courseId: "c1", date: "2026-09-04", status: "present" });
 
     console.log("TRACE [dashboard.integration.test.js]: Log attendance response:", res.status);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("POST /api/v1/dashboard/attendance/courses — Creates a new course with professor", async () => {
+    console.log("TRACE [dashboard.integration.test.js]: Testing POST /api/v1/dashboard/attendance/courses");
+    mockCreateAttendanceCourse.mockResolvedValue({
+      _id: "c10",
+      courseName: "Cloud Computing",
+      courseCode: "CS502",
+      professor: "Dr. A. Verma",
+    });
+
+    const res = await request
+      .post("/api/v1/dashboard/attendance/courses")
+      .send({
+        courseName: "Cloud Computing",
+        courseCode: "CS502",
+        professor: "Dr. A. Verma",
+      });
+
+    console.log("TRACE [dashboard.integration.test.js]: Create course response:", res.body);
+    expect(res.status).toBe(201);
+    expect(res.body.data.professor).toBe("Dr. A. Verma");
+    expect(res.body.data.courseCode).toBe("CS502");
+  });
+
+  it("PUT /api/v1/dashboard/attendance/courses/:id — Updates a course with new info", async () => {
+    console.log("TRACE [dashboard.integration.test.js]: Testing PUT /api/v1/dashboard/attendance/courses/c10");
+    mockUpdateAttendanceCourse.mockResolvedValue({
+      _id: "c10",
+      courseName: "Distributed Systems",
+      courseCode: "CS503",
+      professor: "Prof. R. Kumar",
+    });
+
+    const res = await request
+      .put("/api/v1/dashboard/attendance/courses/c10")
+      .send({
+        courseName: "Distributed Systems",
+        courseCode: "CS503",
+        professor: "Prof. R. Kumar",
+      });
+
+    console.log("TRACE [dashboard.integration.test.js]: Update course response:", res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.data.courseName).toBe("Distributed Systems");
+    expect(res.body.data.professor).toBe("Prof. R. Kumar");
+  });
+
+  it("DELETE /api/v1/dashboard/attendance/courses/:id — Deletes a course", async () => {
+    console.log("TRACE [dashboard.integration.test.js]: Testing DELETE /api/v1/dashboard/attendance/courses/c10");
+    mockDeleteAttendanceCourse.mockResolvedValue({ _id: "c10" });
+
+    const res = await request.delete("/api/v1/dashboard/attendance/courses/c10");
+    console.log("TRACE [dashboard.integration.test.js]: Delete course response:", res.status);
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });

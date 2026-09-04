@@ -1,14 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-toastify';
 import { useAuth } from '../context/AuthContext';
-import TimetableUploadModal from './TimetableUploadModal';
-import WeeklyTimetableModal from './WeeklyTimetableModal';
 import {
   fetchSchedule,
   createScheduleEvent,
   updateScheduleEvent,
   deleteScheduleEvent,
 } from '../api/dashboard.api';
+
+const getTodayDateStr = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseDateStr = (dateStr) => {
+  if (!dateStr) return new Date();
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+const formatDateStr = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
 
 const formatTime = (timeString) => {
   if (!timeString) return '';
@@ -61,20 +80,18 @@ const getTypeIcon = (type) => {
   }
 };
 
-export default function DailySchedule({ onScheduleChanged }) {
+export default function DailySchedule({ onScheduleChanged, addEventTrigger, refreshTrigger }) {
   const { user } = useAuth();
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getTodayDateStr);
   const [schedule, setSchedule] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showEventDetails, setShowEventDetails] = useState(null);
   const [showAddEventModal, setShowAddEventModal] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showWeeklyTimetableModal, setShowWeeklyTimetableModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [currentTime, setCurrentTime] = useState('');
-  const [viewMode, setViewMode] = useState('all'); // 'all', 'upcoming', 'past'
   const [cancelReason, setCancelReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const dateInputRef = useRef(null);
 
   const [newEvent, setNewEvent] = useState({
     type: 'class',
@@ -121,11 +138,17 @@ export default function DailySchedule({ onScheduleChanged }) {
 
   useEffect(() => {
     loadSchedule();
-  }, [loadSchedule]);
+  }, [loadSchedule, refreshTrigger]);
+
+  useEffect(() => {
+    if (addEventTrigger) {
+      setShowAddEventModal(true);
+    }
+  }, [addEventTrigger]);
 
   const isEventPast = (event) => {
     if (!currentTime) return false;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayDateStr();
     if (selectedDate < today) return true;
     if (selectedDate > today) return false;
 
@@ -189,9 +212,13 @@ export default function DailySchedule({ onScheduleChanged }) {
     }
   };
 
-  const handleCutClass = (id) => {
-    setShowDeleteConfirm(id);
+  const handleCutClass = (event) => {
+    setShowDeleteConfirm({ id: event._id, title: event.title, type: event.type, mode: 'cut' });
     setCancelReason('');
+  };
+
+  const handleDeleteEventClick = (event) => {
+    setShowDeleteConfirm({ id: event._id, title: event.title, type: event.type, mode: 'delete' });
   };
 
   const confirmCutClass = async (id) => {
@@ -228,131 +255,169 @@ export default function DailySchedule({ onScheduleChanged }) {
     }
   };
 
-  const filteredSchedule = schedule.filter((event) => {
-    const past = isEventPast(event);
-    if (viewMode === 'all') return true;
-    if (viewMode === 'upcoming') return !past && event.status !== 'cancelled';
-    if (viewMode === 'past') return past || event.status === 'cancelled' || event.status === 'completed';
-    return true;
-  });
-
   const changeDateByDays = (offset) => {
-    const current = new Date(selectedDate);
+    const current = parseDateStr(selectedDate);
     current.setDate(current.getDate() + offset);
-    setSelectedDate(current.toISOString().split('T')[0]);
+    setSelectedDate(formatDateStr(current));
   };
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const isToday = selectedDate === getTodayDateStr();
+
+  const formattedSelectedDate = parseDateStr(selectedDate).toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+
+  const surroundingDays = (() => {
+    const center = parseDateStr(selectedDate);
+    const todayStr = getTodayDateStr();
+    const days = [];
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date(center);
+      d.setDate(d.getDate() + i);
+      const dateStr = formatDateStr(d);
+      days.push({
+        dateStr,
+        dayName: d.toLocaleDateString("en-US", { weekday: "short" }),
+        dayNum: d.getDate(),
+        isDayToday: dateStr === todayStr,
+        isSelected: dateStr === selectedDate,
+      });
+    }
+    return days;
+  })();
 
   return (
     <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl relative">
-      {/* Header with Title and Date Bar */}
-      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-8 border-b border-gray-800/80 pb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400 material-icons">
-              calendar_today
-            </span>
-            <div>
-              <h2 className="text-2xl font-bold text-white tracking-wide">Daily Schedule</h2>
-              <p className="text-sm text-gray-400">
-                Organize your classes, deadlines, and events with real-time sync
-              </p>
-            </div>
+      {/* Header with Title and Quick Date Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-gray-800/80 pb-6">
+        <div className="flex items-center gap-3">
+          <span className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400 material-icons">
+            calendar_today
+          </span>
+          <div>
+            <h2 className="text-2xl font-bold text-white tracking-wide">Daily Schedule</h2>
+            <p className="text-sm text-gray-400">
+              {formattedSelectedDate}
+            </p>
           </div>
         </div>
 
-        {/* Date Selector & Action Buttons */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center bg-gray-800/80 rounded-xl p-1 border border-gray-700">
+        {/* Quick Date Jumps & Actions: Add Event (left of Pick Date), Pick Date */}
+        <div className="flex items-center gap-2">
+          {/* Add Event Button (moved to left of Pick Date) */}
+          <button
+            id="daily-schedule-add-event-btn"
+            onClick={() => setShowAddEventModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition cursor-pointer shadow-sm shadow-violet-900/30"
+          >
+            <span className="material-icons text-sm">add</span>
+            <span>Add Event</span>
+          </button>
+
+          {/* Styled Date Picker with interactive click handler */}
+          <div className="relative">
             <button
-              onClick={() => changeDateByDays(-1)}
-              className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition"
-              title="Previous Day"
-              aria-label="Previous Day"
+              type="button"
+              id="daily-schedule-pick-date-btn"
+              onClick={() => {
+                if (dateInputRef.current) {
+                  try {
+                    dateInputRef.current.showPicker();
+                  } catch (e) {
+                    dateInputRef.current.focus();
+                  }
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white border border-gray-700 text-xs font-medium cursor-pointer transition shadow-sm"
+              title="Pick any date from calendar"
             >
-              <span className="material-icons text-sm">chevron_left</span>
+              <span className="material-icons text-sm text-violet-400">event</span>
+              <span>Pick Date</span>
             </button>
             <input
+              ref={dateInputRef}
               type="date"
               value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="bg-transparent text-sm text-white font-medium px-2 py-1 focus:outline-none cursor-pointer"
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedDate(e.target.value);
+                }
+              }}
+              className="sr-only pointer-events-none"
+              aria-label="Pick Date"
             />
-            <button
-              onClick={() => changeDateByDays(1)}
-              className="p-2 text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition"
-              title="Next Day"
-              aria-label="Next Day"
-            >
-              <span className="material-icons text-sm">chevron_right</span>
-            </button>
           </div>
-
-          {!isToday && (
-            <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
-              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-violet-900/40 text-violet-300 hover:bg-violet-900/70 border border-violet-700/50 transition"
-            >
-              Today
-            </button>
-          )}
-
-          <button
-            onClick={() => setShowWeeklyTimetableModal(true)}
-            className="flex items-center gap-2 bg-gray-800 hover:bg-gray-750 text-gray-200 border border-gray-700 px-3.5 py-2 rounded-xl text-sm font-semibold transition cursor-pointer"
-            title="View complete weekly routine"
-          >
-            <span className="material-icons text-base text-violet-400">calendar_view_week</span>
-            Weekly Timetable
-          </button>
-
-          <button
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-2 bg-violet-950/40 hover:bg-violet-900/50 text-violet-300 border border-violet-700/50 px-3.5 py-2 rounded-xl text-sm font-semibold transition cursor-pointer"
-            title="Upload MNNIT Timetable PDF with Gemini Vision"
-          >
-            <span className="material-icons text-base text-violet-400">upload_file</span>
-            Import Timetable
-          </button>
-
-          <button
-            onClick={() => setShowAddEventModal(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-violet-900/40 transition-all hover:scale-[1.02] cursor-pointer"
-          >
-            <span className="material-icons text-base">add</span>
-            Add Event
-          </button>
         </div>
       </div>
 
-      {/* Filter Tabs & Current Time Badge */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="flex gap-2 p-1 bg-black/40 rounded-xl border border-gray-800 w-fit">
-          {[
-            { id: 'all', label: 'All Items' },
-            { id: 'upcoming', label: 'Upcoming' },
-            { id: 'past', label: 'Past / Done' },
-          ].map((tab) => (
+      {/* Interactive 7-Day Navigation Strip */}
+      <div className="mb-6 p-2 rounded-2xl bg-black/40 border border-gray-800/80 flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto">
+        <button
+          onClick={() => changeDateByDays(-1)}
+          className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition flex-shrink-0 cursor-pointer"
+          title="Previous Day"
+          aria-label="Previous Day"
+        >
+          <span className="material-icons text-base">chevron_left</span>
+        </button>
+
+        <div className="flex items-center justify-between flex-1 gap-1 sm:gap-2">
+          {surroundingDays.map((day) => (
             <button
-              key={tab.id}
-              onClick={() => setViewMode(tab.id)}
-              className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === tab.id
-                  ? 'bg-violet-600 text-white shadow-md'
-                  : 'text-gray-400 hover:text-gray-200'
+              key={day.dateStr}
+              onClick={() => setSelectedDate(day.dateStr)}
+              className={`flex-1 flex flex-col items-center py-2 px-1.5 sm:px-2 rounded-xl transition-all cursor-pointer min-w-[42px] ${
+                day.isSelected
+                  ? 'bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-900/50 scale-[1.03] font-bold'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 font-medium'
               }`}
             >
-              {tab.label}
+              <span className="text-[10px] uppercase tracking-wider opacity-80">
+                {day.dayName}
+              </span>
+              <span className="text-sm sm:text-base font-mono mt-0.5">
+                {day.dayNum}
+              </span>
+              {day.isDayToday && (
+                <span
+                  className={`w-1.5 h-1.5 rounded-full mt-0.5 ${
+                    day.isSelected ? 'bg-white' : 'bg-violet-400'
+                  }`}
+                  title="Today"
+                />
+              )}
             </button>
           ))}
         </div>
 
-        {isToday && (
-          <div className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-950/40 border border-violet-800/40 text-violet-300 self-start sm:self-auto">
-            <span className="w-2 h-2 rounded-full bg-violet-400 animate-ping"></span>
-            <span>Current Time: {currentTime}</span>
-          </div>
+        <button
+          onClick={() => changeDateByDays(1)}
+          className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition flex-shrink-0 cursor-pointer"
+          title="Next Day"
+          aria-label="Next Day"
+        >
+          <span className="material-icons text-base">chevron_right</span>
+        </button>
+      </div>
+
+      {/* Current Time & Switch to Today Strip */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-950/40 border border-violet-800/40 text-violet-300">
+          <span className="w-2 h-2 rounded-full bg-violet-400 animate-ping"></span>
+          <span>Current Time: {currentTime}</span>
+        </div>
+
+        {!isToday && (
+          <button
+            onClick={() => setSelectedDate(getTodayDateStr())}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-900/40 hover:bg-violet-900/70 text-violet-300 border border-violet-700/50 transition-all hover:scale-[1.02] cursor-pointer shadow-sm"
+          >
+            <span className="material-icons text-sm">today</span>
+            <span>Switch to Today</span>
+          </button>
         )}
       </div>
 
@@ -362,12 +427,12 @@ export default function DailySchedule({ onScheduleChanged }) {
           <div className="inline-block w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
           <p className="mt-3 text-sm text-gray-400">Loading schedule...</p>
         </div>
-      ) : filteredSchedule.length === 0 ? (
+      ) : schedule.length === 0 ? (
         <div className="p-10 rounded-2xl bg-gray-950/40 border border-dashed border-gray-800 text-center">
           <span className="material-icons text-5xl text-violet-500/40 mb-3">event_available</span>
-          <h4 className="text-lg font-bold text-gray-300">No events found for this view</h4>
+          <h4 className="text-lg font-bold text-gray-300">No events scheduled for this day</h4>
           <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-            Your schedule for {selectedDate} is clear. Add your classes or tasks to stay organized.
+            Your schedule for {formattedSelectedDate} is clear. Add your classes or tasks to stay organized.
           </p>
           <div className="mt-5 flex justify-center">
             <button
@@ -393,7 +458,7 @@ export default function DailySchedule({ onScheduleChanged }) {
             </div>
           )}
 
-          {filteredSchedule.map((event) => {
+          {schedule.map((event) => {
             const past = isEventPast(event);
             const isCompleted = event.status === 'completed';
             const isCancelled = event.status === 'cancelled';
@@ -533,7 +598,7 @@ export default function DailySchedule({ onScheduleChanged }) {
 
                   {/* Delete Button */}
                   <button
-                    onClick={() => confirmCutClass(event._id)}
+                    onClick={() => handleDeleteEventClick(event)}
                     className="p-1.5 rounded-lg text-gray-500 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
                     title="Delete permanently"
                     aria-label="Delete Event"
@@ -704,72 +769,93 @@ export default function DailySchedule({ onScheduleChanged }) {
         </div>
       )}
 
-      {/* Confirmation Modal for Cutting Class */}
+      {/* Confirmation Modal for Cutting or Deleting Event */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-rose-900/50 shadow-2xl">
-            <h3 className="text-xl font-bold text-rose-400 mb-2 flex items-center gap-2">
-              <span className="material-icons">event_busy</span>
-              Cut / Cancel Class
-            </h3>
-            <p className="text-sm text-gray-300 mb-4">
-              Would you like to mark this class as cancelled with a reason, or completely delete it?
-            </p>
+            {showDeleteConfirm.mode === 'cut' ? (
+              <>
+                <h3 className="text-xl font-bold text-rose-400 mb-2 flex items-center gap-2">
+                  <span className="material-icons">event_busy</span>
+                  Cut / Cancel Class
+                </h3>
+                <p className="text-sm text-gray-300 mb-4">
+                  Would you like to mark <strong className="text-white">"{showDeleteConfirm.title}"</strong> as cancelled with a reason, or completely delete it?
+                </p>
 
-            <div className="mb-5">
-              <label className="block text-xs font-semibold text-gray-400 mb-1.5">
-                Cancellation Reason (Optional)
-              </label>
-              <input
-                type="text"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="e.g. Professor on leave, Sick, Fest preparation"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500"
-              />
-              <p className="text-[11px] text-gray-500 mt-1">
-                Providing a reason marks the class as Cancelled. Leaving blank deletes it.
-              </p>
-            </div>
+                <div className="mb-5">
+                  <label className="block text-xs font-semibold text-gray-400 mb-1.5">
+                    Cancellation Reason (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="e.g. Professor on leave, Sick, Fest preparation"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-rose-500"
+                  />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Providing a reason marks the class as Cancelled. Leaving blank deletes it.
+                  </p>
+                </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => confirmCutClass(showDeleteConfirm)}
-                className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-lg shadow-rose-900/30 cursor-pointer"
-              >
-                {cancelReason.trim() ? 'Mark Cancelled' : 'Delete Permanently'}
-              </button>
-              <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="px-5 bg-gray-800 hover:bg-gray-750 text-gray-300 py-2.5 rounded-xl transition text-sm cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => confirmCutClass(showDeleteConfirm.id)}
+                    className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-semibold py-2.5 rounded-xl transition text-sm shadow-lg shadow-rose-900/30 cursor-pointer"
+                  >
+                    {cancelReason.trim() ? 'Mark Cancelled' : 'Delete Permanently'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className="px-5 bg-gray-800 hover:bg-gray-750 text-gray-300 py-2.5 rounded-xl transition text-sm cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 mb-2 text-rose-400">
+                  <span className="material-icons text-xl">delete_forever</span>
+                  <h3 className="text-lg font-bold text-white">
+                    Delete {showDeleteConfirm.type === 'class' ? 'Class' : showDeleteConfirm.type === 'task' ? 'Task' : 'Event'}?
+                  </h3>
+                </div>
+                <p className="text-sm text-gray-300 mb-5">
+                  Are you sure you want to permanently delete <strong className="text-white">"{showDeleteConfirm.title}"</strong> from your schedule? This action cannot be undone.
+                </p>
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    onClick={() => setShowDeleteConfirm(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-750 text-gray-300 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const id = showDeleteConfirm.id;
+                      setShowDeleteConfirm(null);
+                      try {
+                        await deleteScheduleEvent(id);
+                        setSchedule((prev) => prev.filter((item) => item._id !== id));
+                        toast.success('Removed from schedule');
+                        if (onScheduleChanged) onScheduleChanged();
+                      } catch (err) {
+                        toast.error('Failed to remove event');
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow-lg shadow-rose-900/30 cursor-pointer"
+                  >
+                    Delete Permanently
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
-
-      {/* Timetable Upload & Verification Modal */}
-      <TimetableUploadModal
-        isOpen={showUploadModal}
-        onClose={() => setShowUploadModal(false)}
-        onTimetableSynced={() => {
-          loadSchedule();
-          if (onScheduleChanged) onScheduleChanged();
-        }}
-        userSection={user?.section}
-      />
-
-      {/* Full Weekly Timetable Modal */}
-      <WeeklyTimetableModal
-        isOpen={showWeeklyTimetableModal}
-        onClose={() => setShowWeeklyTimetableModal(false)}
-        onTimetableAbandoned={() => {
-          loadSchedule();
-          if (onScheduleChanged) onScheduleChanged();
-        }}
-      />
     </div>
   );
 }

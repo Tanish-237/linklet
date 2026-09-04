@@ -44,6 +44,12 @@ export const createAttendanceCourse = async (courseData) => {
   return response.data?.data;
 };
 
+// Update an existing course
+export const updateAttendanceCourse = async (id, courseData) => {
+  const response = await apiClient.put(`/dashboard/attendance/courses/${id}`, courseData);
+  return response.data?.data;
+};
+
 // Delete a course
 export const deleteAttendanceCourse = async (id) => {
   const response = await apiClient.delete(`/dashboard/attendance/courses/${id}`);
