@@ -103,6 +103,12 @@ describe("DailySchedule Component Tests", () => {
     expect(absentBtn).toBeInTheDocument();
     expect(offBtn).toBeInTheDocument();
 
+    // Verify all 3 buttons have equal w-24 width to prevent text overflow
+    expect(presentBtn.className).toContain("w-24");
+    expect(absentBtn.className).toContain("w-24");
+    expect(offBtn.className).toContain("w-24");
+    console.log("TRACE [DailySchedule.test.jsx]: Equal w-24 width verified on all 3 attendance buttons");
+
     // Click Present
     fireEvent.click(presentBtn);
 

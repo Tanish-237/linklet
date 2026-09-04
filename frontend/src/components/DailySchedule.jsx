@@ -171,12 +171,12 @@ function AttendanceBtn({ which, current, onClick }) {
       onClick={() => onClick(which)}
       title={s.label}
       aria-label={s.label}
-      className={`flex items-center justify-center gap-1 w-[72px] sm:w-[76px] py-1 px-1 rounded-md border text-[10px] sm:text-[11px] font-bold transition-all duration-150 cursor-pointer whitespace-nowrap ${
+      className={`flex items-center justify-center gap-1.5 w-24 py-1 px-2 rounded-md border text-[10.5px] sm:text-[11px] font-bold transition-all duration-150 cursor-pointer whitespace-nowrap shrink-0 ${
         isActive ? s.active : s.idle
       }`}
     >
-      <span className="material-icons text-xs">{s.icon}</span>
-      <span>{s.label}</span>
+      <span className="material-icons text-[12px] sm:text-[13px] leading-none shrink-0">{s.icon}</span>
+      <span className="leading-none">{s.label}</span>
     </button>
   );
 }
@@ -758,13 +758,13 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                       {/* Right: attendance pills + edit + delete */}
                                       <div className="flex items-center gap-2 flex-shrink-0 self-end sm:self-center">
                                         {ev.type === 'class' && (
-                                          <div className="flex items-center gap-1 sm:flex-col sm:gap-1">
+                                          <div className="flex flex-col gap-1">
                                             <AttendanceBtn which="present" current={attendance} onClick={(s) => handleAttendance(ev, s)} />
                                             <AttendanceBtn which="absent"  current={attendance} onClick={(s) => handleAttendance(ev, s)} />
                                             <AttendanceBtn which="off"     current={attendance} onClick={(s) => handleAttendance(ev, s)} />
                                           </div>
                                         )}
-                                        <div className="flex sm:flex-col gap-1">
+                                        <div className="flex flex-col gap-1">
                                           <button
                                             onClick={() => handleEditEventClick(ev)}
                                             className="p-1.5 rounded-lg text-gray-400 hover:text-violet-400 hover:bg-violet-500/10 transition cursor-pointer"
