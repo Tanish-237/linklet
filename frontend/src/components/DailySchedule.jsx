@@ -43,29 +43,64 @@ const eventStartHour = (ev) => {
   return timeToHours(ev.startTime);
 };
 
+// Return the effective end hour for an event
+const eventEndHour = (ev) => {
+  if (ev.type === 'task') return (timeToHours(ev.deadline) ?? 0) + 0.5;
+  return timeToHours(ev.endTime) ?? ((timeToHours(ev.startTime) ?? 0) + 1);
+};
+
+/**
+ * Group events into "overlap clusters".
+ * Events whose time ranges overlap are placed in the same cluster.
+ * Returns: Array<{ events: Event[], startHour: number }>
+ */
+const buildOverlapGroups = (evList) => {
+  const sorted = [...evList].sort((a, b) => (eventStartHour(a) ?? 0) - (eventStartHour(b) ?? 0));
+  const groups = [];
+  for (const ev of sorted) {
+    const start = eventStartHour(ev) ?? 0;
+    const end = eventEndHour(ev);
+    let placed = false;
+    for (const g of groups) {
+      // Overlaps if this event starts before the group's current end
+      if (start < g.end - 0.01) {
+        g.events.push(ev);
+        g.end = Math.max(g.end, end);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) groups.push({ events: [ev], start, end });
+  }
+  return groups;
+};
+
 // Attendance button configs
 const ATTENDANCE_STYLES = {
   present: {
-    active: 'bg-emerald-600 border-emerald-500 text-white shadow-lg shadow-emerald-900/40',
-    idle: 'bg-gray-800/70 border-gray-700 text-emerald-400 hover:bg-emerald-900/30 hover:border-emerald-600',
+    active: 'bg-emerald-600 border-emerald-500 text-white',
+    idle: 'bg-transparent border-gray-700/60 text-gray-500 hover:border-emerald-600/60 hover:text-emerald-400',
     icon: 'check_circle',
+    short: 'P',
     label: 'Present',
   },
   absent: {
-    active: 'bg-rose-600 border-rose-500 text-white shadow-lg shadow-rose-900/40',
-    idle: 'bg-gray-800/70 border-gray-700 text-rose-400 hover:bg-rose-900/30 hover:border-rose-600',
+    active: 'bg-rose-600 border-rose-500 text-white',
+    idle: 'bg-transparent border-gray-700/60 text-gray-500 hover:border-rose-600/60 hover:text-rose-400',
     icon: 'cancel',
+    short: 'A',
     label: 'Absent',
   },
   off: {
-    active: 'bg-amber-600 border-amber-500 text-white shadow-lg shadow-amber-900/40',
-    idle: 'bg-gray-800/70 border-gray-700 text-amber-400 hover:bg-amber-900/30 hover:border-amber-600',
-    icon: 'event_busy',
+    active: 'bg-amber-600 border-amber-500 text-white',
+    idle: 'bg-transparent border-gray-700/60 text-gray-500 hover:border-amber-600/60 hover:text-amber-400',
+    icon: 'block',
+    short: 'Off',
     label: 'Class Off',
   },
 };
 
-// ─── Attendance Button ────────────────────────────────────────────────────────
+// ─── Compact vertical attendance pill ────────────────────────────────────────
 function AttendanceBtn({ which, current, onClick }) {
   const s = ATTENDANCE_STYLES[which];
   const isActive = current === which;
@@ -74,12 +109,12 @@ function AttendanceBtn({ which, current, onClick }) {
       onClick={() => onClick(which)}
       title={s.label}
       aria-label={s.label}
-      className={`flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border text-[10px] font-semibold transition-all duration-150 cursor-pointer min-w-[48px] ${
+      className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold transition-all duration-150 cursor-pointer whitespace-nowrap ${
         isActive ? s.active : s.idle
       }`}
     >
-      <span className="material-icons text-sm">{s.icon}</span>
-      <span className="leading-none">{s.label}</span>
+      <span className="material-icons" style={{ fontSize: '10px' }}>{s.icon}</span>
+      <span>{s.short}</span>
     </button>
   );
 }
@@ -236,15 +271,35 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
     }
   };
 
-  // ── Build 24-hour slots ───────────────────────────────────────────────────
-  const eventsByHour = {};
-  schedule.forEach((ev) => {
-    const h = Math.floor(eventStartHour(ev) ?? 0);
-    if (!eventsByHour[h]) eventsByHour[h] = [];
-    eventsByHour[h].push(ev);
-  });
+  // ── Build overlap groups and dynamic hour range ───────────────────────────
+  // Group overlapping events so they render together in one row
+  const overlapGroups = buildOverlapGroups(schedule);
 
-  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+  // Map: startHour (floor) → overlap group (first group that starts in that hour)
+  // We key on the floor of the group's start time
+  const groupsByHour = {};
+  for (const g of overlapGroups) {
+    const h = Math.floor(g.start);
+    if (!groupsByHour[h]) groupsByHour[h] = [];
+    groupsByHour[h].push(g);
+  }
+
+  // Only render hours that have events, ±1 buffer hour
+  let minHour = 8;
+  let maxHour = 17;
+  if (schedule.length > 0) {
+    const starts = schedule.map((ev) => Math.floor(eventStartHour(ev) ?? 8));
+    const ends   = schedule.map((ev) => Math.ceil(eventEndHour(ev)));
+    minHour = Math.max(0, Math.min(...starts) - 1);
+    maxHour = Math.min(23, Math.max(...ends));
+  }
+  // Always include current hour when viewing today
+  if (isToday) {
+    minHour = Math.min(minHour, Math.max(0, Math.floor(nowHours) - 1));
+    maxHour = Math.max(maxHour, Math.min(23, Math.floor(nowHours) + 1));
+  }
+
+  const HOURS = Array.from({ length: maxHour - minHour + 1 }, (_, i) => minHour + i);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -369,34 +424,57 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
       ) : (
         <div className="relative">
           <div className="max-h-[70vh] overflow-y-auto pr-1 scrollbar-thin scrollbar-track-gray-900 scrollbar-thumb-gray-700">
-            <div className="relative">
-              {HOURS.map((hour) => {
-                const events = eventsByHour[hour] || [];
-                const hasEvents = events.length > 0;
+            {/* pt-3 so the first hour label (negative-translated) is fully visible */}
+            <div className="relative pt-3">
+              {HOURS.map((hour, idx) => {
+                const groups = groupsByHour[hour] || [];
+                const hasEvents = groups.length > 0;
                 const isNowHour = isToday && Math.floor(nowHours) === hour;
                 const hourLabel = `${String(hour).padStart(2, '0')}:00`;
-                const fracInHour = nowHours - hour; // 0..1
+                const fracInHour = Math.min(Math.max(nowHours - hour, 0), 1);
+                const isLastHour = idx === HOURS.length - 1;
 
                 return (
                   <div
                     key={hour}
-                    className={`flex gap-0 relative ${hasEvents ? 'min-h-[88px]' : 'min-h-[28px]'}`}
+                    className={`flex relative ${
+                      hasEvents ? 'min-h-[84px]' : 'min-h-[26px]'
+                    }`}
                   >
-                    {/* Left: time label */}
-                    <div className="flex flex-col items-end w-14 flex-shrink-0 select-none">
+                    {/* ── Left: time label ── */}
+                    <div className="w-[52px] flex-shrink-0 select-none flex justify-end pr-2">
                       <span
-                        className={`text-[11px] font-mono leading-none -translate-y-[6px] ${
-                          isNowHour ? 'text-violet-400 font-bold' : 'text-gray-600'
+                        className={`text-[10px] font-mono leading-none -translate-y-[5px] tabular-nums ${
+                          isNowHour
+                            ? 'text-violet-400 font-bold'
+                            : hasEvents
+                              ? 'text-gray-400'
+                              : 'text-gray-600'
                         }`}
                       >
                         {hourLabel}
                       </span>
                     </div>
 
-                    {/* Centre: tick + connector */}
-                    <div className="relative flex flex-col w-5 flex-shrink-0 items-center">
-                      <div className={`w-2 h-px flex-shrink-0 ${hasEvents ? 'bg-gray-600' : 'bg-gray-800'}`} />
-                      <div className="flex-1 w-px bg-gray-800/70" />
+                    {/* ── Centre: axis ── */}
+                    <div className="relative flex flex-col w-[18px] flex-shrink-0 items-center">
+                      {/* Tick mark */}
+                      <div
+                        className={`h-px flex-shrink-0 ${
+                          hasEvents ? 'w-[10px] bg-gray-500' : 'w-[6px] bg-gray-700'
+                        }`}
+                      />
+                      {/* Connector — dashed for empty rows, solid for event rows */}
+                      {!isLastHour && (
+                        <div
+                          className={`flex-1 w-px ${
+                            hasEvents
+                              ? 'bg-gray-600'
+                              : 'bg-gray-800'
+                          }`}
+                          style={!hasEvents ? { backgroundImage: 'repeating-linear-gradient(to bottom, #374151 0, #374151 3px, transparent 3px, transparent 7px)', backgroundSize: '1px 7px', width: '1px', background: 'none' } : {}}
+                        />
+                      )}
 
                       {/* Now dot */}
                       {isNowHour && (
@@ -405,78 +483,94 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                           className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-none"
                           style={{ top: `${fracInHour * 100}%` }}
                         >
-                          <div className="w-3 h-3 rounded-full bg-violet-400 border-2 border-violet-300 shadow-md shadow-violet-900/60 -translate-x-1/2 relative left-1/2" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-400 ring-2 ring-violet-300/40 shadow-lg shadow-violet-500/50 -translate-x-1/2 relative left-1/2" />
                         </div>
                       )}
                     </div>
 
-                    {/* Right: cards or empty */}
-                    <div className="flex-1 pl-2 py-0.5">
+                    {/* ── Right: event cards ── */}
+                    <div className="flex-1 pl-2 py-0.5 min-w-0">
                       {hasEvents ? (
-                        <div className="space-y-2 pb-2">
-                          {events.map((ev) => {
-                            const attendance = attendanceState[ev._id] ?? ev.attendanceStatus ?? null;
-                            const timeLabel =
-                              ev.type === 'task'
-                                ? `Due ${ev.deadline}`
-                                : ev.startTime && ev.endTime
-                                  ? `${ev.startTime} – ${ev.endTime}`
-                                  : '';
-
-                            const accent =
-                              ev.type === 'class'
-                                ? 'border-l-violet-500 bg-violet-500/5'
-                                : ev.type === 'task'
-                                  ? 'border-l-blue-500 bg-blue-500/5'
-                                  : 'border-l-amber-500 bg-amber-500/5';
-
+                        <div className="space-y-1.5 pb-2">
+                          {groups.map((group, gi) => {
+                            const isOverlap = group.events.length > 1;
                             return (
-                              <div
-                                key={ev._id}
-                                className={`flex items-center justify-between gap-3 rounded-r-xl border border-gray-700/60 border-l-2 px-3 py-2.5 transition-all duration-200 hover:border-gray-600 hover:bg-gray-800/60 group ${accent}`}
-                              >
-                                {/* Left: title + meta */}
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-white truncate leading-snug">
-                                    {ev.title}
-                                  </p>
-                                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                                    {timeLabel && (
-                                      <span className="text-[11px] text-gray-500 font-mono">{timeLabel}</span>
-                                    )}
-                                    {ev.location && (
-                                      <span className="flex items-center gap-0.5 text-[11px] text-gray-500">
-                                        <span className="material-icons text-[11px]">location_on</span>
-                                        {ev.location}
-                                      </span>
-                                    )}
-                                    {ev.professor && (
-                                      <span className="flex items-center gap-0.5 text-[11px] text-gray-500">
-                                        <span className="material-icons text-[11px]">person</span>
-                                        {ev.professor}
-                                      </span>
-                                    )}
+                              <div key={gi}>
+                                {/* Overlap badge */}
+                                {isOverlap && (
+                                  <div className="flex items-center gap-1 mb-1">
+                                    <span className="material-icons text-[10px] text-amber-500">call_merge</span>
+                                    <span className="text-[9px] text-amber-500 font-semibold uppercase tracking-wider">Overlapping</span>
                                   </div>
-                                </div>
+                                )}
+                                {group.events.map((ev) => {
+                                  const attendance = attendanceState[ev._id] ?? ev.attendanceStatus ?? null;
+                                  const timeLabel =
+                                    ev.type === 'task'
+                                      ? `Due ${ev.deadline}`
+                                      : ev.startTime && ev.endTime
+                                        ? `${ev.startTime}–${ev.endTime}`
+                                        : '';
 
-                                {/* Right: attendance + delete */}
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  {ev.type === 'class' && (
-                                    <>
-                                      <AttendanceBtn which="present" current={attendance} onClick={(s) => handleAttendance(ev, s)} />
-                                      <AttendanceBtn which="absent"  current={attendance} onClick={(s) => handleAttendance(ev, s)} />
-                                      <AttendanceBtn which="off"     current={attendance} onClick={(s) => handleAttendance(ev, s)} />
-                                    </>
-                                  )}
-                                  <button
-                                    onClick={() => handleDeleteEventClick(ev)}
-                                    className="p-1.5 rounded-lg text-gray-500/40 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer group-hover:text-gray-500 focus:text-rose-400"
-                                    title="Delete"
-                                    aria-label="Delete Event"
-                                  >
-                                    <span className="material-icons text-sm">delete_outline</span>
-                                  </button>
-                                </div>
+                                  const accent =
+                                    ev.type === 'class'
+                                      ? 'border-l-violet-500 bg-violet-500/5 hover:bg-violet-500/10'
+                                      : ev.type === 'task'
+                                        ? 'border-l-blue-500 bg-blue-500/5 hover:bg-blue-500/10'
+                                        : 'border-l-amber-500 bg-amber-500/5 hover:bg-amber-500/10';
+
+                                  return (
+                                    <div
+                                      key={ev._id}
+                                      className={`flex items-center gap-2 rounded-r-xl border border-gray-700/50 border-l-2 px-3 py-2 transition-all duration-200 hover:border-gray-600/80 group ${accent} ${
+                                        isOverlap ? 'ml-3 border-l-[3px]' : ''
+                                      }`}
+                                    >
+                                      {/* Left: title + meta */}
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[13px] font-semibold text-white truncate leading-snug">
+                                          {ev.title}
+                                        </p>
+                                        <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                                          {timeLabel && (
+                                            <span className="text-[10px] text-gray-500 font-mono">{timeLabel}</span>
+                                          )}
+                                          {ev.location && (
+                                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                                              <span className="material-icons" style={{ fontSize: '10px' }}>location_on</span>
+                                              {ev.location}
+                                            </span>
+                                          )}
+                                          {ev.professor && (
+                                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
+                                              <span className="material-icons" style={{ fontSize: '10px' }}>person</span>
+                                              {ev.professor}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* Right: attendance pills (vertical stack) + delete */}
+                                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                                        {ev.type === 'class' && (
+                                          <div className="flex flex-col gap-0.5">
+                                            <AttendanceBtn which="present" current={attendance} onClick={(s) => handleAttendance(ev, s)} />
+                                            <AttendanceBtn which="absent"  current={attendance} onClick={(s) => handleAttendance(ev, s)} />
+                                            <AttendanceBtn which="off"     current={attendance} onClick={(s) => handleAttendance(ev, s)} />
+                                          </div>
+                                        )}
+                                        <button
+                                          onClick={() => handleDeleteEventClick(ev)}
+                                          className="p-1 rounded-lg text-gray-600/40 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer group-hover:text-gray-500 focus:text-rose-400"
+                                          title="Delete"
+                                          aria-label="Delete Event"
+                                        >
+                                          <span className="material-icons text-sm">delete_outline</span>
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             );
                           })}
@@ -489,7 +583,7 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                     {/* Now horizontal line */}
                     {isNowHour && (
                       <div
-                        className="absolute left-14 right-0 h-px bg-gradient-to-r from-violet-500/80 to-transparent pointer-events-none z-10"
+                        className="absolute left-[70px] right-0 h-px bg-gradient-to-r from-violet-500 via-violet-400/40 to-transparent pointer-events-none z-10"
                         style={{ top: `${fracInHour * 100}%` }}
                       />
                     )}
@@ -497,13 +591,15 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                 );
               })}
 
-              {/* 24:00 end label */}
-              <div className="flex gap-0">
-                <div className="w-14 flex-shrink-0 flex justify-end">
-                  <span className="text-[11px] font-mono text-gray-600 -translate-y-[6px]">24:00</span>
+              {/* End-of-range label */}
+              <div className="flex">
+                <div className="w-[52px] flex-shrink-0 flex justify-end pr-2">
+                  <span className="text-[10px] font-mono text-gray-600 -translate-y-[5px] tabular-nums">
+                    {String(maxHour + 1 > 24 ? 24 : maxHour + 1).padStart(2, '0')}:00
+                  </span>
                 </div>
-                <div className="w-5 flex-shrink-0 flex items-center">
-                  <div className="w-2 h-px bg-gray-700" />
+                <div className="w-[18px] flex-shrink-0 flex items-start pt-0">
+                  <div className="w-[6px] h-px bg-gray-700" />
                 </div>
               </div>
             </div>
