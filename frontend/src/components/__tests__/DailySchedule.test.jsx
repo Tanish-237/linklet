@@ -181,10 +181,7 @@ describe("DailySchedule Component Tests", () => {
     const labBadge = screen.getByText("Lab");
     expect(labBadge).toBeInTheDocument();
     expect(labBadge.className).toContain("text-pink-300");
-
-    // Check duration badge
-    expect(screen.getByText(/2 hrs/i)).toBeInTheDocument();
-    console.log("TRACE [DailySchedule.test.jsx]: Lab badge and 2 hrs duration verified");
+    console.log("TRACE [DailySchedule.test.jsx]: Lab badge verified");
   });
 
   it("renders multi-hour ongoing session indicator for 15:00-17:00 lab at hour 16", async () => {
@@ -205,9 +202,72 @@ describe("DailySchedule Component Tests", () => {
     render(<DailySchedule onScheduleChanged={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText(/In session \(until 17:00\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/In session/i)).toBeInTheDocument();
     });
     console.log("TRACE [DailySchedule.test.jsx]: Multi-hour ongoing indicator verified");
+  });
+
+  it("displays Task and Event badges without location or lecture label, and omits time from cards", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing Task and Event badges without location or time");
+
+    dashboardApi.fetchSchedule.mockResolvedValue([
+      {
+        _id: "task-1",
+        title: "Submit OS Assignment",
+        type: "task",
+        deadline: "17:00",
+        location: "Room 404",
+      },
+      {
+        _id: "event-1",
+        title: "Hackathon Intro",
+        type: "event",
+        startTime: "14:00",
+        endTime: "16:00",
+        location: "Auditorium",
+      },
+      {
+        _id: "class-1",
+        title: "Networks (Lecture)",
+        subjectName: "Networks",
+        type: "class",
+        classType: "Lecture",
+        startTime: "10:00",
+        endTime: "11:00",
+        location: "Hall B",
+        professor: "Dr. Verma",
+      },
+    ]);
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} />);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Loading schedule/i)).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Submit OS Assignment")).toBeInTheDocument();
+    expect(screen.getAllByText("Hackathon Intro").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Networks")).toBeInTheDocument();
+
+    // Task badge should be present, but NOT Lecture for the task
+    expect(screen.getByText("Task")).toBeInTheDocument();
+    // Event badge should be present, but NOT Lecture for the event
+    expect(screen.getByText("Event")).toBeInTheDocument();
+    // Lecture badge should only be for the class
+    expect(screen.getByText("Lecture")).toBeInTheDocument();
+
+    // Location should only be shown for the class (Hall B), NOT Room 404 or Auditorium
+    expect(screen.getByText("Hall B")).toBeInTheDocument();
+    expect(screen.queryByText("Room 404")).not.toBeInTheDocument();
+    expect(screen.queryByText("Auditorium")).not.toBeInTheDocument();
+
+    // Professor only for class
+    expect(screen.getByText("Dr. Verma")).toBeInTheDocument();
+
+    // No time text inside cards
+    expect(screen.queryByText("10:00–11:00")).not.toBeInTheDocument();
+    expect(screen.queryByText("Due 17:00")).not.toBeInTheDocument();
+    console.log("TRACE [DailySchedule.test.jsx]: Task, Event badges, location filter, and time omission verified");
   });
 
   it("allows editing an event via Edit button and modal", async () => {

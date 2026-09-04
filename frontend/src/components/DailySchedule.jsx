@@ -93,6 +93,8 @@ const TYPE_CONFIG = {
 };
 
 const getClassType = (ev) => {
+  if (ev.type === 'task') return 'Task';
+  if (ev.type === 'event') return 'Event';
   if (ev.classType) {
     const ct = ev.classType.charAt(0).toUpperCase() + ev.classType.slice(1).toLowerCase();
     if (TYPE_CONFIG[ct]) return ct;
@@ -102,9 +104,6 @@ const getClassType = (ev) => {
     const word = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
     if (TYPE_CONFIG[word]) return word;
   }
-  if (ev.type === 'class') return 'Lecture';
-  if (ev.type === 'task') return 'Task';
-  if (ev.type === 'event') return 'Event';
   return 'Lecture';
 };
 
@@ -172,11 +171,11 @@ function AttendanceBtn({ which, current, onClick }) {
       onClick={() => onClick(which)}
       title={s.label}
       aria-label={s.label}
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-bold transition-all duration-150 cursor-pointer whitespace-nowrap ${
+      className={`flex items-center justify-center gap-1 w-[72px] sm:w-[76px] py-1 px-1 rounded-md border text-[10px] sm:text-[11px] font-bold transition-all duration-150 cursor-pointer whitespace-nowrap ${
         isActive ? s.active : s.idle
       }`}
     >
-      <span className="material-icons text-sm">{s.icon}</span>
+      <span className="material-icons text-xs">{s.icon}</span>
       <span>{s.label}</span>
     </button>
   );
@@ -695,7 +694,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                       <span className="font-semibold text-gray-200 truncate">{getCleanTitle(ev)}</span>
                                     </div>
                                     <span className="text-[11px] text-gray-400 font-mono shrink-0">
-                                      In session (until {ev.endTime})
+                                      In session
                                     </span>
                                   </div>
                                 );
@@ -720,17 +719,6 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                   const cfg = TYPE_CONFIG[cType] || TYPE_CONFIG.Lecture;
                                   const cleanTitle = getCleanTitle(ev);
 
-                                  const startH = timeToHours(ev.startTime);
-                                  const endH = timeToHours(ev.endTime);
-                                  const durationH = startH !== null && endH !== null ? Math.max(0, endH - startH) : 1;
-
-                                  const timeLabel =
-                                    ev.type === 'task'
-                                      ? `Due ${ev.deadline}`
-                                      : ev.startTime && ev.endTime
-                                        ? `${ev.startTime}–${ev.endTime}`
-                                        : '';
-
                                   return (
                                     <div
                                       key={ev._id}
@@ -738,46 +726,33 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                         isOverlap ? 'ml-3' : ''
                                       }`}
                                     >
-                                      {/* Left: type badge + clean title + meta */}
+                                      {/* Left: Line 1 (Badge + Location for classes) -> Line 2 (Title) -> Line 3 (Professor for classes) */}
                                       <div className="flex-1 min-w-0">
-                                        {/* Type badge on top-left with specific color */}
-                                        <div className="flex items-center gap-1.5 mb-1">
+                                        {/* Line 1: Type badge (+ location only for classes) */}
+                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
                                           <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${cfg.style}`}>
                                             {cfg.label}
                                           </span>
-                                          {durationH > 1 && (
-                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-850 text-gray-300 border border-gray-700/80 font-mono">
-                                              {durationH} hrs
-                                            </span>
-                                          )}
-                                        </div>
-
-                                        {/* Subject Name / Title */}
-                                        <p className="text-sm font-semibold text-gray-100 truncate leading-snug">
-                                          {cleanTitle}
-                                        </p>
-
-                                        {/* Meta: time, location, professor */}
-                                        <div className="flex items-center gap-3.5 mt-1.5 flex-wrap">
-                                          {timeLabel && (
-                                            <span className="text-xs text-gray-300 font-mono flex items-center gap-1">
-                                              <span className="material-icons text-xs text-gray-400">schedule</span>
-                                              {timeLabel}
-                                            </span>
-                                          )}
-                                          {ev.location && (
+                                          {ev.type === 'class' && ev.location && (
                                             <span className="flex items-center gap-1 text-xs text-gray-300">
                                               <span className="material-icons text-sm text-gray-400">location_on</span>
                                               {ev.location}
                                             </span>
                                           )}
-                                          {ev.professor && (
-                                            <span className="flex items-center gap-1 text-xs text-gray-300">
-                                              <span className="material-icons text-sm text-gray-400">person</span>
-                                              {ev.professor}
-                                            </span>
-                                          )}
                                         </div>
+
+                                        {/* Line 2: Title in next line */}
+                                        <p className="text-sm font-semibold text-gray-100 truncate leading-snug">
+                                          {cleanTitle}
+                                        </p>
+
+                                        {/* Line 3: Professor name (only for classes) */}
+                                        {ev.type === 'class' && ev.professor && (
+                                          <div className="mt-1 flex items-center gap-1 text-xs text-gray-300">
+                                            <span className="material-icons text-sm text-gray-400">person</span>
+                                            <span>{ev.professor}</span>
+                                          </div>
+                                        )}
                                       </div>
 
                                       {/* Right: attendance pills + edit + delete */}
