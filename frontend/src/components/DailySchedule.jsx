@@ -100,7 +100,7 @@ const ATTENDANCE_STYLES = {
   },
 };
 
-// ─── Compact vertical attendance pill ────────────────────────────────────────
+// ─── Attendance pill ─────────────────────────────────────────────────────────
 function AttendanceBtn({ which, current, onClick }) {
   const s = ATTENDANCE_STYLES[which];
   const isActive = current === which;
@@ -109,11 +109,11 @@ function AttendanceBtn({ which, current, onClick }) {
       onClick={() => onClick(which)}
       title={s.label}
       aria-label={s.label}
-      className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-bold transition-all duration-150 cursor-pointer whitespace-nowrap ${
+      className={`flex items-center gap-1 px-2 py-1 rounded border text-[11px] font-semibold transition-all duration-150 cursor-pointer whitespace-nowrap ${
         isActive ? s.active : s.idle
       }`}
     >
-      <span className="material-icons" style={{ fontSize: '10px' }}>{s.icon}</span>
+      <span className="material-icons" style={{ fontSize: '13px' }}>{s.icon}</span>
       <span>{s.short}</span>
     </button>
   );
@@ -528,22 +528,22 @@ export default function DailySchedule({ onScheduleChanged, addEventTrigger, refr
                                     >
                                       {/* Left: title + meta */}
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-[13px] font-semibold text-white truncate leading-snug">
+                                        <p className="text-xs font-semibold text-gray-200 truncate leading-snug">
                                           {ev.title}
                                         </p>
-                                        <div className="flex items-center gap-2.5 mt-0.5 flex-wrap">
+                                        <div className="flex items-center gap-3 mt-1 flex-wrap">
                                           {timeLabel && (
-                                            <span className="text-[10px] text-gray-500 font-mono">{timeLabel}</span>
+                                            <span className="text-xs text-gray-300 font-mono">{timeLabel}</span>
                                           )}
                                           {ev.location && (
-                                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
-                                              <span className="material-icons" style={{ fontSize: '10px' }}>location_on</span>
+                                            <span className="flex items-center gap-0.5 text-xs text-gray-300">
+                                              <span className="material-icons text-sm">location_on</span>
                                               {ev.location}
                                             </span>
                                           )}
                                           {ev.professor && (
-                                            <span className="flex items-center gap-0.5 text-[10px] text-gray-500">
-                                              <span className="material-icons" style={{ fontSize: '10px' }}>person</span>
+                                            <span className="flex items-center gap-0.5 text-xs text-gray-300">
+                                              <span className="material-icons text-sm">person</span>
                                               {ev.professor}
                                             </span>
                                           )}
