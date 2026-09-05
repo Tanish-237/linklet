@@ -326,7 +326,7 @@ const Posts = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
-  const [collectionPostId, setCollectionPostId] = useState(null);
+// const [collectionPostId, setCollectionPostId] = useState(null);
 
   const fetchPosts = useCallback(async () => {
     try {
