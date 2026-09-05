@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import EmojiPicker from "emoji-picker-react";
 import { apiClient } from "../api/apiClient";
 import defaultAvatar from "../assets/default-avatar.png";
+import "../pages/Posts.css";
 
 // Time Helper
 export const formatTime = (dateString) => {
