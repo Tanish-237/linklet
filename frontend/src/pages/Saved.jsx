@@ -62,12 +62,8 @@ export default function Saved({ username }) {
     }
   };
 
-  const savedPosts = savedResources.filter(
-    (item) => item.category === "Post" || item.caption !== undefined || item.upvotes !== undefined
-  );
-  const savedResourceItems = savedResources.filter(
-    (item) => item.category !== "Post" && item.caption === undefined && item.upvotes === undefined
-  );
+  const savedPosts = savedResources.filter((item) => item.category === "Post");
+  const savedResourceItems = savedResources.filter((item) => item.category !== "Post");
 
   const loadCollectionResources = async (collection) => {
     if (collection === "posts") {

@@ -369,5 +369,55 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(next).not.toHaveBeenCalled();
     });
+
+    it('should successfully update avatar via avatarUrl string', async () => {
+      console.log('[TEST] updateProfile › updating avatar with avatarUrl');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          avatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        }),
+      });
+
+      await updateProfile(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix',
+        }),
+        expect.any(Object)
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid avatarUrl string with AppError 400', async () => {
+      console.log('[TEST] updateProfile › invalid avatarUrl format');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          avatarUrl: 'not-a-valid-url',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      await updateProfile(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.statusCode).toBe(400);
+    });
   });
 });

@@ -16,9 +16,10 @@ const postSchema = new mongoose.Schema(
     caption: {
       type: String,
       maxlength: 2200,
-      required: true,
+      required: false,
+      default: "",
     },
-    image: { type: String, required: false },
+    image: { type: String, required: false, default: "" },
 
     upvotes: [
       {
