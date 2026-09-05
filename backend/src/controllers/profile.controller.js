@@ -123,7 +123,11 @@ export const getMyBookmarks = async (req, res, next) => {
 
     const [resources, posts] = await Promise.all([
       Resource.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
-      Post.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
+      Post.find({ _id: { $in: bookmarkIds } })
+        .populate("userId", "username avatar")
+        .populate("comments.userId", "username avatar")
+        .populate("comments.replies.userId", "username avatar")
+        .lean(),
     ]);
 
     const formattedPosts = posts.map((p) => ({
