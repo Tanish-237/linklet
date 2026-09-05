@@ -1,5 +1,6 @@
 import { User } from "../../models/users.js";
 import { Resource } from "../../models/resource.js";
+import { Post } from "../../models/posts.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 
@@ -67,12 +68,16 @@ export const updateProfile = async (req, res, next) => {
     }
 
     if (req.file) {
-      const avatarUrl = await uploadOnCloudinary(req.file.path);
-      if (!avatarUrl) throw new AppError("Failed to upload image to Cloudinary", 500);
-      updates.avatar = avatarUrl.secure_url ?? avatarUrl.url;
+      const avatarUpload = await uploadOnCloudinary(req.file.path);
+      if (!avatarUpload) throw new AppError("Failed to upload image to Cloudinary", 500);
+      updates.avatar = avatarUpload.secure_url ?? avatarUpload.url;
     } else if (typeof req.body.avatarUrl === "string" && req.body.avatarUrl.trim() !== "") {
       let parsedUrl;
-      try { parsedUrl = new URL(req.body.avatarUrl); } catch { throw new AppError("Invalid avatarUrl", 400); }
+      try {
+        parsedUrl = new URL(req.body.avatarUrl);
+      } catch {
+        throw new AppError("Invalid avatarUrl", 400);
+      }
       if (parsedUrl.protocol !== "https:") throw new AppError("avatarUrl must be an https URL", 400);
       updates.avatar = parsedUrl.toString();
     }
@@ -94,9 +99,12 @@ export const toggleBookmark = async (req, res, next) => {
     const userId = req.user._id;
     const { resourceId } = req.params;
 
-    // Verify resource exists
-    const resource = await Resource.findById(resourceId);
-    if (!resource) throw new AppError("Resource not found", 404);
+    // Verify item exists in Resource OR Post collection
+    let item = await Resource.findById(resourceId);
+    if (!item) {
+      item = await Post.findById(resourceId);
+    }
+    if (!item) throw new AppError("Item not found", 404);
 
     const user = await User.findById(userId);
     const alreadyBookmarked = user.bookmarks.some((id) => id.toString() === resourceId);
@@ -110,25 +118,44 @@ export const toggleBookmark = async (req, res, next) => {
     res.status(200).json({
       success: true,
       bookmarked: !alreadyBookmarked,
-      message: alreadyBookmarked ? "Bookmark removed" : "Resource bookmarked",
+      message: alreadyBookmarked ? "Bookmark removed" : "Saved",
     });
   } catch (error) {
     next(error);
   }
 };
 
-/** Return the current user's bookmarked resources, fully populated */
+/** Return the current user's bookmarked resources & posts, fully populated */
 export const getMyBookmarks = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id)
-      .populate({
-        path: "bookmarks",
-        populate: { path: "userId", select: "username avatar" },
-      })
-      .select("bookmarks");
+    const user = await User.findById(req.user._id).select("bookmarks");
+    const bookmarkIds = user?.bookmarks || [];
 
-    const validBookmarks = (user?.bookmarks || []).filter(Boolean);
-    res.status(200).json({ success: true, data: validBookmarks });
+    const [resources, posts] = await Promise.all([
+      Resource.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
+      Post.find({ _id: { $in: bookmarkIds } })
+        .populate("userId", "username avatar")
+        .populate("comments.userId", "username avatar")
+        .populate("comments.replies.userId", "username avatar")
+        .lean(),
+    ]);
+
+    const formattedPosts = posts.map((p) => ({
+      ...p,
+      title: p.caption || "Post",
+      category: "Post",
+      fileType: p.image ? "image" : "article",
+      fileUrl: p.image || "",
+    }));
+
+    const allMap = new Map([
+      ...resources.map((r) => [r._id.toString(), r]),
+      ...formattedPosts.map((p) => [p._id.toString(), p]),
+    ]);
+
+    const result = bookmarkIds.map((id) => allMap.get(id.toString())).filter(Boolean);
+
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
@@ -138,17 +165,32 @@ export const getMyBookmarks = async (req, res, next) => {
 export const getUserBookmarks = async (req, res, next) => {
   try {
     const { username } = req.params;
-    const user = await User.findOne({ username })
-      .populate({
-        path: "bookmarks",
-        populate: { path: "userId", select: "username avatar" },
-      })
-      .select("bookmarks");
+    const user = await User.findOne({ username }).select("bookmarks");
 
     if (!user) throw new AppError("User not found", 404);
+    const bookmarkIds = user?.bookmarks || [];
 
-    const validBookmarks = (user?.bookmarks || []).filter(Boolean);
-    res.status(200).json({ success: true, data: validBookmarks });
+    const [resources, posts] = await Promise.all([
+      Resource.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
+      Post.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
+    ]);
+
+    const formattedPosts = posts.map((p) => ({
+      ...p,
+      title: p.caption || "Post",
+      category: "Post",
+      fileType: p.image ? "image" : "article",
+      fileUrl: p.image || "",
+    }));
+
+    const allMap = new Map([
+      ...resources.map((r) => [r._id.toString(), r]),
+      ...formattedPosts.map((p) => [p._id.toString(), p]),
+    ]);
+
+    const result = bookmarkIds.map((id) => allMap.get(id.toString())).filter(Boolean);
+
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }

@@ -6,7 +6,10 @@ import { apiClient } from "../api/apiClient";
 import { getCollections, deleteCollection, toggleResourceInCollection, createCollection } from "../api/collection.api";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import PostDetailModal from "../components/PostDetailModal";
+import { useAuth } from "../context/AuthContext";
 import "./Saved.css";
+import "./Profile.css";
 
 const timeAgo = (d) => {
   const diff = (Date.now() - new Date(d)) / 1000;
@@ -17,11 +20,14 @@ const timeAgo = (d) => {
 
 /* ─────────────── Saved page component ─────────────── */
 export default function Saved({ username }) {
+  const { user } = useAuth();
   const [savedResources, setSavedResources] = useState([]);
   const [collections, setCollections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewResource, setPreviewResource] = useState(null);
-  const [activeCollection, setActiveCollection] = useState(null); // null = overview, "all" = All Saves, or collection Object
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [activeCollection, setActiveCollection] = useState(null); // null = overview, "all" = Saved Resources, "posts" = Saved Posts, or collection Object
   const [collectionResources, setCollectionResources] = useState([]);
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
@@ -56,10 +62,18 @@ export default function Saved({ username }) {
     }
   };
 
+  const savedPosts = savedResources.filter((item) => item.category === "Post");
+  const savedResourceItems = savedResources.filter((item) => item.category !== "Post");
+
   const loadCollectionResources = async (collection) => {
+    if (collection === "posts") {
+      setActiveCollection("posts");
+      setCollectionResources(savedPosts);
+      return;
+    }
     if (collection === "all") {
       setActiveCollection("all");
-      setCollectionResources(savedResources);
+      setCollectionResources(savedResourceItems);
       return;
     }
     
@@ -112,14 +126,13 @@ export default function Saved({ username }) {
   const handleRemoveFromCollection = async (e, resourceId) => {
     e.stopPropagation();
     try {
-      if (activeCollection === "all") {
+      if (activeCollection === "all" || activeCollection === "posts") {
         await apiClient.post(`/profile/bookmarks/${resourceId}`);
         setCollectionResources((p) => p.filter((r) => r._id !== resourceId));
         setSavedResources((p) => p.filter((r) => r._id !== resourceId));
       } else {
         await toggleResourceInCollection(activeCollection._id, resourceId);
         setCollectionResources((p) => p.filter((r) => r._id !== resourceId));
-        // Update overview counts optimistically
         setCollections((p) => p.map(c => {
           if (c._id === activeCollection._id) {
             return { ...c, resources: c.resources.filter(r => (r._id || r) !== resourceId) };
@@ -171,7 +184,7 @@ export default function Saved({ username }) {
     );
   }
 
-  // 1. Another user's profile view (just a flat list)
+  // 1. Another user's profile view (flat list of resources)
   if (!isOwnProfile) {
     return (
       <div className="bm-container">
@@ -221,14 +234,25 @@ export default function Saved({ username }) {
         )}
 
         <div className="bm-collections-grid">
-          {/* Default "All Saves" Collection Card */}
+          {/* Saved Posts Collection Card */}
+          <div className="bm-collection-card saved-posts-card" onClick={() => loadCollectionResources("posts")}>
+            <div className="bm-collection-cover" style={{ background: "linear-gradient(135deg, #a855f7 0%, #ec4899 100%)" }}>
+              <span className="material-icons">article</span>
+            </div>
+            <div className="bm-collection-info">
+              <h3>Saved Posts</h3>
+              <p>{savedPosts.length} {savedPosts.length === 1 ? "post" : "posts"}</p>
+            </div>
+          </div>
+
+          {/* Saved Resources Collection Card */}
           <div className="bm-collection-card all-saves" onClick={() => loadCollectionResources("all")}>
             <div className="bm-collection-cover">
               <span className="material-icons">bookmark</span>
             </div>
             <div className="bm-collection-info">
-              <h3>All Saves</h3>
-              <p>{savedResources.length} resources</p>
+              <h3>Saved Resources</h3>
+              <p>{savedResourceItems.length} {savedResourceItems.length === 1 ? "resource" : "resources"}</p>
             </div>
           </div>
 
@@ -248,7 +272,9 @@ export default function Saved({ username }) {
             </div>
           ))}
         </div>
+
         {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
+
         <ConfirmDeleteModal
           isOpen={deleteConfirmCollectionId != null}
           title="Delete Collection"
@@ -265,15 +291,27 @@ export default function Saved({ username }) {
   return (
     <div className="bm-container">
       <Helmet>
-        <title>{activeCollection === "all" ? "All Saves" : activeCollection.name} | Linklet</title>
+        <title>
+          {activeCollection === "posts"
+            ? "Saved Posts"
+            : activeCollection === "all"
+            ? "Saved Resources"
+            : activeCollection.name}{" "}
+          | Linklet
+        </title>
       </Helmet>
+
       <div className="bm-header-row">
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button className="gs-icon-btn" onClick={() => setActiveCollection(null)}>
             <span className="material-icons">arrow_back</span>
           </button>
           <h2 className="bm-title">
-            {activeCollection === "all" ? "All Saves" : activeCollection.name}
+            {activeCollection === "posts"
+              ? "Saved Posts"
+              : activeCollection === "all"
+              ? "Saved Resources"
+              : activeCollection.name}
           </h2>
         </div>
       </div>
@@ -282,7 +320,64 @@ export default function Saved({ username }) {
         <div className="gs-spinner" style={{ margin: "40px auto" }} />
       ) : collectionResources.length === 0 ? (
         <div className="bm-empty">This collection is empty.</div>
+      ) : activeCollection === "posts" ? (
+        /* Instagram-style Post Grid for Saved Posts */
+        <div className="profile-posts-grid" style={{ marginTop: "1rem" }}>
+          {collectionResources.map((post) => (
+            <div
+              key={post._id}
+              className="profile-post-card cursor-pointer"
+              onClick={() => {
+                setSelectedPost(post);
+                setShowPostModal(true);
+              }}
+            >
+              {/* Image or text placeholder */}
+              {post.image ? (
+                <img
+                  src={post.image}
+                  alt={post.caption || "Post"}
+                  className="profile-post-image"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="profile-post-text-placeholder">
+                  <p>{post.caption}</p>
+                </div>
+              )}
+
+              {/* Hover overlay: stats + caption */}
+              <div className="profile-post-overlay">
+                <div className="profile-post-stats">
+                  <span className="profile-post-stat">
+                    <span className="material-icons">arrow_upward</span>
+                    {post.upvotes?.length || 0}
+                  </span>
+                  <span className="profile-post-stat">
+                    <span className="material-icons">chat_bubble_outline</span>
+                    {post.comments?.length || 0}
+                  </span>
+                </div>
+                {post.caption && (
+                  <p className="profile-post-caption-preview">{post.caption}</p>
+                )}
+              </div>
+
+              {/* Unsave button */}
+              {isOwnProfile && (
+                <button
+                  className="profile-post-delete-btn"
+                  title="Remove from saved posts"
+                  onClick={(e) => handleRemoveFromCollection(e, post._id)}
+                >
+                  <span className="material-icons">bookmark_remove</span>
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       ) : (
+        /* Regular list for resources */
         <div className="bm-list">
           {collectionResources.map((r) => (
             <ResourceListItem 
@@ -297,6 +392,23 @@ export default function Saved({ username }) {
       )}
 
       {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
+
+      {/* Post Detail Modal for Saved Posts Grid */}
+      <PostDetailModal
+        isOpen={showPostModal}
+        onClose={() => {
+          setShowPostModal(false);
+          setSelectedPost(null);
+        }}
+        post={selectedPost}
+        user={user}
+        onPostUpdated={(updated) => {
+          setCollectionResources((prev) =>
+            prev.map((p) => (p._id === updated._id ? updated : p))
+          );
+          setSelectedPost(updated);
+        }}
+      />
     </div>
   );
 }

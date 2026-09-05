@@ -1,514 +1,511 @@
-// src/pages/Posts.js
-import React, { useEffect, useState, useRef } from "react";
+// src/pages/Posts.jsx
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.png";
+import PostDetailModal, { formatTime } from "../components/PostDetailModal";
+import "./Posts.css";
 
+
+
+// ─── Create Post Modal ──────────────────────────────────────────────────────
+const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
+  const [caption, setCaption] = useState("");
+  const [image, setImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef(null);
+  const modalRef = useRef(null);
+  const MAX_CAPTION_LENGTH = 2000;
+
+  const handleBackdropClick = (e) => {
+    if (modalRef.current && !modalRef.current.contains(e.target)) onClose();
+  };
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === "Escape") onClose(); };
+    if (isOpen) {
+      document.addEventListener("keydown", handleEsc);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEsc);
+      document.body.style.overflow = "auto";
+    };
+  }, [isOpen, onClose]);
+
+  const handleImageChange = (file) => {
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { toast.error("Image size should be less than 5MB"); return; }
+    const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/gif"];
+    if (!validTypes.includes(file.type)) { toast.error("Please upload an image file (JPEG, PNG, GIF)"); return; }
+    setImage(file);
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrag = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault(); e.stopPropagation(); setDragActive(false);
+    if (e.dataTransfer.files?.[0]) handleImageChange(e.dataTransfer.files[0]);
+  };
+
+  const handleRemoveImage = () => {
+    setImage(null); setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!caption.trim() && !image) { toast.error("Please add a caption or image"); return; }
+    try {
+      setIsSubmitting(true);
+      const formData = new FormData();
+      formData.append("caption", caption);
+      if (image) formData.append("image", image);
+      const response = await apiClient.post(`/posts`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data.success) {
+        toast.success("Post created successfully!");
+        setCaption(""); setImage(null); setImagePreview(null);
+        onPostCreated(); onClose();
+      }
+    } catch (error) {
+      console.error("Error creating post:", error);
+      toast.error(error.response?.data?.message || "Failed to create post.");
+    } finally { setIsSubmitting(false); }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="feed-modal-backdrop" onClick={handleBackdropClick}>
+      <div ref={modalRef} className="feed-create-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="feed-create-modal__header">
+          <h2 className="feed-create-modal__title">Create Post</h2>
+          <button onClick={onClose} className="feed-create-modal__close" aria-label="Close">
+            <span className="material-icons">close</span>
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="feed-create-modal__body">
+          <div className="feed-create-modal__user">
+            <img src={user?.avatar || defaultAvatar} alt={user?.username} className="feed-create-modal__avatar" />
+            <div>
+              <span className="feed-create-modal__username">{user?.username || "You"}</span>
+              <span className="feed-create-modal__badge">Creating Post</span>
+            </div>
+          </div>
+          <textarea
+            value={caption}
+            onChange={(e) => { if (e.target.value.length <= MAX_CAPTION_LENGTH) setCaption(e.target.value); }}
+            placeholder="What's on your mind? Share your thoughts..."
+            className="feed-create-modal__textarea"
+            rows={5}
+          />
+          <div className="feed-create-modal__char-count">
+            <span>{caption.length}/{MAX_CAPTION_LENGTH}</span>
+          </div>
+          {imagePreview && (
+            <div className="feed-create-modal__preview">
+              <img src={imagePreview} alt="Preview" />
+              <button type="button" onClick={handleRemoveImage} className="feed-create-modal__preview-remove">
+                <span className="material-icons">close</span>
+              </button>
+            </div>
+          )}
+          {!imagePreview && (
+            <div
+              className={`feed-create-modal__dropzone ${dragActive ? "feed-create-modal__dropzone--active" : ""}`}
+              onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <span className="material-icons feed-create-modal__dropzone-icon">cloud_upload</span>
+              <p className="feed-create-modal__dropzone-text">Drag & drop an image or <span>click to browse</span></p>
+              <p className="feed-create-modal__dropzone-hint">JPEG, PNG, GIF • Max 5MB</p>
+            </div>
+          )}
+          <input type="file" ref={fileInputRef} onChange={(e) => handleImageChange(e.target.files[0])} style={{ display: "none" }} accept="image/*" />
+          <div className="feed-create-modal__footer">
+            <div className="feed-create-modal__tools">
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="feed-create-modal__tool-btn" title="Add Photo">
+                <span className="material-icons" style={{ color: "#60a5fa" }}>image</span>
+              </button>
+              <button type="button" className="feed-create-modal__tool-btn" title="Tag People">
+                <span className="material-icons" style={{ color: "#34d399" }}>tag</span>
+              </button>
+              <button type="button" className="feed-create-modal__tool-btn" title="Mood">
+                <span className="material-icons" style={{ color: "#fbbf24" }}>mood</span>
+              </button>
+            </div>
+            <div className="feed-create-modal__actions">
+              <button type="button" onClick={onClose} className="feed-create-modal__cancel-btn">Cancel</button>
+              <button type="submit" disabled={isSubmitting || (!caption.trim() && !image)} className="feed-create-modal__submit-btn">
+                {isSubmitting ? (<><span className="material-icons feed-spin">refresh</span>Posting...</>) : (<><span className="material-icons">send</span>Post</>)}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// ─── Post Detail Modal is imported from components/PostDetailModal ───────────
+
+// ─── Post Card ──────────────────────────────────────────────────────────────
+const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCollection, isSaved }) => {
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const shareRef = useRef(null);
+  const navigate = useNavigate();
+
+  const upvoteCount = post.upvotes?.length || 0;
+  const downvoteCount = post.downvotes?.length || 0;
+  const netVotes = upvoteCount - downvoteCount;
+  const currentUserId = user?._id || user?.id;
+  const isUpvoted = post.upvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
+  const isDownvoted = post.downvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
+  const commentCount = post.comments?.length || 0;
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (shareRef.current && !shareRef.current.contains(e.target)) setShowShareMenu(false);
+    };
+    if (showShareMenu) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showShareMenu]);
+
+  const handleShare = async (platform) => {
+    const url = `${window.location.origin}/posts/${post._id}`;
+    const text = `Check out this post on Linklet: ${post.caption || ""}`;
+    switch (platform) {
+      case "twitter":
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
+        break;
+      case "linkedin":
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
+        break;
+      case "whatsapp":
+        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
+        break;
+      case "copy":
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+        break;
+    }
+    setShowShareMenu(false);
+  };
+
+  const author = post.userId || post.user || {};
+  const username = author.username || "User";
+  const avatar = author.avatar || defaultAvatar;
+
+  return (
+    <div className="feed-card">
+{/* Header: Avatar + Username + Bookmark toggle */}
+      <div className="feed-card__header">
+        <img src={avatar} alt="Profile" className="feed-card__avatar" />
+        <div className="feed-card__user-info">
+          <span
+            className="feed-card__username"
+            onClick={() => navigate(`/dashboard/profile/${username}`)}
+          >
+            {username}
+          </span>
+          <span className="feed-card__time">{formatTime(post.createdAt)}</span>
+        </div>
+
+        {/* ONLY Single Bookmark Button (Triggers Save to Collection Modal like Global Search) */}
+        <button
+          className={`feed-card__save-btn ${isSaved ? "feed-card__save-btn--saved" : ""}`}
+          onClick={(e) => { e.stopPropagation(); onSaveToCollection(post._id); }}
+          title={isSaved ? "Remove / Manage Collections" : "Save to Collection"}
+        >
+          <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
+        </button>
+      </div>
+
+      {/* Caption / Description */}
+      {post.caption && (
+        <div className="feed-card__caption">
+          <p>{post.caption}</p>
+        </div>
+      )}
+
+      {/* Media: Image / Video */}
+      {post.image && (
+        <div className="feed-card__media" onClick={() => onOpenComments(post)}>
+          <img src={post.image} alt="" className="feed-card__image" />
+        </div>
+      )}
+
+      {/* Actions Bar */}
+      <div className="feed-card__actions">
+        {/* Vote Pill Matching Screenshot */}
+        <div className="feed-card__vote-pill">
+          <button
+            onClick={(e) => onUpvote(post._id, e)}
+            className={`feed-card__vote-btn feed-card__vote-btn--up ${isUpvoted ? "feed-card__vote-btn--active-up" : ""}`}
+            aria-label="Upvote"
+          >
+            <span className="material-icons">north</span>
+          </button>
+          <span className={`feed-card__vote-count ${netVotes > 0 ? "feed-card__vote-count--positive" : netVotes < 0 ? "feed-card__vote-count--negative" : ""}`}>
+            {netVotes}
+          </span>
+          <button
+            onClick={(e) => onDownvote(post._id, e)}
+            className={`feed-card__vote-btn feed-card__vote-btn--down ${isDownvoted ? "feed-card__vote-btn--active-down" : ""}`}
+            aria-label="Downvote"
+          >
+            <span className="material-icons">south</span>
+          </button>
+        </div>
+
+        {/* Comment Button */}
+        <button onClick={() => onOpenComments(post)} className="feed-card__comment-btn">
+          <span className="material-icons">chat_bubble_outline</span>
+          {commentCount > 0 && <span className="feed-card__comment-count">{commentCount}</span>}
+        </button>
+
+        {/* Share Button */}
+        <div className="feed-card__share-wrap" ref={shareRef}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowShareMenu(!showShareMenu); }}
+            className="feed-card__share-btn"
+            aria-label="Share"
+          >
+            <span className="material-icons">share</span>
+          </button>
+          {showShareMenu && (
+            <div className="feed-card__share-menu">
+              <button onClick={() => handleShare("copy")} className="feed-card__share-option">
+                <span className="material-icons">link</span>
+                Copy Link
+              </button>
+              <button onClick={() => handleShare("twitter")} className="feed-card__share-option">
+                <span className="material-icons">tag</span>
+                Twitter / X
+              </button>
+              <button onClick={() => handleShare("linkedin")} className="feed-card__share-option">
+                <span className="material-icons">work</span>
+                LinkedIn
+              </button>
+              <button onClick={() => handleShare("whatsapp")} className="feed-card__share-option">
+                <span className="material-icons">chat</span>
+                WhatsApp
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Main Posts Component ───────────────────────────────────────────────────
 const Posts = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Modal state
-  const [showPostModal, setShowPostModal] = useState(false);
-  const [selectedPost, setSelectedPost] = useState(null);
-  const [commentText, setCommentText] = useState("");
-  const [commentLoading, setCommentLoading] = useState(false);
-  const modalRef = useRef(null);
+  // Bookmark state
+  const [savedPosts, setSavedPosts] = useState(new Set());
 
-  const fetchPosts = async (page = 1) => {
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+// const [collectionPostId, setCollectionPostId] = useState(null);
+
+  const fetchPosts = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get(
-        `/posts/feed?limit=50`
-      );
+      const res = await apiClient.get(`/posts/feed?limit=50`);
       setPosts(res.data.data || []);
-      setTotalPages(1);
     } catch (error) {
       toast.error("Error fetching posts");
       console.error("Error:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Fetch user bookmarks from backend
+  useEffect(() => {
+    const fetchBookmarks = async () => {
+      if (!user) return;
+      try {
+        const res = await apiClient.get("/profile/me/bookmarks");
+        const bookmarkIds = (res.data.data || []).map((b) => (b._id || b).toString());
+        setSavedPosts(new Set(bookmarkIds));
+      } catch {
+        // silently fail
+      }
+    };
+    fetchBookmarks();
+  }, [user]);
 
   useEffect(() => {
-    fetchPosts(currentPage);
-  }, [currentPage]);
-
-  const handlePageChange = (newPage) => {
-    if (newPage > 0 && newPage <= totalPages) {
-      setCurrentPage(newPage);
-    }
-  };
+    fetchPosts();
+  }, [fetchPosts]);
 
   const handleUpvote = async (postId, e) => {
     e.stopPropagation();
-    if (!user) {
-      toast.info("Please log in to upvote posts");
-      return;
-    }
-
+    if (!user) { toast.info("Please log in to vote"); return; }
     try {
-      const res = await apiClient.post(
-        `/posts/${postId}/upvote`
-      );
-
-      setPosts((prevPosts) =>
-        prevPosts.map((post) =>
-          post._id === postId
-            ? {
-                ...post,
-                upvotes: res.data.data.upvotes || []
-              }
-            : post
+      const res = await apiClient.post(`/posts/${postId}/upvote`);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p._id === postId ? res.data.data : p
         )
       );
-
       if (selectedPost && selectedPost._id === postId) {
-        setSelectedPost((prev) => ({
-          ...prev,
-          upvotes: res.data.data.upvotes || []
-        }));
+        setSelectedPost(res.data.data);
       }
     } catch (error) {
       console.error("Upvote error:", error);
-      toast.error("Error upvoting post");
+      toast.error("Error voting on post");
     }
   };
 
-  const openPostDetail = (post) => {
-    setSelectedPost(post);
-    setShowPostModal(true);
-    document.body.style.overflow = "hidden";
-  };
-
-  const closePostModal = () => {
-    setShowPostModal(false);
-    setSelectedPost(null);
-    document.body.style.overflow = "auto";
-  };
-
-  const handleOutsideClick = (e) => {
-    if (modalRef.current && !modalRef.current.contains(e.target)) {
-      closePostModal();
-    }
-  };
-
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !selectedPost || !user) return;
-
+  const handleDownvote = async (postId, e) => {
+    e.stopPropagation();
+    if (!user) { toast.info("Please log in to vote"); return; }
     try {
-      setCommentLoading(true);
-      const res = await apiClient.post(
-        `/posts/${selectedPost._id}/comment`,
-        { text: commentText }
-      );
-
-      setSelectedPost(res.data.data);
-
-      setPosts((prevPosts) =>
-        prevPosts.map((post) =>
-          post._id === selectedPost._id ? res.data.data : post
+      const res = await apiClient.post(`/posts/${postId}/downvote`);
+      setPosts((prev) =>
+        prev.map((p) =>
+          p._id === postId ? res.data.data : p
         )
       );
-
-      setCommentText("");
-      toast.success("Comment added");
+      if (selectedPost && selectedPost._id === postId) {
+        setSelectedPost(res.data.data);
+      }
     } catch (error) {
-      toast.error("Error adding comment");
-    } finally {
-      setCommentLoading(false);
+      console.error("Downvote error:", error);
+      toast.error("Error voting on post");
     }
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+  const handleSaveToCollection = async (postId) => {
+    if (!user) { toast.info("Please log in to save posts"); return; }
+    try {
+      const res = await apiClient.post(`/profile/bookmarks/${postId}`);
+      if (res.data.bookmarked) {
+        setSavedPosts((prev) => new Set([...prev, postId.toString()]));
+        toast.success("Post saved to collection");
+      } else {
+        setSavedPosts((prev) => {
+          const next = new Set(prev);
+          next.delete(postId.toString());
+          return next;
+        });
+        toast.info("Post removed from saved collection");
+      }
+    } catch {
+      toast.error("Failed to update saved post");
+    }
+  };
+
+  const handleOpenComments = (post) => {
+    setSelectedPost(post);
+    setShowDetailModal(true);
+  };
+
+  const handlePostUpdated = (updatedPost) => {
+    setPosts((prev) =>
+      prev.map((p) => (p._id === updatedPost._id ? updatedPost : p))
+    );
+    setSelectedPost(updatedPost);
   };
 
   const handleCreatePost = () => {
-    navigate("/create-post");
+    if (!user) { toast.info("Please log in to create a post"); return; }
+    setShowCreateModal(true);
   };
 
   return (
-    <div className="w-full max-w-3xl mx-auto py-8 px-4">
-      {/* Create Post Card */}
-      <div className="mb-8 bg-gray-800/40 backdrop-blur-md rounded-xl border border-violet-500/20 shadow-lg shadow-violet-900/10 overflow-hidden">
-        <div className="p-5 flex items-center gap-3">
-          <img
-            src={user?.avatar || defaultAvatar}
-            alt={user?.username || "Your profile"}
-            className="w-12 h-12 rounded-full border-2 border-violet-500/30 object-cover flex-shrink-0"
-          />
-          <div
-            onClick={handleCreatePost}
-            className="flex-1 px-4 py-3 bg-gray-900/50 text-gray-400 rounded-full border border-violet-500/20 hover:border-violet-500/40 cursor-pointer transition-all"
-          >
-            Start a post...
-          </div>
+    <div className="feed-container">
+      {/* Create Post Prompt */}
+      <div className="feed-create-prompt" onClick={handleCreatePost}>
+        <img src={user?.avatar || defaultAvatar} alt="Your profile" className="feed-create-prompt__avatar" />
+        <div className="feed-create-prompt__input">
+          <span>Start a post...</span>
         </div>
-        <div className="px-5 py-3 border-t border-violet-500/10 bg-gray-900/20 flex items-center justify-around sm:justify-start sm:gap-6">
-          <button className="flex items-center gap-2 text-gray-300 hover:text-violet-400 transition-colors p-2 rounded-lg hover:bg-violet-500/10">
-            <span className="material-icons text-blue-400">image</span>
-            <span className="hidden sm:inline">Photo</span>
+        <div className="feed-create-prompt__actions">
+          <button className="feed-create-prompt__btn" title="Photo">
+            <span className="material-icons" style={{ color: "#60a5fa" }}>image</span>
           </button>
-          <button className="flex items-center gap-2 text-gray-300 hover:text-violet-400 transition-colors p-2 rounded-lg hover:bg-violet-500/10">
-            <span className="material-icons text-green-400">videocam</span>
-            <span className="hidden sm:inline">Video</span>
-          </button>
-          <button className="flex items-center gap-2 text-gray-300 hover:text-violet-400 transition-colors p-2 rounded-lg hover:bg-violet-500/10">
-            <span className="material-icons text-yellow-500">event</span>
-            <span className="hidden sm:inline">Event</span>
-          </button>
-          <button className="flex items-center gap-2 text-gray-300 hover:text-violet-400 transition-colors p-2 rounded-lg hover:bg-violet-500/10 sm:ml-auto">
-            <span className="material-icons text-red-400">article</span>
-            <span className="hidden sm:inline">Write article</span>
+          <button className="feed-create-prompt__btn" title="Video">
+            <span className="material-icons" style={{ color: "#34d399" }}>videocam</span>
           </button>
         </div>
       </div>
 
-      {/* Content Feed */}
+      {/* Content */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <div className="w-12 h-12 border-t-2 border-b-2 border-violet-500 rounded-full animate-spin mb-4"></div>
-          <p className="text-violet-300 text-lg">Loading Feed...</p>
+        <div className="feed-loading">
+          <div className="feed-loading__spinner"></div>
+          <p>Loading Feed...</p>
         </div>
       ) : posts.length === 0 ? (
-        <div className="text-center py-20 px-4 bg-gray-800/30 backdrop-blur-md rounded-xl border border-violet-500/20 shadow-inner">
-          <div className="inline-flex justify-center items-center w-20 h-20 bg-violet-900/20 rounded-full mb-6 ring-4 ring-violet-500/10">
-            <span className="material-icons text-4xl text-violet-400">
-              dynamic_feed
-            </span>
+        <div className="feed-empty">
+          <div className="feed-empty__icon-wrap">
+            <span className="material-icons">dynamic_feed</span>
           </div>
-          <h3 className="text-xl font-semibold text-violet-300 mb-2">
-            Your Feed is Empty
-          </h3>
-          <p className="text-gray-400 max-w-md mx-auto mb-6">
-            Start by creating a post or connecting with others.
+          <h3 className="feed-empty__title">Your Feed is Empty</h3>
+          <p className="feed-empty__subtitle">
+            Start by creating a post or following other users to see their content here.
           </p>
-          <button
-            onClick={handleCreatePost}
-            className="px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors inline-flex items-center gap-2 shadow-lg shadow-violet-900/20"
-          >
+          <button onClick={handleCreatePost} className="feed-empty__cta">
             <span className="material-icons">add</span>
-            Create First Post
+            Create Your First Post
           </button>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="feed-list">
           {posts.map((post) => (
-            <div
+            <PostCard
               key={post._id}
-              className="bg-gray-800/40 backdrop-blur-md rounded-xl border border-violet-500/20 shadow-lg overflow-hidden hover:shadow-violet-900/10 hover:border-violet-500/40 transition-all duration-300"
-            >
-              {/* Post Header - Styled like the provided image */}
-              <div className="px-5 pt-5 pb-0 flex">
-                {/* User Avatar */}
-                <div className="flex-shrink-0 mr-4">
-                  <img
-                    src={post.user?.avatar || post.userId?.avatar || defaultAvatar}
-                    alt="Profile"
-                    className="w-14 h-14 rounded-full border-2 border-violet-500/30 object-cover flex-shrink-0"
-                  />
-                </div>
-                
-                <div className="flex-1">
-                  {/* Username and Date (styled like the image) */}
-                  <div className="flex flex-col">
-                    <h3 className="font-semibold text-lg text-violet-300 leading-tight">
-                      {post.user?.username || post.userId?.username || "User"}
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-4">
-                      {formatDate(post.createdAt)}
-                    </p>
-                  </div>
-                  
-                  {/* Caption styled with highlight/underline effect */}
-                  <div className="pb-4 -mx-1">
-                    <p className="text-gray-200 text-base font-medium bg-violet-500/10 border-b border-violet-500/50 inline-block px-3 py-1.5 rounded-md">
-                      {post.caption}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Post Image */}
-              {post.image && (
-                <div
-                  onClick={() => openPostDetail(post)}
-                  className="cursor-pointer"
-                >
-                  <div className="bg-black/50 flex items-center justify-center">
-                    <img
-                      src={post.image}
-                      alt=""
-                      className="w-full object-contain max-h-[500px]"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Post Actions */}
-              <div className="py-2 border-t border-violet-500/10 bg-gray-900/30 backdrop-blur-sm">
-                <div className="flex items-center justify-between px-5">
-                  <span className="text-xs text-gray-400">{post.upvotes?.length || 0} upvotes • {post.comments?.length || 0} comments</span>
-                </div>
-                <div className="flex items-center px-2 mt-2">
-                  {/* Upvote Button */}
-                  <button
-                    onClick={(e) => handleUpvote(post._id, e)}
-                    className={`flex flex-1 items-center justify-center gap-1 p-2 rounded-md hover:bg-violet-500/10 transition-colors ${
-                      post.upvotes?.includes(user?.id) ? 'text-violet-400' : 'text-gray-400 hover:text-violet-400'
-                    }`}
-                  >
-                    <span className="material-icons text-xl">thumb_up</span>
-                    <span className="font-semibold">Upvote</span>
-                  </button>
-                  
-                  {/* Comment Button */}
-                  <button
-                    onClick={() => openPostDetail(post)}
-                    className="flex flex-1 items-center justify-center gap-1 p-2 rounded-md text-gray-400 hover:text-violet-400 hover:bg-violet-500/10 transition-colors"
-                  >
-                    <span className="material-icons text-xl">comment</span>
-                    <span className="font-semibold">Comment</span>
-                  </button>
-                  
-                  {/* Send Button */}
-                  <button className="flex flex-1 items-center justify-center gap-1 p-2 rounded-md text-gray-400 hover:text-violet-400 hover:bg-violet-500/10 transition-colors">
-                    <span className="material-icons text-xl">send</span>
-                    <span className="font-semibold">Send</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+              post={post}
+              user={user}
+              onUpvote={handleUpvote}
+              onDownvote={handleDownvote}
+              onOpenComments={handleOpenComments}
+              onSaveToCollection={handleSaveToCollection}
+              isSaved={savedPosts.has(post._id?.toString())}
+            />
           ))}
         </div>
       )}
 
-      {/* Post Detail Modal (Instagram-style) */}
-      {showPostModal && selectedPost && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-          onClick={handleOutsideClick}
-        >
-          <div
-            ref={modalRef}
-            className="relative w-full max-w-5xl max-h-[90vh] bg-gradient-to-b from-gray-900/95 to-black/95 backdrop-blur-xl rounded-xl border border-violet-500/20 shadow-2xl shadow-violet-900/20 overflow-hidden flex flex-col md:flex-row"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Close button */}
-            <button
-              onClick={closePostModal}
-              className="absolute top-4 right-4 z-10 p-2 bg-black/40 hover:bg-red-500/20 rounded-full text-gray-400 hover:text-red-400 transition-colors"
-            >
-              <span className="material-icons">close</span>
-            </button>
+      {/* Create Post Modal */}
+      <CreatePostModal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        user={user}
+        onPostCreated={fetchPosts}
+      />
 
-            {/* Left side - Image */}
-            {selectedPost.image && (
-              <div className="md:w-3/5 bg-black flex items-center justify-center max-h-[60vh] md:max-h-[90vh]">
-                <img
-                  src={selectedPost.image}
-                  alt=""
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            )}
-
-            {/* Right side - Content */}
-            <div
-              className={`${
-                selectedPost.image ? "md:w-2/5" : "w-full"
-              } flex flex-col max-h-[90vh] overflow-hidden`}
-            >
-              {/* Post Header - styled like the image */}
-              <div className="p-4 border-b border-violet-500/20 bg-black/40 backdrop-blur-md">
-                <div className="flex items-start">
-                  <img
-                    src={
-                      selectedPost.user?.avatar ||
-                      selectedPost.userId?.avatar ||
-                      defaultAvatar
-                    }
-                    alt="Profile"
-                    className="w-14 h-14 rounded-full border-2 border-violet-500/30 mr-4"
-                  />
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-lg text-violet-300">
-                      {selectedPost.user?.username ||
-                        selectedPost.userId?.username ||
-                        "User"}
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-3">
-                      {formatDate(selectedPost.createdAt)}
-                    </p>
-                    
-                    {/* Caption with styling */}
-                    <div className="bg-violet-500/10 border-b border-violet-500/50 inline-block px-3 py-1.5 rounded-md">
-                      <p className="text-gray-200 font-medium">
-                        {selectedPost.caption}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Comments Section */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="p-4 space-y-4">
-                  {selectedPost.comments?.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-gray-400">
-                        No comments yet. Be the first to comment!
-                      </p>
-                    </div>
-                  ) : (
-                    selectedPost.comments?.map((comment) => (
-                      <div key={comment._id} className="flex items-start gap-3">
-                        <img
-                          src={comment.userId?.avatar || defaultAvatar}
-                          alt=""
-                          className="w-8 h-8 rounded-full border border-violet-500/30"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-baseline">
-                            <span className="font-medium text-violet-300 mr-2">
-                              {comment.userId?.username || "User"}
-                            </span>
-                            <span className="text-xs text-gray-500">
-                              {new Date(comment.createdAt).toLocaleDateString()}
-                            </span>
-                          </div>
-                          <p className="text-gray-300 mt-1">{comment.text}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              {/* Post Actions */}
-              <div className="border-t border-violet-500/10 bg-black/40 backdrop-blur-md p-4">
-                <div className="flex items-center gap-4 mb-3">
-                  <button
-                    onClick={(e) => handleUpvote(selectedPost._id, e)}
-                    className={`flex items-center gap-1.5 ${
-                      selectedPost.upvotes?.includes(user?.id)
-                        ? "text-violet-400"
-                        : "text-gray-400 hover:text-violet-400"
-                    } transition-colors`}
-                  >
-                    <span className="material-icons text-xl">thumb_up</span>
-                    <span>{selectedPost.upvotes?.length || 0} Upvote</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 text-gray-400 hover:text-violet-400 transition-colors">
-                    <span className="material-icons text-xl">comment</span>
-                    <span>{selectedPost.comments?.length || 0} Comments</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 text-gray-400 hover:text-violet-400 transition-colors">
-                    <span className="material-icons text-xl">send</span>
-                    <span>Send</span>
-                  </button>
-                </div>
-
-                {/* Comment Form */}
-                <form
-                  onSubmit={handleCommentSubmit}
-                  className="flex items-center gap-3"
-                >
-                  <img
-                    src={user?.avatar || defaultAvatar}
-                    alt="Your avatar"
-                    className="w-8 h-8 rounded-full border border-violet-500/30"
-                  />
-                  <input
-                    type="text"
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    placeholder={user ? "Add a comment..." : "Log in to comment"}
-                    className="flex-1 px-4 py-2 bg-black/30 text-white rounded-full border border-violet-500/30 focus:border-violet-500 focus:outline-none transition-all placeholder-gray-500"
-                    disabled={!user}
-                  />
-                  <button
-                    type="submit"
-                    disabled={commentLoading || !user || !commentText.trim()}
-                    className="p-2 bg-violet-600 text-white rounded-full hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {commentLoading ? (
-                      <span className="material-icons animate-spin">
-                        refresh
-                      </span>
-                    ) : (
-                      <span className="material-icons">send</span>
-                    )}
-                  </button>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="mt-8 flex justify-center">
-          <div className="inline-flex rounded-lg bg-gray-900/50 border border-violet-500/20 p-1 shadow-md">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="p-2 rounded-md text-gray-400 hover:text-violet-400 enabled:hover:bg-violet-500/10 disabled:opacity-50 transition-colors"
-              aria-label="Previous page"
-            >
-              <span className="material-icons">chevron_left</span>
-            </button>
-
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let pageNum = i + 1;
-              if (totalPages > 5) {
-                if (currentPage > 3 && currentPage < totalPages - 2) {
-                  pageNum = currentPage - 2 + i;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNum = totalPages - 4 + i;
-                }
-              }
-              return (
-                <button
-                  key={pageNum}
-                  onClick={() => handlePageChange(pageNum)}
-                  className={`w-9 h-9 flex items-center justify-center rounded-md transition-colors mx-0.5 ${
-                    currentPage === pageNum
-                      ? "bg-violet-600 text-white font-medium shadow-sm"
-                      : "text-gray-400 hover:text-violet-400 hover:bg-violet-500/10"
-                  }`}
-                  aria-current={currentPage === pageNum ? "page" : undefined}
-                >
-                  {pageNum}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="p-2 rounded-md text-gray-400 hover:text-violet-400 enabled:hover:bg-violet-500/10 disabled:opacity-50 transition-colors"
-              aria-label="Next page"
-            >
-              <span className="material-icons">chevron_right</span>
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Post Detail Modal (Large Side-by-Side) */}
+      <PostDetailModal
+        isOpen={showDetailModal}
+        onClose={() => { setShowDetailModal(false); setSelectedPost(null); }}
+        post={selectedPost}
+        user={user}
+        onPostUpdated={handlePostUpdated}
+      />
     </div>
   );
 };

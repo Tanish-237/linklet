@@ -8,6 +8,7 @@ import defaultBanner from "../assets/mnnit-banner.png";
 import { Helmet } from "react-helmet-async";
 import Saved from "./Saved";
 import { calculateAcademicYear } from "../utlis/academicYear";
+import PostDetailModal from "../components/PostDetailModal";
 import "./Profile.css";
 
 const formatSectionInput = (val) => {
@@ -29,6 +30,16 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
+
+  // Posts state
+  const [userPosts, setUserPosts] = useState([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
+  const [showPostModal, setShowPostModal] = useState(false);
+
+  // Delete modal state
+  const [postToDelete, setPostToDelete] = useState(null);
+  const [isDeletingPost, setIsDeletingPost] = useState(false);
 
   // Editable fields
   const [editBio, setEditBio] = useState("");
@@ -73,6 +84,7 @@ const Profile = () => {
     const fetchProfile = async () => {
       try {
         setLoading(true);
+        setActiveTab("posts"); // Always reset to posts tab when switching profiles
         // If no username provided, use current user's username
         const targetUsername = username || currentUser?.username;
         if (!targetUsername) {
@@ -95,6 +107,17 @@ const Profile = () => {
         setEditPhone(res.data.data.phoneNumber || "");
         setEditSection(res.data.data.section || "");
         setEditSemester(res.data.data.semester ?? "");
+
+        // Fetch this user's posts
+        setPostsLoading(true);
+        try {
+          const postsRes = await apiClient.get(`/posts/user/${res.data.data._id}`);
+          setUserPosts(postsRes.data.data || []);
+        } catch {
+          setUserPosts([]);
+        } finally {
+          setPostsLoading(false);
+        }
       } catch (error) {
         toast.error("Profile not found");
         navigate("/dashboard");
@@ -217,6 +240,30 @@ const Profile = () => {
       month: "long",
       year: "numeric",
     });
+  };
+
+  const formatPostDate = (dateStr) => {
+    if (!dateStr) return "";
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const handleDeletePost = async () => {
+    if (!postToDelete) return;
+    setIsDeletingPost(true);
+    try {
+      await apiClient.delete(`/posts/${postToDelete._id}`);
+      setUserPosts((prev) => prev.filter((p) => p._id !== postToDelete._id));
+      toast.success("Post deleted successfully");
+      setPostToDelete(null);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete post");
+    } finally {
+      setIsDeletingPost(false);
+    }
   };
 
   if (loading) {
@@ -585,7 +632,7 @@ const Profile = () => {
             <div className="stat-icon-bg">
               <span className="material-icons">article</span>
             </div>
-            <div className="stat-value">—</div>
+            <div className="stat-value">{userPosts.length}</div>
             <div className="stat-label">Posts</div>
           </div>
         </div>
@@ -600,24 +647,96 @@ const Profile = () => {
               <span className="material-icons">article</span>
               Recent Posts
             </button>
-            <button
-              onClick={() => setActiveTab("resources")}
-              className={`profile-tab-btn ${activeTab === "resources" ? "active" : ""}`}
-            >
-              <span className="material-icons">bookmark</span>
-              Saved Resources
-            </button>
+            {isOwnProfile && (
+              <button
+                onClick={() => setActiveTab("resources")}
+                className={`profile-tab-btn ${activeTab === "resources" ? "active" : ""}`}
+              >
+                <span className="material-icons">bookmark</span>
+                Saved Resources
+              </button>
+            )}
           </div>
 
           <div className="profile-tab-content">
             {activeTab === "posts" ? (
-              <div className="profile-empty-state">
-                <div className="profile-empty-icon">
-                  <span className="material-icons">article</span>
+              postsLoading ? (
+                <div className="profile-posts-skeleton">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="profile-posts-skeleton-item" />
+                  ))}
                 </div>
-                <h3 className="profile-empty-title">No posts yet</h3>
-                <p className="profile-empty-desc">When this user creates posts, they will appear here.</p>
-              </div>
+              ) : userPosts.length === 0 ? (
+                <div className="profile-empty-state">
+                  <div className="profile-empty-icon">
+                    <span className="material-icons">article</span>
+                  </div>
+                  <h3 className="profile-empty-title">No posts yet</h3>
+                  <p className="profile-empty-desc">
+                    {isOwnProfile
+                      ? "You haven't created any posts yet."
+                      : "When this user creates posts, they will appear here."}
+                  </p>
+                </div>
+              ) : (
+                <div className="profile-posts-grid">
+                  {userPosts.map((post) => (
+                    <div
+                      key={post._id}
+                      className="profile-post-card cursor-pointer"
+                      onClick={() => {
+                        setSelectedPost(post);
+                        setShowPostModal(true);
+                      }}
+                    >
+                      {/* Image or text placeholder */}
+                      {post.image ? (
+                        <img
+                          src={post.image}
+                          alt={post.caption || "Post"}
+                          className="profile-post-image"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="profile-post-text-placeholder">
+                          <p>{post.caption}</p>
+                        </div>
+                      )}
+
+                      {/* Hover overlay: stats + caption */}
+                      <div className="profile-post-overlay">
+                        <div className="profile-post-stats">
+                          <span className="profile-post-stat">
+                            <span className="material-icons">arrow_upward</span>
+                            {post.upvotes?.length || 0}
+                          </span>
+                          <span className="profile-post-stat">
+                            <span className="material-icons">chat_bubble_outline</span>
+                            {post.comments?.length || 0}
+                          </span>
+                        </div>
+                        {post.caption && (
+                          <p className="profile-post-caption-preview">{post.caption}</p>
+                        )}
+                      </div>
+
+                      {/* Delete button (owner / admin only) */}
+                      {(isOwnProfile || currentUser?.role === "admin") && (
+                        <button
+                          className="profile-post-delete-btn"
+                          aria-label="Delete post"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPostToDelete(post);
+                          }}
+                        >
+                          <span className="material-icons">delete</span>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )
             ) : (
               <Saved username={profileUser.username} />
             )}
@@ -625,6 +744,103 @@ const Profile = () => {
         </div>
 
       </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {postToDelete && (
+        <div
+          className="profile-delete-modal-backdrop"
+          onClick={() => !isDeletingPost && setPostToDelete(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-modal-title"
+        >
+          <div
+            className="profile-delete-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="profile-delete-modal-header">
+              <div className="profile-delete-modal-icon">
+                <span className="material-icons">warning_amber</span>
+              </div>
+              <div>
+                <p id="delete-modal-title" className="profile-delete-modal-title">Delete Post</p>
+                <p className="profile-delete-modal-subtitle">This action cannot be undone</p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="profile-delete-modal-body">
+              {/* Post preview */}
+              <div className="profile-delete-preview">
+                {postToDelete.image ? (
+                  <img
+                    src={postToDelete.image}
+                    alt="Post thumbnail"
+                    className="profile-delete-preview-thumb"
+                  />
+                ) : (
+                  <div className="profile-delete-preview-thumb-placeholder">
+                    <span className="material-icons">article</span>
+                  </div>
+                )}
+                <div className="profile-delete-preview-text">
+                  <p className="profile-delete-preview-caption">
+                    {postToDelete.caption || "(No caption)"}
+                  </p>
+                  <p className="profile-delete-preview-meta">
+                    {formatPostDate(postToDelete.createdAt)} &middot; {postToDelete.upvotes?.length || 0} upvotes &middot; {postToDelete.comments?.length || 0} comments
+                  </p>
+                </div>
+              </div>
+
+              {/* Warning text */}
+              <p className="profile-delete-warning-text">
+                Are you sure you want to delete this post?{" "}
+                <strong>This action is permanent</strong> and cannot be reversed.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="profile-delete-modal-actions">
+              <button
+                id="delete-cancel-btn"
+                className="profile-delete-modal-cancel"
+                onClick={() => setPostToDelete(null)}
+                disabled={isDeletingPost}
+              >
+                Cancel
+              </button>
+              <button
+                id="delete-confirm-btn"
+                className="profile-delete-modal-confirm"
+                onClick={handleDeletePost}
+                disabled={isDeletingPost}
+              >
+                <span className="material-icons">
+                  {isDeletingPost ? "hourglass_empty" : "delete_forever"}
+                </span>
+                {isDeletingPost ? "Deleting..." : "Delete Post"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Post Detail Modal (Pop-up like feed) ── */}
+      <PostDetailModal
+        isOpen={showPostModal}
+        onClose={() => {
+          setShowPostModal(false);
+          setSelectedPost(null);
+        }}
+        post={selectedPost}
+        user={currentUser}
+        onPostUpdated={(updated) => {
+          setUserPosts((prev) => prev.map((p) => (p._id === updated._id ? updated : p)));
+          setSelectedPost(updated);
+        }}
+      />
     </div>
   );
 };
