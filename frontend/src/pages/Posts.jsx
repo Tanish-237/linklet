@@ -211,7 +211,7 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
 
   return (
     <div className="feed-card">
-      {/* Header: Avatar + Username + SINGLE Bookmark Button (Triggers Save to Collection Modal like Global Search) */}
+{/* Header: Avatar + Username + Bookmark toggle */}
       <div className="feed-card__header">
         <img src={avatar} alt="Profile" className="feed-card__avatar" />
         <div className="feed-card__user-info">
