@@ -11,6 +11,15 @@ const replySchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    replyToUsername: {
+      type: String,
+    },
+    upvotes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -26,6 +35,12 @@ const commentSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    upvotes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
     replies: [replySchema],
   },
   { timestamps: true }

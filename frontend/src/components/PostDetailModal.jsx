@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { apiClient } from "../api/apiClient";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { useAuth } from "../context/AuthContext";
-import defaultAvatar from "../assets/default-avatar.png";
-import SaveToCollectionModal from "../components/SaveToCollectionModal";
 import EmojiPicker from "emoji-picker-react";
-import "./Posts.css";
+import { apiClient } from "../api/apiClient";
+import defaultAvatar from "../assets/default-avatar.png";
 
-const formatTime = (dateString) => {
+// Time Helper
+export const formatTime = (dateString) => {
   if (!dateString) return "just now";
   const now = Date.now();
   const created = new Date(dateString).getTime();
@@ -27,75 +25,147 @@ const formatTime = (dateString) => {
   });
 };
 
-const PostDetail = () => {
-  const { postId } = useParams();
-  const [post, setPost] = useState(null);
-  const [loading, setLoading] = useState(true);
+const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {} }) => {
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [replyTextMap, setReplyTextMap] = useState({});
   const [replyingToKey, setReplyingToKey] = useState(null);
+  const [localPost, setLocalPost] = useState(post);
   const [showShareMenu, setShowShareMenu] = useState(false);
-  const [savedPosts, setSavedPosts] = useState(new Set());
-  const [collectionPostId, setCollectionPostId] = useState(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-
-  const { user } = useAuth();
-  const navigate = useNavigate();
+  const modalRef = useRef(null);
   const shareRef = useRef(null);
   const emojiRef = useRef(null);
   const commentInputRef = useRef(null);
+  const navigate = useNavigate();
 
-  const fetchPostDetail = async () => {
+  useEffect(() => {
+    setLocalPost(post);
+  }, [post]);
+
+  useEffect(() => {
+    if (isOpen) document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = "auto";
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleEsc = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (isOpen) document.addEventListener("keydown", handleEsc);
+    return () => document.removeEventListener("keydown", handleEsc);
+  }, [isOpen, onClose]);
+
+  const handleBackdropClick = (e) => {
+    if (modalRef.current && !modalRef.current.contains(e.target)) onClose();
+  };
+
+  const handleCommentSubmit = async (e) => {
+    e.preventDefault();
+    if (!commentText.trim() || !localPost || !user) return;
     try {
-      setLoading(true);
-      const res = await apiClient.get(`/posts/${postId}`);
-      if (!res.data || !res.data.data) {
-        throw new Error("Post not found");
-      }
-      setPost(res.data.data);
+      setCommentLoading(true);
+      const res = await apiClient.post(`/posts/${localPost._id}/comment`, { text: commentText });
+      const updatedPost = res.data.data;
+      setLocalPost(updatedPost);
+      onPostUpdated(updatedPost);
+      setCommentText("");
+      toast.success("Comment added");
     } catch (error) {
-      toast.error("Post not found or failed to load");
-      console.error("Error:", error);
+      console.error("Comment error:", error);
+      toast.error("Error adding comment");
     } finally {
-      setLoading(false);
+      setCommentLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchPostDetail();
-  }, [postId]);
+  const handleReplySubmit = async (commentId, replyToUser) => {
+    const text = replyTextMap[replyingToKey];
+    if (!text || !text.trim() || !user) return;
+    try {
+      const res = await apiClient.post(`/posts/${localPost._id}/comments/${commentId}/reply`, {
+        text: text.trim(),
+        replyToUsername: replyToUser,
+      });
+      const updatedPost = res.data.data;
+      setLocalPost(updatedPost);
+      onPostUpdated(updatedPost);
+      setReplyTextMap((prev) => ({ ...prev, [replyingToKey]: "" }));
+      setReplyingToKey(null);
+      toast.success("Reply added");
+    } catch {
+      toast.error("Error adding reply");
+    }
+  };
 
-  useEffect(() => {
-    const fetchBookmarks = async () => {
-      if (!user) return;
-      try {
-        const res = await apiClient.get("/profile/me/bookmarks");
-        const bookmarkIds = (res.data.data || []).map((b) => (b._id || b).toString());
-        setSavedPosts(new Set(bookmarkIds));
-      } catch {
-        // silently fail
-      }
-    };
-    fetchBookmarks();
-  }, [user]);
+  const handleToggleCommentUpvote = async (commentId) => {
+    if (!user) {
+      toast.info("Please log in to vote");
+      return;
+    }
+    try {
+      const res = await apiClient.post(`/posts/${localPost._id}/comments/${commentId}/upvote`);
+      const updatedPost = res.data.data;
+      setLocalPost(updatedPost);
+      onPostUpdated(updatedPost);
+    } catch {
+      toast.error("Error voting on comment");
+    }
+  };
 
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (shareRef.current && !shareRef.current.contains(e.target)) setShowShareMenu(false);
-    };
-    if (showShareMenu) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showShareMenu]);
+  const handleUpvote = async () => {
+    if (!user) {
+      toast.info("Please log in to vote");
+      return;
+    }
+    try {
+      const res = await apiClient.post(`/posts/${localPost._id}/upvote`);
+      const updated = res.data.data;
+      setLocalPost(updated);
+      onPostUpdated(updated);
+    } catch {
+      toast.error("Error voting");
+    }
+  };
 
-  // Close emoji picker on outside click
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmojiPicker(false);
-    };
-    if (showEmojiPicker) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showEmojiPicker]);
+  const handleDownvote = async () => {
+    if (!user) {
+      toast.info("Please log in to vote");
+      return;
+    }
+    try {
+      const res = await apiClient.post(`/posts/${localPost._id}/downvote`);
+      const updated = res.data.data;
+      setLocalPost(updated);
+      onPostUpdated(updated);
+    } catch {
+      toast.error("Error voting");
+    }
+  };
+
+  const handleShare = async (platform) => {
+    if (!localPost) return;
+    const url = `${window.location.origin}/posts/${localPost._id}`;
+    const text = `Check out this post on Linklet: ${localPost.caption || ""}`;
+    switch (platform) {
+      case "copy":
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied to clipboard!");
+        break;
+      case "twitter":
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
+        break;
+      case "linkedin":
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
+        break;
+      case "whatsapp":
+        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
+        break;
+    }
+    setShowShareMenu(false);
+  };
 
   const handleEmojiClick = (emojiData) => {
     const emoji = emojiData.emoji;
@@ -114,126 +184,38 @@ const PostDetail = () => {
     }
   };
 
-  const closeModal = () => {
-    if (window.history.length > 2 && document.referrer.includes(window.location.host)) {
-      navigate(-1);
-    } else {
-      navigate("/home");
-    }
-  };
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (shareRef.current && !shareRef.current.contains(e.target)) setShowShareMenu(false);
+    };
+    if (showShareMenu) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showShareMenu]);
 
-  const handleUpvote = async () => {
-    if (!user) { toast.info("Please log in to vote"); return; }
-    try {
-      const res = await apiClient.post(`/posts/${postId}/upvote`);
-      setPost(res.data.data);
-    } catch { toast.error("Error voting"); }
-  };
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmojiPicker(false);
+    };
+    if (showEmojiPicker) document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showEmojiPicker]);
 
-  const handleDownvote = async () => {
-    if (!user) { toast.info("Please log in to vote"); return; }
-    try {
-      const res = await apiClient.post(`/posts/${postId}/downvote`);
-      setPost(res.data.data);
-    } catch { toast.error("Error voting"); }
-  };
-
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !user) return;
-    try {
-      setCommentLoading(true);
-      const res = await apiClient.post(`/posts/${postId}/comment`, { text: commentText });
-      setPost(res.data.data);
-      setCommentText("");
-      toast.success("Comment added");
-    } catch { toast.error("Error adding comment"); }
-    finally { setCommentLoading(false); }
-  };
-
-  const handleReplySubmit = async (commentId, replyToUser) => {
-    const text = replyTextMap[replyingToKey];
-    if (!text || !text.trim() || !user) return;
-    try {
-      const res = await apiClient.post(`/posts/${postId}/comments/${commentId}/reply`, {
-        text: text.trim(),
-        replyToUsername: replyToUser,
-      });
-      setPost(res.data.data);
-      setReplyTextMap((prev) => ({ ...prev, [replyingToKey]: "" }));
-      setReplyingToKey(null);
-      toast.success("Reply added");
-    } catch { toast.error("Error adding reply"); }
-  };
-
-  const handleToggleCommentUpvote = async (commentId) => {
-    if (!user) { toast.info("Please log in to vote"); return; }
-    try {
-      const res = await apiClient.post(`/posts/${postId}/comments/${commentId}/upvote`);
-      setPost(res.data.data);
-    } catch { toast.error("Error voting on comment"); }
-  };
-
-  const handleShare = async (platform) => {
-    const url = window.location.href;
-    const text = `Check out this post on Linklet: ${post?.caption || ""}`;
-    switch (platform) {
-      case "twitter":
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
-        break;
-      case "linkedin":
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
-        break;
-      case "whatsapp":
-        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
-        break;
-      case "copy":
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied to clipboard!");
-        break;
-    }
-    setShowShareMenu(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="feed-loading">
-        <div className="feed-loading__spinner"></div>
-        <p>Loading Post Details...</p>
-      </div>
-    );
-  }
-
-  if (!post) {
-    return (
-      <div className="feed-empty">
-        <div className="feed-empty__icon-wrap">
-          <span className="material-icons">error_outline</span>
-        </div>
-        <h3 className="feed-empty__title">Post Not Found</h3>
-        <p className="feed-empty__subtitle">The post you are looking for does not exist or was removed.</p>
-        <button onClick={() => navigate("/home")} className="feed-empty__cta">
-          Back to Feed
-        </button>
-      </div>
-    );
-  }
+  if (!isOpen || !localPost) return null;
 
   const currentUserId = user?._id || user?.id;
-  const isUpvoted = post.upvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
-  const isDownvoted = post.downvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
-  const netVotes = (post.upvotes?.length || 0) - (post.downvotes?.length || 0);
+  const isUpvoted = localPost.upvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
+  const isDownvoted = localPost.downvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
+  const netVotes = (localPost.upvotes?.length || 0) - (localPost.downvotes?.length || 0);
 
-  const postAuthor = post.userId || post.user || {};
+  const postAuthor = localPost.userId || localPost.user || {};
   const postUsername = postAuthor.username || "User";
   const postAvatar = postAuthor.avatar || defaultAvatar;
-  const isSaved = savedPosts.has(post._id?.toString());
 
   return (
-    <div style={{ minHeight: "100%", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "1.5rem 1rem" }}>
-      <div className="feed-detail-modal" style={{ margin: "0 auto", position: "relative" }}>
-        {/* Close Button */}
-        <button onClick={closeModal} className="feed-detail__close-btn" aria-label="Close">
+    <div className="feed-detail-backdrop" onClick={handleBackdropClick}>
+      <div ref={modalRef} className="feed-detail-modal" onClick={(e) => e.stopPropagation()}>
+        {/* Close button */}
+        <button onClick={onClose} className="feed-detail__close-btn" aria-label="Close">
           <span className="material-icons">close</span>
         </button>
 
@@ -242,44 +224,36 @@ const PostDetail = () => {
           {/* Post Header */}
           <div className="feed-detail__header">
             <img src={postAvatar} alt="" className="feed-detail__avatar" />
-            <div className="feed-detail__user-info" style={{ flex: 1 }}>
+            <div className="feed-detail__user-info">
               <span
                 className="feed-detail__username"
-                onClick={() => navigate(`/dashboard/profile/${postUsername}`)}
+                onClick={() => {
+                  onClose();
+                  navigate(`/dashboard/profile/${postUsername}`);
+                }}
               >
                 {postUsername}
               </span>
-              <span className="feed-detail__time">{formatTime(post.createdAt)}</span>
+              <span className="feed-detail__time">{formatTime(localPost.createdAt)}</span>
             </div>
-
-            {/* Bookmark / Save Button */}
-            <button
-              className={`feed-card__save-btn ${isSaved ? "feed-card__save-btn--saved" : ""}`}
-              onClick={() => setCollectionPostId(post._id)}
-              title="Save to Collection"
-              style={{ marginRight: "2.5rem" }}
-            >
-              <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
-            </button>
           </div>
 
           {/* Caption */}
-          {post.caption && (
+          {localPost.caption && (
             <div className="feed-detail__caption">
-              <p>{post.caption}</p>
+              <p>{localPost.caption}</p>
             </div>
           )}
 
           {/* Image */}
-          {post.image && (
+          {localPost.image && (
             <div className="feed-detail__media">
-              <img src={post.image} alt="" className="feed-detail__image" />
+              <img src={localPost.image} alt="" className="feed-detail__image" />
             </div>
           )}
 
-          {/* Actions Bar */}
+          {/* Actions bar in modal */}
           <div className="feed-detail__actions">
-            {/* Vote Pill */}
             <div className="feed-card__vote-pill">
               <button
                 onClick={handleUpvote}
@@ -297,18 +271,17 @@ const PostDetail = () => {
                 <span className="material-icons">south</span>
               </button>
             </div>
-
             <span className="feed-detail__comment-count">
               <span className="material-icons" style={{ fontSize: "1.1rem" }}>chat_bubble_outline</span>
-              {post.comments?.length || 0} comments
+              {localPost.comments?.length || 0} comments
             </span>
 
-            {/* Share button */}
+            {/* Share button with dropdown */}
             <div className="feed-card__share-wrap" ref={shareRef} style={{ marginLeft: "auto" }}>
               <button
                 onClick={() => setShowShareMenu(!showShareMenu)}
                 className="feed-card__share-btn"
-                aria-label="Share"
+                aria-label="Share post"
               >
                 <span className="material-icons">share</span>
               </button>
@@ -341,19 +314,19 @@ const PostDetail = () => {
           <div className="feed-detail__comments-header">
             <span className="material-icons" style={{ color: "#a78bfa", fontSize: "1.2rem" }}>forum</span>
             <h3>Comments</h3>
-            <span className="feed-detail__comments-count">{post.comments?.length || 0}</span>
+            <span className="feed-detail__comments-count">{localPost.comments?.length || 0}</span>
           </div>
 
           {/* Comments List */}
           <div className="feed-detail__comments-list custom-scrollbar">
-            {(!post.comments || post.comments.length === 0) ? (
+            {(!localPost.comments || localPost.comments.length === 0) ? (
               <div className="feed-detail__no-comments">
                 <span className="material-icons" style={{ fontSize: "2.5rem", color: "#374151" }}>chat_bubble_outline</span>
                 <p>No comments yet</p>
                 <span>Be the first to share your thoughts!</span>
               </div>
             ) : (
-              post.comments.map((comment) => {
+              localPost.comments.map((comment) => {
                 const commentUser = comment.userId || comment.user || {};
                 const commentAuthorName = commentUser.username || "User";
                 const commentAvatar = commentUser.avatar || defaultAvatar;
@@ -367,7 +340,10 @@ const PostDetail = () => {
                         <img src={commentAvatar} alt="" className="feed-detail__comment-avatar" />
                         <span
                           className="feed-detail__comment-author"
-                          onClick={() => navigate(`/dashboard/profile/${commentAuthorName}`)}
+                          onClick={() => {
+                            onClose();
+                            navigate(`/dashboard/profile/${commentAuthorName}`);
+                          }}
                         >
                           {commentAuthorName}
                         </span>
@@ -393,7 +369,7 @@ const PostDetail = () => {
                         </button>
                       </div>
 
-                      {/* Reply Input for Top-level Comment */}
+                      {/* Reply Input Box for Top-level Comment */}
                       {replyingToKey === comment._id && (
                         <div className="feed-detail__reply-box">
                           <input
@@ -427,7 +403,10 @@ const PostDetail = () => {
                                     <img src={replyAvatar} alt="" className="feed-detail__comment-avatar" />
                                     <span
                                       className="feed-detail__comment-author"
-                                      onClick={() => navigate(`/dashboard/profile/${replyAuthorName}`)}
+                                      onClick={() => {
+                                        onClose();
+                                        navigate(`/dashboard/profile/${replyAuthorName}`);
+                                      }}
                                     >
                                       {replyAuthorName}
                                     </span>
@@ -530,20 +509,8 @@ const PostDetail = () => {
           </div>
         </div>
       </div>
-
-      {/* Save to Collection Modal */}
-      {collectionPostId && (
-        <SaveToCollectionModal
-          resourceId={collectionPostId}
-          onClose={() => setCollectionPostId(null)}
-          onSuccess={() => {
-            setSavedPosts((prev) => new Set([...prev, collectionPostId.toString()]));
-            setCollectionPostId(null);
-          }}
-        />
-      )}
     </div>
   );
 };
 
-export default PostDetail;
+export default PostDetailModal;

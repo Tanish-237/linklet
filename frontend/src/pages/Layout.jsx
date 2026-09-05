@@ -113,6 +113,8 @@ export default function Layout({ children }) {
               if (currentMenuItem) return currentMenuItem.label;
               if (location.pathname.startsWith("/dashboard/profile")) return "Profile";
               if (location.pathname.startsWith("/dashboard/question/")) return "Question Detail";
+              if (location.pathname === "/posts") return "Feed";
+              if (location.pathname.startsWith("/posts/")) return "Post";
               return "Dashboard";
             })()}
           </h1>

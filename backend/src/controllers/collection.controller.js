@@ -1,6 +1,7 @@
 import { Collection } from "../../models/collection.js";
 import { AppError } from "../utils/error.js";
 import { Resource } from "../../models/resource.js";
+import { Post } from "../../models/posts.js";
 
 // Fetch all collections for a user, popping top 4 resources for thumbnails
 export const getUserCollections = async (req, res, next) => {
@@ -20,21 +21,39 @@ export const getUserCollections = async (req, res, next) => {
   }
 };
 
-// Fetch a single collection by ID, fully populating resources
+// Fetch a single collection by ID, fully populating resources & posts
 export const getCollectionById = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const { id } = req.params;
 
-    const collection = await Collection.findOne({ _id: id, userId })
-      .populate({
-        path: "resources",
-        populate: { path: "userId", select: "username avatar" },
-      });
-
+    const collection = await Collection.findOne({ _id: id, userId });
     if (!collection) throw new AppError("Collection not found", 404);
 
-    res.status(200).json({ success: true, data: collection });
+    const itemIds = collection.resources || [];
+    const [resources, posts] = await Promise.all([
+      Resource.find({ _id: { $in: itemIds } }).populate("userId", "username avatar").lean(),
+      Post.find({ _id: { $in: itemIds } }).populate("userId", "username avatar").lean(),
+    ]);
+
+    const formattedPosts = posts.map((p) => ({
+      ...p,
+      title: p.caption || "Post",
+      category: "Post",
+      fileType: p.image ? "image" : "article",
+      fileUrl: p.image || "",
+    }));
+
+    const allMap = new Map([
+      ...resources.map((r) => [r._id.toString(), r]),
+      ...formattedPosts.map((p) => [p._id.toString(), p]),
+    ]);
+
+    const result = itemIds.map((rId) => allMap.get(rId.toString())).filter(Boolean);
+    const collectionObj = collection.toObject();
+    collectionObj.resources = result;
+
+    res.status(200).json({ success: true, data: collectionObj });
   } catch (error) {
     next(error);
   }
@@ -50,8 +69,9 @@ export const createCollection = async (req, res, next) => {
 
     const resources = [];
     if (initialResourceId) {
-      const resource = await Resource.findById(initialResourceId);
-      if (resource) resources.push(resource._id);
+      let item = await Resource.findById(initialResourceId);
+      if (!item) item = await Post.findById(initialResourceId);
+      if (item) resources.push(item._id);
     }
 
     const collection = await Collection.create({

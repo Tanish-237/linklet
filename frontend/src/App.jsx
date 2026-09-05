@@ -145,23 +145,21 @@ function App() {
               }
             />
 
-            {/* Public routes with Navbar */}
+            {/* Public routes with consistent Layout */}
             <Route
               path="/posts"
               element={
-                <>
-                  <Navbar />
+                <Layout>
                   <Posts />
-                </>
+                </Layout>
               }
             />
             <Route
               path="/posts/:postId"
               element={
-                <>
-                  <Navbar />
+                <Layout>
                   <PostDetail />
-                </>
+                </Layout>
               }
             />
             <Route

@@ -18,7 +18,7 @@ const postSchema = new mongoose.Schema(
       maxlength: 2200,
       required: true,
     },
-    image: { type: String, required: true },
+    image: { type: String, required: false },
 
     upvotes: [
       {
@@ -27,6 +27,12 @@ const postSchema = new mongoose.Schema(
       },
     ],
 
+    downvotes: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
 
     comments: [commentSchema],
   },
