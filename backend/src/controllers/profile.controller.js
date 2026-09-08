@@ -22,7 +22,7 @@ export const getProfile = async (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { bio, skills, username, phoneNumber, section, semester } = req.body;
+    const { bio, skills, username, phoneNumber, section, subSection, semester } = req.body;
 
     const updates = {};
     if (bio !== undefined) updates.bio = bio;
@@ -39,10 +39,22 @@ export const updateProfile = async (req, res, next) => {
         updates.section = "";
       } else {
         const formattedSec = String(section).trim().toUpperCase();
-        if (!/^[A-Z][12]$/.test(formattedSec)) {
-          throw new AppError("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)", 400);
+        if (formattedSec.length > 10) {
+          throw new AppError("Section cannot exceed 10 characters", 400);
         }
         updates.section = formattedSec;
+      }
+    }
+
+    if (subSection !== undefined) {
+      if (subSection === "" || subSection === null) {
+        updates.subSection = "";
+      } else {
+        const formattedSubSec = String(subSection).trim().toUpperCase();
+        if (formattedSubSec.length > 10) {
+          throw new AppError("Sub-section cannot exceed 10 characters", 400);
+        }
+        updates.subSection = formattedSubSec;
       }
     }
 

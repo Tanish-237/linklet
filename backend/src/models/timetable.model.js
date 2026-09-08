@@ -80,6 +80,12 @@ const timetableSchema = new mongoose.Schema(
       uppercase: true,
       default: "",
     },
+    subSection: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: "",
+    },
     classes: [timetableClassSchema],
   },
   {

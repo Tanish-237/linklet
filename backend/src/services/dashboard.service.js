@@ -30,6 +30,25 @@ export const getDashboardStats = async (userId) => {
     attendanceRepo.findAllByUserId(userId),
   ]);
 
+  let userTimetable = null;
+  try {
+    const ttQuery = Timetable.findOne({ userId });
+    if (ttQuery && typeof ttQuery.select === "function") {
+      const selected = ttQuery.select("_id classes");
+      userTimetable = typeof selected?.lean === "function" ? await selected.lean() : await selected;
+    } else if (ttQuery && typeof ttQuery.lean === "function") {
+      userTimetable = await ttQuery.lean();
+    } else if (ttQuery && typeof ttQuery.then === "function") {
+      userTimetable = await ttQuery;
+    }
+  } catch {
+    userTimetable = null;
+  }
+
+  const hasTimetable = Boolean(
+    userTimetable && Array.isArray(userTimetable.classes) && userTimetable.classes.length > 0
+  );
+
   const bookmarksCount = userDoc?.bookmarks?.length || 0;
 
   // Calculate overall attendance
@@ -72,6 +91,7 @@ export const getDashboardStats = async (userId) => {
       overallAttendancePercentage: parseFloat(overallAttendancePercentage),
       totalLoggedClasses: totalLogged,
       totalCoursesCount: courses.length,
+      hasTimetable,
     },
     recentActivity: {
       questions: recentQuestions,

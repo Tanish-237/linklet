@@ -46,7 +46,7 @@ export const generateAndSendOtp = async (email) => {
 };
 
 export const register = async (userData) => {
-  const { email, password, fullName, otp, department, section, semester } = userData;
+  const { email, password, fullName, otp, department, section, subSection, semester } = userData;
 
   if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
     throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
@@ -113,10 +113,17 @@ export const register = async (userData) => {
 
   if (section && typeof section === "string" && section.trim()) {
     const formattedSec = section.trim().toUpperCase();
-    if (!/^[A-Z][12]$/.test(formattedSec)) {
-      throw new AppError("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)", 400);
+    if (formattedSec.length > 10) {
+      throw new AppError("Section cannot exceed 10 characters", 400);
     }
     enrichedUserData.section = formattedSec;
+  }
+  if (subSection && typeof subSection === "string" && subSection.trim()) {
+    const formattedSubSec = subSection.trim().toUpperCase();
+    if (formattedSubSec.length > 10) {
+      throw new AppError("Sub-section cannot exceed 10 characters", 400);
+    }
+    enrichedUserData.subSection = formattedSubSec;
   }
   if (semester) {
     const semNum = parseInt(semester, 10);

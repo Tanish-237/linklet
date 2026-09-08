@@ -18,8 +18,8 @@ vi.mock("../../api/apiClient", () => ({
 }));
 
 describe("Register Component Tests", () => {
-  it("renders Class Section input and transforms input to uppercase", () => {
-    console.log("TRACE [Register.test.jsx]: Testing section input rendering and uppercase behavior");
+  it("renders Class Section and Sub-Section inputs and transforms inputs to uppercase alphanumeric", () => {
+    console.log("TRACE [Register.test.jsx]: Testing section and sub-section inputs rendering and formatting");
 
     render(
       <HelmetProvider>
@@ -31,24 +31,28 @@ describe("Register Component Tests", () => {
 
     const sectionInput = screen.getByLabelText(/Class Section/i);
     expect(sectionInput).toBeInTheDocument();
-    expect(sectionInput).toHaveAttribute("placeholder", "Eg. A1, B2, etc");
+    expect(sectionInput).toHaveAttribute("placeholder", "Eg. D, J, A, CE");
 
-    // Type lowercase "b" followed by "1"
-    fireEvent.change(sectionInput, { target: { value: "b" } });
-    expect(sectionInput.value).toBe("B");
+    // Test main section typing (e.g. "j" -> "J", "d" -> "D")
+    fireEvent.change(sectionInput, { target: { value: "j" } });
+    console.log("TRACE [Register.test.jsx]: sectionInput value after typing 'j':", sectionInput.value);
+    expect(sectionInput.value).toBe("J");
 
-    fireEvent.change(sectionInput, { target: { value: "b1" } });
-    console.log("TRACE [Register.test.jsx]: sectionInput value after typing 'b1':", sectionInput.value);
-    expect(sectionInput.value).toBe("B1");
+    fireEvent.change(sectionInput, { target: { value: "ce" } });
+    console.log("TRACE [Register.test.jsx]: sectionInput value after typing 'ce':", sectionInput.value);
+    expect(sectionInput.value).toBe("CE");
 
-    // Invalid 2nd character (like '3') should be filtered out
-    fireEvent.change(sectionInput, { target: { value: "B3" } });
-    console.log("TRACE [Register.test.jsx]: sectionInput value after typing 'B3':", sectionInput.value);
-    expect(sectionInput.value).toBe("B");
+    // Test sub-section typing (e.g. "ce3" -> "CE3", "df5" -> "DF5")
+    const subSectionInput = screen.getByLabelText(/Sub-Section/i);
+    expect(subSectionInput).toBeInTheDocument();
+    expect(subSectionInput).toHaveAttribute("placeholder", "Eg. CE3, DF5, A1");
 
-    // Valid second character '2'
-    fireEvent.change(sectionInput, { target: { value: "B2" } });
-    console.log("TRACE [Register.test.jsx]: sectionInput value after typing 'B2':", sectionInput.value);
-    expect(sectionInput.value).toBe("B2");
+    fireEvent.change(subSectionInput, { target: { value: "ce3" } });
+    console.log("TRACE [Register.test.jsx]: subSectionInput value after typing 'ce3':", subSectionInput.value);
+    expect(subSectionInput.value).toBe("CE3");
+
+    fireEvent.change(subSectionInput, { target: { value: "df-5" } });
+    console.log("TRACE [Register.test.jsx]: subSectionInput value after typing 'df-5':", subSectionInput.value);
+    expect(subSectionInput.value).toBe("DF5");
   });
 });

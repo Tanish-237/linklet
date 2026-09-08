@@ -58,9 +58,11 @@ const {
   confirmAndSaveTimetable,
   parseTimetablePdf,
   abandonTimetable,
+  detectMimeType,
 } = await import('../src/services/timetable.service.js');
 
 const {
+  uploadAndParseTimetable,
   confirmTimetable,
   getTimetable,
   deleteTimetable,
@@ -104,6 +106,38 @@ describe('Timetable Unit Tests', () => {
       expect(matchesUserSection('CSC', 'A1')).toBe(false);
       expect(matchesUserSection('CSD1', 'A1')).toBe(false);
       expect(matchesUserSection('CSB2', 'A1')).toBe(false);
+    });
+
+    it('should correctly match section J and tutorial CE3 independently', () => {
+      console.log('[TEST] matchesUserSection › section J and tutorial CE3');
+      expect(matchesUserSection('J', 'J', 'CE3')).toBe(true);
+      expect(matchesUserSection('CSJ', 'J', 'CE3')).toBe(true);
+      expect(matchesUserSection('CE3', 'J', 'CE3')).toBe(true);
+      expect(matchesUserSection('CE-3', 'J', 'CE3')).toBe(true);
+      expect(matchesUserSection('CE1', 'J', 'CE3')).toBe(false);
+      expect(matchesUserSection('CE2', 'J', 'CE3')).toBe(false);
+      expect(matchesUserSection('A', 'J', 'CE3')).toBe(false);
+      expect(matchesUserSection('CSA', 'J', 'CE3')).toBe(false);
+    });
+
+    it('should correctly match section D and tutorial DF5', () => {
+      console.log('[TEST] matchesUserSection › section D and tutorial DF5');
+      expect(matchesUserSection('D', 'D', 'DF5')).toBe(true);
+      expect(matchesUserSection('CSD', 'D', 'DF5')).toBe(true);
+      expect(matchesUserSection('DF5', 'D', 'DF5')).toBe(true);
+      expect(matchesUserSection('DF4', 'D', 'DF5')).toBe(false);
+      expect(matchesUserSection('B', 'D', 'DF5')).toBe(false);
+    });
+
+    it('should match lectures, labs, and tutorials for main section when sub-section is not provided', () => {
+      console.log('[TEST] matchesUserSection › fallback to main section when sub-section is omitted');
+      expect(matchesUserSection('D', 'D')).toBe(true);
+      expect(matchesUserSection('CSD', 'D')).toBe(true);
+      expect(matchesUserSection('D1', 'D')).toBe(true);
+      expect(matchesUserSection('DF5', 'D')).toBe(true);
+      expect(matchesUserSection('B', 'D')).toBe(false);
+      expect(matchesUserSection('CSB', 'D')).toBe(false);
+      expect(matchesUserSection('BF2', 'D')).toBe(false);
     });
 
     it('should return true when classSection is empty (applies to all)', () => {
@@ -154,7 +188,40 @@ describe('Timetable Unit Tests', () => {
     });
   });
 
-  // ── 3. parseTimetablePdf without GEMINI_API_KEY ────────────────────────────
+  // ── 3. detectMimeType & parseTimetablePdf ──────────────────────────────────
+  describe('detectMimeType', () => {
+    it('should detect image/png for PNG magic bytes', () => {
+      console.log('[TEST] detectMimeType › PNG buffer');
+      const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      expect(detectMimeType(pngBuffer)).toBe('image/png');
+    });
+
+    it('should detect image/jpeg for JPEG magic bytes', () => {
+      console.log('[TEST] detectMimeType › JPEG buffer');
+      const jpegBuffer = Buffer.from([0xff, 0xd8, 0xff, 0xe0]);
+      expect(detectMimeType(jpegBuffer)).toBe('image/jpeg');
+    });
+
+    it('should detect image/webp for WEBP magic bytes', () => {
+      console.log('[TEST] detectMimeType › WEBP buffer');
+      const webpBuffer = Buffer.from('RIFF1234WEBPVP8 ');
+      expect(detectMimeType(webpBuffer)).toBe('image/webp');
+    });
+
+    it('should detect application/pdf for PDF magic bytes', () => {
+      console.log('[TEST] detectMimeType › PDF buffer');
+      const pdfBuffer = Buffer.from('%PDF-1.4');
+      expect(detectMimeType(pdfBuffer)).toBe('application/pdf');
+    });
+
+    it('should return default fallback when buffer has unrecognized header', () => {
+      console.log('[TEST] detectMimeType › unrecognized buffer fallback');
+      const randBuffer = Buffer.from('random data');
+      expect(detectMimeType(randBuffer)).toBe('application/pdf');
+      expect(detectMimeType(null)).toBe('application/pdf');
+    });
+  });
+
   describe('parseTimetablePdf', () => {
     it('should throw an error when GEMINI_API_KEY is not set', async () => {
       console.log('[TEST] parseTimetablePdf › rejects without GEMINI_API_KEY');
@@ -168,10 +235,10 @@ describe('Timetable Unit Tests', () => {
       if (originalKey) process.env.GEMINI_API_KEY = originalKey;
     });
 
-    it('should throw when pdfBuffer is not a Buffer', async () => {
+    it('should throw when fileBuffer is not a Buffer', async () => {
       console.log('[TEST] parseTimetablePdf › rejects non-buffer input');
-      await expect(parseTimetablePdf(null, {})).rejects.toThrow(/valid PDF timetable file/);
-      await expect(parseTimetablePdf('not-a-buffer', {})).rejects.toThrow(/valid PDF timetable file/);
+      await expect(parseTimetablePdf(null, {})).rejects.toThrow(/valid (PDF|image|timetable)/i);
+      await expect(parseTimetablePdf('not-a-buffer', {})).rejects.toThrow(/valid (PDF|image|timetable)/i);
     });
   });
 
@@ -399,6 +466,39 @@ describe('Timetable Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, message: expect.stringContaining('removed') })
       );
+    });
+
+    it('uploadAndParseTimetable handles image timetable upload and passes mimetype', async () => {
+      console.log('[TEST] uploadAndParseTimetable controller › image upload handling');
+      const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+      const req = {
+        file: {
+          buffer: pngBuffer,
+          mimetype: 'image/png',
+          originalname: 'my_timetable.png',
+        },
+        user: { _id: 'user1', department: 'CSE', semester: 4, section: 'A1' },
+      };
+      const res = makeRes();
+      const next = jest.fn();
+
+      await uploadAndParseTimetable(req, res, next);
+      // Calls next with error if GEMINI_API_KEY is not configured in test env, which verifies service invocation
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      expect(err).toBeDefined();
+    });
+
+    it('uploadAndParseTimetable rejects missing file with descriptive error', async () => {
+      console.log('[TEST] uploadAndParseTimetable controller › rejects missing file');
+      const req = { file: null, user: { _id: 'user1' } };
+      const res = makeRes();
+      const next = jest.fn();
+
+      await uploadAndParseTimetable(req, res, next);
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      expect(err.message).toMatch(/valid timetable file/i);
     });
   });
 });

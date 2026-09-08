@@ -265,19 +265,27 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
   }, [selectedDate, loading]);
 
   // Fetch schedule
-  const loadSchedule = useCallback(async () => {
+  const loadSchedule = useCallback(async (showLoadingSpinner = false) => {
     try {
-      setLoading(true);
+      if (showLoadingSpinner) setLoading(true);
       const data = await fetchSchedule(selectedDate);
       setSchedule(data || []);
     } catch {
       toast.error('Failed to load schedule');
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) setLoading(false);
     }
   }, [selectedDate]);
 
-  useEffect(() => { loadSchedule(); }, [loadSchedule, refreshTrigger]);
+  useEffect(() => {
+    loadSchedule(true);
+  }, [selectedDate]);
+
+  useEffect(() => {
+    if (refreshTrigger) {
+      loadSchedule(false);
+    }
+  }, [refreshTrigger]);
 
   useEffect(() => {
     if (addEventTrigger) setShowAddEventModal(true);
@@ -313,11 +321,23 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
     });
   })();
 
+  // Reset attendance state cache when selectedDate changes to prevent state leaking across dates
+  useEffect(() => {
+    setAttendanceState({});
+  }, [selectedDate]);
+
   // ── Attendance toggle directly linked with Attendance Guardian ────────────
   const handleAttendance = async (event, status) => {
-    const prev = attendanceState[event._id] ?? event.attendanceStatus ?? null;
+    const eventDate = event.date || selectedDate;
+    const key = `${eventDate}_${event._id}`;
+    const prev = attendanceState[key] ?? event.attendanceStatus ?? null;
     const next = prev === status ? null : status; // toggle off if same
-    setAttendanceState((s) => ({ ...s, [event._id]: next }));
+    setAttendanceState((s) => ({ ...s, [key]: next }));
+    setSchedule((prevList) =>
+      prevList.map((item) =>
+        item._id === event._id ? { ...item, attendanceStatus: next } : item
+      )
+    );
 
     try {
       // 1. Direct sync with Attendance Guardian
@@ -390,7 +410,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
         if (!next || next === 'off') {
           // Off or untoggled: remove record from attendance guardian (non-fatal)
           try {
-            await deleteAttendanceRecord(matchedCourse._id, selectedDate, recordType);
+            await deleteAttendanceRecord(matchedCourse._id, eventDate, recordType);
           } catch (delErr) {
             console.warn('deleteAttendanceRecord non-fatal warning:', delErr);
           }
@@ -398,15 +418,15 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
           // Present or Absent
           await markAttendance({
             courseId: matchedCourse._id,
-            date: selectedDate,
+            date: eventDate,
             status: next,
             recordType,
           });
         }
       }
 
-      // 2. Update on schedule event (non-fatal if event is virtual/timetable)
-      if (event._id) {
+      // 2. Update on schedule event only for custom events (timetable classes do not store attendance on schedule)
+      if (event._id && !event.isFromTimetable && !String(event._id).startsWith('tt_')) {
         try {
           await updateScheduleEvent(event._id, { attendanceStatus: next });
         } catch (scheduleErr) {
@@ -416,19 +436,20 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
       // 3. Notify parent components safely so parent callback errors never revert attendance
       try {
-        if (onScheduleChanged) onScheduleChanged();
-      } catch (cbErr) {
-        console.warn('onScheduleChanged callback non-fatal warning:', cbErr);
-      }
-      try {
         if (onAttendanceChanged) onAttendanceChanged();
+        else if (onScheduleChanged) onScheduleChanged();
       } catch (cbErr) {
         console.warn('onAttendanceChanged callback non-fatal warning:', cbErr);
       }
     } catch (err) {
       console.error('Failed to save attendance:', err);
       toast.error(err?.response?.data?.message || err?.message || 'Failed to save attendance');
-      setAttendanceState((s) => ({ ...s, [event._id]: prev }));
+      setAttendanceState((s) => ({ ...s, [key]: prev }));
+      setSchedule((prevList) =>
+        prevList.map((item) =>
+          item._id === event._id ? { ...item, attendanceStatus: prev } : item
+        )
+      );
     }
   };
 
@@ -797,7 +818,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                   </div>
                                 )}
                                 {group.events.map((ev) => {
-                                  const attendance = attendanceState[ev._id] ?? ev.attendanceStatus ?? null;
+                                  const evDate = ev.date || selectedDate;
+                                  const attendance = attendanceState[`${evDate}_${ev._id}`] ?? ev.attendanceStatus ?? null;
                                   const cType = getClassType(ev);
                                   const cfg = TYPE_CONFIG[cType] || TYPE_CONFIG.Lecture;
                                   const cleanTitle = getCleanTitle(ev);

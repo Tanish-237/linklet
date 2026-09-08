@@ -16,38 +16,92 @@ const DAY_NAME_TO_INDEX = {
 };
 
 /**
- * Filter classes strictly matching the user's section.
- * Rule:
- * - If user is "A1":
- *   - Matches "CSA", "A", "CS-A" (whole section)
- *   - Matches "CSA1", "A1", "CS-A1" (specific sub-batch 1)
- *   - Rejects "CSA2", "CSB", "CSC", "CSD", etc.
+ * Filter classes strictly matching the user's section and optional sub-section (tutorial/lab batch).
+ * Rules:
+ * - Direct match: class section equals user section or user sub-section.
+ * - Lectures (no sub-batch digit, e.g. "CSD", "D", "CSA", "A"): matches if main section matches.
+ * - Tutorials/Labs (has sub-batch digit, e.g. "DF5", "CSA1", "CE3"):
+ *   - If user specified a sub-section (e.g. "DF5"), only classes matching that sub-section are kept (rejecting "DF4", "DF1", etc.).
+ *   - Matches sub-batches like "CSA1" when user sub-section is "A1".
+ * - Backward-compatible with single-field user sections (e.g. "A1", "J").
  */
-export const matchesUserSection = (classSectionRaw, userSectionRaw) => {
-  if (!classSectionRaw || !userSectionRaw) return true;
+export const matchesUserSection = (classSectionRaw, userSectionRaw, userSubSectionRaw = "") => {
+  if (!classSectionRaw) return true; // Unspecified section in cell is for all
+  if (!userSectionRaw && !userSubSectionRaw) return true;
 
   const classSec = classSectionRaw.toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
-  const userSec = userSectionRaw.toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
+  const userSec = (userSectionRaw || "").toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
+  const userSubSec = (userSubSectionRaw || "").toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
 
-  // Extract letter and optional sub-batch digit from user section (e.g. "A1" -> letter 'A', batch '1')
-  const userLetter = userSec.replace(/[^A-Z]/g, "").slice(-1); // Last alphabet, e.g. 'A' from 'A1'
-  const userDigit = userSec.replace(/[^0-9]/g, ""); // '1' or '2'
+  // 1. Direct exact match with section or sub-section
+  if (userSec && classSec === userSec) return true;
+  if (userSubSec && classSec === userSubSec) return true;
 
-  // Extract letter and optional sub-batch digit from class section (e.g. "CSA1" -> letter 'A', batch '1')
-  const classLetter = classSec.replace(/[^A-Z]/g, "").slice(-1);
-  const classDigit = classSec.replace(/[^0-9]/g, "");
+  // 2. Sub-section (tutorial / lab) matching (e.g. user has subSection "CE3" or "DF5" or "A1")
+  if (userSubSec) {
+    if (classSec.endsWith(userSubSec)) return true;
 
-  // Must match the primary section letter (e.g., A matches A, B matches B)
-  if (userLetter && classLetter && userLetter !== classLetter) {
-    return false;
+    const classHasDigits = /[0-9]/.test(classSec);
+    const userSubHasDigits = /[0-9]/.test(userSubSec);
+
+    if (classHasDigits && userSubHasDigits) {
+      const classDigits = classSec.replace(/[^0-9]/g, "");
+      const userSubDigits = userSubSec.replace(/[^0-9]/g, "");
+      if (classDigits !== userSubDigits) {
+        return false;
+      }
+      const classLetters = classSec.replace(/[^A-Z]/g, "");
+      const userSubLetters = userSubSec.replace(/[^A-Z]/g, "");
+      if (
+        classLetters &&
+        userSubLetters &&
+        !classLetters.endsWith(userSubLetters) &&
+        !userSubLetters.endsWith(classLetters)
+      ) {
+        return false;
+      }
+      return true;
+    }
   }
 
-  // If class designates a specific sub-batch (e.g. 1 or 2), user must match that sub-batch
-  if (classDigit && userDigit && classDigit !== userDigit) {
-    return false;
+  // 3. Main lecture section matching (e.g. section "J", "D", "A", "CE")
+  if (userSec) {
+    if (classSec.endsWith(userSec)) return true;
+
+    const userLetter = userSec.replace(/[^A-Z]/g, "").slice(-1);
+    const userDigit = userSec.replace(/[^0-9]/g, "");
+
+    const classLetter = classSec.replace(/[^A-Z]/g, "").slice(-1);
+    const classDigit = classSec.replace(/[^0-9]/g, "");
+
+    // If user provided NO sub-section (e.g. userSec is just "D" or "J"),
+    // look for all classes, labs, and tutorials belonging to their main section:
+    if (!userSubSec && !userDigit) {
+      if (
+        (userLetter && classLetter && userLetter === classLetter) ||
+        classSec.startsWith(userLetter) ||
+        classSec.includes(userLetter)
+      ) {
+        return true;
+      }
+    }
+
+    // Lecture without digits for the whole section (e.g. "J", "CSJ", "D", "CSD")
+    if (!classDigit) {
+      if (userLetter && classLetter && userLetter === classLetter) {
+        return true;
+      }
+    }
+
+    // Legacy single-field support (e.g. userSec="A1", class="CSA1")
+    if (userDigit && classDigit && userDigit === classDigit) {
+      if (userLetter && classLetter && userLetter === classLetter) {
+        return true;
+      }
+    }
   }
 
-  return true;
+  return false;
 };
 
 /**
@@ -84,12 +138,48 @@ export const mergeConsecutiveClasses = (classesList) => {
 };
 
 /**
- * Parses an official MNNIT Timetable PDF using Gemini 2.5 Flash Vision API.
+ * Detects the MIME type of the given buffer.
+ * Supports PDF (%PDF), PNG (89 50 4E 47), JPEG (FF D8 FF), and WEBP (RIFF....WEBP).
+ */
+export const detectMimeType = (buffer, defaultMime = "application/pdf") => {
+  if (!buffer || !Buffer.isBuffer(buffer) || buffer.length < 4) {
+    return defaultMime;
+  }
+  // PNG: 89 50 4E 47 (\x89PNG)
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return "image/png";
+  }
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  // WEBP: RIFF at 0..3 and WEBP at 8..11
+  if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  // PDF: %PDF (25 50 44 46)
+  if (
+    buffer[0] === 0x25 &&
+    buffer[1] === 0x50 &&
+    buffer[2] === 0x44 &&
+    buffer[3] === 0x46
+  ) {
+    return "application/pdf";
+  }
+  return defaultMime;
+};
+
+/**
+ * Parses an official MNNIT Timetable (PDF or Image) using Gemini 2.5 Flash Vision API.
  * This function REQUIRES a valid GEMINI_API_KEY — it will NOT return fake/sample data.
  */
-export const parseTimetablePdf = async (pdfBuffer, userProfile = {}) => {
-  if (!pdfBuffer || !Buffer.isBuffer(pdfBuffer)) {
-    throw new AppError("A valid PDF timetable file is required", 400);
+export const parseTimetablePdf = async (fileBuffer, userProfile = {}, providedMimeType = null) => {
+  if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
+    throw new AppError("A valid PDF or image timetable file is required", 400);
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -99,6 +189,11 @@ export const parseTimetablePdf = async (pdfBuffer, userProfile = {}) => {
       500
     );
   }
+
+  const allowedMimes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"];
+  let effectiveMimeType = (providedMimeType && allowedMimes.includes(providedMimeType.toLowerCase()))
+    ? (providedMimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : providedMimeType.toLowerCase())
+    : detectMimeType(fileBuffer);
 
   let rawExtractedClasses = [];
   let detectedMetadata = {
@@ -111,12 +206,12 @@ export const parseTimetablePdf = async (pdfBuffer, userProfile = {}) => {
 
   const prompt = `You are an expert academic schedule parser for Motilal Nehru National Institute of Technology Allahabad (MNNIT).
 
-Analyze the provided official MNNIT Timetable PDF image carefully and precisely.
+Analyze the provided official MNNIT Timetable document (PDF or image) carefully and precisely.
 
 STRUCTURE:
 - The timetable is a 2D grid. Rows = Days of the week (Monday through Friday, possibly Saturday). Columns = Time slots (08:00 to 18:00, each column is typically 1 hour).
 - Each cell can contain MULTIPLE classes happening simultaneously for different sections/sub-batches. You must extract ALL of them.
-- At the bottom of the PDF there are TWO reference tables:
+- At the bottom of the document there are TWO reference tables:
   1. Course code → Full subject name mapping (e.g. "CSN14400= Microprocessors & its application =(4L)")
   2. Faculty initials → Full professor name mapping (e.g. "SJT- Dr. Saroj Tripathi")
 
@@ -129,7 +224,7 @@ EXTRACTION RULES:
    - courseCode: The course code exactly as written (e.g. "CSN14400", "CSN13101")
    - subjectName: The FULL subject name resolved from the bottom legend. If not found in legend, use the code itself.
    - classType: "Lecture" for (L), "Lab" for (P), "Tutorial" for (T)
-   - section: The section/sub-batch designator exactly as written in the cell (e.g. "CSA", "CSA1", "CSA2", "CSB", "CSB1", "CSC", "CSD", "EEA", "EEA1" etc.)
+   - section: The section/sub-batch designator exactly as written in the cell (e.g. "CSA", "CSA1", "CSA2", "CSB", "CSB1", "CSC", "CSD", "D", "DF5", "EEA", "EEA1", "CE3", "J" etc.). Note: Lectures (L) usually designate the main section (e.g. "D", "J", "A"), while Tutorials (T) and Labs (P) often have their tutorial/lab sub-batch explicitly marked (e.g. "DF5", "CE3", "A1", "D2"). Always preserve the exact designator for each class entry.
    - location: The room/lab name (e.g. "GS6", "NLH1", "L1 Lab", "M. Processor Lab", "CCSF Lab")
    - professor: The FULL professor name resolved from the bottom faculty table. If not found, use initials.
 
@@ -172,8 +267,8 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
             parts: [
               {
                 inlineData: {
-                  data: pdfBuffer.toString("base64"),
-                  mimeType: "application/pdf",
+                  data: fileBuffer.toString("base64"),
+                  mimeType: effectiveMimeType,
                 },
               },
               {
@@ -189,7 +284,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
 
       const responseText = response.text?.trim();
       if (!responseText) {
-        throw new AppError("Gemini returned an empty response. The PDF may be unreadable or corrupted.", 500);
+        throw new AppError("Gemini returned an empty response. The timetable file may be unreadable or corrupted.", 500);
       }
 
       const parsed = JSON.parse(responseText);
@@ -199,13 +294,13 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
 
       if (rawExtractedClasses.length === 0) {
         throw new AppError(
-          "Gemini could not extract any classes from this PDF. Make sure you uploaded the official MNNIT timetable.",
+          "Gemini could not extract any classes from this timetable. Make sure you uploaded the official MNNIT timetable (PDF or clear image).",
           400
         );
       }
 
       logger.info(
-        `Gemini extracted ${rawExtractedClasses.length} total class entries from timetable PDF for ${detectedMetadata.branch} Sem ${detectedMetadata.semester}`
+        `Gemini extracted ${rawExtractedClasses.length} total class entries from timetable (${effectiveMimeType}) for ${detectedMetadata.branch} Sem ${detectedMetadata.semester}`
       );
       break; // Success — exit retry loop
     } catch (err) {
@@ -229,17 +324,18 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
         continue;
       }
 
-      logger.error("Error running Gemini Vision extraction on timetable PDF:", err);
-      throw new AppError(`Failed to parse timetable PDF: ${message}`, 500);
+      logger.error("Error running Gemini Vision extraction on timetable file:", err);
+      throw new AppError(`Failed to parse timetable file: ${message}`, 500);
     }
   }
 
-  // Format and filter classes for the student's active section
-  const userSection = userProfile.section || "A1";
+  // Format and filter classes for the student's active section and optional sub-section
+  const userSection = userProfile.section || "";
+  const userSubSection = userProfile.subSection || "";
   const matchedClasses = [];
 
   for (const c of rawExtractedClasses) {
-    if (!matchesUserSection(c.section, userSection)) {
+    if (!matchesUserSection(c.section, userSection, userSubSection)) {
       continue;
     }
 
@@ -261,8 +357,11 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
   }
 
   if (matchedClasses.length === 0) {
+    const secDesc = userSubSection
+      ? `section "${userSection}" / sub-section "${userSubSection}"`
+      : `section "${userSection || "All"}"`;
     throw new AppError(
-      `No classes found for section "${userSection}". Make sure your section in your profile matches the timetable (e.g. A1, B2).`,
+      `No classes found for ${secDesc}. Make sure your section and sub-section in your profile match the timetable (e.g. Section D, Sub-section DF5).`,
       400
     );
   }
@@ -278,6 +377,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
     branch: detectedMetadata.branch,
     semester: detectedMetadata.semester,
     targetSection: userSection,
+    targetSubSection: userSubSection,
     totalExtracted: rawExtractedClasses.length,
     totalClassesFound: mergedClasses.length,
     classes: mergedClasses,
@@ -289,7 +389,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
  * Confirm and save parsed timetable to database, and auto-register subjects in Attendance Guardian.
  */
 export const confirmAndSaveTimetable = async (userId, timetableData) => {
-  const { branch, semester, section, classes, wipeExisting = true } = timetableData;
+  const { branch, semester, section, subSection, classes, wipeExisting = true } = timetableData;
 
   if (!userId) {
     throw new AppError("User ID is required to save timetable", 400);
@@ -314,6 +414,7 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
       branch: branch || "",
       semester: semester || null,
       section: section || "",
+      subSection: subSection || "",
       classes,
     },
     { upsert: true, new: true, runValidators: true }
@@ -413,3 +514,6 @@ export const abandonTimetable = async (userId) => {
   }
   return { message: "Timetable removed successfully" };
 };
+
+export const parseTimetableImage = parseTimetablePdf;
+export const parseTimetableFile = parseTimetablePdf;

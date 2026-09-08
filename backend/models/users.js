@@ -76,12 +76,14 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       uppercase: true,
-      validate: {
-        validator: function (v) {
-          return !v || /^[A-Z][12]$/.test(v);
-        },
-        message: "Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)",
-      },
+      maxlength: [10, "Section cannot exceed 10 characters"],
+      default: "",
+    },
+    subSection: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      maxlength: [10, "Sub-section cannot exceed 10 characters"],
       default: "",
     },
     department: { type: String },

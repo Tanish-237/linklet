@@ -4,7 +4,7 @@ import { uploadTimetablePdf, confirmTimetable } from "../api/timetable.api";
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynced, userSection }) {
+export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynced, userSection, userSubSection }) {
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -14,6 +14,11 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
   const [selectedDayTab, setSelectedDayTab] = useState("Monday");
 
   if (!isOpen) return null;
+
+  const isImageFile = (f) => {
+    if (!f) return false;
+    return f.type?.startsWith("image/") || /\.(png|jpe?g|webp)$/i.test(f.name || "");
+  };
 
   const resetAll = () => {
     setFile(null);
@@ -31,8 +36,19 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
 
   const validateAndSetFile = (selected) => {
     if (!selected) return;
-    if (!selected.name.toLowerCase().endsWith(".pdf")) {
-      toast.error("Only PDF timetable files are supported.");
+    const validExtensions = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
+    const hasValidExt = validExtensions.some((ext) => selected.name?.toLowerCase().endsWith(ext));
+    const validMimes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+    const hasValidMime = validMimes.includes(selected.type?.toLowerCase());
+
+    if (!hasValidExt && !hasValidMime) {
+      toast.error("Only PDF and image (PNG, JPG, WEBP) timetable files are supported.");
       return;
     }
     if (selected.size > 15 * 1024 * 1024) {
@@ -64,7 +80,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
 
   const handleUploadAndAnalyze = async () => {
     if (!file) {
-      toast.error("Please choose a timetable PDF first.");
+      toast.error("Please choose a timetable file first.");
       return;
     }
 
@@ -88,7 +104,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
         toast.success(res.message || "Timetable scanned successfully!");
       }
     } catch (err) {
-      const msg = err.response?.data?.message || "Failed to scan timetable PDF.";
+      const msg = err.response?.data?.message || "Failed to scan timetable file.";
       setErrorMessage(msg);
       toast.error(msg);
     } finally {
@@ -165,7 +181,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               <p className="text-xs text-gray-400">
                 {previewData
                   ? "Review your classes before syncing to schedule"
-                  : "Upload your official MNNIT semester timetable PDF"}
+                  : "Upload your official MNNIT semester timetable (PDF or Image)"}
               </p>
             </div>
           </div>
@@ -204,6 +220,25 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 </div>
               </div>
 
+              {/* Profile Section & Sub-Section Check Notice */}
+              <div className="p-3.5 bg-sky-950/40 border border-sky-500/30 rounded-xl flex items-start gap-3">
+                <span className="material-icons text-sky-400 text-lg mt-0.5 shrink-0">badge</span>
+                <div className="text-xs leading-relaxed">
+                  <div className="font-semibold text-sky-300">Section & Sub-Section Check</div>
+                  <p className="text-gray-300 mt-0.5">
+                    Classes will be matched for Section: <span className="font-bold text-white px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/50">{userSection || "Not Set"}</span>
+                    {userSubSection ? (
+                      <> and Sub-Section: <span className="font-bold text-white px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/50">{userSubSection}</span></>
+                    ) : (
+                      <span className="text-gray-400 italic"> (No sub-section set)</span>
+                    )}.
+                    {" "}Please make sure your section and sub-section are updated properly in your{" "}
+                    <a href="/profile" className="text-sky-400 underline hover:text-sky-300 font-medium">Profile</a>{" "}
+                    before uploading.
+                  </p>
+                </div>
+              </div>
+
               {/* Drag & Drop Zone */}
               <div
                 onDragEnter={handleDrag}
@@ -219,7 +254,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 <input
                   type="file"
                   id="timetable-file-input"
-                  accept="application/pdf"
+                  accept=".pdf,image/png,image/jpeg,image/webp,application/pdf"
                   onChange={handleFileChange}
                   className="hidden"
                 />
@@ -228,15 +263,17 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                   className="cursor-pointer flex flex-col items-center justify-center gap-3"
                 >
                   <div className="w-16 h-16 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
-                    <span className="material-icons text-3xl">picture_as_pdf</span>
+                    <span className="material-icons text-3xl">
+                      {file && isImageFile(file) ? "image" : "picture_as_pdf"}
+                    </span>
                   </div>
                   <div>
                     <span className="text-sm font-semibold text-violet-400 hover:underline">
                       Click to browse
                     </span>{" "}
-                    <span className="text-sm text-gray-400">or drag and drop your timetable PDF</span>
+                    <span className="text-sm text-gray-400">or drag and drop your timetable PDF or Image</span>
                   </div>
-                  <p className="text-xs text-gray-500">Official MNNIT Timetable PDFs only • Max 15 MB</p>
+                  <p className="text-xs text-gray-500">Official MNNIT Timetable (PDF, PNG, JPG, WEBP) • Max 15 MB</p>
                 </label>
               </div>
 
@@ -244,7 +281,9 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               {file && (
                 <div className="p-4 bg-gray-800/60 rounded-xl border border-gray-700 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="material-icons text-red-400">description</span>
+                    <span className={`material-icons ${isImageFile(file) ? "text-indigo-400" : "text-rose-400"}`}>
+                      {isImageFile(file) ? "image" : "picture_as_pdf"}
+                    </span>
                     <div>
                       <div className="text-sm font-medium text-white truncate max-w-sm">{file.name}</div>
                       <div className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</div>
@@ -264,7 +303,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 <div className="p-8 bg-violet-950/30 border border-violet-500/30 rounded-2xl flex flex-col items-center justify-center text-center space-y-3 animate-pulse">
                   <div className="w-12 h-12 rounded-full border-4 border-violet-500 border-t-transparent animate-spin"></div>
                   <div className="text-sm font-bold text-violet-200">
-                    Scanning & parsing timetable PDF with Gemini AI...
+                    Scanning & parsing timetable with Gemini AI...
                   </div>
                   <p className="text-xs text-gray-400 max-w-md">
                     Visually reading grid, resolving subjects, faculty, and room numbers. This may take 1–2 minutes, please wait.
@@ -273,7 +312,10 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               ) : (
                 <div className="p-4 bg-gray-950/40 border border-gray-800 rounded-xl flex items-center gap-3 text-xs text-gray-400">
                   <span className="material-icons text-violet-400 text-base">auto_awesome</span>
-                  <span>AI scans your official timetable PDF, matching section {userSection || "—"} and auto-filling subjects & professors.</span>
+                  <span>
+                    AI scans your official timetable (PDF or image), matching section {userSection || "—"}
+                    {userSubSection ? ` (${userSubSection})` : ""} and auto-filling subjects & professors.
+                  </span>
                 </div>
               )}
             </div>
@@ -283,14 +325,14 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               {/* Summary Banner */}
               <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs text-gray-400 font-medium">Extracted from your PDF</div>
+                  <div className="text-xs text-gray-400 font-medium">Extracted from your Timetable</div>
                   <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2 mt-0.5">
                     <span>{previewData.branch}</span>
                     <span className="text-xs px-2 py-0.5 rounded bg-violet-900/50 text-violet-300 border border-violet-700/50 font-semibold">
                       Sem {previewData.semester}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded bg-purple-900/50 text-purple-300 border border-purple-700/50 font-semibold">
-                      Sec {previewData.targetSection}
+                      Sec {previewData.targetSection}{previewData.targetSubSection ? ` • Sub ${previewData.targetSubSection}` : ""}
                     </span>
                   </div>
                 </div>
@@ -477,7 +519,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 className="px-4 py-2 text-sm text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="material-icons text-sm">upload_file</span>
-                Re-upload Different PDF
+                Re-upload Timetable
               </button>
               <button
                 type="button"

@@ -10,12 +10,7 @@ import { apiClient } from "../api/apiClient";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
-  const upper = val.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (!upper) return "";
-  const first = upper[0].replace(/[^A-Z]/g, "");
-  if (!first) return "";
-  const second = upper.length > 1 ? upper[1].replace(/[^12]/g, "") : "";
-  return (first + second).slice(0, 2);
+  return val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 };
 
 export default function Register() {
@@ -24,6 +19,7 @@ export default function Register() {
   const [password, setPassword] = useState("");
   const [department, setDepartment] = useState("");
   const [section, setSection] = useState("");
+  const [subSection, setSubSection] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -51,10 +47,6 @@ export default function Register() {
         toast.error("Please select your branch");
         return;
       }
-      if (section && !/^[A-Z][12]$/.test(section)) {
-        toast.error("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)");
-        return;
-      }
     }
 
     setLoading(true);
@@ -72,6 +64,7 @@ export default function Register() {
           fullName: fullName.trim(),
           department,
           section: section.trim().toUpperCase(),
+          subSection: subSection.trim().toUpperCase(),
           otp,
         };
         const res = await apiClient.post(`/auth/register`, payload);
@@ -258,20 +251,40 @@ export default function Register() {
                   </select>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="section">
-                    Class Section
-                  </label>
-                  <input
-                    id="section"
-                    type="text"
-                    placeholder="Eg. A1, B2, etc"
-                    value={section}
-                    onChange={(e) => setSection(formatSectionInput(e.target.value))}
-                    maxLength={2}
-                    disabled={step === 2}
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50 uppercase placeholder:normal-case"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-300" htmlFor="section">
+                      Class Section
+                    </label>
+                    <input
+                      id="section"
+                      type="text"
+                      placeholder="Eg. D, J, A, CE"
+                      value={section}
+                      onChange={(e) => setSection(formatSectionInput(e.target.value))}
+                      maxLength={10}
+                      disabled={step === 2}
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50 uppercase placeholder:normal-case"
+                    />
+                    <p className="text-[11px] text-gray-400">Main lecture section</p>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-300" htmlFor="subSection">
+                      Sub-Section <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                    </label>
+                    <input
+                      id="subSection"
+                      type="text"
+                      placeholder="Eg. CE3, DF5, A1"
+                      value={subSection}
+                      onChange={(e) => setSubSection(formatSectionInput(e.target.value))}
+                      maxLength={10}
+                      disabled={step === 2}
+                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50 uppercase placeholder:normal-case"
+                    />
+                    <p className="text-[11px] text-gray-400">Tutorial or lab batch</p>
+                  </div>
                 </div>
 
                 {step === 2 && (

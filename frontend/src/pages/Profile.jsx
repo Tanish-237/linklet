@@ -13,12 +13,7 @@ import "./Profile.css";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
-  const upper = val.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (!upper) return "";
-  const first = upper[0].replace(/[^A-Z]/g, "");
-  if (!first) return "";
-  const second = upper.length > 1 ? upper[1].replace(/[^12]/g, "") : "";
-  return (first + second).slice(0, 2);
+  return val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
 };
 
 const Profile = () => {
@@ -47,6 +42,7 @@ const Profile = () => {
   const [editUsername, setEditUsername] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editSection, setEditSection] = useState("");
+  const [editSubSection, setEditSubSection] = useState("");
   const [editSemester, setEditSemester] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
@@ -106,6 +102,7 @@ const Profile = () => {
         setEditUsername(res.data.data.username || "");
         setEditPhone(res.data.data.phoneNumber || "");
         setEditSection(res.data.data.section || "");
+        setEditSubSection(res.data.data.subSection || "");
         setEditSemester(res.data.data.semester ?? "");
 
         // Fetch this user's posts
@@ -189,11 +186,6 @@ const Profile = () => {
   };
 
   const handleSaveProfile = async () => {
-    if (editSection && !/^[A-Z][12]$/.test(editSection)) {
-      toast.error("Section must be an alphabet followed by 1 or 2 (e.g. A1, A2, B1, B2)");
-      return;
-    }
-
     try {
       setIsSaving(true);
       const formData = new FormData();
@@ -201,6 +193,7 @@ const Profile = () => {
       formData.append("skills", editSkills);
       formData.append("phoneNumber", editPhone);
       formData.append("section", editSection);
+      formData.append("subSection", editSubSection);
       formData.append("semester", editSemester);
       if (editUsername !== profileUser.username) {
         formData.append("username", editUsername);
@@ -450,6 +443,12 @@ const Profile = () => {
                     <span>Section {profileUser.section}</span>
                   </div>
                 )}
+                {profileUser.subSection && (
+                  <div className="profile-info-chip">
+                    <span className="material-icons">badge</span>
+                    <span>Sub-Section {profileUser.subSection}</span>
+                  </div>
+                )}
                 <div className="profile-info-chip">
                   <span className="material-icons">email</span>
                   <span>{profileUser.email}</span>
@@ -533,12 +532,25 @@ const Profile = () => {
                   <label className="profile-field-label">Section</label>
                   <input
                     type="text"
-                    placeholder="Eg. A1, B2, etc"
+                    placeholder="Eg. D, J, A, CE"
                     value={editSection}
                     onChange={(e) => setEditSection(formatSectionInput(e.target.value))}
                     className="profile-input uppercase placeholder:normal-case"
-                    maxLength={2}
+                    maxLength={10}
                   />
+                  <p className="profile-field-hint">Main lecture section</p>
+                </div>
+                <div className="profile-field-group">
+                  <label className="profile-field-label">Sub-Section (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="Eg. CE3, DF5, A1"
+                    value={editSubSection}
+                    onChange={(e) => setEditSubSection(formatSectionInput(e.target.value))}
+                    className="profile-input uppercase placeholder:normal-case"
+                    maxLength={10}
+                  />
+                  <p className="profile-field-hint">Tutorial / lab batch</p>
                 </div>
               </div>
 
@@ -591,6 +603,7 @@ const Profile = () => {
                     setEditUsername(profileUser.username || "");
                     setEditPhone(profileUser.phoneNumber || "");
                     setEditSection(profileUser.section || "");
+                    setEditSubSection(profileUser.subSection || "");
                     setEditSemester(profileUser.semester ?? "");
                   }}
                   className="profile-btn-secondary"

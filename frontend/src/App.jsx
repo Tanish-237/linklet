@@ -105,7 +105,11 @@ function App() {
             {/* Protected Home route */}
             <Route
               path="/home"
-              element={user ? <Home /> : <Navigate to="/login" replace />}
+              element={
+                <ProtectedRoute>
+                  <Home />
+                </ProtectedRoute>
+              }
             />
 
             {/* Auth routes - redirect to home if already logged in */}
@@ -165,23 +169,19 @@ function App() {
             <Route
               path="/create-post"
               element={
-                user ? (
-                  <>
-                    <Navbar />
-                    <CreatePost />
-                  </>
-                ) : (
-                  <Navigate to="/login" replace />
-                )
+                <ProtectedRoute>
+                  <Navbar />
+                  <CreatePost />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/ask-question"
               element={
-                <>
+                <ProtectedRoute>
                   <Navbar />
                   <AskQuestion />
-                </>
+                </ProtectedRoute>
               }
             />
             <Route
@@ -224,73 +224,91 @@ function App() {
             <Route
               path="/dashboard"
               element={
-                <Layout>
-                  <Dashboard />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <Dashboard />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/profile/:username?"
               element={
-                <Layout>
-                  <Profile />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <Profile />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/global-search"
               element={
-                <Layout>
-                  <Resource />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <Resource />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/help/*"
               element={
-                <Layout>
-                  <HelpForum />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <HelpForum />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/question/:questionId"
               element={
-                <Layout>
-                  <QuestionDetail />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <QuestionDetail />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/clubs"
               element={
-                <Layout>
-                  <div>Clubs Coming Soon</div>
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <div>Clubs Coming Soon</div>
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/bookmarks"
               element={
-                <Layout>
-                  <Saved />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <Saved />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/saved"
               element={
-                <Layout>
-                  <Saved />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <Saved />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
             <Route
               path="/dashboard/chat"
               element={
-                <Layout>
-                  <ChatPage />
-                </Layout>
+                <ProtectedRoute>
+                  <Layout>
+                    <ChatPage />
+                  </Layout>
+                </ProtectedRoute>
               }
             />
 

@@ -47,9 +47,11 @@ describe("Saved Page", () => {
     await waitFor(() => {
       // Should show the title for collections
       expect(screen.getByText("Your Collections")).toBeInTheDocument();
-      // Should show default All Saves card
-      expect(screen.getByText("All Saves")).toBeInTheDocument();
-      expect(screen.getByText("1 resources")).toBeInTheDocument(); // All saves count
+      // Should show default Saved Posts and Saved Resources cards
+      console.log("[TEST] Saved Page › renders collection grid for own profile");
+      expect(screen.getByText("Saved Posts")).toBeInTheDocument();
+      expect(screen.getByText("Saved Resources")).toBeInTheDocument();
+      expect(screen.getByText("1 resource")).toBeInTheDocument(); // Saved resources count
       // Should show fetched collections
       expect(screen.getByText("Design Assets")).toBeInTheDocument();
       expect(screen.getByText("0 resources")).toBeInTheDocument();

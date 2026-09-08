@@ -5,6 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import Dashboard from "../Dashboard";
 import * as dashboardApi from "../../api/dashboard.api";
+import * as timetableApi from "../../api/timetable.api";
 
 // Mock Auth Context
 vi.mock("../../context/AuthContext", () => ({
@@ -18,6 +19,14 @@ vi.mock("../../context/AuthContext", () => ({
       email: "tanish@mnnit.ac.in",
     },
   }),
+}));
+
+// Mock timetable API methods
+vi.mock("../../api/timetable.api", () => ({
+  fetchTimetable: vi.fn(),
+  uploadTimetablePdf: vi.fn(),
+  confirmTimetable: vi.fn(),
+  deleteTimetable: vi.fn(),
 }));
 
 // Mock dashboard API methods
@@ -70,6 +79,7 @@ vi.mock("../../components/SubjectInfoModal", () => ({
 describe("Dashboard Component Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    timetableApi.fetchTimetable.mockResolvedValue(null);
   });
 
   const renderComponent = () => {
@@ -308,5 +318,68 @@ describe("Dashboard Component Tests", () => {
       expect(dashboardApi.fetchDashboardStats.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
     console.log("TRACE [Dashboard.test.jsx]: onAttendanceChanged executed successfully without triggerRefresh error");
+  });
+
+  it("renders onboarding timetable banner when user has never uploaded a timetable, and opens upload modal on button click", async () => {
+    console.log("TRACE [Dashboard.test.jsx]: Testing onboarding banner visibility for user without timetable");
+
+    dashboardApi.fetchDashboardStats.mockResolvedValue({
+      metrics: {
+        questionsCount: 0,
+        answersCount: 0,
+        resourcesCount: 0,
+        bookmarksCount: 0,
+        hasTimetable: false,
+      },
+      recentActivity: { questions: [], resources: [] },
+    });
+    timetableApi.fetchTimetable.mockResolvedValue(null);
+    dashboardApi.fetchSchedule.mockResolvedValue([]);
+    dashboardApi.fetchAttendance.mockResolvedValue({ overall: { percentage: 0 }, courses: [] });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("timetable-onboarding-banner")).toBeInTheDocument();
+      expect(screen.getByText(/Upload your timetable to get started/i)).toBeInTheDocument();
+    });
+
+    const uploadBtn = screen.getByRole("button", { name: /Upload Timetable/i });
+    expect(uploadBtn).toBeInTheDocument();
+
+    fireEvent.click(uploadBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mock-upload-modal")).toBeInTheDocument();
+    });
+    console.log("TRACE [Dashboard.test.jsx]: Onboarding banner successfully opened upload modal");
+  });
+
+  it("hides onboarding timetable banner when user has an active timetable", async () => {
+    console.log("TRACE [Dashboard.test.jsx]: Testing onboarding banner hidden for user with timetable");
+
+    dashboardApi.fetchDashboardStats.mockResolvedValue({
+      metrics: {
+        questionsCount: 2,
+        answersCount: 1,
+        resourcesCount: 5,
+        bookmarksCount: 2,
+        hasTimetable: true,
+      },
+      recentActivity: { questions: [], resources: [] },
+    });
+    timetableApi.fetchTimetable.mockResolvedValue({ classes: [{ _id: "tt1", title: "Algorithms" }] });
+    dashboardApi.fetchSchedule.mockResolvedValue([]);
+    dashboardApi.fetchAttendance.mockResolvedValue({ overall: { percentage: 80 }, courses: [] });
+
+    renderComponent();
+
+    await waitFor(() => {
+      expect(screen.getByText("My Questions")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("timetable-onboarding-banner")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Upload your timetable to get started/i)).not.toBeInTheDocument();
+    console.log("TRACE [Dashboard.test.jsx]: Onboarding banner verified hidden when timetable exists");
   });
 });

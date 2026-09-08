@@ -608,5 +608,92 @@ describe("DailySchedule Component Tests", () => {
     });
     console.log("TRACE [DailySchedule.test.jsx]: Attendance successfully remained present despite throwing parent callback");
   });
+
+  it("does not leak attendance across different dates for the same recurring timetable lab", async () => {
+    console.log("TRACE [DailySchedule.test.jsx]: Testing cross-date attendance isolation between 2026-09-27 and 2026-09-20");
+
+    // Recurring lab has identical _id on both dates (because it's the same timetable class)
+    const recurringLabId = "tt_lab_recurring";
+
+    dashboardApi.fetchSchedule.mockImplementation(async (date) => {
+      if (date === "2026-09-27") {
+        return [
+          {
+            _id: recurringLabId,
+            title: "Data Structures (Lab)",
+            subjectName: "Data Structures",
+            type: "class",
+            classType: "Lab",
+            startTime: "10:00",
+            endTime: "12:00",
+            date: "2026-09-27",
+            status: "pending",
+            attendanceStatus: null,
+          },
+        ];
+      }
+      if (date === "2026-09-20") {
+        return [
+          {
+            _id: recurringLabId,
+            title: "Data Structures (Lab)",
+            subjectName: "Data Structures",
+            type: "class",
+            classType: "Lab",
+            startTime: "10:00",
+            endTime: "12:00",
+            date: "2026-09-20",
+            status: "pending",
+            attendanceStatus: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    dashboardApi.updateScheduleEvent.mockResolvedValue({ attendanceStatus: "present" });
+    dashboardApi.markAttendance.mockResolvedValue({ success: true });
+
+    render(<DailySchedule onScheduleChanged={vi.fn()} onAttendanceChanged={vi.fn()} />);
+
+    // 1. Pick 2026-09-27
+    const pickDateInput = screen.getByLabelText("Pick Date");
+    fireEvent.change(pickDateInput, { target: { value: "2026-09-27" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Data Structures")).toBeInTheDocument();
+    });
+
+    const presentBtn = screen.getByRole("button", { name: /Present/i });
+    expect(presentBtn.className).not.toContain("bg-emerald-600");
+
+    // 2. Mark present on 27th
+    fireEvent.click(presentBtn);
+
+    await waitFor(() => {
+      expect(dashboardApi.markAttendance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          courseId: "c1",
+          date: "2026-09-27",
+          status: "present",
+          recordType: "lab",
+        })
+      );
+      expect(presentBtn.className).toContain("bg-emerald-600");
+    });
+    console.log("TRACE [DailySchedule.test.jsx]: Present marked successfully on 2026-09-27");
+
+    // 3. Navigate to 2026-09-20
+    fireEvent.change(pickDateInput, { target: { value: "2026-09-20" } });
+
+    await waitFor(() => {
+      expect(dashboardApi.fetchSchedule).toHaveBeenCalledWith("2026-09-20");
+    });
+
+    const presentBtnOn20 = screen.getByRole("button", { name: /Present/i });
+    // On the 20th, it MUST NOT be marked present!
+    expect(presentBtnOn20.className).not.toContain("bg-emerald-600");
+    console.log("TRACE [DailySchedule.test.jsx]: Verified lab on 2026-09-20 is NOT marked present");
+  });
 });
 

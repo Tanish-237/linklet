@@ -7,10 +7,23 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max
   fileFilter: (req, file, cb) => {
-    if (file.mimetype === "application/pdf" || file.originalname.toLowerCase().endsWith(".pdf")) {
+    const allowedMimes = [
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/jpg",
+      "image/webp",
+    ];
+    const allowedExts = [".pdf", ".png", ".jpg", ".jpeg", ".webp"];
+    const ext = "." + (file.originalname?.split(".").pop() || "").toLowerCase();
+
+    if (
+      (file.mimetype && allowedMimes.includes(file.mimetype.toLowerCase())) ||
+      allowedExts.includes(ext)
+    ) {
       cb(null, true);
     } else {
-      cb(new Error("Only PDF timetable files are supported"), false);
+      cb(new Error("Only PDF and image (PNG, JPG, WEBP) timetable files are supported"), false);
     }
   },
 });

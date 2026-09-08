@@ -263,8 +263,8 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       console.log('[TEST] Registration completed successfully with dynamic year.');
     });
 
-    test('registers user with section trimmed and uppercased', async () => {
-      console.log('[TEST] register › registers user with section A1');
+    test('registers user with section and subSection trimmed and uppercased', async () => {
+      console.log('[TEST] register › registers user with section D and subSection DF5');
       mockRedisGet.mockResolvedValueOnce('654321');
       mockFindUserByEmail.mockResolvedValueOnce(null);
       mockFindUserByUsername.mockResolvedValueOnce(null);
@@ -275,7 +275,8 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
         email: 'tanish.20231111@mnnit.ac.in',
         fullName: 'Tanish Sharma',
         department: 'Computer Science and Engineering',
-        section: 'A1',
+        section: 'D',
+        subSection: 'DF5',
         generateAccessToken: jest.fn().mockReturnValue('mock-token'),
         generateRefreshToken: jest.fn().mockReturnValue('mock-refresh'),
       };
@@ -287,20 +288,63 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
         fullName: 'Tanish Sharma',
         password: 'Password123',
         department: 'Computer Science and Engineering',
-        section: ' a1 ',
+        section: ' d ',
+        subSection: ' df5 ',
         otp: '654321',
       });
 
-      console.log('[TEST] mockCreateUser called with section:', mockCreateUser.mock.calls[mockCreateUser.mock.calls.length - 1][0].section);
+      console.log('[TEST] mockCreateUser called with section and subSection:', 
+        mockCreateUser.mock.calls[mockCreateUser.mock.calls.length - 1][0].section,
+        mockCreateUser.mock.calls[mockCreateUser.mock.calls.length - 1][0].subSection
+      );
       expect(mockCreateUser).toHaveBeenCalledWith(
         expect.objectContaining({
-          section: 'A1',
+          section: 'D',
+          subSection: 'DF5',
         })
       );
     });
 
-    test('rejects section if not letter followed by 1 or 2 during registration', async () => {
-      console.log('[TEST] register › rejects section A3');
+    test('accepts single letter section like J and subSection like CE3', async () => {
+      console.log('[TEST] register › accepts section J and subSection CE3');
+      mockRedisGet.mockResolvedValueOnce('654321');
+      mockFindUserByEmail.mockResolvedValueOnce(null);
+      mockFindUserByUsername.mockResolvedValueOnce(null);
+
+      const mockCreatedUser = {
+        _id: 'new_user_j',
+        username: 'tanish_j',
+        email: 'tanish.20231112@mnnit.ac.in',
+        fullName: 'Tanish Sharma',
+        department: 'Civil Engineering',
+        section: 'J',
+        subSection: 'CE3',
+        generateAccessToken: jest.fn().mockReturnValue('mock-token'),
+        generateRefreshToken: jest.fn().mockReturnValue('mock-refresh'),
+      };
+      mockCreateUser.mockResolvedValueOnce(mockCreatedUser);
+      mockFindUserById.mockResolvedValueOnce(mockCreatedUser);
+
+      await register({
+        email: 'tanish.20231112@mnnit.ac.in',
+        fullName: 'Tanish Sharma',
+        password: 'Password123',
+        department: 'Civil Engineering',
+        section: 'j',
+        subSection: 'ce3',
+        otp: '654321',
+      });
+
+      expect(mockCreateUser).toHaveBeenCalledWith(
+        expect.objectContaining({
+          section: 'J',
+          subSection: 'CE3',
+        })
+      );
+    });
+
+    test('rejects section if longer than 10 characters during registration', async () => {
+      console.log('[TEST] register › rejects section exceeding 10 characters');
       mockRedisGet.mockResolvedValueOnce('654321');
       mockFindUserByEmail.mockResolvedValueOnce(null);
       mockFindUserByUsername.mockResolvedValueOnce(null);
@@ -311,10 +355,10 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
           fullName: 'Tanish Sharma',
           password: 'Password123',
           department: 'Computer Science and Engineering',
-          section: 'A3',
+          section: 'SECTION_TOO_LONG',
           otp: '654321',
         })
-      ).rejects.toThrow(/followed by 1 or 2/i);
+      ).rejects.toThrow(/exceed 10 characters/i);
     });
   });
 });

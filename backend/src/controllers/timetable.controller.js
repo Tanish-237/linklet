@@ -13,14 +13,18 @@ import { AppError } from "../utils/error.js";
 export const uploadAndParseTimetable = async (req, res, next) => {
   try {
     if (!req.file || !req.file.buffer) {
-      throw new AppError("Please upload a valid PDF timetable file", 400);
+      throw new AppError("Please upload a valid timetable file (PDF or image)", 400);
     }
 
-    const preview = await parseTimetablePdf(req.file.buffer, req.user);
+    const preview = await parseTimetablePdf(req.file.buffer, req.user, req.file.mimetype);
+
+    const secLabel = preview.targetSubSection
+      ? `Section ${preview.targetSection} (${preview.targetSubSection})`
+      : `Section ${preview.targetSection || "All"}`;
 
     return res.status(200).json({
       success: true,
-      message: `Extracted ${preview.totalClassesFound} classes for Section ${preview.targetSection} (from ${preview.totalExtracted} total entries). Please verify below.`,
+      message: `Extracted ${preview.totalClassesFound} classes for ${secLabel} (from ${preview.totalExtracted} total entries). Please verify below.`,
       data: preview,
     });
   } catch (err) {
@@ -34,7 +38,7 @@ export const uploadAndParseTimetable = async (req, res, next) => {
  */
 export const confirmTimetable = async (req, res, next) => {
   try {
-    const { branch, semester, section, classes, wipeExisting } = req.body;
+    const { branch, semester, section, subSection, classes, wipeExisting } = req.body;
 
     if (!Array.isArray(classes)) {
       throw new AppError("Classes array is required", 400);
@@ -44,6 +48,7 @@ export const confirmTimetable = async (req, res, next) => {
       branch: branch || req.user.department,
       semester: semester || req.user.semester,
       section: section || req.user.section,
+      subSection: subSection || req.user.subSection,
       classes,
       wipeExisting,
     });

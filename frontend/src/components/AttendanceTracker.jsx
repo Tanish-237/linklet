@@ -38,10 +38,12 @@ export default function AttendanceTracker({ refreshTrigger }) {
     };
   }, [dropdownOpen]);
 
+  const isInitialMount = useRef(true);
+
   // Load attendance data from backend
-  const loadAttendanceData = useCallback(async () => {
+  const loadAttendanceData = useCallback(async (showLoadingSpinner = false) => {
     try {
-      setLoading(true);
+      if (showLoadingSpinner) setLoading(true);
       const data = await fetchAttendance();
       if (data) {
         setCourses(data.courses || []);
@@ -59,12 +61,17 @@ export default function AttendanceTracker({ refreshTrigger }) {
     } catch (err) {
       toast.error('Failed to load attendance records');
     } finally {
-      setLoading(false);
+      if (showLoadingSpinner) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadAttendanceData();
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      loadAttendanceData(true);
+    } else {
+      loadAttendanceData(false);
+    }
   }, [loadAttendanceData, refreshTrigger]);
 
   // Selected course details

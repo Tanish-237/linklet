@@ -7,6 +7,9 @@ const mockFindById       = jest.fn();
 const mockFindByIdAndUpdate = jest.fn();
 const mockFindResourceById  = jest.fn();
 const mockResourceFindById  = jest.fn();
+const mockResourceFind      = jest.fn();
+const mockPostFindById      = jest.fn();
+const mockPostFind          = jest.fn();
 
 jest.unstable_mockModule('../models/users.js', () => ({
   User: {
@@ -17,7 +20,17 @@ jest.unstable_mockModule('../models/users.js', () => ({
 }));
 
 jest.unstable_mockModule('../models/resource.js', () => ({
-  Resource: { findById: mockResourceFindById },
+  Resource: {
+    findById: mockResourceFindById,
+    find:     mockResourceFind,
+  },
+}));
+
+jest.unstable_mockModule('../models/posts.js', () => ({
+  Post: {
+    findById: mockPostFindById,
+    find:     mockPostFind,
+  },
 }));
 
 const {
@@ -109,6 +122,7 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       const next = jest.fn();
 
       mockResourceFindById.mockResolvedValue(null);
+      mockPostFindById.mockResolvedValue(null);
 
       await toggleBookmark(req, res, next);
 
@@ -133,8 +147,20 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       ];
 
       mockFindById.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ bookmarks: ['r1', 'r2'] }),
+      });
+      mockResourceFind.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          select: jest.fn().mockResolvedValue({ bookmarks: mockBookmarks }),
+          lean: jest.fn().mockResolvedValue(mockBookmarks),
+        }),
+      });
+      mockPostFind.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          populate: jest.fn().mockReturnValue({
+            populate: jest.fn().mockReturnValue({
+              lean: jest.fn().mockResolvedValue([]),
+            }),
+          }),
         }),
       });
 
@@ -155,8 +181,20 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       const next = jest.fn();
 
       mockFindById.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ bookmarks: [] }),
+      });
+      mockResourceFind.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          select: jest.fn().mockResolvedValue({ bookmarks: [] }),
+          lean: jest.fn().mockResolvedValue([]),
+        }),
+      });
+      mockPostFind.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          populate: jest.fn().mockReturnValue({
+            populate: jest.fn().mockReturnValue({
+              lean: jest.fn().mockResolvedValue([]),
+            }),
+          }),
         }),
       });
 
@@ -179,8 +217,16 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       const mockBookmarks = [{ _id: 'r1', title: 'Notes', userId: { username: 'alice' } }];
 
       mockFindOne.mockReturnValue({
+        select: jest.fn().mockResolvedValue({ bookmarks: ['r1'] }),
+      });
+      mockResourceFind.mockReturnValue({
         populate: jest.fn().mockReturnValue({
-          select: jest.fn().mockResolvedValue({ bookmarks: mockBookmarks }),
+          lean: jest.fn().mockResolvedValue(mockBookmarks),
+        }),
+      });
+      mockPostFind.mockReturnValue({
+        populate: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue([]),
         }),
       });
 
@@ -200,9 +246,7 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       const next = jest.fn();
 
       mockFindOne.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
-          select: jest.fn().mockResolvedValue(null),
-        }),
+        select: jest.fn().mockResolvedValue(null),
       });
 
       await getUserBookmarks(req, res, next);
@@ -253,12 +297,13 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
 
   // ── updateProfile ──────────────────────────────────────────────────────────
   describe('updateProfile', () => {
-    it('should successfully update section and semester', async () => {
-      console.log('[TEST] updateProfile › updating section and semester');
+    it('should successfully update section, subSection, and semester', async () => {
+      console.log('[TEST] updateProfile › updating section, subSection, and semester');
       const req = makeReq({
         user: { _id: 'user1' },
         body: {
-          section: ' b1 ',
+          section: ' d ',
+          subSection: ' df5 ',
           semester: '5',
           bio: 'CS Student',
         },
@@ -269,7 +314,8 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       mockFindByIdAndUpdate.mockReturnValue({
         select: jest.fn().mockResolvedValue({
           _id: 'user1',
-          section: 'B1',
+          section: 'D',
+          subSection: 'DF5',
           semester: 5,
           bio: 'CS Student',
         }),
@@ -281,7 +327,8 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
         'user1',
         expect.objectContaining({
-          section: 'B1',
+          section: 'D',
+          subSection: 'DF5',
           semester: 5,
           bio: 'CS Student',
         }),
@@ -291,18 +338,52 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: true,
-          data: expect.objectContaining({ section: 'B1', semester: 5 }),
+          data: expect.objectContaining({ section: 'D', subSection: 'DF5', semester: 5 }),
         })
       );
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should reject invalid section format (not First Alphabet and 1or2)', async () => {
-      console.log('[TEST] updateProfile › invalid section B3 → AppError');
+    it('should allow arbitrary section formats like B3 or J or CE3', async () => {
+      console.log('[TEST] updateProfile › arbitrary section B3 accepted');
       const req = makeReq({
         user: { _id: 'user1' },
         body: {
           section: 'B3',
+          subSection: 'CE3',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          section: 'B3',
+          subSection: 'CE3',
+        }),
+      });
+
+      await updateProfile(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({
+          section: 'B3',
+          subSection: 'CE3',
+        }),
+        expect.any(Object)
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(next).not.toHaveBeenCalled();
+    });
+
+    it('should reject section or subSection exceeding 10 characters', async () => {
+      console.log('[TEST] updateProfile › invalid section too long → AppError');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          section: 'SECTION_TOO_LONG_STRING',
         },
       });
       const res = makeRes();
@@ -315,7 +396,7 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       console.log('[TEST] invalid section error caught:', err?.message);
       expect(err).toBeInstanceOf(AppError);
       expect(err.statusCode).toBe(400);
-      expect(err.message).toMatch(/followed by 1 or 2/i);
+      expect(err.message).toMatch(/cannot exceed 10 characters/i);
     });
 
     it('should reject invalid semester value with AppError 400', async () => {

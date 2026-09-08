@@ -12,6 +12,8 @@ export const uploadTimetablePdf = async (formData) => {
   return response.data;
 };
 
+export const uploadTimetableFile = uploadTimetablePdf;
+
 /**
  * Confirm verified timetable classes to save to Schedule and Attendance Guardian.
  */

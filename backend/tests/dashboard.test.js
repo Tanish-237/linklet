@@ -377,6 +377,48 @@ describe("Dashboard Service & Controller Unit Tests", () => {
       expect(schedule).toHaveLength(1);
       expect(schedule[0].attendanceStatus).toBe("present");
     });
+
+    it("does not mark recurring timetable lab present on date 20 when attendance record only exists for date 27", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing date isolation for recurring timetable lab between 2026-09-20 and 2026-09-27");
+      mockFindByUserIdAndDate.mockResolvedValue([]);
+      mockTimetableFindOne.mockReturnValue({
+        lean: jest.fn().mockResolvedValue({
+          classes: [
+            {
+              _id: "tt_lab_recur",
+              dayOfWeek: 0, // Sunday (both 2026-09-20 and 2026-09-27 are Sundays)
+              title: "Network Security (Lab)",
+              classType: "Lab",
+              startTime: "14:00",
+              endTime: "16:00",
+            },
+          ],
+        }),
+      });
+      mockFindAllByUserId.mockResolvedValue([
+        {
+          _id: "ac_netsec",
+          courseName: "Network Security",
+          hasLab: true,
+          records: [
+            // Present ONLY on Sept 27th
+            { date: "2026-09-27", status: "present", recordType: "lab" },
+          ],
+        },
+      ]);
+
+      // Querying schedule for Sept 20th should have attendanceStatus: null
+      const schedule20 = await dashboardService.getDailySchedule("user123", "2026-09-20");
+      console.log("TRACE [dashboard.test.js]: Sept 20th attendanceStatus:", schedule20[0]?.attendanceStatus);
+      expect(schedule20).toHaveLength(1);
+      expect(schedule20[0].attendanceStatus).toBeNull();
+
+      // Querying schedule for Sept 27th should have attendanceStatus: "present"
+      const schedule27 = await dashboardService.getDailySchedule("user123", "2026-09-27");
+      console.log("TRACE [dashboard.test.js]: Sept 27th attendanceStatus:", schedule27[0]?.attendanceStatus);
+      expect(schedule27).toHaveLength(1);
+      expect(schedule27[0].attendanceStatus).toBe("present");
+    });
   });
 
   describe("dashboardService.updateScheduleEvent & deleteScheduleEvent", () => {

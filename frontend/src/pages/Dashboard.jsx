@@ -11,6 +11,7 @@ import HelpForum from "./HelpForum";
 import QuestionDetail from "./QuestionDetail";
 import { useAuth } from "../context/AuthContext";
 import { fetchDashboardStats } from "../api/dashboard.api";
+import { fetchTimetable } from "../api/timetable.api";
 import { toast } from "react-toastify";
 
 export default function Dashboard() {
@@ -20,10 +21,12 @@ export default function Dashboard() {
 
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hasTimetable, setHasTimetable] = useState(null);
 
   // Triggers for child components & modals
   const [addEventTrigger, setAddEventTrigger] = useState(0);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0);
+  const [attendanceRefreshTrigger, setAttendanceRefreshTrigger] = useState(0);
 
   // Subject Info Modal state
   const [showSubjectInfoModal, setShowSubjectInfoModal] = useState(false);
@@ -46,11 +49,19 @@ export default function Dashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Load real-time dashboard metrics
+  // Load real-time dashboard metrics & timetable status
   const loadStats = useCallback(async () => {
     try {
-      const data = await fetchDashboardStats();
-      setStats(data);
+      const [data, timetableData] = await Promise.all([
+        fetchDashboardStats(),
+        fetchTimetable().catch(() => null),
+      ]);
+      if (data) setStats(data);
+      const ttExists = Boolean(
+        (data?.metrics?.hasTimetable !== undefined ? data.metrics.hasTimetable : false) ||
+        (timetableData && Array.isArray(timetableData.classes) && timetableData.classes.length > 0)
+      );
+      setHasTimetable(ttExists);
     } catch (err) {
       console.error("Failed to load dashboard metrics", err);
     } finally {
@@ -226,6 +237,51 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {/* Onboarding: Upload Timetable Notice (Shown only for users who have never uploaded a timetable) */}
+        {hasTimetable === false && (
+          <div
+            data-testid="timetable-onboarding-banner"
+            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-950/70 via-purple-950/40 to-indigo-950/60 border border-violet-500/30 p-5 sm:p-6 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-300 group"
+          >
+            {/* Background ambient decorative glows */}
+            <div className="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 rounded-full bg-violet-600/20 blur-3xl pointer-events-none group-hover:bg-violet-600/30 transition-colors duration-500"></div>
+            <div className="absolute bottom-0 left-1/4 -mb-8 w-40 h-40 rounded-full bg-purple-600/15 blur-2xl pointer-events-none"></div>
+
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+              <div className="flex items-start sm:items-center gap-4">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-violet-600/30 to-purple-600/20 border border-violet-500/40 flex items-center justify-center text-violet-300 shadow-inner shrink-0 group-hover:scale-105 transition-transform duration-300">
+                  <span className="material-icons text-2xl sm:text-3xl text-violet-400 animate-pulse">auto_awesome</span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
+                      Upload your timetable to get started
+                    </h3>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                      Quick Setup
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-300/90 leading-relaxed max-w-2xl">
+                    Scan your semester timetable (PDF or image) to automatically populate your Daily Schedule with lectures, labs, and tutorials, and unlock one-tap attendance tracking and bunk safety alerts.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+                <button
+                  type="button"
+                  id="onboarding-upload-timetable-btn"
+                  onClick={() => setShowUploadModal(true)}
+                  className="flex items-center gap-2 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm px-5 py-2.5 sm:py-3 rounded-xl shadow-lg shadow-violet-950/60 hover:shadow-violet-800/50 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                >
+                  <span className="material-icons text-base">upload_file</span>
+                  <span>Upload Timetable</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Bar: Subject Info and Timetable Options */}
         <div className="relative z-30 flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800/80 shadow-lg">
           <div className="flex flex-wrap items-center gap-3">
@@ -298,17 +354,20 @@ export default function Dashboard() {
         {/* Daily Schedule & Attendance Guardian */}
         <div className="relative z-10 grid grid-cols-1 xl:grid-cols-2 gap-8">
           <DailySchedule
-            onScheduleChanged={loadStats}
+            onScheduleChanged={() => {
+              loadStats();
+              setScheduleRefreshTrigger((prev) => prev + 1);
+            }}
             onAttendanceChanged={() => {
               loadStats();
-              setRefreshTrigger((prev) => prev + 1);
+              setAttendanceRefreshTrigger((prev) => prev + 1);
             }}
             addEventTrigger={addEventTrigger}
-            refreshTrigger={refreshTrigger}
+            refreshTrigger={scheduleRefreshTrigger}
           />
           <AttendanceTracker
             onAttendanceChanged={loadStats}
-            refreshTrigger={refreshTrigger}
+            refreshTrigger={attendanceRefreshTrigger}
           />
         </div>
 
@@ -442,9 +501,11 @@ export default function Dashboard() {
           onClose={() => setShowUploadModal(false)}
           onTimetableSynced={() => {
             loadStats();
-            setRefreshTrigger((prev) => prev + 1);
+            setScheduleRefreshTrigger((prev) => prev + 1);
+            setAttendanceRefreshTrigger((prev) => prev + 1);
           }}
           userSection={user?.section}
+          userSubSection={user?.subSection}
         />
 
         {/* Full Weekly Timetable Modal */}
@@ -453,11 +514,13 @@ export default function Dashboard() {
           onClose={() => setShowWeeklyTimetableModal(false)}
           onTimetableChanged={() => {
             loadStats();
-            setRefreshTrigger((prev) => prev + 1);
+            setScheduleRefreshTrigger((prev) => prev + 1);
+            setAttendanceRefreshTrigger((prev) => prev + 1);
           }}
           onTimetableAbandoned={() => {
             loadStats();
-            setRefreshTrigger((prev) => prev + 1);
+            setScheduleRefreshTrigger((prev) => prev + 1);
+            setAttendanceRefreshTrigger((prev) => prev + 1);
           }}
         />
 
@@ -467,7 +530,8 @@ export default function Dashboard() {
           onClose={() => setShowSubjectInfoModal(false)}
           onSubjectsChanged={() => {
             loadStats();
-            setRefreshTrigger((prev) => prev + 1);
+            setScheduleRefreshTrigger((prev) => prev + 1);
+            setAttendanceRefreshTrigger((prev) => prev + 1);
           }}
         />
       </div>
