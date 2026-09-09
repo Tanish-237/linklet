@@ -39,6 +39,16 @@ describe('CORS Origin Validator Unit Tests', () => {
     console.log('[TEST] isOriginAllowed › matches CLIENT_URL normalized');
     process.env.CLIENT_URL = 'https://mycustomdomain.com/';
     expect(isOriginAllowed('https://mycustomdomain.com')).toBe(true);
+    expect(isOriginAllowed('https://www.mycustomdomain.com')).toBe(true);
+  });
+
+  test('allows production custom domains linklet.org and www.linklet.org', () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] isOriginAllowed › permits production domains linklet.org and www.linklet.org');
+    expect(isOriginAllowed('https://linklet.org')).toBe(true);
+    expect(isOriginAllowed('https://linklet.org/')).toBe(true);
+    expect(isOriginAllowed('https://www.linklet.org')).toBe(true);
+    expect(isOriginAllowed('https://www.linklet.org/')).toBe(true);
   });
 
   test('rejects unauthorized origins', () => {
