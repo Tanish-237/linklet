@@ -26,6 +26,7 @@ jest.unstable_mockModule('@socket.io/redis-adapter', () => ({
 // Mock socket.io Server
 const mockAdapter = jest.fn();
 const mockOn = jest.fn();
+const mockUse = jest.fn();
 let capturedOptions = null;
 
 class MockServer {
@@ -33,6 +34,7 @@ class MockServer {
     capturedOptions = options;
     this.adapter = mockAdapter;
     this.on = mockOn;
+    this.use = mockUse;
   }
 }
 
@@ -177,4 +179,73 @@ describe('Socket Initialization Unit Tests', () => {
       userId: 'user-456',
     });
   });
+
+  test('handshake middleware decodes valid token and flags authenticated socket', async () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] initializeSocket › verifies handshake middleware with JWT');
+
+    const jwt = (await import('jsonwebtoken')).default;
+    process.env.ACCESS_TOKEN_SECRET = 'test_secret_key_123';
+
+    const { initializeSocket } = await import('../socket.js');
+    const mockHttpServer = http.createServer();
+    await initializeSocket(mockHttpServer);
+
+    expect(mockUse).toHaveBeenCalled();
+    const handshakeMiddleware = mockUse.mock.calls[0][0];
+
+    const validToken = jwt.sign({ id: 'verified-user-789' }, process.env.ACCESS_TOKEN_SECRET);
+    const mockSocket = {
+      id: 'socket-auth-1',
+      handshake: {
+        auth: { token: validToken },
+      },
+    };
+
+    const nextFn = jest.fn();
+    await handshakeMiddleware(mockSocket, nextFn);
+
+    expect(nextFn).toHaveBeenCalled();
+    expect(mockSocket.authenticated).toBe(true);
+    expect(mockSocket.user.id).toBe('verified-user-789');
+    console.log('[TEST] Verified socket authenticated and user ID populated from token');
+  });
+
+  test('setup event rejects room join when client tries to spoof a different user ID', async () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] initializeSocket › prevents user ID spoofing in setup event');
+
+    const { initializeSocket } = await import('../socket.js');
+    const mockHttpServer = http.createServer();
+    await initializeSocket(mockHttpServer);
+
+    const connectionCall = mockOn.mock.calls.find((call) => call[0] === 'connection');
+    const connectionHandler = connectionCall[1];
+
+    const registeredHandlers = {};
+    const mockSocket = {
+      id: 'socket-spoof-test',
+      authenticated: true,
+      user: { id: 'legit-user-001' },
+      join: jest.fn(),
+      emit: jest.fn(),
+      broadcast: { emit: jest.fn() },
+      on: jest.fn((event, handler) => {
+        registeredHandlers[event] = handler;
+      }),
+    };
+
+    connectionHandler(mockSocket);
+
+    // Attacker tries to setup as victim user ID
+    registeredHandlers['setup']({ _id: 'victim-user-999' });
+
+    console.log('[TEST] Spoof setup triggered, socket.emit called with:', mockSocket.emit.mock.calls);
+    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
+      message: 'Unauthorized socket registration',
+    });
+    expect(mockSocket.join).not.toHaveBeenCalled();
+    console.log('[TEST] Confirmed unauthorized room registration was blocked');
+  });
 });
+

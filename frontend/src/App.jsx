@@ -14,6 +14,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 // Core Layout
 import { Navbar } from "./components/Navbar";
 import Layout from "./pages/Layout";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { SocketProvider } from "./context/SocketContext";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -40,6 +41,7 @@ const ModeratorDashboard = lazy(() => import("./pages/ModeratorDashboard"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Settings = lazy(() => import("./pages/Settings"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Lazy Loaded Static Pages
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
@@ -85,6 +87,7 @@ function App() {
             pauseOnHover
             theme="dark"
           />
+          <ErrorBoundary>
           <Suspense
             fallback={
               <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
@@ -368,8 +371,12 @@ function App() {
                 </>
               }
             />
+
+            {/* 404 Catch-All Route */}
+            <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          </ErrorBoundary>
         </Router>
       </SocketProvider>
     </HelmetProvider>

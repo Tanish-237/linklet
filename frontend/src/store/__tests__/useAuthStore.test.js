@@ -106,4 +106,20 @@ describe("useAuthStore Zustand Store Tests", () => {
     expect(state.isLoading).toBe(false);
     console.log("TRACE [useAuthStore.test.js]: 401 checkAuth reset verified successfully");
   });
+
+  it("resets auth state when global 'auth-expired' event is triggered", () => {
+    console.log("TRACE [useAuthStore.test.js]: Testing global auth-expired event handling");
+    useAuthStore.setState({
+      user: { _id: "u999", username: "expiredUser" },
+      isAuthenticated: true,
+    });
+
+    window.dispatchEvent(new Event("auth-expired"));
+
+    const state = useAuthStore.getState();
+    expect(state.user).toBeNull();
+    expect(state.isAuthenticated).toBe(false);
+    console.log("TRACE [useAuthStore.test.js]: auth-expired event reset verified successfully");
+  });
 });
+

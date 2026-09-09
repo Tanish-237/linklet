@@ -63,6 +63,24 @@ const useAuthStore = create(
   )
 );
 
+// Listen for global auth-expired event emitted by apiClient on refresh failure
+if (typeof window !== 'undefined') {
+  window.addEventListener('auth-expired', () => {
+    if (window.localStorage) {
+      window.localStorage.removeItem('accessToken');
+    }
+    useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
+    if (
+      window.location &&
+      window.location.pathname &&
+      !window.location.pathname.startsWith('/login') &&
+      !window.location.pathname.startsWith('/register')
+    ) {
+      window.location.href = '/login';
+    }
+  });
+}
+
 export default useAuthStore;
 
 

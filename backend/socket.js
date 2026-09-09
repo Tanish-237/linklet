@@ -1,5 +1,6 @@
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
+import jwt from "jsonwebtoken";
 import { getRedisClient } from "./src/utils/redis.js";
 import logger from "./src/utils/logger.js";
 
@@ -36,6 +37,43 @@ export const initializeSocket = async (server) => {
     logger.info("Socket.io Redis Adapter configured for horizontal scaling");
   }
 
+  // Handshake authentication middleware
+  io.use(async (socket, next) => {
+    try {
+      let token =
+        socket.handshake.auth?.token ||
+        socket.handshake.headers?.authorization?.replace("Bearer ", "");
+
+      if (!token && socket.handshake.headers?.cookie) {
+        const rawCookies = socket.handshake.headers.cookie.split(";");
+        for (const cookie of rawCookies) {
+          const [name, val] = cookie.trim().split("=");
+          if (name === "accesstoken") {
+            token = decodeURIComponent(val);
+            break;
+          }
+        }
+      }
+
+      if (token && process.env.ACCESS_TOKEN_SECRET) {
+        try {
+          const decoded = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+          socket.user = decoded;
+          socket.authenticated = true;
+        } catch (jwtErr) {
+          logger.warn(`Invalid socket handshake token: ${jwtErr.message}`);
+          socket.authenticated = false;
+        }
+      } else {
+        socket.authenticated = false;
+      }
+      return next();
+    } catch (err) {
+      logger.error(`Socket auth middleware error: ${err.message}`);
+      return next();
+    }
+  });
+
   // Helper to get room state from Redis
   const getRoomState = async (roomId) => {
     if (!redisClient) return null;
@@ -54,24 +92,33 @@ export const initializeSocket = async (server) => {
 
     // Setup user session
     socket.on("setup", (userData) => {
-      if (userData && userData._id) {
-        const uid = userData._id.toString();
-        socket.userId = userData._id;
-        socket.join(userData._id);
-        onlineUsers.set(uid, socket.id);
+      if (!userData || !userData._id) return;
 
-        // 1. Send full online presence list ONLY to connecting socket
-        socket.emit("user online status", {
-          onlineUsers: Array.from(onlineUsers.keys()),
-        });
+      const requestedId = userData._id.toString();
+      const verifiedId = (socket.user?.id || socket.user?._id)?.toString();
 
-        // 2. Broadcast single lightweight delta event to all other connected peers
-        socket.broadcast.emit("user_connected", {
-          userId: uid,
-        });
-
-        logger.info(`User ${userData._id} registered on socket ${socket.id}`);
+      // If socket has a verified JWT session, prevent joining any room other than their own verified ID
+      if (socket.authenticated && verifiedId && verifiedId !== requestedId) {
+        logger.warn(`Security alert: Socket ${socket.id} (user ${verifiedId}) attempted unauthorized registration as ${requestedId}`);
+        return socket.emit("error", { message: "Unauthorized socket registration" });
       }
+
+      const uid = verifiedId || requestedId;
+      socket.userId = uid;
+      socket.join(uid);
+      onlineUsers.set(uid, socket.id);
+
+      // 1. Send full online presence list ONLY to connecting socket
+      socket.emit("user online status", {
+        onlineUsers: Array.from(onlineUsers.keys()),
+      });
+
+      // 2. Broadcast single lightweight delta event to all other connected peers
+      socket.broadcast.emit("user_connected", {
+        userId: uid,
+      });
+
+      logger.info(`User ${uid} registered on socket ${socket.id}`);
     });
 
     // Chat room events
