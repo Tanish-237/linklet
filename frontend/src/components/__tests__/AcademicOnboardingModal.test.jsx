@@ -30,7 +30,6 @@ vi.mock("../../context/AuthContext", () => ({
 describe("AcademicOnboardingModal Component Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    sessionStorage.clear();
     useAuthStore.setState({
       user: null,
       isAuthenticated: false,
@@ -43,7 +42,7 @@ describe("AcademicOnboardingModal Component Tests", () => {
 
     render(<AcademicOnboardingModal />);
 
-    expect(screen.queryByText("Complete Your Academic Profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("Select Your Academic Details")).not.toBeInTheDocument();
     console.log("[TEST] Confirmed modal is hidden for guest/logged-out user");
   });
 
@@ -63,11 +62,11 @@ describe("AcademicOnboardingModal Component Tests", () => {
 
     render(<AcademicOnboardingModal />);
 
-    expect(screen.queryByText("Complete Your Academic Profile")).not.toBeInTheDocument();
+    expect(screen.queryByText("Select Your Academic Details")).not.toBeInTheDocument();
     console.log("[TEST] Confirmed modal is hidden when user already has department");
   });
 
-  it("renders when user is logged in and department is missing", () => {
+  it("renders mandatory setup when user is logged in and department is missing", () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] AcademicOnboardingModal › user with missing department");
 
@@ -85,32 +84,12 @@ describe("AcademicOnboardingModal Component Tests", () => {
 
     render(<AcademicOnboardingModal />);
 
-    expect(screen.getByText("Complete Your Academic Profile")).toBeInTheDocument();
+    expect(screen.getByText("Select Your Academic Details")).toBeInTheDocument();
     expect(screen.getByLabelText(/Branch \/ Department/i)).toBeInTheDocument();
-    expect(screen.getByText(/Auto-detected:/i)).toBeInTheDocument();
-    console.log("[TEST] Confirmed modal displays for student with missing department");
-  });
-
-  it("closes and sets sessionStorage flag when 'Skip for now' is clicked", () => {
-    console.log("\n──────────────────────────────────────────────");
-    console.log("[TEST] AcademicOnboardingModal › skip for now action");
-
-    useAuthStore.setState({
-      user: {
-        _id: "u2",
-        department: "",
-      },
-      isAuthenticated: true,
-    });
-
-    render(<AcademicOnboardingModal />);
-
-    const skipBtn = screen.getByRole("button", { name: /Skip for now/i });
-    fireEvent.click(skipBtn);
-
-    expect(sessionStorage.getItem("linklet_onboarding_skipped")).toBe("true");
-    expect(screen.queryByText("Complete Your Academic Profile")).not.toBeInTheDocument();
-    console.log("[TEST] Confirmed modal dismissed and session flag set");
+    expect(screen.getByText("20235001@mnnit.ac.in")).toBeInTheDocument();
+    // Confirmed no skip button exists
+    expect(screen.queryByText(/Skip for now/i)).not.toBeInTheDocument();
+    console.log("[TEST] Confirmed mandatory setup modal displays without skip button");
   });
 
   it("saves academic profile and updates user store on submission", async () => {
@@ -121,6 +100,7 @@ describe("AcademicOnboardingModal Component Tests", () => {
       user: {
         _id: "u3",
         fullName: "Aman Verma",
+        email: "20234050@mnnit.ac.in",
         department: "",
       },
       isAuthenticated: true,
@@ -129,6 +109,7 @@ describe("AcademicOnboardingModal Component Tests", () => {
     const updatedUser = {
       _id: "u3",
       fullName: "Aman Verma",
+      email: "20234050@mnnit.ac.in",
       department: "Computer Science and Engineering",
       section: "D",
       subSection: "DF5",
@@ -149,7 +130,7 @@ describe("AcademicOnboardingModal Component Tests", () => {
     fireEvent.change(sectionInput, { target: { value: "d" } });
     fireEvent.change(subSectionInput, { target: { value: "df5" } });
 
-    const saveBtn = screen.getByRole("button", { name: /Save & Continue/i });
+    const saveBtn = screen.getByRole("button", { name: /Save & Complete Setup/i });
     fireEvent.click(saveBtn);
 
     await waitFor(() => {
@@ -162,9 +143,41 @@ describe("AcademicOnboardingModal Component Tests", () => {
       );
     });
 
-    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("saved"));
+    expect(toast.success).toHaveBeenCalledWith(expect.stringContaining("verified"));
     expect(useAuthStore.getState().user?.department).toBe("Computer Science and Engineering");
-    expect(screen.queryByText("Complete Your Academic Profile")).not.toBeInTheDocument();
-    console.log("[TEST] Confirmed academic profile saved and store updated successfully");
+    expect(screen.queryByText("Select Your Academic Details")).not.toBeInTheDocument();
+    console.log("[TEST] Confirmed academic profile saved and modal dismissed");
+  });
+
+  it("handles save failure gracefully and displays toast error", async () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] AcademicOnboardingModal › save failure error handling");
+
+    useAuthStore.setState({
+      user: {
+        _id: "u4",
+        department: "",
+      },
+      isAuthenticated: true,
+    });
+
+    apiClient.put.mockRejectedValueOnce({
+      response: {
+        data: { message: "Server database write failure" },
+      },
+    });
+
+    render(<AcademicOnboardingModal />);
+
+    const branchSelect = screen.getByLabelText(/Branch \/ Department/i);
+    fireEvent.change(branchSelect, { target: { value: "Electrical Engineering" } });
+
+    const saveBtn = screen.getByRole("button", { name: /Save & Complete Setup/i });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Server database write failure");
+    });
+    console.log("[TEST] Confirmed error caught and toasted properly");
   });
 });
