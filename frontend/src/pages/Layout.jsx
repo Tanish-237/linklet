@@ -112,6 +112,7 @@ export default function Layout({ children }) {
               const currentMenuItem = menuItems.find(item => location.pathname === item.path);
               if (currentMenuItem) return currentMenuItem.label;
               if (location.pathname.startsWith("/dashboard/profile")) return "Profile";
+              if (location.pathname.startsWith("/dashboard/settings") || location.pathname.startsWith("/settings")) return "Settings";
               if (location.pathname.startsWith("/dashboard/question/")) return "Question Detail";
               if (location.pathname === "/posts") return "Feed";
               if (location.pathname.startsWith("/posts/")) return "Post";
@@ -166,15 +167,20 @@ export default function Layout({ children }) {
             {/* Profile */}
             <div className="relative">
               <button
-                className="group flex items-center gap-2"
+                id="layout-avatar-dropdown-btn"
+                className="group flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-violet-900/20 transition-all duration-200"
                 onClick={() => toggleDropdown('profile')}
+                aria-expanded={dropdownStates.profile}
+                aria-label="User menu"
               >
                 <img
                   src={user?.avatar || defaultAvatar}
                   alt="Avatar"
-                  className="w-12 h-12 rounded-full border-2 border-gray-800 cursor-pointer group-hover:border-violet-500 transition-all duration-300 object-cover"
+                  className="w-12 h-12 rounded-full border-2 border-gray-800 group-hover:border-violet-500 transition-all duration-300 object-cover"
                 />
-                <span className="material-icons text-gray-400 group-hover:text-violet-400 transition-colors">
+                <span className={`material-icons text-gray-400 group-hover:text-violet-400 transition-all duration-300 ${
+                  dropdownStates.profile ? "rotate-180 text-violet-400" : "group-hover:translate-y-0.5"
+                }`}>
                   expand_more
                 </span>
               </button>
@@ -190,8 +196,12 @@ export default function Layout({ children }) {
                   <ul className="py-2">
                     <li>
                       <button 
-                        onClick={() => navigate('/dashboard/profile')}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200"
+                        id="layout-dropdown-profile-btn"
+                        onClick={() => {
+                          setDropdownStates(prev => ({ ...prev, profile: false }));
+                          navigate('/dashboard/profile');
+                        }}
+                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer"
                       >
                         <span className="material-icons text-violet-400">person</span>
                         <span className="text-gray-300">Profile</span>
@@ -199,7 +209,12 @@ export default function Layout({ children }) {
                     </li>
                     <li>
                       <button 
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200"
+                        id="layout-dropdown-settings-btn"
+                        onClick={() => {
+                          setDropdownStates(prev => ({ ...prev, profile: false }));
+                          navigate('/dashboard/settings');
+                        }}
+                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer"
                       >
                         <span className="material-icons text-violet-400">settings</span>
                         <span className="text-gray-300">Settings</span>
@@ -207,8 +222,12 @@ export default function Layout({ children }) {
                     </li>
                     <li className="border-t border-gray-800 mt-2">
                       <button 
-                        onClick={handleLogout}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200"
+                        id="layout-dropdown-logout-btn"
+                        onClick={() => {
+                          setDropdownStates(prev => ({ ...prev, profile: false }));
+                          handleLogout();
+                        }}
+                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer"
                       >
                         <span className="material-icons text-red-400">logout</span>
                         <span className="text-red-400">Logout</span>

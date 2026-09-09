@@ -46,15 +46,16 @@ const ProfileContainer = styled.div`
 const ProfileButton = styled.button`
   display: flex;
   align-items: center;
+  gap: 0.35rem;
   background: none;
   border: none;
-  padding: 0.25rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
   cursor: pointer;
   border-radius: 9999px;
   transition: all 0.3s ease;
 
   &:hover {
-    background: rgba(139, 92, 246, 0.1);
+    background: rgba(139, 92, 246, 0.15);
   }
 
   img {
@@ -62,6 +63,23 @@ const ProfileButton = styled.button`
     height: 2.5rem;
     border-radius: 9999px;
     border: 2px solid #8b5cf6;
+    object-fit: cover;
+  }
+
+  .nav-arrow-icon {
+    color: #9ca3af;
+    font-size: 1.25rem;
+    transition: transform 0.3s ease, color 0.3s ease;
+  }
+
+  &:hover .nav-arrow-icon {
+    color: #8b5cf6;
+    transform: translateY(1px);
+  }
+
+  &.open .nav-arrow-icon {
+    transform: rotate(180deg);
+    color: #8b5cf6;
   }
 `;
 
@@ -100,6 +118,21 @@ export const Navbar = () => {
   const navigate = useNavigate();
   const socket = useSocket();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const profileContainerRef = React.useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        profileContainerRef.current &&
+        !profileContainerRef.current.contains(event.target)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -127,8 +160,14 @@ export const Navbar = () => {
           <>
             <Link to="/posts">Feed</Link>
             <Link to="/dashboard">Dashboard</Link>
-            <ProfileContainer>
-              <ProfileButton onClick={() => setIsDropdownOpen(!isDropdownOpen)}>
+            <ProfileContainer ref={profileContainerRef}>
+              <ProfileButton
+                id="navbar-avatar-dropdown-btn"
+                className={isDropdownOpen ? "open" : ""}
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                aria-expanded={isDropdownOpen}
+                aria-label="User navigation menu"
+              >
                 <img
                   src={
                     user.avatar ||
@@ -136,19 +175,40 @@ export const Navbar = () => {
                   }
                   alt={user.username}
                 />
+                <span className="material-icons nav-arrow-icon">
+                  expand_more
+                </span>
               </ProfileButton>
 
               {isDropdownOpen && (
                 <DropdownMenu>
-                  <button onClick={() => navigate("/dashboard/profile")}>
+                  <button
+                    id="navbar-dropdown-profile-btn"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      navigate("/dashboard/profile");
+                    }}
+                  >
                     <span className="material-icons">person</span>
                     Profile
                   </button>
-                  <button onClick={() => navigate("/settings")}>
+                  <button
+                    id="navbar-dropdown-settings-btn"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      navigate("/dashboard/settings");
+                    }}
+                  >
                     <span className="material-icons">settings</span>
                     Settings
                   </button>
-                  <button onClick={handleLogout}>
+                  <button
+                    id="navbar-dropdown-logout-btn"
+                    onClick={() => {
+                      setIsDropdownOpen(false);
+                      handleLogout();
+                    }}
+                  >
                     <span className="material-icons">logout</span>
                     Logout
                   </button>

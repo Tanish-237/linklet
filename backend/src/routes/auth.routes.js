@@ -9,6 +9,9 @@ router.post("/register", authController.registerUser);
 router.post("/login", authController.loginUser);
 router.post("/logout", isLoggedIn, authController.logoutUser);
 router.post("/refresh", authController.refreshAccessToken);
+router.post("/change-password", isLoggedIn, authController.changePassword);
+router.post("/forgot-password-otp", authController.sendForgotPasswordOtp);
+router.post("/reset-password", authController.resetPassword);
 router.get("/check", optionalAuth, authController.checkAuth);
 
 export default router;

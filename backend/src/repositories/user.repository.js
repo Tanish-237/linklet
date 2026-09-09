@@ -17,6 +17,10 @@ export const findUserById = async (id) => {
   return await User.findById(id).select("-password -refreshToken");
 };
 
+export const findUserWithPasswordById = async (id) => {
+  return await User.findById(id);
+};
+
 export const updateUserById = async (id, updateData) => {
   return await User.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).select("-password");
 };

@@ -24,6 +24,7 @@ const Home = lazy(() => import("./pages/Home"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const Login = lazy(() => import("./pages/Login"));
 const Register = lazy(() => import("./pages/Register"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
 const Posts = lazy(() => import("./pages/Posts"));
 const PostDetail = lazy(() => import("./pages/PostDetail"));
 const CreatePost = lazy(() => import("./pages/CreatePost"));
@@ -38,6 +39,7 @@ const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
 const ModeratorDashboard = lazy(() => import("./pages/ModeratorDashboard"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Saved = lazy(() => import("./pages/Saved"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 // Lazy Loaded Static Pages
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
@@ -140,6 +142,16 @@ function App() {
               }
             />
             <Route
+              path="/forgot-password"
+              element={
+                user ? (
+                  <Navigate to="/home" replace />
+                ) : (
+                  <ForgotPassword />
+                )
+              }
+            />
+            <Route
               path="/games"
               element={
                 <>
@@ -237,6 +249,26 @@ function App() {
                 <ProtectedRoute>
                   <Layout>
                     <Profile />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/dashboard/settings"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Settings />
+                  </Layout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Layout>
+                    <Settings />
                   </Layout>
                 </ProtectedRoute>
               }

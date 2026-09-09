@@ -7,6 +7,7 @@ const mockFindUserByUsername = jest.fn();
 const mockCreateUser = jest.fn();
 const mockUpdateRefreshToken = jest.fn();
 const mockFindUserById = jest.fn();
+const mockFindUserWithPasswordById = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/user.repository.js', () => ({
   findUserByEmail: mockFindUserByEmail,
@@ -14,6 +15,7 @@ jest.unstable_mockModule('../src/repositories/user.repository.js', () => ({
   createUser: mockCreateUser,
   updateRefreshToken: mockUpdateRefreshToken,
   findUserById: mockFindUserById,
+  findUserWithPasswordById: mockFindUserWithPasswordById,
 }));
 
 const mockRedisSetEx = jest.fn().mockResolvedValue('OK');
@@ -33,8 +35,8 @@ jest.unstable_mockModule('../src/utils/email.service.js', () => ({
   sendEmail: mockSendEmail,
 }));
 
-const { generateAndSendOtp, register } = await import('../src/services/auth.service.js');
-const { cookieOptions } = await import('../src/controllers/auth.controller.js');
+const { generateAndSendOtp, register, changePassword, forgotPasswordSendOtp, resetPassword } = await import('../src/services/auth.service.js');
+const { cookieOptions, changePassword: changePasswordController, sendForgotPasswordOtp: sendForgotPasswordOtpController, resetPassword: resetPasswordController } = await import('../src/controllers/auth.controller.js');
 const { calculateAcademicYear, calculateDefaultSemester } = await import('../src/utils/academicYear.js');
 
 describe('Auth Cookie Configuration Unit Tests', () => {
@@ -361,4 +363,232 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       ).rejects.toThrow(/exceed 10 characters/i);
     });
   });
+
+  describe('Change Password Unit & Controller Tests', () => {
+    test('changePassword service › throws AppError 404 if user not found', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] changePassword › user not found');
+      mockFindUserWithPasswordById.mockResolvedValueOnce(null);
+
+      await expect(
+        changePassword('user123', 'OldPass123!', 'NewPass123!')
+      ).rejects.toThrow('User not found');
+    });
+
+    test('changePassword service › throws AppError 400 if current password does not match', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] changePassword › incorrect current password');
+      const mockUser = {
+        _id: 'user123',
+        matchPassword: jest.fn().mockResolvedValue(false),
+        save: jest.fn(),
+      };
+      mockFindUserWithPasswordById.mockResolvedValueOnce(mockUser);
+
+      await expect(
+        changePassword('user123', 'WrongOldPass', 'NewPass123!')
+      ).rejects.toThrow('Current password is incorrect');
+      expect(mockUser.save).not.toHaveBeenCalled();
+    });
+
+    test('changePassword service › updates password and saves user when current password matches', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] changePassword › successful update');
+      const mockUser = {
+        _id: 'user123',
+        password: 'HashedOldPassword',
+        matchPassword: jest.fn().mockResolvedValue(true),
+        save: jest.fn().mockResolvedValue(true),
+      };
+      mockFindUserWithPasswordById.mockResolvedValueOnce(mockUser);
+
+      const result = await changePassword('user123', 'CorrectOldPass', 'BrandNewPass123!');
+      console.log('[TEST] changePassword result:', result);
+
+      expect(result).toBe(true);
+      expect(mockUser.password).toBe('BrandNewPass123!');
+      expect(mockUser.save).toHaveBeenCalled();
+    });
+
+    test('changePassword controller › returns 400 when currentPassword or newPassword is missing', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] changePassword controller › missing fields validation');
+      const req = {
+        user: { _id: 'user123' },
+        body: { currentPassword: 'OldPassword123' },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+      const next = jest.fn();
+
+      await changePasswordController(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          message: 'Current password and new password are required',
+        })
+      );
+    });
+
+    test('changePassword controller › returns 400 when newPassword is less than 6 characters', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] changePassword controller › short password validation');
+      const req = {
+        user: { _id: 'user123' },
+        body: { currentPassword: 'OldPassword123', newPassword: '123' },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+      const next = jest.fn();
+
+      await changePasswordController(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          success: false,
+          message: 'New password must be at least 6 characters long',
+        })
+      );
+    });
+
+    test('changePassword controller › returns 200 on successful password change', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] changePassword controller › success response');
+      const mockUser = {
+        _id: 'user123',
+        matchPassword: jest.fn().mockResolvedValue(true),
+        save: jest.fn().mockResolvedValue(true),
+      };
+      mockFindUserWithPasswordById.mockResolvedValueOnce(mockUser);
+
+      const req = {
+        user: { _id: 'user123' },
+        body: { currentPassword: 'OldPassword123', newPassword: 'NewPassword123' },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+      const next = jest.fn();
+
+      await changePasswordController(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        message: 'Password changed successfully',
+      });
+    });
+  });
+
+  describe('Forgot Password & Reset Password Unit & Controller Tests', () => {
+    test('forgotPasswordSendOtp › rejects non-mnnit email', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] forgotPasswordSendOtp › rejects non-mnnit email');
+
+      await expect(
+        forgotPasswordSendOtp('attacker@gmail.com')
+      ).rejects.toThrow(/Only @mnnit.ac.in email addresses are allowed/i);
+    });
+
+    test('forgotPasswordSendOtp › throws AppError 404 if email not registered', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] forgotPasswordSendOtp › unregistered email');
+      mockFindUserByEmail.mockResolvedValueOnce(null);
+
+      await expect(
+        forgotPasswordSendOtp('nonexistent@mnnit.ac.in')
+      ).rejects.toThrow('No account found with this email address');
+    });
+
+    test('forgotPasswordSendOtp › sends OTP and saves to Redis for valid user', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] forgotPasswordSendOtp › successful OTP send');
+      mockFindUserByEmail.mockResolvedValueOnce({ _id: 'u1', email: 'registered@mnnit.ac.in' });
+      mockRedisSetEx.mockResolvedValueOnce('OK');
+
+      const result = await forgotPasswordSendOtp('registered@mnnit.ac.in');
+      expect(result.message).toMatch(/OTP sent/i);
+      expect(mockRedisSetEx).toHaveBeenCalledWith(
+        'otp:reset:registered@mnnit.ac.in',
+        600,
+        expect.any(String)
+      );
+      expect(mockSendEmail).toHaveBeenCalled();
+    });
+
+    test('resetPassword › throws AppError 400 for invalid/mismatched OTP', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] resetPassword › invalid OTP');
+      mockRedisGet.mockResolvedValueOnce('654321');
+
+      await expect(
+        resetPassword('student@mnnit.ac.in', '000000', 'NewSecurePass123!')
+      ).rejects.toThrow('Invalid or expired OTP');
+    });
+
+    test('resetPassword › throws AppError 400 if new password is too short', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] resetPassword › short password');
+
+      await expect(
+        resetPassword('student@mnnit.ac.in', '654321', '123')
+      ).rejects.toThrow(/at least 6 characters/i);
+    });
+
+    test('resetPassword › updates password and deletes OTP on success', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] resetPassword › successful password reset');
+      mockRedisGet.mockResolvedValueOnce('654321');
+      const mockUser = {
+        _id: 'u1',
+        email: 'student@mnnit.ac.in',
+        password: 'OldPassword',
+        save: jest.fn().mockResolvedValue(true),
+      };
+      mockFindUserByEmail.mockResolvedValueOnce(mockUser);
+      mockRedisDel.mockResolvedValueOnce(1);
+
+      const result = await resetPassword('student@mnnit.ac.in', '654321', 'BrandNewPass123!');
+      expect(result.message).toMatch(/successfully reset/i);
+      expect(mockUser.password).toBe('BrandNewPass123!');
+      expect(mockUser.save).toHaveBeenCalled();
+      expect(mockRedisDel).toHaveBeenCalledWith('otp:reset:student@mnnit.ac.in');
+    });
+
+    test('sendForgotPasswordOtp controller › validates email and returns 200 on success', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] sendForgotPasswordOtp controller › success');
+      mockFindUserByEmail.mockResolvedValueOnce({ _id: 'u1', email: 'valid@mnnit.ac.in' });
+
+      const req = { body: { email: 'valid@mnnit.ac.in' } };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const next = jest.fn();
+
+      await sendForgotPasswordOtpController(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    test('resetPassword controller › validates fields and returns 200 on success', async () => {
+      console.log('\n──────────────────────────────────────');
+      console.log('[TEST] resetPassword controller › success');
+      mockRedisGet.mockResolvedValueOnce('654321');
+      const mockUser = { _id: 'u1', email: 'valid@mnnit.ac.in', save: jest.fn().mockResolvedValue(true) };
+      mockFindUserByEmail.mockResolvedValueOnce(mockUser);
+
+      const req = { body: { email: 'valid@mnnit.ac.in', otp: '654321', newPassword: 'NewPassword123' } };
+      const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+      const next = jest.fn();
+
+      await resetPasswordController(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+  });
 });
+

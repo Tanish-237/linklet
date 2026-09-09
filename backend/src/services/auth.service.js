@@ -216,3 +216,90 @@ export const refresh = async (incomingRefreshToken) => {
 
   return { accessToken, refreshToken: newRefreshToken };
 };
+
+export const changePassword = async (userId, currentPassword, newPassword) => {
+  const user = await userRepository.findUserWithPasswordById(userId);
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  const isMatch = await user.matchPassword(currentPassword);
+  if (!isMatch) {
+    throw new AppError("Current password is incorrect", 400);
+  }
+
+  user.password = newPassword;
+  await user.save();
+  return true;
+};
+
+export const forgotPasswordSendOtp = async (email) => {
+  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+    throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
+  }
+
+  const user = await userRepository.findUserByEmail(email);
+  if (!user) {
+    throw new AppError("No account found with this email address", 404);
+  }
+
+  const otp = crypto.randomInt(100000, 1000000).toString();
+
+  let redisClient;
+  try {
+    redisClient = getRedisClient();
+  } catch (err) {
+    throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
+  }
+  await redisClient.setEx(`otp:reset:${email}`, 600, otp);
+
+  console.log(`========================================================`);
+  console.log(`[PASSWORD RESET OTP] Code for ${email}: ${otp}`);
+  console.log(`========================================================`);
+  logger.info(`[PASSWORD RESET OTP] Code for ${email}: ${otp}`);
+
+  const text = `Hello,\n\nYour OTP for resetting your Linklet password is: ${otp}\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.`;
+  await sendEmail(email, "Linklet Password Reset Code", text);
+
+  return { message: "Password reset OTP sent to your email" };
+};
+
+export const resetPassword = async (email, otp, newPassword) => {
+  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+    throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
+  }
+
+  if (!otp) {
+    throw new AppError("OTP is required", 400);
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new AppError("New password must be at least 6 characters long", 400);
+  }
+
+  let redisClient;
+  try {
+    redisClient = getRedisClient();
+  } catch (err) {
+    throw new AppError("Service temporarily unavailable. Please try again later.", 503);
+  }
+
+  const storedOtp = await redisClient.get(`otp:reset:${email}`);
+  if (!storedOtp || storedOtp !== String(otp).trim()) {
+    throw new AppError("Invalid or expired OTP", 400);
+  }
+
+  const user = await userRepository.findUserByEmail(email);
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
+
+  user.password = newPassword;
+  await user.save();
+
+  await redisClient.del(`otp:reset:${email}`);
+
+  return { message: "Password has been successfully reset" };
+};
+
+
