@@ -340,7 +340,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
                   onClick={() => setActiveTrack('class')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     activeTrack === 'class'
-                      ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30'
+                      ? 'bg-violet-600 text-white shadow-sm'
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                 >
@@ -352,7 +352,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
                   onClick={() => setActiveTrack('lab')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     activeTrack === 'lab'
-                      ? 'bg-pink-600 text-white shadow-md shadow-pink-600/30'
+                      ? 'bg-pink-600 text-white shadow-sm'
                       : 'text-gray-400 hover:text-gray-200'
                   }`}
                 >

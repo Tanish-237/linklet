@@ -151,7 +151,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-gray-900 border border-violet-800/40 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-800/80 bg-gray-950/40">
           <div className="flex items-center gap-3">
@@ -278,7 +278,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                 <button
                   type="submit"
                   disabled={isSubmitting || !newSubject.courseName.trim()}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition shadow-md shadow-violet-900/30 cursor-pointer disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white transition-colors duration-150 shadow-sm cursor-pointer disabled:opacity-50"
                 >
                   {isSubmitting ? "Adding..." : "Add Subject"}
                 </button>
@@ -391,7 +391,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                         <button
                           type="submit"
                           disabled={isSubmitting || !editForm.courseName.trim()}
-                          className="px-4 py-1.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition shadow-md shadow-violet-900/30 cursor-pointer disabled:opacity-50"
+                          className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white transition-colors duration-150 shadow-sm cursor-pointer disabled:opacity-50"
                         >
                           {isSubmitting ? "Saving..." : "Save Changes"}
                         </button>

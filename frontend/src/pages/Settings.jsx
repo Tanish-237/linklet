@@ -370,10 +370,10 @@ export default function Settings() {
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-gradient-to-r from-violet-950/40 via-purple-950/30 to-black/40 border border-violet-700/30">
+            <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/60">
               <div className="flex items-center gap-3 mb-2">
                 <span className="material-icons text-violet-400">dark_mode</span>
-                <h4 className="text-sm font-semibold text-white">Active Theme: Cyber Violet Dark</h4>
+                <h4 className="text-sm font-semibold text-white">Active Theme: Dark Mode (Default)</h4>
               </div>
               <p className="text-xs text-gray-400">
                 Linklet uses an optimized high-contrast dark theme engineered to reduce eye strain

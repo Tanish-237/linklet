@@ -90,7 +90,7 @@ const BlogPostDetail = () => {
             <span className="text-gray-400 text-sm">{post.date}</span>
           </div>
 
-          <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-8">
             {post.title}
           </h1>
 

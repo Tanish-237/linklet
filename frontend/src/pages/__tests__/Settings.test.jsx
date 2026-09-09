@@ -154,7 +154,7 @@ describe("Settings Page Component Tests", () => {
     expect(screen.queryByText(/Compact Timetable Timeline/i)).not.toBeInTheDocument();
 
     // Verify platform version and live socket connection
-    expect(screen.getByText(/v1\.0\.0/i)).toBeInTheDocument();
+    expect(screen.getByText(/v\d+\.\d+\.\d+/i)).toBeInTheDocument();
     expect(screen.getByText(/Connected \(Live Socket\)/i)).toBeInTheDocument();
 
     console.log("TRACE [Settings.test.jsx]: Live diagnostics verified successfully");

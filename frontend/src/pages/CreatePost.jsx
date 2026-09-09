@@ -112,9 +112,9 @@ const CreatePost = () => {
 
   return (
     <div className="w-full max-w-3xl mx-auto py-8 px-4">
-      <div className="bg-gray-800/40 backdrop-blur-md rounded-xl border border-violet-500/20 shadow-lg shadow-violet-900/10 overflow-hidden">
-        <div className="p-5 border-b border-violet-500/20">
-          <h1 className="text-2xl font-semibold text-violet-300">Create Post</h1>
+      <div className="bg-gray-900/70 backdrop-blur-md rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
+        <div className="p-5 border-b border-gray-800">
+          <h1 className="text-xl font-bold text-white">Create Post</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5">
@@ -122,15 +122,15 @@ const CreatePost = () => {
             <img
               src={user?.avatar || defaultAvatar}
               alt={user?.username || "Your profile"}
-              className="w-12 h-12 rounded-full border border-violet-500/30 mt-1"
+              className="w-12 h-12 rounded-full border border-gray-700 mt-1"
             />
 
             <div className="flex-1">
               <div className="mb-2 flex items-center">
-                <h3 className="font-semibold text-lg text-violet-200">
+                <h3 className="font-semibold text-base text-white">
                   {user?.username || "You"}
                 </h3>
-                <span className="ml-2 px-2 py-0.5 bg-violet-800/40 text-violet-300 text-xs rounded-full border border-violet-500/20">
+                <span className="ml-2 px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded-full border border-gray-700">
                   Creating Post
                 </span>
               </div>
@@ -139,7 +139,7 @@ const CreatePost = () => {
                 value={caption}
                 onChange={handleCaptionChange}
                 placeholder="What's on your mind?"
-                className="w-full min-h-[120px] px-4 py-3 bg-black/30 text-white rounded-lg border border-violet-500/30 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 focus:outline-none transition-all placeholder-gray-500 resize-none"
+                className="w-full min-h-[120px] px-4 py-3 bg-black/30 text-white rounded-xl border border-gray-800 focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 focus:outline-none transition-all placeholder-gray-500 resize-none"
               />
 
               <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -154,48 +154,32 @@ const CreatePost = () => {
           {/* Image preview */}
           {imagePreview && (
             <div className="mb-6 relative">
-              <div className="relative rounded-lg overflow-hidden border border-violet-500/30 bg-black/50">
+              <div className="relative rounded-xl overflow-hidden border border-gray-800 bg-black/50">
                 <img
                   src={imagePreview}
                   alt="Post preview"
-                  className="w-full max-h-[400px] object-contain"
+                  className="w-full max-h-96 object-contain"
                 />
                 <button
                   type="button"
                   onClick={handleRemoveImage}
-                  className="absolute top-2 right-2 p-2 bg-black/60 text-white rounded-full hover:bg-red-500/70 transition-colors"
+                  className="absolute top-2 right-2 p-1.5 bg-black/70 text-white rounded-full hover:bg-black/90 transition-colors"
                 >
-                  <span className="material-icons">close</span>
+                  <span className="material-icons text-sm">close</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* Upload options */}
-          <div className="flex flex-wrap items-center gap-4 mb-6 p-4 bg-black/20 rounded-lg border border-violet-500/10">
+          {/* Upload buttons */}
+          <div className="mb-6 flex gap-3">
             <button
               type="button"
-              onClick={() => fileInputRef.current.click()}
-              className="flex items-center gap-2 px-4 py-2 bg-black/30 text-gray-300 hover:text-violet-300 rounded-lg border border-violet-500/20 hover:border-violet-500/40 transition-all"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-750 text-gray-300 rounded-xl text-sm font-medium border border-gray-700/80 transition-colors cursor-pointer"
             >
-              <span className="material-icons">image</span>
-              <span>Add Photo</span>
-            </button>
-
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2 bg-black/30 text-gray-300 hover:text-violet-300 rounded-lg border border-violet-500/20 hover:border-violet-500/40 transition-all"
-            >
-              <span className="material-icons">tag</span>
-              <span>Tag People</span>
-            </button>
-
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 py-2 bg-black/30 text-gray-300 hover:text-violet-300 rounded-lg border border-violet-500/20 hover:border-violet-500/40 transition-all"
-            >
-              <span className="material-icons">mood</span>
-              <span>Feeling/Activity</span>
+              <span className="material-icons text-violet-400">photo_library</span>
+              <span>{image ? "Change Image" : "Add Image"}</span>
             </button>
 
             <input
@@ -208,18 +192,18 @@ const CreatePost = () => {
           </div>
 
           {/* Submit buttons */}
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="px-6 py-3 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 transition-colors"
+              className="px-5 py-2.5 bg-gray-800 text-gray-300 rounded-xl hover:bg-gray-750 text-sm font-medium transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || (!caption.trim() && !image)}
-              className="px-6 py-3 bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               {isSubmitting ? (
                 <>
@@ -239,9 +223,9 @@ const CreatePost = () => {
         </form>
 
         {/* Privacy reminder */}
-        <div className="p-4 bg-violet-900/10 text-sm text-gray-400 border-t border-violet-500/10">
+        <div className="p-4 bg-gray-950/40 text-xs text-gray-400 border-t border-gray-800">
           <div className="flex items-start gap-2">
-            <span className="material-icons text-violet-400">info</span>
+            <span className="material-icons text-violet-400 text-base">info</span>
             <p>
               Remember that posts are visible to the entire community. Make sure your
               content follows our community guidelines.

@@ -85,7 +85,7 @@ export default function ForgotPassword() {
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-3">
               <img src={linkletLogo} alt="Linklet Logo" className="h-10 w-10" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold tracking-tight text-white">
                 Linklet
               </span>
             </Link>
@@ -107,7 +107,7 @@ export default function ForgotPassword() {
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-violet-600/20 border border-violet-500/30 text-violet-400 mb-3">
               <span className="material-icons text-3xl">lock_reset</span>
             </div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
               {step === 1 ? "Forgot Password?" : "Set New Password"}
             </h1>
             <p className="text-sm text-gray-300">
@@ -139,7 +139,7 @@ export default function ForgotPassword() {
                   id="send-reset-code-btn"
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-xl font-semibold transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-60 cursor-pointer shadow-lg shadow-violet-600/20"
+                  className="w-full py-3 px-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white rounded-xl font-medium tracking-wide shadow-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isLoading ? "Sending Code..." : "Send Reset Code"}
                 </button>
@@ -217,7 +217,7 @@ export default function ForgotPassword() {
                     id="reset-password-submit-btn"
                     type="submit"
                     disabled={isLoading}
-                    className="flex-1 py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-xl font-semibold transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-60 cursor-pointer shadow-lg shadow-violet-600/20 text-sm"
+                    className="flex-1 py-3 px-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white rounded-xl font-medium tracking-wide shadow-sm transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer text-sm"
                   >
                     {isLoading ? "Resetting..." : "Reset Password"}
                   </button>

@@ -130,7 +130,7 @@ export default function Dashboard() {
 
               <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
                 {getTimeGreeting()},{" "}
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-purple-400">
+                <span className="text-violet-400 font-bold">
                   {user?.fullName?.split(" ")[0] || user?.username || "Scholar"}
                 </span>
               </h1>
@@ -138,20 +138,20 @@ export default function Dashboard() {
               {(user?.department || user?.semester || user?.section) && (
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   {user?.department && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-indigo-950/50 text-indigo-300 border border-indigo-700/40 flex items-center gap-1">
-                      <span className="material-icons text-[13px] text-indigo-400">school</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/70 text-gray-300 border border-gray-700/60 flex items-center gap-1.5">
+                      <span className="material-icons text-[13px] text-violet-400">school</span>
                       {user.department}
                     </span>
                   )}
                   {user?.semester && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-violet-900/40 text-violet-300 border border-violet-700/40 flex items-center gap-1">
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/70 text-gray-300 border border-gray-700/60 flex items-center gap-1.5">
                       <span className="material-icons text-[13px] text-violet-400">auto_stories</span>
                       Sem {user.semester}
                     </span>
                   )}
                   {user?.section && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-semibold bg-purple-900/40 text-purple-300 border border-purple-700/40 flex items-center gap-1">
-                      <span className="material-icons text-[13px] text-purple-400">groups</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/70 text-gray-300 border border-gray-700/60 flex items-center gap-1.5">
+                      <span className="material-icons text-[13px] text-violet-400">groups</span>
                       Sec {user.section}
                     </span>
                   )}
@@ -163,7 +163,7 @@ export default function Dashboard() {
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={() => navigate("/dashboard/help")}
-                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2.5 rounded-xl text-sm font-semibold shadow-lg shadow-violet-900/40 transition-all hover:scale-[1.02] cursor-pointer"
+                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 cursor-pointer"
               >
                 <span className="material-icons text-base">help_outline</span>
                 Ask Question
@@ -171,7 +171,7 @@ export default function Dashboard() {
 
               <button
                 onClick={() => navigate("/dashboard/global-search")}
-                className="flex items-center gap-2 bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer"
+                className="flex items-center gap-2 bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 cursor-pointer"
               >
                 <span className="material-icons text-base text-violet-400">cloud_upload</span>
                 Upload Notes
@@ -241,27 +241,23 @@ export default function Dashboard() {
         {hasTimetable === false && (
           <div
             data-testid="timetable-onboarding-banner"
-            className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-950/70 via-purple-950/40 to-indigo-950/60 border border-violet-500/30 p-5 sm:p-6 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-300 group"
+            className="relative overflow-hidden rounded-2xl bg-gray-900/60 border border-gray-800 hover:border-violet-500/30 p-5 sm:p-6 shadow-lg backdrop-blur-md transition-colors duration-200"
           >
-            {/* Background ambient decorative glows */}
-            <div className="absolute top-0 right-0 -mt-6 -mr-6 w-48 h-48 rounded-full bg-violet-600/20 blur-3xl pointer-events-none group-hover:bg-violet-600/30 transition-colors duration-500"></div>
-            <div className="absolute bottom-0 left-1/4 -mb-8 w-40 h-40 rounded-full bg-purple-600/15 blur-2xl pointer-events-none"></div>
-
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
               <div className="flex items-start sm:items-center gap-4">
-                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-violet-600/30 to-purple-600/20 border border-violet-500/40 flex items-center justify-center text-violet-300 shadow-inner shrink-0 group-hover:scale-105 transition-transform duration-300">
-                  <span className="material-icons text-2xl sm:text-3xl text-violet-400 animate-pulse">auto_awesome</span>
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 shrink-0">
+                  <span className="material-icons text-2xl sm:text-3xl text-violet-400">auto_awesome</span>
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
+                    <h3 className="text-base sm:text-lg font-semibold text-white tracking-tight">
                       Upload your timetable to get started
                     </h3>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-violet-500/20 text-violet-300 border border-violet-500/30">
+                    <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 border border-violet-500/20">
                       Quick Setup
                     </span>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-300/90 leading-relaxed max-w-2xl">
+                  <p className="text-xs sm:text-sm text-gray-400 leading-relaxed max-w-2xl">
                     Scan your semester timetable (PDF or image) to automatically populate your Daily Schedule with lectures, labs, and tutorials, and unlock one-tap attendance tracking and bunk safety alerts.
                   </p>
                 </div>
@@ -272,7 +268,7 @@ export default function Dashboard() {
                   type="button"
                   id="onboarding-upload-timetable-btn"
                   onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 hover:from-violet-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm px-5 py-2.5 sm:py-3 rounded-xl shadow-lg shadow-violet-950/60 hover:shadow-violet-800/50 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-xs sm:text-sm px-5 py-2.5 sm:py-3 rounded-xl shadow-sm transition-colors duration-150 cursor-pointer"
                 >
                   <span className="material-icons text-base">upload_file</span>
                   <span>Upload Timetable</span>
@@ -288,7 +284,7 @@ export default function Dashboard() {
             <button
               id="dashboard-subject-info-btn"
               onClick={() => setShowSubjectInfoModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-all hover:scale-[1.02] cursor-pointer shadow-sm"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
             >
               <span className="material-icons text-base text-violet-400">auto_stories</span>
               <span>Subject Info</span>
@@ -300,12 +296,12 @@ export default function Dashboard() {
             <button
               id="dashboard-timetable-options-btn"
               onClick={() => setIsTimetableMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-gradient-to-r from-violet-950/60 to-purple-950/60 hover:from-violet-900/70 hover:to-purple-900/70 text-violet-200 border border-violet-700/50 transition-all hover:scale-[1.02] cursor-pointer shadow-md"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
             >
               <span className="material-icons text-base text-violet-400">calendar_month</span>
               <span>Timetable Options</span>
               <span
-                className={`material-icons text-sm text-violet-300 transition-transform duration-200 ${
+                className={`material-icons text-sm text-gray-400 transition-transform duration-200 ${
                   isTimetableMenuOpen ? "rotate-180" : ""
                 }`}
               >

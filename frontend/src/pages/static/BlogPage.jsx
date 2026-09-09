@@ -58,7 +58,7 @@ const BlogPage = () => {
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white pt-20 px-4">
       <div className="max-w-7xl mx-auto">
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-4">
             Linklet Blog
           </h1>
           <p className="text-xl text-gray-300 max-w-2xl mx-auto">

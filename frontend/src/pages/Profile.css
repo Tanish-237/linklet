@@ -315,8 +315,8 @@
   bottom: 2px;
   width: 3px;
   border-radius: 3px;
-  background: linear-gradient(to bottom, #8b5cf6, #6366f1);
-  opacity: 0.6;
+  background-color: #7c3aed;
+  opacity: 0.7;
 }
 
 /* Info chips row */
@@ -399,34 +399,24 @@
   align-items: center;
   gap: 6px;
   padding: 8px 22px;
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  background-color: #7c3aed;
   color: white;
   border: none;
   border-radius: 10px;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.profile-btn-follow::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .profile-btn-follow:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.35);
+  background-color: #6d28d9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
 }
 
-.profile-btn-follow:hover::before {
-  opacity: 1;
+.profile-btn-follow:active {
+  background-color: #5b21b6;
 }
 
 .profile-btn-follow .material-icons {
@@ -634,9 +624,8 @@
   left: 12px;
   right: 12px;
   height: 2px;
-  background: linear-gradient(to right, #8b5cf6, #6366f1);
+  background-color: #7c3aed;
   border-radius: 2px 2px 0 0;
-  animation: tabSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @keyframes tabSlideIn {
@@ -815,34 +804,24 @@
   align-items: center;
   gap: 6px;
   padding: 10px 22px;
-  background: linear-gradient(135deg, #7c3aed, #6366f1);
+  background-color: #7c3aed;
   color: white;
   border: none;
   border-radius: 10px;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.profile-btn-primary::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .profile-btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(124, 58, 237, 0.3);
+  background-color: #6d28d9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
 }
 
-.profile-btn-primary:hover::before {
-  opacity: 1;
+.profile-btn-primary:active {
+  background-color: #5b21b6;
 }
 
 .profile-btn-primary:disabled {
@@ -1386,38 +1365,28 @@
 .profile-delete-modal-confirm {
   flex: 1;
   padding: 11px 18px;
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  background-color: #dc2626;
   color: white;
   border: none;
   border-radius: 10px;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.25s ease;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  position: relative;
-  overflow: hidden;
-}
-
-.profile-delete-modal-confirm::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%);
-  opacity: 0;
-  transition: opacity 0.25s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .profile-delete-modal-confirm:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 22px rgba(220, 38, 38, 0.4);
+  background-color: #b91c1c;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
 }
 
-.profile-delete-modal-confirm:hover::before {
-  opacity: 1;
+.profile-delete-modal-confirm:active {
+  background-color: #991b1b;
 }
 
 .profile-delete-modal-confirm:disabled {

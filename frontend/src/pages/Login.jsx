@@ -74,7 +74,7 @@ export default function Login() {
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-3">
               <img src={linkletLogo} alt="Linklet Logo" className="h-10 w-10" />
-              <span className="text-2xl font-bold bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+              <span className="text-2xl font-bold tracking-tight text-white">
                 Linklet
               </span>
             </Link>
@@ -100,7 +100,7 @@ export default function Login() {
 
           <div className="w-full max-w-xl mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight text-white">
                 Welcome Back
               </h1>
               <p className="text-xl text-gray-300">
@@ -179,7 +179,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 px-4 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-700 hover:to-purple-800 text-white rounded-lg font-semibold transition-all duration-200 transform hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed"
+                  className="w-full py-3 px-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white rounded-lg font-medium tracking-wide shadow-sm transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isLoading ? "Logging in..." : "Log In"}
                 </button>

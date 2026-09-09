@@ -82,10 +82,12 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     const arrowIcon = avatarBtn.querySelector(".material-icons");
     expect(arrowIcon.className).toContain("rotate-180");
+    expect(screen.getByText(mockUser.username)).toBeInTheDocument();
+    expect(screen.getByText(mockUser.email)).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Profile")).toBeInTheDocument();
 
-    console.log("TRACE [Layout.test.jsx]: Dropdown menu opened and chevron arrow rotated 180 deg");
+    console.log("TRACE [Layout.test.jsx]: Dropdown menu opened, username and email rendered, and chevron arrow rotated 180 deg");
   });
 
   it("navigates to /dashboard/settings and closes dropdown when Settings option is clicked", async () => {
@@ -105,6 +107,42 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
 
     console.log("TRACE [Layout.test.jsx]: Successfully navigated to /dashboard/settings and closed dropdown");
+  });
+
+  it("navigates to /dashboard/profile and closes dropdown when Profile option is clicked", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing Profile option navigation from avatar dropdown");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
+    await user.click(avatarBtn);
+
+    const profileBtn = document.getElementById("layout-dropdown-profile-btn");
+    expect(profileBtn).toBeInTheDocument();
+    await user.click(profileBtn);
+
+    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/profile");
+    expect(screen.queryByText("Profile")).not.toBeInTheDocument();
+
+    console.log("TRACE [Layout.test.jsx]: Successfully navigated to /dashboard/profile and closed dropdown");
+  });
+
+  it("calls logout and closes dropdown when Logout option is clicked", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing Logout option click from avatar dropdown");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
+    await user.click(avatarBtn);
+
+    const logoutBtn = document.getElementById("layout-dropdown-logout-btn");
+    expect(logoutBtn).toBeInTheDocument();
+    await user.click(logoutBtn);
+
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/logout");
+    expect(document.getElementById("layout-dropdown-logout-btn")).not.toBeInTheDocument();
+
+    console.log("TRACE [Layout.test.jsx]: Successfully called logout endpoint and closed dropdown");
   });
 
   it("closes dropdown when clicking outside", async () => {

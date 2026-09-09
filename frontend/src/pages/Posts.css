@@ -498,21 +498,23 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background-color: #7c3aed;
   color: #fff;
   border: none;
   border-radius: 12px;
   font-size: 0.95rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
+  transition: background-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .feed-empty__cta:hover {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.4);
-  transform: translateY(-1px);
+  background-color: #6d28d9;
+}
+
+.feed-empty__cta:active {
+  background-color: #5b21b6;
 }
 
 .feed-empty__cta .material-icons {
@@ -807,21 +809,23 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.55rem 1.25rem;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background-color: #7c3aed;
   border: none;
   border-radius: 10px;
   color: #fff;
   font-size: 0.88rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
-  box-shadow: 0 2px 12px rgba(124, 58, 237, 0.25);
+  transition: background-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .feed-create-modal__submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  box-shadow: 0 4px 16px rgba(124, 58, 237, 0.4);
-  transform: translateY(-1px);
+  background-color: #6d28d9;
+}
+
+.feed-create-modal__submit-btn:active:not(:disabled) {
+  background-color: #5b21b6;
 }
 
 .feed-create-modal__submit-btn:disabled {
@@ -1264,17 +1268,21 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background-color: #7c3aed;
   border-radius: 50%;
   color: #fff;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.15s ease;
   flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .feed-detail__comment-send:hover:not(:disabled) {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-  transform: scale(1.05);
+  background-color: #6d28d9;
+}
+
+.feed-detail__comment-send:active:not(:disabled) {
+  background-color: #5b21b6;
 }
 
 .feed-detail__comment-send:disabled {

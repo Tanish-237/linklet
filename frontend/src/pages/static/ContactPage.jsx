@@ -49,7 +49,7 @@ const ContactPage = () => {
           <span className="px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-violet-500/10 border border-violet-500/30 text-violet-400 mb-4 inline-block">
             Get in Touch
           </span>
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
+          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
             How can we help you today?
           </h1>
           <p className="text-lg text-gray-400 max-w-2xl mx-auto">
@@ -212,7 +212,7 @@ const ContactPage = () => {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 text-white font-bold text-sm hover:opacity-95 shadow-lg shadow-purple-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full py-3.5 px-6 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-sm shadow-sm transition-colors duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {submitting ? (
                     <>

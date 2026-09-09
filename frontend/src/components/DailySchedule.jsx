@@ -640,7 +640,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
           <button
             id="daily-schedule-add-event-btn"
             onClick={() => setShowAddEventModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold transition cursor-pointer shadow-sm shadow-violet-900/30"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-xs font-semibold transition-colors duration-150 cursor-pointer shadow-sm"
           >
             <span className="material-icons text-sm">add</span>
             <span>Add Event</span>
@@ -691,7 +691,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               onClick={() => setSelectedDate(day.dateStr)}
               className={`flex-1 flex flex-col items-center py-2 px-1.5 sm:px-2 rounded-xl transition-all cursor-pointer min-w-[42px] ${
                 day.isSelected
-                  ? 'bg-gradient-to-br from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-900/50 scale-[1.03] font-bold'
+                  ? 'bg-violet-600 text-white shadow-sm font-semibold'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 font-medium'
               }`}
             >
@@ -720,13 +720,13 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       {/* ── Current Time & Switch to Today ── */}
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <div className="flex items-center gap-2 text-xs font-mono px-3 py-1.5 rounded-lg bg-violet-950/40 border border-violet-800/40 text-violet-300">
-          <span className="w-2 h-2 rounded-full bg-violet-400 animate-ping flex-shrink-0" />
+          <span className="w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
           <span>Current Time: {currentTime}</span>
         </div>
         {!isToday && (
           <button
             onClick={() => setSelectedDate(getTodayDateStr())}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg bg-violet-900/40 hover:bg-violet-900/70 text-violet-300 border border-violet-700/50 transition-all hover:scale-[1.02] cursor-pointer shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-violet-950/60 hover:bg-violet-900/60 text-violet-300 border border-violet-700/50 transition-colors duration-150 cursor-pointer shadow-sm"
           >
             <span className="material-icons text-sm">today</span>
             <span>Switch to Today</span>
@@ -798,7 +798,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                           className="absolute left-1/2 -translate-x-1/2 z-20 pointer-events-none"
                           style={{ top: `${fracInSlot * 100}%` }}
                         >
-                          <div className="w-2.5 h-2.5 rounded-full bg-violet-400 ring-2 ring-violet-300/40 shadow-lg shadow-violet-500/50 -translate-x-1/2 relative left-1/2" />
+                          <div className="w-2.5 h-2.5 rounded-full bg-violet-400 ring-2 ring-violet-300/40 shadow-sm -translate-x-1/2 relative left-1/2" />
                         </div>
                       )}
                     </div>
@@ -939,7 +939,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       {/* ── Add Event Modal ── */}
       {showAddEventModal && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-violet-700/40 shadow-2xl">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-gray-800 shadow-2xl">
             <div className="flex justify-between items-center mb-6 pb-3 border-b border-gray-800">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <span className="material-icons text-violet-400">add_circle_outline</span>
@@ -1109,7 +1109,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               <button
                 onClick={handleAddEvent}
                 disabled={isSubmitting || !newEvent.title.trim()}
-                className="w-full mt-4 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-violet-900/30 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full mt-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? 'Saving...' : 'Save to Schedule'}
               </button>
@@ -1121,7 +1121,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       {/* ── Edit Event Modal ── */}
       {editingEvent && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-violet-700/40 shadow-2xl">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-gray-800 shadow-2xl">
             <div className="flex justify-between items-center mb-6 pb-3 border-b border-gray-800">
               <h3 className="text-xl font-bold text-white flex items-center gap-2">
                 <span className="material-icons text-violet-400">edit_note</span>
@@ -1307,7 +1307,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                   type="button"
                   onClick={handleSaveEdit}
                   disabled={isSubmitting || !editForm.title.trim()}
-                  className="flex-1 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-violet-900/30 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex-1 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -1320,7 +1320,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-rose-900/50 shadow-2xl">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-gray-800 shadow-2xl">
             <div className="flex items-center gap-2 mb-2 text-rose-400">
               <span className="material-icons text-xl">delete_forever</span>
               <h3 className="text-lg font-bold text-white">
@@ -1340,7 +1340,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition shadow-lg shadow-rose-900/30 cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-colors duration-150 shadow-sm cursor-pointer"
               >
                 Delete Permanently
               </button>

@@ -48,7 +48,7 @@ const SecurityInfo = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white pt-20 px-4">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-8 bg-gradient-to-r from-violet-400 to-purple-600 bg-clip-text text-transparent">Security</h1>
+        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-8">Security</h1>
         
         <div className="mb-8 text-gray-300">
           <p className="mb-4">

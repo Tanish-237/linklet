@@ -108,7 +108,7 @@ const ForwardMessageModal = ({
           <button
             onClick={handleForward}
             disabled={!targetChatId || submitting}
-            className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+            className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-sm shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
           >
             <span className="material-icons text-base">shortcut</span>
             {submitting ? "Forwarding..." : "Forward"}

@@ -107,7 +107,7 @@ export default function Layout({ children }) {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <header className="h-[73px] bg-black/50 backdrop-blur-md shadow-lg flex justify-between items-center border-b border-gray-800 z-40 relative">
-          <h1 className="px-6 text-3xl font-extrabold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-purple-600">
+          <h1 className="px-6 text-2xl font-bold tracking-tight text-white">
             {(() => {
               const currentMenuItem = menuItems.find(item => location.pathname === item.path);
               if (currentMenuItem) return currentMenuItem.label;
@@ -186,11 +186,15 @@ export default function Layout({ children }) {
               </button>
 
               {dropdownStates.profile && (
-                <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-800 transition-all duration-300 z-50">
+                <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-md rounded-2xl border border-white/20 shadow-lg shadow-black/40 z-50 overflow-hidden">
                   <div className="p-4 border-b border-gray-800">
                     <div className="flex flex-col">
-                      <h4 className="font-medium text-violet-400 truncate">{user?.username || "User"}</h4>
-                      <p className="text-sm text-gray-400 truncate" title={user?.email || "email@example.com"}>{user?.email || "email@example.com"}</p>
+                      <h4 className="font-medium text-violet-400 truncate text-[15px]">
+                        {user?.username || "User"}
+                      </h4>
+                      <p className="text-sm text-gray-400 truncate mt-0.5" title={user?.email || "email@example.com"}>
+                        {user?.email || "email@example.com"}
+                      </p>
                     </div>
                   </div>
                   <ul className="py-2">
@@ -201,10 +205,10 @@ export default function Layout({ children }) {
                           setDropdownStates(prev => ({ ...prev, profile: false }));
                           navigate('/dashboard/profile');
                         }}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer"
+                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
                       >
-                        <span className="material-icons text-violet-400">person</span>
-                        <span className="text-gray-300">Profile</span>
+                        <span className="material-icons text-xl text-violet-400">person</span>
+                        <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">Profile</span>
                       </button>
                     </li>
                     <li>
@@ -214,23 +218,23 @@ export default function Layout({ children }) {
                           setDropdownStates(prev => ({ ...prev, profile: false }));
                           navigate('/dashboard/settings');
                         }}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer"
+                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
                       >
-                        <span className="material-icons text-violet-400">settings</span>
-                        <span className="text-gray-300">Settings</span>
+                        <span className="material-icons text-xl text-violet-400">settings</span>
+                        <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">Settings</span>
                       </button>
                     </li>
-                    <li className="border-t border-gray-800 mt-2">
+                    <li className="border-t border-gray-800 mt-2 pt-2">
                       <button 
                         id="layout-dropdown-logout-btn"
                         onClick={() => {
                           setDropdownStates(prev => ({ ...prev, profile: false }));
                           handleLogout();
                         }}
-                        className="w-full px-4 py-2 flex items-center gap-3 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer"
+                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
                       >
-                        <span className="material-icons text-red-400">logout</span>
-                        <span className="text-red-400">Logout</span>
+                        <span className="material-icons text-xl text-red-400">logout</span>
+                        <span className="text-[15px] font-medium text-red-400">Logout</span>
                       </button>
                     </li>
                   </ul>

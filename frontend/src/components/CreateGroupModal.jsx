@@ -173,7 +173,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-sm shadow-sm transition-colors duration-150 disabled:opacity-50 cursor-pointer"
             >
               {loading ? "Creating..." : "Create Group"}
             </button>

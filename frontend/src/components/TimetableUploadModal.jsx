@@ -491,7 +491,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 type="button"
                 onClick={handleUploadAndAnalyze}
                 disabled={!file || isUploading}
-                className="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-violet-900/30 transition disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isUploading ? (
                   <>
@@ -525,7 +525,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 type="button"
                 onClick={handleConfirm}
                 disabled={isConfirming || previewData.classes.length === 0}
-                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-emerald-900/30 transition disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isConfirming ? (
                   <>

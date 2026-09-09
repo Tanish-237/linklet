@@ -7,6 +7,7 @@ import { toast } from "react-toastify";
 import { useEffect } from "react";
 import styled from "styled-components";
 import { useSocket } from "../hooks/useSocket";
+import linkletLogo from "../assets/linklet-logo.png";
 
 const Nav = styled.nav`
   background-color: #111111;
@@ -88,28 +89,88 @@ const DropdownMenu = styled.div`
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: #1a1a1a;
-  border: 1px solid rgba(139, 92, 246, 0.2);
-  border-radius: 0.75rem;
-  padding: 0.5rem;
-  min-width: 12rem;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  min-width: 15rem;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 50;
+
+  .dropdown-header {
+    padding: 1rem 1rem 0.75rem 1rem;
+    border-bottom: 1px solid #1f2937;
+
+    .dropdown-username {
+      color: #a78bfa;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dropdown-email {
+      color: #9ca3af;
+      font-size: 0.875rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-top: 0.125rem;
+    }
+  }
+
+  ul {
+    list-style: none;
+    padding: 0.5rem 0;
+    margin: 0;
+  }
 
   button {
     width: 100%;
     text-align: left;
-    padding: 0.75rem 1rem;
-    color: #f5f5f5;
+    padding: 0.625rem 1rem;
+    color: #e5e7eb;
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    transition: all 0.3s ease;
-    border-radius: 0.5rem;
+    gap: 0.875rem;
+    transition: all 0.2s ease;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    background: none;
+    border: none;
+    cursor: pointer;
+
+    .material-icons {
+      color: #a78bfa;
+      font-size: 1.25rem;
+      transition: color 0.2s ease;
+    }
 
     &:hover {
-      background: rgba(139, 92, 246, 0.1);
-      color: #8b5cf6;
+      background: rgba(139, 92, 246, 0.2);
+      color: #ffffff;
     }
+
+    &.logout-btn {
+      color: #f87171;
+
+      .material-icons {
+        color: #f87171;
+      }
+
+      &:hover {
+        background: rgba(139, 92, 246, 0.2);
+        color: #fca5a5;
+      }
+    }
+  }
+
+  .logout-wrapper {
+    border-top: 1px solid #1f2937;
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
   }
 `;
 
@@ -147,7 +208,25 @@ export const Navbar = () => {
 
   return (
     <Nav>
-      <Link to={user ? "/home" : "/"} style={{ textDecoration: "none" }}>
+      <Link
+        to={user ? "/home" : "/"}
+        style={{
+          textDecoration: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.75rem",
+        }}
+      >
+        <img
+          src={linkletLogo}
+          alt="Linklet Logo"
+          style={{
+            width: "2.25rem",
+            height: "2.25rem",
+            borderRadius: "0.5rem",
+            objectFit: "contain",
+          }}
+        />
         <h2
           style={{ color: "#f5f5f5", fontSize: "1.5rem", fontWeight: "bold" }}
         >
@@ -182,36 +261,53 @@ export const Navbar = () => {
 
               {isDropdownOpen && (
                 <DropdownMenu>
-                  <button
-                    id="navbar-dropdown-profile-btn"
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      navigate("/dashboard/profile");
-                    }}
-                  >
-                    <span className="material-icons">person</span>
-                    Profile
-                  </button>
-                  <button
-                    id="navbar-dropdown-settings-btn"
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      navigate("/dashboard/settings");
-                    }}
-                  >
-                    <span className="material-icons">settings</span>
-                    Settings
-                  </button>
-                  <button
-                    id="navbar-dropdown-logout-btn"
-                    onClick={() => {
-                      setIsDropdownOpen(false);
-                      handleLogout();
-                    }}
-                  >
-                    <span className="material-icons">logout</span>
-                    Logout
-                  </button>
+                  <div className="dropdown-header">
+                    <div className="dropdown-username">
+                      {user?.username || "User"}
+                    </div>
+                    {user?.email && (
+                      <div className="dropdown-email">{user.email}</div>
+                    )}
+                  </div>
+                  <ul>
+                    <li>
+                      <button
+                        id="navbar-dropdown-profile-btn"
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          navigate("/dashboard/profile");
+                        }}
+                      >
+                        <span className="material-icons">person</span>
+                        Profile
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        id="navbar-dropdown-settings-btn"
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          navigate("/dashboard/settings");
+                        }}
+                      >
+                        <span className="material-icons">settings</span>
+                        Settings
+                      </button>
+                    </li>
+                    <li className="logout-wrapper">
+                      <button
+                        id="navbar-dropdown-logout-btn"
+                        className="logout-btn"
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          handleLogout();
+                        }}
+                      >
+                        <span className="material-icons">logout</span>
+                        Logout
+                      </button>
+                    </li>
+                  </ul>
                 </DropdownMenu>
               )}
             </ProfileContainer>

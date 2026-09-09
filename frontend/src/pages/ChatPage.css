@@ -1,10 +1,10 @@
 /* ─── ChatPage.css ─────────────────────────────────────────────────────────── */
 /* Premium dark-mode WhatsApp-style UI with glassmorphism & violet accents       */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 .chat-container {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   height: calc(100vh - 72px);
   display: flex;
   background: rgba(15, 23, 42, 0.6);
@@ -67,9 +67,8 @@
 .chat-sidebar-title {
   font-size: 1.35rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #a78bfa, #c084fc);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
 .chat-sidebar-actions {
@@ -185,8 +184,8 @@
 }
 
 .chat-item.active {
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(168, 85, 247, 0.15));
-  border-color: rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3);
 }
 
 .chat-avatar-container {
@@ -356,7 +355,7 @@
 }
 
 .message-bubble-wrapper.sent .message-bubble {
-  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  background-color: #7c3aed;
   color: #fff;
   border-bottom-right-radius: 4px;
 }
@@ -580,7 +579,7 @@
 }
 
 .send-btn {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  background-color: #7c3aed;
   color: #fff;
   border: none;
   width: 44px;
@@ -590,13 +589,16 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  transition: background-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .send-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.4);
+  background-color: #6d28d9;
+}
+
+.send-btn:active {
+  background-color: #5b21b6;
 }
 
 /* ─── Modal & Info Panel ─────────────────────────────────────────────────── */

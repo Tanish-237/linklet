@@ -26,7 +26,6 @@ vi.mock("react-toastify", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
-    error: vi.fn(),
   },
 }));
 
@@ -81,10 +80,12 @@ describe("Navbar Component Tests", () => {
     await user.click(avatarBtn);
 
     expect(avatarBtn.className).toContain("open");
+    expect(screen.getByText(mockUser.username)).toBeInTheDocument();
+    expect(screen.getByText(mockUser.email)).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Profile")).toBeInTheDocument();
 
-    console.log("TRACE [Navbar.test.jsx]: Dropdown opened and open class added to ProfileButton");
+    console.log("TRACE [Navbar.test.jsx]: Dropdown opened, username and email rendered, and open class added to ProfileButton");
   });
 
   it("navigates to /dashboard/settings and closes dropdown when Settings is clicked", async () => {

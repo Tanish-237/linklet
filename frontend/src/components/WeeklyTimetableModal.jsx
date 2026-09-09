@@ -230,9 +230,9 @@ export default function WeeklyTimetableModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-gray-900 border border-violet-500/20 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-gray-900 via-gray-850 to-gray-900">
+        <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gray-900">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
               <span className="material-icons">calendar_view_week</span>
@@ -278,7 +278,7 @@ export default function WeeklyTimetableModal({
                       }}
                       className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer flex items-center gap-2 whitespace-nowrap ${
                         isActive
-                          ? "bg-violet-600 text-white shadow-lg shadow-violet-900/30"
+                          ? "bg-violet-600 text-white shadow-sm"
                           : "text-gray-400 hover:text-white hover:bg-gray-800/60"
                       }`}
                     >
@@ -439,7 +439,7 @@ export default function WeeklyTimetableModal({
                     <button
                       type="submit"
                       disabled={isSaving || !newClass.subjectName.trim()}
-                      className="px-4 py-2 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition shadow-md shadow-violet-900/30 cursor-pointer disabled:opacity-50"
+                      className="px-4 py-2 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white transition-colors duration-150 shadow-sm cursor-pointer disabled:opacity-50"
                     >
                       {isSaving ? "Saving..." : "Add Class"}
                     </button>
@@ -614,7 +614,7 @@ export default function WeeklyTimetableModal({
                             <button
                               type="submit"
                               disabled={isSaving || !editClass.subjectName.trim()}
-                              className="px-4 py-1.5 rounded-xl text-xs font-bold bg-violet-600 hover:bg-violet-500 text-white transition shadow-md shadow-violet-900/30 cursor-pointer disabled:opacity-50"
+                              className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white transition-colors duration-150 shadow-sm cursor-pointer disabled:opacity-50"
                             >
                               {isSaving ? "Saving..." : "Save Changes"}
                             </button>

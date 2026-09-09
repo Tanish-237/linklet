@@ -15,29 +15,27 @@
 
 .cd-modal {
   background: #0f172a;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   padding: 2.2rem 2rem 1.8rem;
   max-width: 440px;
   width: 100%;
   text-align: center;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7),
-              0 0 35px rgba(239, 68, 68, 0.12);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
   animation: cdModalPop 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
 .cd-icon-badge {
-  width: 68px;
-  height: 68px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.28);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto 1.25rem auto;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
 }
 
 .cd-icon {
@@ -95,16 +93,19 @@
 }
 
 .cd-btn-confirm {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  background-color: #dc2626;
   color: #ffffff;
-  box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   flex: 1;
 }
 
 .cd-btn-confirm:hover:not(:disabled) {
-  transform: translateY(-1px);
-  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
-  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.5);
+  background-color: #b91c1c;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+}
+
+.cd-btn-confirm:active:not(:disabled) {
+  background-color: #991b1b;
 }
 
 .cd-btn-confirm:disabled,

@@ -1,11 +1,11 @@
 /* ─── HelpForum.css ─────────────────────────────────────────────────────────── */
 /* Premium dark-mode forum UI with glassmorphism, gradient accents, animations  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 /* ─── Root Tokens ────────────────────────────────────────────────────────────── */
 .hf-root {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   color: #e2e8f0;
   min-height: 100vh;
   text-align: left;
@@ -144,10 +144,8 @@
 .hf-header-title {
   font-size: 2.2rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #a78bfa 0%, #818cf8 50%, #6ee7b7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #fff;
+  letter-spacing: -0.025em;
   margin: 0;
 }
 
@@ -162,23 +160,26 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.65rem 1.4rem;
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background-color: #7c3aed;
   color: #fff;
   border: none;
   border-radius: 10px;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.3);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .hf-ask-btn:hover {
-  background: linear-gradient(135deg, #6d28d9, #4338ca);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+  background-color: #6d28d9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+}
+
+.hf-ask-btn:active {
+  background-color: #5b21b6;
 }
 
 /* ─── Search Bar ─────────────────────────────────────────────────────────────── */
@@ -204,7 +205,7 @@
   border-radius: 14px;
   color: #e2e8f0;
   font-size: 1.05rem;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   transition: border-color 0.2s, box-shadow 0.2s;
   backdrop-filter: blur(8px);
   box-sizing: border-box;
@@ -238,7 +239,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 .hf-filter-btn:hover {
@@ -609,7 +610,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 .hf-load-more-btn:hover {
@@ -682,10 +683,8 @@
 .hf-modal-title {
   font-size: 1.2rem;
   font-weight: 700;
-  background: linear-gradient(135deg, #a78bfa, #818cf8);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #fff;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
@@ -734,7 +733,7 @@
   border-radius: 10px;
   color: #e2e8f0;
   font-size: 0.9rem;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
 }
@@ -834,7 +833,7 @@
   border: none;
   color: #e2e8f0;
   font-size: 0.88rem;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   outline: none;
   padding: 0;
 }
@@ -885,7 +884,7 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 .hf-btn-secondary:hover {
@@ -898,28 +897,32 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 1.4rem;
-  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  background-color: #7c3aed;
   border: none;
   border-radius: 9px;
   color: #fff;
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
-  box-shadow: 0 3px 12px rgba(124, 58, 237, 0.3);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: 'Outfit', sans-serif;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 .hf-btn-primary:hover {
-  background: linear-gradient(135deg, #6d28d9, #4338ca);
-  transform: translateY(-1px);
-  box-shadow: 0 5px 16px rgba(124, 58, 237, 0.45);
+  background-color: #6d28d9;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.25);
+}
+
+.hf-btn-primary:active {
+  background-color: #5b21b6;
 }
 
 .hf-btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
+  background-color: #7c3aed;
+  box-shadow: none;
 }
 
 /* ─── Active Tag Filter Banner ────────────────────────────────────────────────── */
@@ -943,7 +946,7 @@
   font-size: 0.75rem;
   padding: 0;
   margin-left: auto;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   transition: color 0.15s;
 }
 
@@ -953,7 +956,7 @@
 
 /* ─── Question Detail Page ────────────────────────────────────────────────────── */
 .qd-root {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   max-width: 1100px;
   margin: 0 auto;
   padding: 1.75rem 2rem;
@@ -1112,7 +1115,7 @@
   color: #64748b;
   font-size: 0.78rem;
   cursor: pointer;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   padding: 0;
   display: flex;
   align-items: center;
@@ -1182,7 +1185,7 @@
   border-radius: 8px;
   color: #e2e8f0;
   font-size: 0.82rem;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   transition: border-color 0.2s;
 }
 
@@ -1205,7 +1208,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   white-space: nowrap;
 }
 
@@ -1244,7 +1247,7 @@
   border-radius: 10px;
   color: #e2e8f0;
   font-size: 0.9rem;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   line-height: 1.6;
   resize: vertical;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -1272,7 +1275,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   border: 1.5px solid rgba(16, 185, 129, 0.25);
   background: transparent;
   color: #64748b;
@@ -1303,7 +1306,7 @@
   font-size: 0.78rem;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 .qd-delete-btn:hover {
@@ -1505,7 +1508,7 @@
   padding: 0.15rem 0.4rem;
   border-radius: 4px;
   transition: all 0.15s;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
 }
 
 .qd-comment-action-btn:hover {
@@ -1534,7 +1537,7 @@
   color: #f8fafc;
   padding: 0.5rem 0.65rem;
   font-size: 0.85rem;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   resize: vertical;
   box-sizing: border-box;
 }
