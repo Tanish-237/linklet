@@ -3,3 +3,4 @@ backend/public/temp/*
 !backend/public/temp/.gitkeep
 backend/public/uploads/*
 !backend/public/uploads/.gitkeep
+docs/

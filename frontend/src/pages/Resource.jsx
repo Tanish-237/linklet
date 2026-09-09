@@ -484,6 +484,7 @@ export default function GlobalSearch() {
 
   const sortRef = useRef(null);
   const debounceRef = useRef(null);
+  const loadMoreSentinelRef = useRef(null);
 
   // Debounce search
   useEffect(() => {
@@ -585,6 +586,25 @@ export default function GlobalSearch() {
   };
 
   const handleLoadMore = () => fetchResources(pagination.page + 1, true);
+
+  // Infinite scroll observer for smooth automatic resource loading
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !pagination.hasNextPage || loading || loadingMore || showSavedOnly) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && pagination.hasNextPage && !loadingMore && !loading) {
+          fetchResources(pagination.page + 1, true);
+        }
+      },
+      { rootMargin: "250px" }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedFileType, selectedSort, selectedTags, showMyResourcesOnly]);
 
   const handleResourceAction = async (resource, actionType) => {
     try {
@@ -830,7 +850,7 @@ export default function GlobalSearch() {
               ))}
             </div>
             {!showSavedOnly && pagination.hasNextPage && (
-              <div className="gs-load-more-row">
+              <div className="gs-load-more-row" ref={loadMoreSentinelRef}>
                 <button className="gs-load-more-btn" onClick={handleLoadMore} disabled={loadingMore}>
                   {loadingMore ? <><div className="gs-spinner-sm" /> Loading…</> : <><span className="material-icons">expand_more</span> Load More</>}
                 </button>

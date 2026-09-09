@@ -78,6 +78,19 @@ jest.unstable_mockModule("../src/repositories/attendance.repository.js", () => (
   bulkCreateCourses: mockBulkCreateCourses,
 }));
 
+// Mock Redis for dashboard caching
+const mockRedisGet = jest.fn();
+const mockRedisSetEx = jest.fn().mockResolvedValue("OK");
+const mockRedisDel = jest.fn().mockResolvedValue(1);
+
+jest.unstable_mockModule("../src/utils/redis.js", () => ({
+  getRedisClient: jest.fn(() => ({
+    get: mockRedisGet,
+    setEx: mockRedisSetEx,
+    del: mockRedisDel,
+  })),
+}));
+
 const dashboardService = await import("../src/services/dashboard.service.js");
 const dashboardController = await import("../src/controllers/dashboard.controller.js");
 
@@ -134,6 +147,37 @@ describe("Dashboard Service & Controller Unit Tests", () => {
       expect(result.metrics.pendingTasksCount).toBe(2);
       // 3 present out of 4 total = 75.0%
       expect(result.metrics.overallAttendancePercentage).toBe(75);
+
+      // Verify Redis cache setEx was called with key and 60s TTL
+      expect(mockRedisSetEx).toHaveBeenCalledWith(
+        "dashboard:stats:user123",
+        60,
+        expect.any(String)
+      );
+    });
+
+    it("serves cached dashboard stats from Redis without querying collections on cache hit", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing Redis cache hit for getDashboardStats");
+      const cachedData = {
+        metrics: { questionsCount: 99, answersCount: 50 },
+        recentActivity: { questions: [], resources: [] },
+      };
+      mockRedisGet.mockResolvedValue(JSON.stringify(cachedData));
+
+      const result = await dashboardService.getDashboardStats("user_cached");
+
+      console.log("TRACE [dashboard.test.js]: Returned from Redis cache successfully:", result.metrics);
+      expect(result).toEqual(cachedData);
+      expect(mockRedisGet).toHaveBeenCalledWith("dashboard:stats:user_cached");
+      expect(mockQuestionCount).not.toHaveBeenCalled();
+      expect(mockAnswerCount).not.toHaveBeenCalled();
+    });
+
+    it("invalidateDashboardCache deletes cache key from Redis", async () => {
+      console.log("TRACE [dashboard.test.js]: Testing invalidateDashboardCache");
+      await dashboardService.invalidateDashboardCache("user_to_clear");
+
+      expect(mockRedisDel).toHaveBeenCalledWith("dashboard:stats:user_to_clear");
     });
   });
 

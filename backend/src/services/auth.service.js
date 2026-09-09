@@ -6,6 +6,7 @@ import jwt from "jsonwebtoken";
 import { getRedisClient } from "../utils/redis.js";
 import { sendEmail } from "../utils/email.service.js";
 import { calculateAcademicYear } from "../utils/academicYear.js";
+import { invalidateUserCache } from "../utils/userCache.js";
 import logger from "../utils/logger.js";
 
 export const generateAndSendOtp = async (email) => {
@@ -180,6 +181,11 @@ export const logout = async (userId, accessToken) => {
     await blacklistToken(accessToken);
   }
 
+  // Invalidate Redis user session cache
+  if (userId) {
+    await invalidateUserCache(userId);
+  }
+
   // Remove refresh token from DB
   await userRepository.updateRefreshToken(userId, null);
 };
@@ -230,6 +236,7 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
 
   user.password = newPassword;
   await user.save();
+  await invalidateUserCache(userId);
   return true;
 };
 

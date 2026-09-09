@@ -7,6 +7,7 @@ import path from "path";
 import http from "http";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import compression from "compression";
 
 // Architecture Imports
 import { connectDb } from "./src/utils/db.js";
@@ -21,8 +22,9 @@ const app = express();
 // Trust reverse proxy (Render, Cloudflare) for accurate client IP and secure cookies
 app.set("trust proxy", 1);
 
-// Security Middlewares
+// Security & Optimization Middlewares
 app.use(helmet());
+app.use(compression());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 500, // Limit each IP to 500 requests per windowMs

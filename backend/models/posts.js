@@ -42,4 +42,8 @@ const postSchema = new mongoose.Schema(
 
 postSchema.plugin(aggregatePaginate);
 
+// Indexes for high-speed cursor feed pagination and profile queries
+postSchema.index({ createdAt: -1 });
+postSchema.index({ userId: 1, createdAt: -1 });
+
 export const Post = mongoose.model("Post", postSchema);

@@ -58,5 +58,64 @@ describe("ChatWindow Component", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/chat/message/c1");
       expect(screen.getByText("Hello there!")).toBeInTheDocument();
     });
+    console.log("TRACE [ChatWindow.test.jsx]: Successfully verified message fetching and rendering");
+  });
+
+  it("renders 'Load older messages' button and loads older messages on click", async () => {
+    console.log("TRACE [ChatWindow.test.jsx]: Testing Load Older Messages button click");
+    apiClient.get.mockImplementation((url, config) => {
+      if (config?.params?.cursor) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: {
+              messages: [
+                {
+                  _id: "m0",
+                  sender: { _id: "u2", username: "alice" },
+                  content: "Ancient message from the past",
+                  createdAt: new Date(Date.now() - 100000).toISOString(),
+                },
+              ],
+              hasMore: false,
+              nextCursor: null,
+            },
+          },
+        });
+      }
+      return Promise.resolve({
+        data: {
+          success: true,
+          data: {
+            messages: sampleMessages,
+            hasMore: true,
+            nextCursor: "2026-09-01T00:00:00.000Z",
+          },
+        },
+      });
+    });
+
+    render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+      />
+    );
+
+    const loadMoreBtn = await screen.findByRole("button", { name: /load older messages/i });
+    expect(loadMoreBtn).toBeInTheDocument();
+
+    loadMoreBtn.click();
+
+    await waitFor(() => {
+      expect(apiClient.get).toHaveBeenCalledWith("/chat/message/c1", {
+        params: { cursor: "2026-09-01T00:00:00.000Z", limit: 30 },
+      });
+      expect(screen.getByText("Ancient message from the past")).toBeInTheDocument();
+    });
+    console.log("TRACE [ChatWindow.test.jsx]: Successfully verified cursor-based older message pagination");
   });
 });
+

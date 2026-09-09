@@ -95,5 +95,7 @@ const timetableSchema = new mongoose.Schema(
 
 // Unique index so each user has one primary active weekly timetable
 timetableSchema.index({ userId: 1 }, { unique: true });
+// Compound index for department and semester section timetables
+timetableSchema.index({ branch: 1, semester: 1, section: 1 });
 
 export const Timetable = mongoose.model("Timetable", timetableSchema);

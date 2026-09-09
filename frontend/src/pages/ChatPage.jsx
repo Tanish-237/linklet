@@ -45,7 +45,19 @@ const ChatPage = () => {
     socket.emit("setup", user);
 
     socket.on("user online status", ({ onlineUsers }) => {
-      setOnlineUsers(onlineUsers);
+      setOnlineUsers(onlineUsers || []);
+    });
+
+    socket.on("user_connected", ({ userId }) => {
+      if (userId) {
+        setOnlineUsers((prev) => (prev.includes(userId) ? prev : [...prev, userId]));
+      }
+    });
+
+    socket.on("user_disconnected", ({ userId }) => {
+      if (userId) {
+        setOnlineUsers((prev) => prev.filter((id) => id !== userId));
+      }
     });
 
     socket.on("message received", (newMessage) => {
@@ -75,6 +87,8 @@ const ChatPage = () => {
 
     return () => {
       socket.off("user online status");
+      socket.off("user_connected");
+      socket.off("user_disconnected");
       socket.off("message received");
       socket.off("group updated");
     };

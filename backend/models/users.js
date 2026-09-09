@@ -127,6 +127,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
+// Compound indexes for department/semester filtering and role lookups
+userSchema.index({ branch: 1, semester: 1, section: 1 });
+userSchema.index({ role: 1 });
+
 //here we are hashing the password before saving it to the database
 
 userSchema.pre("save", async function (next) {

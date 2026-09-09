@@ -18,11 +18,15 @@ vi.mock("../../context/AuthContext", () => ({
   }),
 }));
 
+const mockSocketOn = vi.fn();
+const mockSocketOff = vi.fn();
+const mockSocketEmit = vi.fn();
+
 vi.mock("../../hooks/useSocket", () => ({
   useSocket: () => ({
-    emit: vi.fn(),
-    on: vi.fn(),
-    off: vi.fn(),
+    emit: mockSocketEmit,
+    on: mockSocketOn,
+    off: mockSocketOff,
   }),
 }));
 
@@ -70,5 +74,31 @@ describe("ChatPage Component", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/chat");
       expect(screen.getAllByText("General Lounge")[0]).toBeInTheDocument();
     });
+  });
+
+  it("subscribes to incremental presence events (user_connected, user_disconnected) and unregisters on unmount", async () => {
+    console.log("TRACE [ChatPage.test.jsx]: Testing delta presence event subscription");
+    apiClient.get.mockResolvedValue({ data: { success: true, data: [] } });
+
+    const { unmount } = render(
+      <BrowserRouter>
+        <ChatPage />
+      </BrowserRouter>
+    );
+
+    const registeredEvents = mockSocketOn.mock.calls.map((call) => call[0]);
+    console.log("TRACE [ChatPage.test.jsx]: Registered socket events:", registeredEvents);
+
+    expect(registeredEvents).toContain("user online status");
+    expect(registeredEvents).toContain("user_connected");
+    expect(registeredEvents).toContain("user_disconnected");
+
+    unmount();
+
+    const unregisteredEvents = mockSocketOff.mock.calls.map((call) => call[0]);
+    console.log("TRACE [ChatPage.test.jsx]: Unregistered socket events:", unregisteredEvents);
+    expect(unregisteredEvents).toContain("user online status");
+    expect(unregisteredEvents).toContain("user_connected");
+    expect(unregisteredEvents).toContain("user_disconnected");
   });
 });

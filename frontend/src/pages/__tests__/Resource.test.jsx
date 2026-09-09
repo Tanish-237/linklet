@@ -81,4 +81,72 @@ describe("GlobalSearch / Resource Page", () => {
     });
     console.log("TRACE [Resource.test.jsx]: Modal verified with solid primary action button");
   });
+
+  it("renders load more button when hasNextPage is true and loads page 2 on click", async () => {
+    console.log("TRACE [Resource.test.jsx]: Testing pagination load more button");
+    apiClient.get.mockImplementation((url, config) => {
+      if (url.includes("/resources/stats")) {
+        return Promise.resolve({
+          data: {
+            data: {
+              total: 20,
+              categories: { all: 20, notes: 10, assignments: 10, papers: 0, presentations: 0, other: 0 },
+            },
+          },
+        });
+      }
+      if (url.includes("/resources/library")) {
+        const page = config?.params?.page || 1;
+        if (page === 2) {
+          return Promise.resolve({
+            data: {
+              data: [
+                {
+                  _id: "res2",
+                  title: "Advanced Data Structures",
+                  subject: "Computer Science",
+                  category: "notes",
+                  fileType: "pdf",
+                  fileUrl: "https://example.com/ds.pdf",
+                  user: { _id: "user999", username: "bob" },
+                },
+              ],
+              pagination: { page: 2, totalPages: 2, totalDocs: 2, hasNextPage: false },
+            },
+          });
+        }
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                _id: "res1",
+                title: "Intro to Algorithms",
+                subject: "Computer Science",
+                category: "notes",
+                fileType: "pdf",
+                fileUrl: "https://example.com/algo.pdf",
+                user: { _id: "user123", username: "alex" },
+              },
+            ],
+            pagination: { page: 1, totalPages: 2, totalDocs: 2, hasNextPage: true },
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    renderComponent();
+
+    const loadMoreBtn = await screen.findByRole("button", { name: /load more/i });
+    expect(loadMoreBtn).toBeInTheDocument();
+    console.log("TRACE [Resource.test.jsx]: Found Load More button");
+
+    fireEvent.click(loadMoreBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Advanced Data Structures")).toBeInTheDocument();
+    });
+    console.log("TRACE [Resource.test.jsx]: Verified page 2 resource loaded and appended");
+  });
 });
+

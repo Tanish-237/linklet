@@ -55,12 +55,21 @@ export const initializeSocket = async (server) => {
     // Setup user session
     socket.on("setup", (userData) => {
       if (userData && userData._id) {
+        const uid = userData._id.toString();
         socket.userId = userData._id;
         socket.join(userData._id);
-        onlineUsers.set(userData._id.toString(), socket.id);
-        io.emit("user online status", {
+        onlineUsers.set(uid, socket.id);
+
+        // 1. Send full online presence list ONLY to connecting socket
+        socket.emit("user online status", {
           onlineUsers: Array.from(onlineUsers.keys()),
         });
+
+        // 2. Broadcast single lightweight delta event to all other connected peers
+        socket.broadcast.emit("user_connected", {
+          userId: uid,
+        });
+
         logger.info(`User ${userData._id} registered on socket ${socket.id}`);
       }
     });
@@ -158,9 +167,11 @@ export const initializeSocket = async (server) => {
     socket.on("disconnect", async () => {
       logger.info(`Client disconnected: ${socket.id}`);
       if (socket.userId) {
-        onlineUsers.delete(socket.userId.toString());
-        io.emit("user online status", {
-          onlineUsers: Array.from(onlineUsers.keys()),
+        const uid = socket.userId.toString();
+        onlineUsers.delete(uid);
+        // Broadcast single lightweight delta event to remaining connected peers
+        socket.broadcast.emit("user_disconnected", {
+          userId: uid,
         });
       }
     });

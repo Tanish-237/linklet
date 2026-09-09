@@ -6,12 +6,40 @@ import { Timetable } from "../models/timetable.model.js";
 import * as scheduleRepo from "../repositories/schedule.repository.js";
 import * as attendanceRepo from "../repositories/attendance.repository.js";
 import { AppError } from "../utils/error.js";
+import { getRedisClient } from "../utils/redis.js";
+import logger from "../utils/logger.js";
+
+const DASHBOARD_CACHE_TTL = 60; // 60 seconds
+
+export const invalidateDashboardCache = async (userId) => {
+  if (!userId) return;
+  try {
+    const redis = getRedisClient();
+    if (!redis) return;
+    await redis.del(`dashboard:stats:${userId}`);
+  } catch (error) {
+    logger.debug?.(`Dashboard cache invalidation error: ${error.message}`);
+  }
+};
 
 const getTodayDateString = () => {
   return new Date().toISOString().split("T")[0];
 };
 
 export const getDashboardStats = async (userId) => {
+  // 1. Check Redis cache first to avoid heavy multi-collection aggregations
+  try {
+    const redis = getRedisClient();
+    if (redis && userId) {
+      const cached = await redis.get(`dashboard:stats:${userId}`);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    }
+  } catch (err) {
+    logger.debug?.(`Dashboard cache read error: ${err.message}`);
+  }
+
   const today = getTodayDateString();
 
   const [
@@ -81,7 +109,7 @@ export const getDashboardStats = async (userId) => {
       .lean(),
   ]);
 
-  return {
+  const statsResult = {
     metrics: {
       questionsCount,
       answersCount,
@@ -98,6 +126,22 @@ export const getDashboardStats = async (userId) => {
       resources: recentResources,
     },
   };
+
+  // 2. Cache in Redis for fast repeated loads
+  try {
+    const redis = getRedisClient();
+    if (redis && userId) {
+      await redis.setEx(
+        `dashboard:stats:${userId}`,
+        DASHBOARD_CACHE_TTL,
+        JSON.stringify(statsResult)
+      );
+    }
+  } catch (err) {
+    logger.debug?.(`Dashboard cache write error: ${err.message}`);
+  }
+
+  return statsResult;
 };
 
 export const getDailySchedule = async (userId, date) => {
@@ -183,7 +227,7 @@ export const createScheduleEvent = async (userId, eventData) => {
     throw new AppError("A task must have a deadline or time specified", 400);
   }
 
-  return await scheduleRepo.createEvent({
+  const created = await scheduleRepo.createEvent({
     userId,
     title: title.trim(),
     type: type || "event",
@@ -199,6 +243,9 @@ export const createScheduleEvent = async (userId, eventData) => {
     professor: professor || "",
     attendanceStatus: attendanceStatus || null,
   });
+
+  await invalidateDashboardCache(userId);
+  return created;
 };
 
 export const updateScheduleEvent = async (userId, eventId, updateData) => {
@@ -257,6 +304,7 @@ export const updateScheduleEvent = async (userId, eventId, updateData) => {
   }
 
   const updated = await scheduleRepo.updateEvent(eventId, userId, updateData);
+  await invalidateDashboardCache(userId);
   return updated;
 };
 
@@ -277,6 +325,7 @@ export const deleteScheduleEvent = async (userId, eventId) => {
           timetable.classes = timetable.classes.filter((c) => String(c._id) !== classId);
         }
         await timetable.save();
+        await invalidateDashboardCache(userId);
         return { message: "Timetable class deleted successfully" };
       }
     }
@@ -286,6 +335,7 @@ export const deleteScheduleEvent = async (userId, eventId) => {
   if (!deleted) {
     throw new AppError("Schedule event not found or unauthorized", 404);
   }
+  await invalidateDashboardCache(userId);
   return deleted;
 };
 
@@ -418,7 +468,7 @@ export const createAttendanceCourse = async (userId, courseData) => {
     throw new AppError("A course with this name already exists", 400);
   }
 
-  return await attendanceRepo.createCourse({
+  const createdCourse = await attendanceRepo.createCourse({
     userId,
     courseName: courseName.trim(),
     courseCode: (courseCode || "").trim(),
@@ -426,6 +476,8 @@ export const createAttendanceCourse = async (userId, courseData) => {
     hasLab: Boolean(hasLab),
     records: [],
   });
+  await invalidateDashboardCache(userId);
+  return createdCourse;
 };
 
 export const updateAttendanceCourse = async (userId, courseId, updateData) => {
@@ -455,6 +507,7 @@ export const updateAttendanceCourse = async (userId, courseId, updateData) => {
   if (hasLab !== undefined) fieldsToUpdate.hasLab = Boolean(hasLab);
 
   const updated = await attendanceRepo.updateCourse(courseId, userId, fieldsToUpdate);
+  await invalidateDashboardCache(userId);
   return updated;
 };
 
@@ -463,6 +516,7 @@ export const deleteAttendanceCourse = async (userId, courseId) => {
   if (!deleted) {
     throw new AppError("Course not found or unauthorized", 404);
   }
+  await invalidateDashboardCache(userId);
   return deleted;
 };
 
@@ -490,6 +544,7 @@ export const logAttendanceRecord = async (
     throw new AppError("Course not found or unauthorized", 404);
   }
 
+  await invalidateDashboardCache(userId);
   return updatedCourse;
 };
 
@@ -508,6 +563,7 @@ export const deleteAttendanceRecord = async (userId, courseId, date, recordType 
     throw new AppError("Course not found or unauthorized", 404);
   }
 
+  await invalidateDashboardCache(userId);
   return updatedCourse;
 };
 

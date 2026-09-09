@@ -103,6 +103,9 @@ questionSchema.index({ title: "text", body: "text", tags: "text" });
 questionSchema.index({ category: 1, createdAt: -1 });
 // Compound index for vote count sorting
 questionSchema.index({ createdAt: -1 });
+// Compound indexes for tag filtering and user questions list
+questionSchema.index({ tags: 1, createdAt: -1 });
+questionSchema.index({ userId: 1, createdAt: -1 });
 
 questionSchema.plugin(aggregatePaginate);
 

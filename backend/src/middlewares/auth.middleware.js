@@ -2,6 +2,7 @@ import { AppError } from "../utils/error.js";
 import jwt from "jsonwebtoken";
 import { User } from "../../models/users.js"; // Note: Adjust this import path later when User model is moved
 import { isTokenBlacklisted } from "../utils/blacklist.js";
+import { getCachedUser, setCachedUser } from "../utils/userCache.js";
 
 export const isLoggedIn = async (req, res, next) => {
     const token = req.cookies?.accesstoken || 
@@ -21,12 +22,17 @@ export const isLoggedIn = async (req, res, next) => {
         // 2. Verify token
         const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
 
-        // 3. Find user
-        const user = await User.findById(decodedToken.id)
-                             .select("-password -refreshToken"); // Ignore sensitive data
-
+        // 3. Find user (Check Redis cache first to avoid DB query)
+        let user = await getCachedUser(decodedToken.id);
         if (!user) {
-            return next(new AppError("Invalid Access Token: User not found", 401));
+            user = await User.findById(decodedToken.id)
+                             .select("-password -refreshToken")
+                             .lean();
+
+            if (!user) {
+                return next(new AppError("Invalid Access Token: User not found", 401));
+            }
+            await setCachedUser(decodedToken.id, user);
         }
 
         // 4. Attach user to request object
@@ -51,7 +57,15 @@ export const optionalAuth = async (req, res, next) => {
         if (blacklisted) return next();
 
         const decodedToken = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
-        const user = await User.findById(decodedToken.id).select("-password -refreshToken");
+        let user = await getCachedUser(decodedToken.id);
+        if (!user) {
+            user = await User.findById(decodedToken.id)
+                             .select("-password -refreshToken")
+                             .lean();
+            if (user) {
+                await setCachedUser(decodedToken.id, user);
+            }
+        }
         if (user) req.user = user;
     } catch {
         // Ignore errors in optional auth

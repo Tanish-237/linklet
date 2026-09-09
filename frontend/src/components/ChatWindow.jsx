@@ -34,7 +34,9 @@ const ChatWindow = ({
   const [nextCursor, setNextCursor] = useState(null);
   const [isSending, setIsSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
   const messageCacheRef = useRef({});
 
@@ -138,6 +140,53 @@ const ChatWindow = ({
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
     }, 100);
+  };
+
+  const loadOlderMessages = async () => {
+    if (!chat?._id || !hasMore || !nextCursor || loadingOlder) return;
+
+    setLoadingOlder(true);
+    const container = chatContainerRef.current;
+    const previousScrollHeight = container ? container.scrollHeight : 0;
+
+    try {
+      const res = await apiClient.get(`/chat/message/${chat._id}`, {
+        params: { cursor: nextCursor, limit: 30 },
+      });
+
+      if (res.data?.success) {
+        const olderMsgs = res.data.data.messages || [];
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m._id));
+          const newUnique = olderMsgs.filter((m) => !existingIds.has(m._id));
+          const updated = [...newUnique, ...prev];
+          messageCacheRef.current[chat._id] = updated;
+          return updated;
+        });
+
+        setHasMore(Boolean(res.data.data.hasMore));
+        setNextCursor(res.data.data.nextCursor || null);
+
+        // WhatsApp-style scroll anchoring: keep viewport position stable after prepending
+        if (container) {
+          requestAnimationFrame(() => {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = newScrollHeight - previousScrollHeight;
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load older messages:", error);
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
+  const handleMessagesScroll = (e) => {
+    const container = e.currentTarget;
+    if (container && container.scrollTop <= 60 && hasMore && !loadingOlder) {
+      loadOlderMessages();
+    }
   };
 
   const handleTyping = (e) => {
@@ -377,7 +426,30 @@ const ChatWindow = ({
       )}
 
       {/* Messages Feed */}
-      <div className="chat-messages">
+      <div
+        className="chat-messages"
+        ref={chatContainerRef}
+        onScroll={handleMessagesScroll}
+      >
+        {/* WhatsApp-style Scroll-Up Older Messages Indicator / Button */}
+        {loadingOlder && (
+          <div className="flex justify-center py-2 text-violet-400 text-xs items-center gap-1.5 animate-pulse">
+            <span className="material-icons text-sm animate-spin">sync</span>
+            <span>Loading older messages...</span>
+          </div>
+        )}
+        {hasMore && !loadingOlder && (
+          <div className="flex justify-center py-1.5">
+            <button
+              type="button"
+              onClick={loadOlderMessages}
+              className="text-xs text-violet-400 hover:text-violet-300 bg-violet-950/40 hover:bg-violet-900/40 px-3 py-1 rounded-full transition-colors border border-violet-800/40 cursor-pointer"
+            >
+              Load older messages
+            </button>
+          </div>
+        )}
+
         {loadingMessages && messages.length === 0 ? (
           <div className="chat-empty-state">
             <span className="material-icons animate-spin text-violet-400 text-3xl mb-2">

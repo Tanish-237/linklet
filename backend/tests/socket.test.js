@@ -117,4 +117,64 @@ describe('Socket Initialization Unit Tests', () => {
     expect(mockSubClient.connect).toHaveBeenCalled();
     expect(mockCreateAdapter).toHaveBeenCalledWith(mockPubClient, mockSubClient);
   });
+
+  test('setup and disconnect emit targeted presence and broadcast delta events (no broadcast storm)', async () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] initializeSocket › verifies targeted setup snapshot and broadcast delta events');
+
+    mockGetRedisClient.mockReturnValue(null);
+
+    const { initializeSocket } = await import('../socket.js');
+    const mockHttpServer = http.createServer();
+
+    await initializeSocket(mockHttpServer);
+
+    // Find the connection handler
+    const connectionCall = mockOn.mock.calls.find((call) => call[0] === 'connection');
+    expect(connectionCall).toBeDefined();
+    const connectionHandler = connectionCall[1];
+
+    const registeredHandlers = {};
+    const mockSocket = {
+      id: 'socket-123',
+      join: jest.fn(),
+      emit: jest.fn(),
+      broadcast: {
+        emit: jest.fn(),
+      },
+      on: jest.fn((event, handler) => {
+        registeredHandlers[event] = handler;
+      }),
+    };
+
+    // Simulate connection
+    connectionHandler(mockSocket);
+
+    expect(registeredHandlers['setup']).toBeDefined();
+    expect(registeredHandlers['disconnect']).toBeDefined();
+
+    // Trigger setup
+    registeredHandlers['setup']({ _id: 'user-456' });
+
+    console.log('[TEST] setup triggered, socket.emit called with:', mockSocket.emit.mock.calls);
+    console.log('[TEST] socket.broadcast.emit called with:', mockSocket.broadcast.emit.mock.calls);
+
+    // Targeted emit to self only
+    expect(mockSocket.emit).toHaveBeenCalledWith(
+      'user online status',
+      expect.objectContaining({ onlineUsers: expect.arrayContaining(['user-456']) })
+    );
+
+    // Delta broadcast to others
+    expect(mockSocket.broadcast.emit).toHaveBeenCalledWith('user_connected', {
+      userId: 'user-456',
+    });
+
+    // Trigger disconnect
+    registeredHandlers['disconnect']();
+    console.log('[TEST] disconnect triggered, broadcast called with:', mockSocket.broadcast.emit.mock.calls);
+    expect(mockSocket.broadcast.emit).toHaveBeenCalledWith('user_disconnected', {
+      userId: 'user-456',
+    });
+  });
 });
