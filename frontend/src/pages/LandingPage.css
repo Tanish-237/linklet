@@ -162,30 +162,103 @@
 
 /* ---- Footer ---- */
 .landing-footer {
-  border-top: 1px solid #1a1a1a;
-  padding: 2rem 1.5rem;
-  text-align: center;
+  border-top: 1px solid #1f1f1f;
+  background-color: #0d0d0d;
+  padding: 4rem 1.5rem 2.5rem;
 }
 
-.landing-footer__inner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.75rem;
+.landing-footer__container {
   max-width: 960px;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.landing-footer__main {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 3.5rem;
+}
+
+.landing-footer__brand {
+  max-width: 320px;
+}
+
+.landing-footer__logo-group {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
 }
 
 .landing-footer__logo {
-  height: 1.5rem;
-  width: 1.5rem;
-  opacity: 0.6;
+  height: 1.85rem;
+  width: 1.85rem;
+  border-radius: 0.375rem;
+  object-fit: contain;
+}
+
+.landing-footer__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.landing-footer__tagline {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: #88888e;
+  margin: 0;
+}
+
+.landing-footer__links-section {
+  display: flex;
+  align-items: center;
+}
+
+.landing-footer__list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+}
+
+.landing-footer__link {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #a1a1aa;
+  text-decoration: none;
+  transition: color 0.2s ease, transform 0.2s ease;
+  display: inline-block;
+}
+
+.landing-footer__link:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.landing-footer__bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 2rem;
+  border-top: 1px solid #1a1a1a;
+  font-size: 0.8125rem;
+  color: #52525b;
 }
 
 .landing-footer__copy {
-  font-size: 0.8rem;
-  color: #52525b;
   margin: 0;
+}
+
+.landing-footer__note {
+  margin: 0;
+  color: #71717a;
 }
 
 /* ---- Fade-in animation (toggled via IntersectionObserver) ---- */
@@ -214,11 +287,35 @@
   .landing-features {
     padding: 3.5rem 1.25rem 4rem;
   }
+
+  .landing-footer {
+    padding: 3rem 1.25rem 2rem;
+  }
+
+  .landing-footer__main {
+    flex-direction: column;
+    gap: 1.75rem;
+  }
+
+  .landing-footer__list {
+    flex-wrap: wrap;
+    gap: 1.25rem 1.75rem;
+  }
+
+  .landing-footer__bottom {
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: flex-start;
+  }
 }
 
 @media (min-width: 769px) and (max-width: 1024px) {
   .landing-features__grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 1.25rem;
+  }
+
+  .landing-footer__main {
+    gap: 2rem;
   }
 }

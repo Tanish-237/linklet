@@ -42,12 +42,24 @@
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
-.no-scrollbar::-webkit-scrollbar {
+.no-scrollbar::-webkit-scrollbar,
+html.no-scrollbar::-webkit-scrollbar,
+body.no-scrollbar::-webkit-scrollbar,
+html:has(.about-page)::-webkit-scrollbar,
+body:has(.about-page)::-webkit-scrollbar,
+html:has(.contact-page)::-webkit-scrollbar,
+body:has(.contact-page)::-webkit-scrollbar {
   display: none;
 }
 
 /* Hide scrollbar for IE, Edge and Firefox */
-.no-scrollbar {
+.no-scrollbar,
+html.no-scrollbar,
+body.no-scrollbar,
+html:has(.about-page),
+body:has(.about-page),
+html:has(.contact-page),
+body:has(.contact-page) {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }

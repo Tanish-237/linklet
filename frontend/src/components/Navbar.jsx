@@ -10,20 +10,27 @@ import { useSocket } from "../hooks/useSocket";
 import linkletLogo from "../assets/linklet-logo.png";
 
 const Nav = styled.nav`
-  background-color: #111111;
-  padding: 1rem;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: rgba(17, 17, 17, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 `;
 
 const NavLinks = styled.div`
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1.25rem;
 
-  a,
-  button {
+  > a:not(.nav-auth-btn),
+  > button:not(.nav-auth-btn) {
     color: #f5f5f5;
     font-size: 1rem;
     transition: all 0.3s ease;
@@ -37,6 +44,39 @@ const NavLinks = styled.div`
       color: #8b5cf6;
       background: rgba(139, 92, 246, 0.1);
     }
+  }
+`;
+
+const NavAuthLink = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 1.15rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  outline: none;
+
+  &:hover {
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+    color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #8b5cf6;
+    outline-offset: 2px;
   }
 `;
 
@@ -207,7 +247,7 @@ export const Navbar = () => {
   };
 
   return (
-    <Nav>
+    <Nav id="app-navbar">
       <Link
         to={user ? "/home" : "/"}
         style={{
@@ -314,8 +354,20 @@ export const Navbar = () => {
           </>
         ) : (
           <>
-            <Link to="/login">Login</Link>
-            <Link to="/register">Sign Up</Link>
+            <NavAuthLink
+              to="/login"
+              className="nav-auth-btn nav-btn-login"
+              id="navbar-login-btn"
+            >
+              Login
+            </NavAuthLink>
+            <NavAuthLink
+              to="/register"
+              className="nav-auth-btn nav-btn-signup"
+              id="navbar-signup-btn"
+            >
+              Sign Up
+            </NavAuthLink>
           </>
         )}
       </NavLinks>

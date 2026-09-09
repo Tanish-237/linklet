@@ -176,7 +176,7 @@ export default function LandingPage() {
       >
         <p className="landing-features__label landing-fade-in">What you get</p>
         <h2 className="landing-features__heading landing-fade-in">
-          Built for students, not startups
+          Solution to your every single problem
         </h2>
         <div className="landing-features__grid">
           {FEATURES.map((feature) => (
@@ -197,15 +197,59 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="landing-footer" id="landing-footer">
-        <div className="landing-footer__inner">
-          <img
-            src={logo}
-            alt="Linklet"
-            className="landing-footer__logo"
-          />
-          <p className="landing-footer__copy">
-            © {new Date().getFullYear()} Linklet
-          </p>
+        <div className="landing-footer__container">
+          <div className="landing-footer__main">
+            {/* Brand Column */}
+            <div className="landing-footer__brand">
+              <div className="landing-footer__logo-group">
+                <img
+                  src={logo}
+                  alt="Linklet"
+                  className="landing-footer__logo"
+                />
+                <span className="landing-footer__name">Linklet</span>
+              </div>
+              <p className="landing-footer__tagline">
+                Your campus, organized. Manage schedules, track attendance, and connect with classmates.
+              </p>
+            </div>
+
+            {/* Links Section */}
+            <div className="landing-footer__links-section">
+              <ul className="landing-footer__list">
+                <li>
+                  <Link to="/about" className="landing-footer__link">
+                    About
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/contact" className="landing-footer__link">
+                    Contact
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="https://maps.google.com/?q=MNNIT+Allahabad+Prayagraj"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="landing-footer__link"
+                    title="MNNIT Allahabad, Prayagraj"
+                  >
+                    Location
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="landing-footer__bottom">
+            <p className="landing-footer__copy">
+              © {new Date().getFullYear()} Linklet
+            </p>
+            <p className="landing-footer__note">
+              Made with ❤️ for MNNITians
+            </p>
+          </div>
         </div>
       </footer>
     </div>

@@ -10,6 +10,7 @@ import profileRoutes from "./profile.routes.js";
 import chatRoutes from "./chat.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import timetableRoutes from "./timetable.routes.js";
+import contactRoutes from "./contact.routes.js";
 
 const router = express.Router();
 
@@ -24,6 +25,7 @@ router.use("/profile", profileRoutes);
 router.use("/chat", chatRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/timetable", timetableRoutes);
+router.use("/contact", contactRoutes);
 
 export default router;
 

@@ -104,4 +104,37 @@ describe("Navbar Component Tests", () => {
 
     console.log("TRACE [Navbar.test.jsx]: Navigated to /dashboard/settings and dropdown closed");
   });
+
+  it("renders with id app-navbar and sticky navigation element", () => {
+    console.log("TRACE [Navbar.test.jsx]: Verifying Navbar root element has id app-navbar and sticky navigation element");
+    renderComponent();
+
+    const navbar = document.getElementById("app-navbar");
+    expect(navbar).toBeInTheDocument();
+    expect(navbar.tagName).toBe("NAV");
+    console.log("TRACE [Navbar.test.jsx]: Confirmed Navbar root element rendered properly as <nav id='app-navbar'>");
+  });
+
+  it("renders Login and Sign Up buttons with outline styling when logged out", () => {
+    console.log("TRACE [Navbar.test.jsx]: Verifying outline styled Login and Sign Up buttons for unauthenticated visitors");
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
+      user: null,
+      setUser: vi.fn(),
+      fetchUser: vi.fn(),
+    });
+
+    renderComponent();
+
+    const loginBtn = document.getElementById("navbar-login-btn");
+    expect(loginBtn).toBeInTheDocument();
+    expect(loginBtn).toHaveAttribute("href", "/login");
+    expect(loginBtn.className).toContain("nav-btn-login");
+
+    const signupBtn = document.getElementById("navbar-signup-btn");
+    expect(signupBtn).toBeInTheDocument();
+    expect(signupBtn).toHaveAttribute("href", "/register");
+    expect(signupBtn.className).toContain("nav-btn-signup");
+
+    console.log("TRACE [Navbar.test.jsx]: Successfully verified Login and Sign Up outline buttons");
+  });
 });

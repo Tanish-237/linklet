@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { apiClient } from "../../api/apiClient.js";
 
 const ContactPage = () => {
   const [formData, setFormData] = useState({
@@ -12,6 +13,15 @@ const ContactPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
+  useEffect(() => {
+    document.documentElement.classList.add("no-scrollbar");
+    document.body.classList.add("no-scrollbar");
+    return () => {
+      document.documentElement.classList.remove("no-scrollbar");
+      document.body.classList.remove("no-scrollbar");
+    };
+  }, []);
+
   const handleChange = (e) => {
     setFormData({
       ...formData,
@@ -19,7 +29,7 @@ const ContactPage = () => {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
       toast.error("Please fill out all required fields.");
@@ -27,10 +37,10 @@ const ContactPage = () => {
     }
 
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
+    try {
+      const response = await apiClient.post("/contact", formData);
       setSubmitted(true);
-      toast.success("Message sent successfully! We'll get back to you shortly.");
+      toast.success(response.data?.message || "Message sent successfully! We'll get back to you shortly.");
       setFormData({
         name: "",
         email: "",
@@ -38,129 +48,137 @@ const ContactPage = () => {
         category: "General Inquiry",
         message: "",
       });
-    }, 1000);
+    } catch (err) {
+      const errorMsg =
+        err.response?.data?.message || "Failed to send your message. Please try again.";
+      toast.error(errorMsg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white pt-24 pb-16 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="contact-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto">
         {/* Header Hero Section */}
-        <div className="text-center mb-16">
-          <span className="px-4 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wider bg-violet-500/10 border border-violet-500/30 text-violet-400 mb-4 inline-block">
-            Get in Touch
-          </span>
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
+        <div className="mb-12 border-b border-zinc-800/80 pb-8">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md text-xs font-mono tracking-wider uppercase bg-zinc-900 border border-zinc-800 text-zinc-400 mb-5">
+            <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
+            Campus Support & Feedback
+          </div>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
             How can we help you today?
           </h1>
-          <p className="text-lg text-gray-400 max-w-2xl mx-auto">
-            Have a question, feedback, or need support with Linklet? Send us a message and our team will get back to you within 24 hours.
+          <p className="text-lg text-zinc-400 max-w-2xl leading-relaxed">
+            Have a question about your timetable, feedback on study resources, interested in contributing, or spotted a bug? Send us a message and our student dev team will respond.
           </p>
         </div>
 
-        {/* Contact Info Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-violet-500/20 backdrop-blur-xl hover:border-violet-500/40 transition-all duration-300 group">
-            <div className="w-12 h-12 rounded-xl bg-violet-600/20 text-violet-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <span className="material-icons text-2xl">support_agent</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">Student Support</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Need help navigating the help forum, resource hub, or account settings?
+        {/* Contact Info Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          <div className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
+            <div className="text-xs font-mono text-violet-400 mb-2">01 / TECHNICAL</div>
+            <h3 className="text-base font-semibold text-white mb-1.5">App Support</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Issues with attendance calculation, login sessions, or lecture schedules.
             </p>
-            <span className="text-violet-400 text-sm font-semibold flex items-center gap-1">
-              support@linklet.edu <span className="material-icons text-xs">arrow_forward</span>
+            <span className="text-xs font-mono text-zinc-400">
+              Quick assistance via form below
             </span>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-violet-500/20 backdrop-blur-xl hover:border-violet-500/40 transition-all duration-300 group">
-            <div className="w-12 h-12 rounded-xl bg-purple-600/20 text-purple-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <span className="material-icons text-2xl">school</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">Campus Ambassadors</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Interested in promoting Linklet at your campus or hosting tech workshops?
+          <div className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
+            <div className="text-xs font-mono text-violet-400 mb-2">02 / ACADEMIC</div>
+            <h3 className="text-base font-semibold text-white mb-1.5">Study Resources</h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Share past year question papers (PYQs), lab records, or semester notes.
             </p>
-            <span className="text-purple-400 text-sm font-semibold flex items-center gap-1">
-              ambassadors@linklet.edu <span className="material-icons text-xs">arrow_forward</span>
+            <span className="text-xs font-mono text-zinc-400">
+              Community curated repository
             </span>
           </div>
 
-          <div className="p-6 rounded-2xl bg-slate-900/60 border border-violet-500/20 backdrop-blur-xl hover:border-violet-500/40 transition-all duration-300 group">
-            <div className="w-12 h-12 rounded-xl bg-pink-600/20 text-pink-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-              <span className="material-icons text-2xl">location_on</span>
-            </div>
-            <h3 className="text-lg font-bold text-white mb-2">MNNIT Allahabad</h3>
-            <p className="text-sm text-gray-400 mb-4">
-              Teliarganj, Prayagraj, Uttar Pradesh 211004, India
+          <a
+            href="https://maps.google.com/?q=MNNIT+Allahabad+Prayagraj"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors block group"
+          >
+            <div className="text-xs font-mono text-violet-400 mb-2">03 / CAMPUS</div>
+            <h3 className="text-base font-semibold text-white mb-1.5 flex items-center justify-between">
+              MNNIT Allahabad
+              <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors text-xs">↗</span>
+            </h3>
+            <p className="text-xs text-zinc-400 leading-relaxed mb-4">
+              Teliarganj, Prayagraj, Uttar Pradesh 211004, India.
             </p>
-            <span className="text-pink-400 text-sm font-semibold flex items-center gap-1">
-              Main Campus Hub <span className="material-icons text-xs">arrow_forward</span>
+            <span className="text-xs font-mono text-violet-400">
+              View on Google Maps
             </span>
-          </div>
+          </a>
         </div>
 
         {/* Contact Form & Side Info */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Form Side */}
-          <div className="lg:col-span-7 p-8 rounded-3xl bg-slate-900/70 border border-violet-500/25 backdrop-blur-2xl shadow-2xl">
-            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
-              <span className="material-icons text-violet-400">mail_outline</span>
+          <div className="lg:col-span-7 p-7 sm:p-8 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
+            <h2 className="text-xl font-semibold text-white mb-6">
               Send us a Message
             </h2>
 
             {submitted ? (
-              <div className="p-8 text-center bg-violet-500/10 border border-violet-500/30 rounded-2xl my-4">
-                <span className="material-icons text-5xl text-violet-400 mb-3">check_circle</span>
-                <h3 className="text-xl font-bold text-white mb-2">Thank you!</h3>
-                <p className="text-gray-300 text-sm mb-6">
+              <div className="p-8 text-center bg-zinc-900 border border-zinc-800 rounded-xl my-4">
+                <span className="material-icons text-4xl text-violet-400 mb-3">check_circle</span>
+                <h3 className="text-lg font-semibold text-white mb-2">Thank you!</h3>
+                <p className="text-zinc-400 text-sm mb-6">
                   Your message has been received. Our support team will respond shortly.
                 </p>
                 <button
                   onClick={() => setSubmitted(false)}
-                  className="px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 font-semibold text-sm transition-all"
+                  className="px-5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs transition-colors"
                 >
                   Send Another Message
                 </button>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="name" className="block text-xs font-semibold uppercase tracking-wider text-gray-300 mb-2">
+                    <label htmlFor="name" className="block text-xs font-medium text-zinc-400 mb-1.5">
                       Your Name <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="text"
                       id="name"
                       name="name"
-                      placeholder="e.g. Rahul Sharma"
+                      placeholder="e.g. Tanish Sharma"
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-3 bg-slate-950/80 border border-violet-500/20 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-white placeholder-gray-500 text-sm transition-all"
+                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="email" className="block text-xs font-semibold uppercase tracking-wider text-gray-300 mb-2">
-                      College Email <span className="text-red-400">*</span>
+                    <label htmlFor="email" className="block text-xs font-medium text-zinc-400 mb-1.5">
+                      Your Email <span className="text-red-400">*</span>
                     </label>
                     <input
                       type="email"
                       id="email"
                       name="email"
-                      placeholder="you@mnnit.ac.in"
+                      placeholder="you@example.com"
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="w-full px-4 py-3 bg-slate-950/80 border border-violet-500/20 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-white placeholder-gray-500 text-sm transition-all"
+                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm transition-colors"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="category" className="block text-xs font-semibold uppercase tracking-wider text-gray-300 mb-2">
+                    <label htmlFor="category" className="block text-xs font-medium text-zinc-400 mb-1.5">
                       Category
                     </label>
                     <select
@@ -168,17 +186,18 @@ const ContactPage = () => {
                       name="category"
                       value={formData.category}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-slate-950/80 border border-violet-500/20 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-white text-sm transition-all"
+                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white text-sm transition-colors"
                     >
                       <option value="General Inquiry">General Inquiry</option>
-                      <option value="Technical Support">Technical Support</option>
-                      <option value="Resource Hub Contribution">Resource Hub Contribution</option>
-                      <option value="Feedback & Feature Request">Feedback & Feature Request</option>
+                      <option value="Contribute to Linklet">Contribute to Linklet (Dev / Design)</option>
+                      <option value="Timetable Issue">Timetable & Schedule</option>
+                      <option value="Resource Hub">Resource Hub Contribution</option>
+                      <option value="Bug Report">Bug Report</option>
                     </select>
                   </div>
 
                   <div>
-                    <label htmlFor="subject" className="block text-xs font-semibold uppercase tracking-wider text-gray-300 mb-2">
+                    <label htmlFor="subject" className="block text-xs font-medium text-zinc-400 mb-1.5">
                       Subject
                     </label>
                     <input
@@ -188,13 +207,13 @@ const ContactPage = () => {
                       placeholder="Brief topic..."
                       value={formData.subject}
                       onChange={handleChange}
-                      className="w-full px-4 py-3 bg-slate-950/80 border border-violet-500/20 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-white placeholder-gray-500 text-sm transition-all"
+                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm transition-colors"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="message" className="block text-xs font-semibold uppercase tracking-wider text-gray-300 mb-2">
+                  <label htmlFor="message" className="block text-xs font-medium text-zinc-400 mb-1.5">
                     Message <span className="text-red-400">*</span>
                   </label>
                   <textarea
@@ -204,62 +223,59 @@ const ContactPage = () => {
                     value={formData.message}
                     onChange={handleChange}
                     required
-                    rows={5}
-                    className="w-full px-4 py-3 bg-slate-950/80 border border-violet-500/20 rounded-xl focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 text-white placeholder-gray-500 text-sm resize-none transition-all"
+                    rows={4}
+                    className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm resize-none transition-colors"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-3.5 px-6 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-sm shadow-sm transition-colors duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 px-5 rounded-lg bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  {submitting ? (
-                    <>
-                      <span className="material-icons animate-spin text-base">hourglass_top</span>
-                      <span>Sending...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="material-icons text-base">send</span>
-                      <span>Send Message</span>
-                    </>
-                  )}
+                  {submitting ? "Sending..." : "Send Message"}
                 </button>
               </form>
             )}
           </div>
 
-          {/* Quick FAQ / Info Side */}
-          <div className="lg:col-span-5 space-y-6">
-            <div className="p-8 rounded-3xl bg-slate-900/60 border border-violet-500/20 backdrop-blur-xl">
-              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                <span className="material-icons text-violet-400">help_outline</span>
-                Frequently Asked Questions
+          {/* Guidelines & Info Sidebar */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/80">
+              <h3 className="text-sm font-semibold text-white mb-4">
+                Campus Guidelines
               </h3>
-              <div className="space-y-4 text-sm">
+              <div className="space-y-4 text-xs text-zinc-400 leading-relaxed">
                 <div>
-                  <h4 className="font-semibold text-violet-300 mb-1">
-                    Who can join Linklet?
+                  <h4 className="font-medium text-zinc-200 mb-1">
+                    Open Inquiries
                   </h4>
-                  <p className="text-gray-400">
-                    Linklet is exclusively for students, faculty, and alumni with verified `@mnnit.ac.in` emails.
+                  <p>
+                    Whether you are a student, faculty member, or visitor, feel free to reach out with questions or feedback using any active email address.
                   </p>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-violet-300 mb-1">
-                    How do I contribute study resources?
+                  <h4 className="font-medium text-zinc-200 mb-1">
+                    Contributors Welcome
                   </h4>
-                  <p className="text-gray-400">
-                    You can upload PDFs, notes, and previous year questions directly from the Global Search & Resource Hub page.
+                  <p>
+                    Passionate about building campus software? We warmly invite developers, designers, and students of all batches to contribute. Select "Contribute to Linklet" to collaborate.
                   </p>
                 </div>
                 <div>
-                  <h4 className="font-semibold text-violet-300 mb-1">
-                    How do group chats work?
+                  <h4 className="font-medium text-zinc-200 mb-1">
+                    Study Material Contributions
                   </h4>
-                  <p className="text-gray-400">
-                    Go to the Chat tab on your dashboard, click "Create Group", search for teammates, and start collaborating in real time!
+                  <p>
+                    Ensure submitted PYQs, notes, and lab manuals are legible and clearly tagged with semester and course code.
+                  </p>
+                </div>
+                <div>
+                  <h4 className="font-medium text-zinc-200 mb-1">
+                    Timetable Discrepancies
+                  </h4>
+                  <p>
+                    If an updated departmental notification shifts your lecture slots, let us know and our maintainers will update the section master.
                   </p>
                 </div>
               </div>

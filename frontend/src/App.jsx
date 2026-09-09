@@ -43,14 +43,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 
 // Lazy Loaded Static Pages
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
-const BlogPage = lazy(() => import("./pages/static/BlogPage"));
-const BlogPostDetail = lazy(() => import("./pages/static/BlogPostDetail"));
-const CareersPage = lazy(() => import("./pages/static/CareersPage"));
 const ContactPage = lazy(() => import("./pages/static/ContactPage"));
-const CookiePolicy = lazy(() => import("./pages/static/CookiePolicy"));
-const SecurityInfo = lazy(() => import("./pages/static/SecurityInfo"));
-const PricingPage = lazy(() => import("./pages/static/PricingPage"));
-const FAQPage = lazy(() => import("./pages/static/FAQPage"));
 
 const ProfileRedirect = () => {
   const { username } = useParams();
@@ -355,74 +348,11 @@ function App() {
               }
             />
             <Route
-              path="/blog"
-              element={
-                <>
-                  <Navbar />
-                  <BlogPage />
-                </>
-              }
-            />
-            <Route
-              path="/blog/:id"
-              element={
-                <>
-                  <Navbar />
-                  <BlogPostDetail />
-                </>
-              }
-            />
-            <Route
-              path="/careers"
-              element={
-                <>
-                  <Navbar />
-                  <CareersPage />
-                </>
-              }
-            />
-            <Route
               path="/contact"
               element={
                 <>
                   <Navbar />
                   <ContactPage />
-                </>
-              }
-            />
-            <Route
-              path="/cookies"
-              element={
-                <>
-                  <Navbar />
-                  <CookiePolicy />
-                </>
-              }
-            />
-            <Route
-              path="/security"
-              element={
-                <>
-                  <Navbar />
-                  <SecurityInfo />
-                </>
-              }
-            />
-            <Route
-              path="/pricing"
-              element={
-                <>
-                  <Navbar />
-                  <PricingPage />
-                </>
-              }
-            />
-            <Route
-              path="/faq"
-              element={
-                <>
-                  <Navbar />
-                  <FAQPage />
                 </>
               }
             />
