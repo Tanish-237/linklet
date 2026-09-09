@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Dashboard from "../Dashboard";
 import * as dashboardApi from "../../api/dashboard.api";
 import * as timetableApi from "../../api/timetable.api";
@@ -83,12 +84,17 @@ describe("Dashboard Component Tests", () => {
   });
 
   const renderComponent = () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     return render(
-      <HelmetProvider>
-        <BrowserRouter>
-          <Dashboard />
-        </BrowserRouter>
-      </HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <HelmetProvider>
+          <BrowserRouter>
+            <Dashboard />
+          </BrowserRouter>
+        </HelmetProvider>
+      </QueryClientProvider>
     );
   };
 

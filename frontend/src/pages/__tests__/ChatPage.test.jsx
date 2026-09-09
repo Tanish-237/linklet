@@ -4,6 +4,7 @@ import { vi, describe, beforeEach, it, expect } from "vitest";
 import ChatPage from "../ChatPage";
 import { apiClient } from "../../api/apiClient";
 import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
@@ -64,10 +65,15 @@ describe("ChatPage Component", () => {
       return Promise.resolve({ data: { success: true, data: [] } });
     });
 
+    const queryClient1 = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     render(
-      <BrowserRouter>
-        <ChatPage />
-      </BrowserRouter>
+      <QueryClientProvider client={queryClient1}>
+        <BrowserRouter>
+          <ChatPage />
+        </BrowserRouter>
+      </QueryClientProvider>
     );
 
     await waitFor(() => {
@@ -80,10 +86,15 @@ describe("ChatPage Component", () => {
     console.log("TRACE [ChatPage.test.jsx]: Testing delta presence event subscription");
     apiClient.get.mockResolvedValue({ data: { success: true, data: [] } });
 
+    const queryClient2 = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     const { unmount } = render(
-      <BrowserRouter>
-        <ChatPage />
-      </BrowserRouter>
+      <QueryClientProvider client={queryClient2}>
+        <BrowserRouter>
+          <ChatPage />
+        </BrowserRouter>
+      </QueryClientProvider>
     );
 
     const registeredEvents = mockSocketOn.mock.calls.map((call) => call[0]);

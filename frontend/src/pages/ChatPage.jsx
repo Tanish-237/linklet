@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../hooks/useSocket";
@@ -9,34 +10,47 @@ import CreateGroupModal from "../components/CreateGroupModal";
 import "./ChatPage.css";
 
 const ChatPage = () => {
-  const [chats, setChats] = useState([]);
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const socket = useSocket();
+
+  // In-memory cached user chats (0ms instant tab switching)
+  const {
+    data: cachedChats = [],
+    isLoading: isChatsLoading,
+    refetch: fetchChats,
+  } = useQuery({
+    queryKey: ["chats", user?._id],
+    queryFn: async () => {
+      const res = await apiClient.get("/chat");
+      return res.data.success ? res.data.data : [];
+    },
+    enabled: !!user?._id,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [chats, setChats] = useState(cachedChats);
   const [activeChat, setActiveChat] = useState(null);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const { user } = useAuth();
-  const socket = useSocket();
 
-  // Load user's chats
   useEffect(() => {
-    const fetchChats = async () => {
-      try {
-        const res = await apiClient.get("/chat");
-        if (res.data.success) {
-          setChats(res.data.data);
-          if (res.data.data.length > 0 && !activeChat) {
-            setActiveChat(res.data.data[0]);
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch chats:", error);
+    if (cachedChats && cachedChats.length > 0) {
+      setChats(cachedChats);
+      if (!activeChat) {
+        setActiveChat(cachedChats[0]);
       }
-    };
-
-    if (user) {
-      fetchChats();
     }
-  }, [user]);
+  }, [cachedChats]);
+
+  const updateChats = (updater) => {
+    setChats((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      queryClient.setQueryData(["chats", user?._id], next);
+      return next;
+    });
+  };
 
   // Setup Socket connection & status listeners
   useEffect(() => {
@@ -61,7 +75,7 @@ const ChatPage = () => {
     });
 
     socket.on("message received", (newMessage) => {
-      setChats((prevChats) =>
+      updateChats((prevChats) =>
         prevChats.map((chat) => {
           const chatId = typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
           if (chat._id === chatId) {
@@ -77,7 +91,7 @@ const ChatPage = () => {
     });
 
     socket.on("group updated", (updatedChat) => {
-      setChats((prev) =>
+      updateChats((prev) =>
         prev.map((c) => (c._id === updatedChat._id ? updatedChat : c))
       );
       if (activeChat?._id === updatedChat._id) {
@@ -99,12 +113,12 @@ const ChatPage = () => {
   };
 
   const handleGroupCreated = (newGroup) => {
-    setChats((prev) => [newGroup, ...prev]);
+    updateChats((prev) => [newGroup, ...prev]);
     setActiveChat(newGroup);
   };
 
   const handleUpdateChat = (updatedChat) => {
-    setChats((prev) =>
+    updateChats((prev) =>
       prev.map((c) => (c._id === updatedChat._id ? updatedChat : c))
     );
     if (activeChat?._id === updatedChat._id) {

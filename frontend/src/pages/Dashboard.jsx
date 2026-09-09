@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import AttendanceTracker from "../components/AttendanceTracker";
 import DailySchedule from "../components/DailySchedule";
 import TimetableUploadModal from "../components/TimetableUploadModal";
@@ -18,10 +19,33 @@ export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [hasTimetable, setHasTimetable] = useState(null);
+  // In-memory cached dashboard stats & timetable status (0ms instant tab switching)
+  const {
+    data: dashboardData,
+    isLoading: isStatsLoading,
+    refetch: refetchStats,
+  } = useQuery({
+    queryKey: ["dashboard", "stats", user?._id || user?.username || "me"],
+    queryFn: async () => {
+      const [data, timetableData] = await Promise.all([
+        fetchDashboardStats(),
+        fetchTimetable().catch(() => null),
+      ]);
+      const ttExists = Boolean(
+        (data?.metrics?.hasTimetable !== undefined ? data.metrics.hasTimetable : false) ||
+        (timetableData && Array.isArray(timetableData.classes) && timetableData.classes.length > 0)
+      );
+      return { stats: data, hasTimetable: ttExists };
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const stats = dashboardData?.stats || null;
+  const hasTimetable = dashboardData?.hasTimetable ?? null;
+  const loading = isStatsLoading && !stats;
 
   // Triggers for child components & modals
   const [addEventTrigger, setAddEventTrigger] = useState(0);
@@ -49,29 +73,10 @@ export default function Dashboard() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Load real-time dashboard metrics & timetable status
-  const loadStats = useCallback(async () => {
-    try {
-      const [data, timetableData] = await Promise.all([
-        fetchDashboardStats(),
-        fetchTimetable().catch(() => null),
-      ]);
-      if (data) setStats(data);
-      const ttExists = Boolean(
-        (data?.metrics?.hasTimetable !== undefined ? data.metrics.hasTimetable : false) ||
-        (timetableData && Array.isArray(timetableData.classes) && timetableData.classes.length > 0)
-      );
-      setHasTimetable(ttExists);
-    } catch (err) {
-      console.error("Failed to load dashboard metrics", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loadStats = useCallback(() => {
+    return refetchStats();
+  }, [refetchStats]);
 
-  useEffect(() => {
-    loadStats();
-  }, [loadStats]);
 
   const getTimeGreeting = () => {
     const hour = new Date().getHours();

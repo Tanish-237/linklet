@@ -60,8 +60,13 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
-  if (isLoading) {
-    return <div className="loading-screen">Loading Linklet...</div>; // Could be a beautiful spinner
+  if (isLoading && !user) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+        <span className="text-sm font-medium text-gray-400">Loading Linklet...</span>
+      </div>
+    );
   }
 
   return (
@@ -80,7 +85,14 @@ function App() {
             pauseOnHover
             theme="dark"
           />
-          <Suspense fallback={<div className="loading-screen">Loading Page...</div>}>
+          <Suspense
+            fallback={
+              <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+                <div className="w-7 h-7 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+                <span className="text-xs font-medium text-gray-500">Loading...</span>
+              </div>
+            }
+          >
             <Routes>
             {/* Redirect to home if logged in, otherwise show landing page */}
             <Route

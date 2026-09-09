@@ -1,5 +1,6 @@
 // src/pages/Posts.jsx
 import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
@@ -314,51 +315,54 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
 
 // ─── Main Posts Component ───────────────────────────────────────────────────
 const Posts = () => {
-  const [posts, setPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Bookmark state
-  const [savedPosts, setSavedPosts] = useState(new Set());
+  // In-memory cached feed query with 5-minute freshness (0ms instant render on tab switch)
+  const {
+    data: feedData = [],
+    isLoading: isFeedLoading,
+    refetch: fetchPosts,
+  } = useQuery({
+    queryKey: ["posts", "feed"],
+    queryFn: async () => {
+      const res = await apiClient.get(`/posts/feed?limit=50`);
+      return res.data.data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [posts, setPosts] = useState(feedData);
+
+  useEffect(() => {
+    if (feedData) setPosts(feedData);
+  }, [feedData]);
+
+  const loading = isFeedLoading && posts.length === 0;
+
+  // Bookmark state with in-memory caching
+  const { data: bookmarkIds = [] } = useQuery({
+    queryKey: ["bookmarks", user?._id],
+    queryFn: async () => {
+      const res = await apiClient.get("/profile/me/bookmarks");
+      return (res.data.data || []).map((b) => (b._id || b).toString());
+    },
+    enabled: !!user,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const [savedPosts, setSavedPosts] = useState(new Set(bookmarkIds));
+
+  useEffect(() => {
+    if (bookmarkIds) setSavedPosts(new Set(bookmarkIds));
+  }, [bookmarkIds]);
 
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
-// const [collectionPostId, setCollectionPostId] = useState(null);
 
-  const fetchPosts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await apiClient.get(`/posts/feed?limit=50`);
-      setPosts(res.data.data || []);
-    } catch (error) {
-      toast.error("Error fetching posts");
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Fetch user bookmarks from backend
-  useEffect(() => {
-    const fetchBookmarks = async () => {
-      if (!user) return;
-      try {
-        const res = await apiClient.get("/profile/me/bookmarks");
-        const bookmarkIds = (res.data.data || []).map((b) => (b._id || b).toString());
-        setSavedPosts(new Set(bookmarkIds));
-      } catch {
-        // silently fail
-      }
-    };
-    fetchBookmarks();
-  }, [user]);
-
-  useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
 
   const handleUpvote = async (postId, e) => {
     e.stopPropagation();
