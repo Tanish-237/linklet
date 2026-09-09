@@ -482,6 +482,44 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       expect(next).not.toHaveBeenCalled();
     });
 
+    it('should successfully update department (branch) field', async () => {
+      console.log('[TEST] updateProfile › updating department / branch field');
+      const req = makeReq({
+        user: { _id: 'user1' },
+        body: {
+          department: 'Computer Science and Engineering',
+          section: 'D',
+          subSection: 'DF5',
+        },
+      });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindByIdAndUpdate.mockReturnValue({
+        select: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          department: 'Computer Science and Engineering',
+          section: 'D',
+          subSection: 'DF5',
+        }),
+      });
+
+      await updateProfile(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({
+          department: 'Computer Science and Engineering',
+          section: 'D',
+          subSection: 'DF5',
+        }),
+        expect.any(Object)
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(next).not.toHaveBeenCalled();
+      console.log('[TEST] Confirmed department and sections updated successfully');
+    });
+
     it('should reject invalid avatarUrl string with AppError 400', async () => {
       console.log('[TEST] updateProfile › invalid avatarUrl format');
       const req = makeReq({

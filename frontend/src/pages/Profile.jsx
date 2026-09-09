@@ -9,6 +9,7 @@ import { Helmet } from "react-helmet-async";
 import Saved from "./Saved";
 import { calculateAcademicYear } from "../utlis/academicYear";
 import PostDetailModal from "../components/PostDetailModal";
+import { MNNIT_DEPARTMENTS } from "../components/AcademicOnboardingModal";
 import "./Profile.css";
 
 const formatSectionInput = (val) => {
@@ -44,6 +45,7 @@ const Profile = () => {
   const [editSection, setEditSection] = useState("");
   const [editSubSection, setEditSubSection] = useState("");
   const [editSemester, setEditSemester] = useState("");
+  const [editDepartment, setEditDepartment] = useState("");
   const [avatarFile, setAvatarFile] = useState(null);
   const [avatarPreview, setAvatarPreview] = useState("");
   const [selectedAvatarUrl, setSelectedAvatarUrl] = useState("");
@@ -104,6 +106,7 @@ const Profile = () => {
         setEditSection(res.data.data.section || "");
         setEditSubSection(res.data.data.subSection || "");
         setEditSemester(res.data.data.semester ?? "");
+        setEditDepartment(res.data.data.department || "");
 
         // Fetch this user's posts
         setPostsLoading(true);
@@ -195,6 +198,7 @@ const Profile = () => {
       formData.append("section", editSection);
       formData.append("subSection", editSubSection);
       formData.append("semester", editSemester);
+      formData.append("department", editDepartment);
       if (editUsername !== profileUser.username) {
         formData.append("username", editUsername);
       }
@@ -513,6 +517,22 @@ const Profile = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="profile-field-group">
+                  <label className="profile-field-label">Branch / Department</label>
+                  <select
+                    value={editDepartment}
+                    onChange={(e) => setEditDepartment(e.target.value)}
+                    className="profile-input"
+                  >
+                    <option value="">Select Branch</option>
+                    {MNNIT_DEPARTMENTS.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="profile-field-hint">Your engineering branch</p>
+                </div>
+                <div className="profile-field-group">
                   <label className="profile-field-label">Current Semester</label>
                   <select
                     value={editSemester}
@@ -528,6 +548,9 @@ const Profile = () => {
                   </select>
                   <p className="profile-field-hint">Update anytime your semester changes</p>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="profile-field-group">
                   <label className="profile-field-label">Section</label>
                   <input
@@ -605,6 +628,7 @@ const Profile = () => {
                     setEditSection(profileUser.section || "");
                     setEditSubSection(profileUser.subSection || "");
                     setEditSemester(profileUser.semester ?? "");
+                    setEditDepartment(profileUser.department || "");
                   }}
                   className="profile-btn-secondary"
                 >

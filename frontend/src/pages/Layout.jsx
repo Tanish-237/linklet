@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { apiClient } from '../api/apiClient';
 import linkletLogo from '../assets/linklet-logo.png';
 import defaultAvatar from '../assets/default-avatar.png';
+import AcademicOnboardingModal from '../components/AcademicOnboardingModal';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
@@ -249,6 +250,9 @@ export default function Layout({ children }) {
           {children}
         </main>
       </div>
+
+      {/* Global Academic Onboarding Modal (for users with unset department) */}
+      <AcademicOnboardingModal />
     </div>
   );
 }

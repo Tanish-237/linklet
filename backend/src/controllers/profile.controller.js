@@ -3,6 +3,7 @@ import { Resource } from "../../models/resource.js";
 import { Post } from "../../models/posts.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { invalidateUserCache } from "../utils/userCache.js";
 
 export const getProfile = async (req, res, next) => {
   try {
@@ -22,11 +23,14 @@ export const getProfile = async (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
   try {
     const userId = req.user._id;
-    const { bio, skills, username, phoneNumber, section, subSection, semester } = req.body;
+    const { bio, skills, username, phoneNumber, section, subSection, semester, department } = req.body;
 
     const updates = {};
     if (bio !== undefined) updates.bio = bio;
     if (phoneNumber !== undefined) updates.phoneNumber = phoneNumber.trim();
+    if (department !== undefined) {
+      updates.department = typeof department === "string" ? department.trim() : "";
+    }
     if (skills !== undefined) {
       const skillsArray = Array.isArray(skills) ? skills : skills.split(",");
       updates.skills = skillsArray
@@ -98,6 +102,8 @@ export const updateProfile = async (req, res, next) => {
       new: true,
       runValidators: true,
     }).select("-password -refreshToken");
+
+    await invalidateUserCache(userId);
 
     res.status(200).json({ success: true, data: updatedUser });
   } catch (error) {
