@@ -113,10 +113,10 @@ export default function Login() {
 
               <div className="relative mb-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-700"></div>
+                  <div className="w-full border-t border-gray-800"></div>
                 </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-black/30 text-gray-400 backdrop-blur-sm">
+                <div className="relative flex justify-center">
+                  <span className="px-3 py-0.5 bg-gray-900 border border-gray-800/80 rounded-full text-xs font-medium text-gray-400 uppercase tracking-wider">
                     Or continue with email
                   </span>
                 </div>
