@@ -30,13 +30,16 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Skip refresh attempt on auth endpoints to prevent redundant requests and loops
+    // Skip refresh attempt on auth endpoints to prevent redundant requests, masking errors, and loops
     const isAuthEndpoint =
       originalRequest.url?.includes('/auth/login') ||
       originalRequest.url?.includes('/auth/check') ||
       originalRequest.url?.includes('/auth/refresh') ||
       originalRequest.url?.includes('/auth/send-otp') ||
-      originalRequest.url?.includes('/auth/register');
+      originalRequest.url?.includes('/auth/register') ||
+      originalRequest.url?.includes('/auth/google') ||
+      originalRequest.url?.includes('/auth/forgot-password-otp') ||
+      originalRequest.url?.includes('/auth/reset-password');
 
     // If the error is 401 (Unauthorized) and we haven't already retried this request
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {

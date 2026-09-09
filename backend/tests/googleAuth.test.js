@@ -50,7 +50,7 @@ describe('Google OAuth & Account Linking Tests', () => {
     console.log('[TEST] Confirmed 400 thrown for missing credential');
   });
 
-  test('rejects non-institutional emails (not ending with @mnnit.ac.in)', async () => {
+  test('rejects non-institutional emails (not ending with @mnnit.ac.in) with 403', async () => {
     console.log('\n────────────────────────────────────────────────────────');
     console.log('[TEST] authenticateWithGoogle › rejects non-campus @gmail.com email');
 
@@ -64,9 +64,12 @@ describe('Google OAuth & Account Linking Tests', () => {
     });
 
     await expect(authenticateWithGoogle('dummy_token')).rejects.toThrow(
-      new AppError('Only @mnnit.ac.in institutional accounts are allowed', 400)
+      new AppError(
+        'Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID.',
+        403
+      )
     );
-    console.log('[TEST] Confirmed non-campus email was rejected with 400');
+    console.log('[TEST] Confirmed non-campus email was rejected with 403 and proper descriptive message');
   });
 
   test('links Google ID to existing user account without data loss', async () => {

@@ -11,9 +11,12 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
   const [isGsiLoaded, setIsGsiLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  const clientId =
+  const clientId = (
     import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-    "449590289544-gaec5akha40094k14peo3g98giqedspg.apps.googleusercontent.com";
+    "449590289544-gaec5akha40094k14peo3g98giqedspg.apps.googleusercontent.com"
+  )
+    .replace(/^["']|["']$/g, "")
+    .trim();
 
   const handleCredentialResponse = async (response) => {
     if (!response || !response.credential) {
@@ -47,10 +50,18 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
       }
     } catch (error) {
       console.error("Google OAuth API error:", error);
-      const message =
-        error.response?.data?.message ||
-        "Google authentication failed. Ensure you are using an official @mnnit.ac.in account.";
-      toast.error(message);
+      const serverMessage = error.response?.data?.message;
+      let displayMessage =
+        "Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID.";
+
+      if (
+        serverMessage &&
+        serverMessage !== "Unauthorized request" &&
+        serverMessage !== "Invalid access token"
+      ) {
+        displayMessage = serverMessage;
+      }
+      toast.error(displayMessage);
     } finally {
       setIsLoading(false);
     }

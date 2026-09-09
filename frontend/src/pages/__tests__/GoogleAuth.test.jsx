@@ -144,7 +144,10 @@ describe("GoogleAuthButton Component Tests", () => {
 
     apiClient.post.mockRejectedValueOnce({
       response: {
-        data: { message: "Only @mnnit.ac.in institutional accounts are allowed" },
+        data: {
+          message:
+            "Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID.",
+        },
       },
     });
 
@@ -153,9 +156,43 @@ describe("GoogleAuthButton Component Tests", () => {
     await capturedCallback({ credential: "outsider_jwt" });
 
     expect(toast.error).toHaveBeenCalledWith(
-      "Only @mnnit.ac.in institutional accounts are allowed"
+      "Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID."
     );
     expect(mockedNavigate).not.toHaveBeenCalled();
-    console.log("[TEST] Confirmed error toast displayed for unauthorized email domain");
+    console.log("[TEST] Confirmed proper error toast displayed for unauthorized email domain");
+  });
+
+  it("sanitizes generic 'Unauthorized request' into user-friendly institutional account prompt", async () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] GoogleAuthButton › sanitizes generic Unauthorized request error");
+
+    let capturedCallback = null;
+    window.google = {
+      accounts: {
+        id: {
+          initialize: vi.fn(({ callback }) => {
+            capturedCallback = callback;
+          }),
+          renderButton: vi.fn(),
+          prompt: vi.fn(),
+        },
+      },
+    };
+
+    apiClient.post.mockRejectedValueOnce({
+      response: {
+        status: 401,
+        data: { message: "Unauthorized request" },
+      },
+    });
+
+    render(<GoogleAuthButton mode="signin" />);
+
+    await capturedCallback({ credential: "unknown_jwt" });
+
+    expect(toast.error).toHaveBeenCalledWith(
+      "Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID."
+    );
+    console.log("[TEST] Confirmed 'Unauthorized request' was sanitized into friendly institutional message");
   });
 });

@@ -310,10 +310,15 @@ export const resetPassword = async (email, otp, newPassword) => {
   return { message: "Password has been successfully reset" };
 };
 
+const getGoogleClientId = () => {
+  return (process.env.GOOGLE_CLIENT_ID || "").replace(/^["']|["']$/g, "").trim();
+};
+
 let googleOAuthClient = null;
 const getGoogleOAuthClient = () => {
   if (!googleOAuthClient) {
-    googleOAuthClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const clientId = getGoogleClientId();
+    googleOAuthClient = new OAuth2Client(clientId);
   }
   return googleOAuthClient;
 };
@@ -323,28 +328,32 @@ export const authenticateWithGoogle = async (credential) => {
     throw new AppError("Google credential is required", 400);
   }
 
+  const clientId = getGoogleClientId();
   const client = getGoogleOAuthClient();
   let payload;
   try {
     const ticket = await client.verifyIdToken({
       idToken: credential,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: clientId,
     });
     payload = ticket.getPayload();
   } catch (error) {
     logger.error(`Google token verification failed: ${error.message}`);
-    throw new AppError("Invalid or expired Google token", 401);
+    throw new AppError("Invalid or expired Google token. Please try again.", 401);
   }
 
   if (!payload || !payload.email) {
-    throw new AppError("Unable to retrieve email from Google profile", 400);
+    throw new AppError("Unable to retrieve email from Google profile. Please try again.", 400);
   }
 
-  const email = payload.email.toLowerCase();
+  const email = payload.email.toLowerCase().trim();
 
   // Enforce institutional domain restriction
   if (!email.endsWith("@mnnit.ac.in")) {
-    throw new AppError("Only @mnnit.ac.in institutional accounts are allowed", 400);
+    throw new AppError(
+      "Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID.",
+      403
+    );
   }
 
   // Check if user already exists
