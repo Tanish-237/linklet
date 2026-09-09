@@ -43,10 +43,10 @@ lerna-debug.log*
 /backend/coverage/
 
 # Temporary files
-/backend/public/temp/
-/backend/public/uploads/
-/backend/public/temp/*
-/backend/public/uploads/*
+public/temp/*
+!public/temp/.gitkeep
+public/uploads/*
+!public/uploads/.gitkeep
 
 
 

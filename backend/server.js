@@ -14,6 +14,7 @@ import { connectRedis } from "./src/utils/redis.js";
 import logger from "./src/utils/logger.js";
 import apiRoutes from "./src/routes/index.js";
 import { initializeSocket } from "./socket.js";
+import { fileCleanupMiddleware, cleanupRequestFiles } from "./src/middlewares/fileCleanup.middleware.js";
 
 const app = express();
 
@@ -51,6 +52,9 @@ if (!fs.existsSync(uploadDir)) {
 }
 app.use(express.static("public"));
 
+// Auto cleanup temporary uploaded files on finish/close
+app.use(fileCleanupMiddleware);
+
 // Central API Router
 app.use("/api/v1", apiRoutes);
 
@@ -61,6 +65,7 @@ app.use((req, res, next) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+  cleanupRequestFiles(req);
   const statusCode = err.statusCode || 500;
 
   if (statusCode >= 500) {
