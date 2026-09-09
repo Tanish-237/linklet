@@ -182,4 +182,29 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
+export const googleAuth = async (req, res, next) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ success: false, message: "Google credential is required" });
+    }
+
+    const result = await authService.authenticateWithGoogle(credential);
+
+    res.cookie("accesstoken", result.accessToken, cookieOptions);
+    res.cookie("refreshtoken", result.refreshToken, cookieOptions);
+
+    res.status(200).json({
+      success: true,
+      message: "Google authentication successful",
+      user: result.user,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 

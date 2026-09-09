@@ -12,6 +12,7 @@ router.post("/refresh", authController.refreshAccessToken);
 router.post("/change-password", isLoggedIn, authController.changePassword);
 router.post("/forgot-password-otp", authController.sendForgotPasswordOtp);
 router.post("/reset-password", authController.resetPassword);
+router.post("/google", authController.googleAuth);
 router.get("/check", optionalAuth, authController.checkAuth);
 
 export default router;

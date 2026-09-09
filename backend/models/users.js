@@ -11,9 +11,16 @@ const userSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.googleId;
+      },
     },
     email: {
       type: String,
@@ -134,7 +141,7 @@ userSchema.index({ role: 1 });
 //here we are hashing the password before saving it to the database
 
 userSchema.pre("save", async function (next) {
-  if (this.isModified("password")) {
+  if (this.isModified("password") && this.password) {
     // Hash only if the password is modified
     this.password = await bcrypt.hash(this.password, 12);
   }

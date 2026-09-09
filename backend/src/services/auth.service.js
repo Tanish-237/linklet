@@ -8,6 +8,7 @@ import { sendEmail } from "../utils/email.service.js";
 import { calculateAcademicYear } from "../utils/academicYear.js";
 import { invalidateUserCache } from "../utils/userCache.js";
 import logger from "../utils/logger.js";
+import { OAuth2Client } from "google-auth-library";
 
 export const generateAndSendOtp = async (email) => {
   // Enforce @mnnit.ac.in domain restriction
@@ -308,5 +309,94 @@ export const resetPassword = async (email, otp, newPassword) => {
 
   return { message: "Password has been successfully reset" };
 };
+
+let googleOAuthClient = null;
+const getGoogleOAuthClient = () => {
+  if (!googleOAuthClient) {
+    googleOAuthClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+  }
+  return googleOAuthClient;
+};
+
+export const authenticateWithGoogle = async (credential) => {
+  if (!credential) {
+    throw new AppError("Google credential is required", 400);
+  }
+
+  const client = getGoogleOAuthClient();
+  let payload;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch (error) {
+    logger.error(`Google token verification failed: ${error.message}`);
+    throw new AppError("Invalid or expired Google token", 401);
+  }
+
+  if (!payload || !payload.email) {
+    throw new AppError("Unable to retrieve email from Google profile", 400);
+  }
+
+  const email = payload.email.toLowerCase();
+
+  // Enforce institutional domain restriction
+  if (!email.endsWith("@mnnit.ac.in")) {
+    throw new AppError("Only @mnnit.ac.in institutional accounts are allowed", 400);
+  }
+
+  // Check if user already exists
+  let user = await userRepository.findUserByEmail(email);
+
+  if (user) {
+    // Account Linking: Link Google ID to existing profile if not already linked
+    if (!user.googleId) {
+      user.googleId = payload.sub;
+      if (!user.avatar && payload.picture) {
+        user.avatar = payload.picture;
+      }
+      await user.save();
+    }
+  } else {
+    // Register brand new user with verified Google details
+    const baseUsername = email.split("@")[0];
+    let generatedUsername = "";
+    let isUnique = false;
+
+    while (!isUnique) {
+      const uniqueSuffix = crypto.randomBytes(3).toString("hex");
+      generatedUsername = `${baseUsername}_${uniqueSuffix}`;
+      const existingUser = await userRepository.findUserByUsername(generatedUsername);
+      if (!existingUser) {
+        isUnique = true;
+      }
+    }
+
+    const dynamicYear = calculateAcademicYear(email);
+    const randomPassword = crypto.randomBytes(16).toString("hex");
+
+    user = await userRepository.createUser({
+      email,
+      password: randomPassword,
+      fullName: payload.name || baseUsername,
+      username: generatedUsername,
+      avatar: payload.picture,
+      googleId: payload.sub,
+      year: dynamicYear || undefined,
+    });
+  }
+
+  const accessToken = user.generateAccessToken();
+  const refreshToken = user.generateRefreshToken();
+
+  await userRepository.updateRefreshToken(user._id, refreshToken);
+
+  const userWithoutPassword = await userRepository.findUserById(user._id);
+
+  return { user: userWithoutPassword, accessToken, refreshToken };
+};
+
 
 

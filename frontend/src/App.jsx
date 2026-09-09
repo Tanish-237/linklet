@@ -312,16 +312,6 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/clubs"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <div>Clubs Coming Soon</div>
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
               path="/dashboard/bookmarks"
               element={
                 <ProtectedRoute>
