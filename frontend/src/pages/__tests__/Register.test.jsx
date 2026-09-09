@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { vi, describe, it, expect } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
@@ -54,5 +55,32 @@ describe("Register Component Tests", () => {
     fireEvent.change(subSectionInput, { target: { value: "df-5" } });
     console.log("TRACE [Register.test.jsx]: subSectionInput value after typing 'df-5':", subSectionInput.value);
     expect(subSectionInput.value).toBe("DF5");
+  });
+
+  it("password field defaults to type=password and eye toggle switches to type=text", async () => {
+    console.log("TRACE [Register.test.jsx]: Testing password visibility toggle on signup form");
+    const user = userEvent.setup();
+
+    render(
+      <HelmetProvider>
+        <BrowserRouter>
+          <Register />
+        </BrowserRouter>
+      </HelmetProvider>
+    );
+
+    const passwordInput = screen.getByLabelText(/^Password/i);
+    expect(passwordInput).toHaveAttribute("type", "password");
+    console.log("TRACE [Register.test.jsx]: Password input initially type=password");
+
+    const toggleBtn = screen.getByRole("button", { name: /Toggle password visibility/i });
+    await user.click(toggleBtn);
+
+    expect(passwordInput).toHaveAttribute("type", "text");
+    console.log("TRACE [Register.test.jsx]: Password input switched to type=text after toggle");
+
+    await user.click(toggleBtn);
+    expect(passwordInput).toHaveAttribute("type", "password");
+    console.log("TRACE [Register.test.jsx]: Password input switched back to type=password");
   });
 });
