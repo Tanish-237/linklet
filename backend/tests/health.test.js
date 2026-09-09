@@ -1,31 +1,29 @@
 import express from 'express';
 import supertest from 'supertest';
 
-const app = express();
+describe('Health Check API Integration Test', () => {
+  let app;
 
-app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    uptime: Math.floor(process.uptime()),
-    timestamp: new Date().toISOString(),
+  beforeAll(() => {
+    app = express();
+    app.get('/health', (req, res) => {
+      res.status(200).json({
+        status: 'ok',
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
+      });
+    });
   });
-});
 
-describe('Health Check API Unit & Integration Tests', () => {
-  test('GET /health returns 200 OK with uptime and status', async () => {
+  test('GET /health returns 200 OK with status ok and uptime', async () => {
     console.log('\n──────────────────────────────────────');
-    console.log('[TEST] GET /health › verifies Render health check response');
-
+    console.log('[TEST] GET /health › testing health check endpoint');
     const res = await supertest(app).get('/health');
-
-    console.log('[TEST] /health status:', res.status);
-    console.log('[TEST] /health body:', JSON.stringify(res.body));
+    console.log('[TEST] Health response:', res.body);
 
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('ok');
     expect(typeof res.body.uptime).toBe('number');
-    expect(res.body.timestamp).toBeDefined();
-
-    console.log('[TEST] Successfully verified health check endpoint');
+    expect(typeof res.body.timestamp).toBe('string');
   });
 });
