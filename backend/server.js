@@ -57,6 +57,15 @@ app.use(express.static("public"));
 // Auto cleanup temporary uploaded files on finish/close
 app.use(fileCleanupMiddleware);
 
+// Health Check Endpoint (Render zero-downtime deploys & uptime monitoring)
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Central API Router
 app.use("/api/v1", apiRoutes);
 
