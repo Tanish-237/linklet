@@ -4,7 +4,7 @@ import useAuthStore from '../store/useAuthStore';
 
 /**
  * ProtectedRoute wrapper to restrict access based on authentication and roles.
- * @param {Array} allowedRoles - Array of roles allowed to access the route (e.g., ['admin', 'moderator'])
+ * @param {Array} allowedRoles - Array of roles allowed to access the route (e.g., ['admin'])
  */
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, isLoading } = useAuthStore();

@@ -1,0 +1,39 @@
+# Changelog
+
+All notable changes to the Linklet platform will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.4.0] - 2026-09-10
+
+### Added
+- **Production-Grade Administration & Governance Suite**:
+  - Live platform KPI analytics (students, library resources, community posts & forum discussions, system admins) with Redis caching (60s TTL).
+  - User Directory with debounced institutional search, role filtering, department filtering, and pagination.
+  - Role management: seamless student promotion to administrator and administrator demotion.
+  - Admin Self-Lockout Prevention: Guaranteed platform continuity by preventing administrators from demoting or suspending their own accounts.
+- **Universal Admin Moderation & Deletion**:
+  - Added feed post comment deletion endpoint (`DELETE /api/v1/posts/:postId/comments/:commentId`) with author and administrator authorization.
+  - App-wide universal deletion across feed posts, post comments, forum questions, answers, nested comments, and academic library resources.
+  - In-Dashboard **Platform Oversight** tab for direct one-click moderation of recent resources, questions, and posts.
+- **Account Suspension & Ban System**:
+  - `isBanned` and `banReason` fields in user schema backed by `{ email: 1, isBanned: 1 }` compound index.
+  - `isLoggedIn` middleware enforcement returning `403 Forbidden` with the custom administrative suspension reason.
+  - Suspend and Reactivate controls with suspension reason modal in the User Directory table.
+- **Security & Administrative Audit Trail**:
+  - Dedicated `AuditLog` collection tracking actor, action, target type, target ID, metadata details, and timestamps with compound query indexes.
+  - Dedicated **Security & Audit Trail** tab in Admin Dashboard with human-readable activity badges and pagination.
+- **One-Click Quick Seed MNNIT Departments**:
+  - `POST /api/v1/branches/seed-defaults` endpoint to bulk-upsert all 9 standard MNNIT Allahabad engineering departments.
+  - Smart initial-setup button in Academic Departments tab that only renders when 0 departments exist.
+
+### Changed
+- Refactored user table: separated combined `Role & Status` cell into two dedicated, industry-standard columns (**Role** and **Status**), matching production standards from Stripe, GitHub, and Clerk.
+- Cleaned up user table rows by removing redundant green verified tick icons from institutional emails.
+- Synchronized backend and frontend package versions to `v1.4.0`.
+
+### Fixed
+- Fixed search icon and placeholder text collision on Admin Dashboard by implementing dedicated `.admin-search-wrapper` and explicit left padding.
+- Replaced raw JSON strings in audit log table with formatted, color-coded activity representations.
+- Enhanced modal usability with backdrop click dismissals and desktop close buttons.

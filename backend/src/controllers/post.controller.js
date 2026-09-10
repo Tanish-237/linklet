@@ -111,3 +111,23 @@ export const toggleCommentUpvote = async (req, res, next) => {
     next(error);
   }
 };
+
+export const deleteComment = async (req, res, next) => {
+  try {
+    const { postId, commentId } = req.params;
+    const post = await postService.deleteComment(
+      postId,
+      commentId,
+      req.user._id,
+      req.user.role
+    );
+    res.status(200).json({
+      success: true,
+      message: "Comment deleted successfully",
+      data: post,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

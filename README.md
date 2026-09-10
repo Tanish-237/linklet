@@ -21,7 +21,7 @@ Designed with a premium glassmorphism UI, Linklet offers an intuitive and respon
 - ❓ **Help Forum (Q&A):** Ask questions, share knowledge, and help peers overcome academic challenges.
 - 📝 **Community Posts:** Share updates, achievements, and announcements with the entire college network.
 - 🎮 **Entertainment:** Take a break with integrated games and video content.
-- 🛡️ **Role-Based Access:** Dedicated dashboards and moderation tools for Admins, Moderators, and standard Users.
+- 🛡️ **Role-Based Access:** Dedicated management controls and permissions for Admins and standard Users.
 
 ## 🛠️ Technology Stack
 

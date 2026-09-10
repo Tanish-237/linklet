@@ -56,14 +56,32 @@ export const deleteResource = async (resourceId, userId, userRole) => {
     throw new AppError("Resource not found", 404);
   }
 
-  // Only the owner, a moderator, or an admin can delete
+  // Only the owner or an admin can delete
   if (
     resource.userId._id.toString() !== userId.toString() &&
-    userRole !== "admin" &&
-    userRole !== "moderator"
+    userRole !== "admin"
   ) {
     throw new AppError("You do not have permission to delete this resource", 403);
   }
 
-  return await resourceRepository.deleteResource(resourceId);
+  const deleted = await resourceRepository.deleteResource(resourceId);
+
+  // If deleted by an admin moderating another student's resource, log to audit trail
+  if (userRole === "admin" && resource.userId._id.toString() !== userId.toString()) {
+    try {
+      const { logAdminAction } = await import("./auditLog.service.js");
+      await logAdminAction({
+        adminId: userId,
+        action: "DELETE_RESOURCE",
+        targetType: "Resource",
+        targetId: resourceId,
+        details: { title: resource.title, ownerId: resource.userId._id },
+      });
+    } catch (e) {
+      console.error("[AUDIT LOG ERROR]", e);
+    }
+  }
+
+  return deleted;
 };
+

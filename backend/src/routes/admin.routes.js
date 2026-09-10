@@ -7,7 +7,18 @@ const router = express.Router();
 
 router.use(isLoggedIn, requireRole(["admin"]));
 
-// User Management
+// Platform Analytics & Metrics
+router.get("/stats", adminController.getStats);
+
+// User Directory & Role/Ban Management
+router.get("/users", adminController.getUsers);
 router.patch("/users/:userId/role", adminController.promoteUser);
+router.patch("/users/:userId/ban", adminController.setUserBanStatus);
+
+// Platform Content Moderation & Oversight
+router.get("/content-overview", adminController.getContentOverview);
+
+// Platform Security & Audit Trail
+router.get("/audit-logs", adminController.getAuditLogs);
 
 export default router;

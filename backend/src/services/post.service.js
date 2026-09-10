@@ -45,13 +45,75 @@ export const deletePost = async (postId, userId, userRole) => {
     throw new AppError("Post not found", 404);
   }
 
+  const postAuthorId = (post.userId?._id || post.userId)?.toString();
+
   // Only the owner or an admin can delete the post
-  if (post.userId._id.toString() !== userId.toString() && userRole !== "admin") {
+  if (postAuthorId !== userId.toString() && userRole !== "admin") {
     throw new AppError("You do not have permission to delete this post", 403);
   }
 
-  return await postRepository.deletePost(postId);
+  const deleted = await postRepository.deletePost(postId);
+
+  // If deleted by an admin moderating another user's post, log to audit trail
+  if (userRole === "admin" && postAuthorId !== userId.toString()) {
+    try {
+      const { logAdminAction } = await import("./auditLog.service.js");
+      await logAdminAction({
+        adminId: userId,
+        action: "DELETE_POST",
+        targetType: "Post",
+        targetId: postId,
+        details: { postAuthorId, captionSnippet: post.caption?.slice(0, 50) },
+      });
+    } catch (e) {
+      console.error("[AUDIT LOG ERROR]", e);
+    }
+  }
+
+  return deleted;
 };
+
+export const deleteComment = async (postId, commentId, userId, userRole) => {
+  const post = await postRepository.findPostById(postId);
+  if (!post) {
+    throw new AppError("Post not found", 404);
+  }
+
+  const comment = post.comments.find(
+    (c) => (c._id || c.id)?.toString() === commentId?.toString()
+  );
+  if (!comment) {
+    throw new AppError("Comment not found", 404);
+  }
+
+  const commentAuthorId = (comment.userId?._id || comment.userId)?.toString();
+
+  // Only the comment author or an admin can delete
+  if (commentAuthorId !== userId.toString() && userRole !== "admin") {
+    throw new AppError("You do not have permission to delete this comment", 403);
+  }
+
+  const updatedPost = await postRepository.deleteComment(postId, commentId);
+
+  // If deleted by an admin moderating another user's comment, log to audit trail
+  if (userRole === "admin" && commentAuthorId !== userId.toString()) {
+    try {
+      const { logAdminAction } = await import("./auditLog.service.js");
+      await logAdminAction({
+        adminId: userId,
+        action: "DELETE_COMMENT",
+        targetType: "Comment",
+        targetId: commentId,
+        details: { postId, commentAuthorId, textSnippet: comment.text?.slice(0, 50) },
+      });
+    } catch (e) {
+      console.error("[AUDIT LOG ERROR]", e);
+    }
+  }
+
+  return updatedPost;
+};
+
 
 export const toggleUpvote = async (postId, userId) => {
   const updatedPost = await postRepository.toggleUpvote(postId, userId);

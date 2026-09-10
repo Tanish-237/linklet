@@ -96,7 +96,9 @@ const userSchema = new mongoose.Schema(
     department: { type: String },
     skills: [{ type: String }], // e.g., ["Python", "React"]
     userType: { type: String, enum: ["Student", "Alumni"], default: "Student" },
-    role: { type: String, enum: ["user", "moderator", "admin"], default: "user" },
+    role: { type: String, enum: ["user", "admin"], default: "user" },
+    isBanned: { type: Boolean, default: false },
+    banReason: { type: String, default: "" },
     branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
     bookmarks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Resource" }],
     refreshToken: {
@@ -134,9 +136,10 @@ const userSchema = new mongoose.Schema(
   }
 );
 
-// Compound indexes for department/semester filtering and role lookups
+// Compound indexes for department/semester filtering, role lookups, and ban enforcement
 userSchema.index({ branch: 1, semester: 1, section: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ email: 1, isBanned: 1 });
 
 //here we are hashing the password before saving it to the database
 

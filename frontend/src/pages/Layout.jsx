@@ -225,6 +225,21 @@ export default function Layout({ children }) {
                         <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">Settings</span>
                       </button>
                     </li>
+                    {user?.role === "admin" && (
+                      <li>
+                        <button 
+                          id="layout-dropdown-admin-btn"
+                          onClick={() => {
+                            setDropdownStates(prev => ({ ...prev, profile: false }));
+                            navigate('/dashboard/admin');
+                          }}
+                          className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-amber-500/10 transition-all duration-200 cursor-pointer group"
+                        >
+                          <span className="material-icons text-xl text-amber-400">admin_panel_settings</span>
+                          <span className="text-[15px] font-medium text-amber-300 group-hover:text-amber-200 transition-colors">Admin Panel</span>
+                        </button>
+                      </li>
+                    )}
                     <li className="border-t border-gray-800 mt-2 pt-2">
                       <button 
                         id="layout-dropdown-logout-btn"

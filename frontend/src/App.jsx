@@ -37,7 +37,6 @@ const AskQuestion = lazy(() => import("./pages/AskQuestion"));
 const QuestionDetail = lazy(() => import("./pages/QuestionDetail"));
 const GamesAndVideos = lazy(() => import("./pages/GamesAndVideos"));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const ModeratorDashboard = lazy(() => import("./pages/ModeratorDashboard"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Saved = lazy(() => import("./pages/Saved"));
 const Settings = lazy(() => import("./pages/Settings"));
@@ -220,6 +219,16 @@ function App() {
               element={<ProfileRedirect />}
             />
 
+            {/* Redirect legacy /global-search and /resources paths to protected dashboard route */}
+            <Route
+              path="/global-search"
+              element={<Navigate to="/dashboard/global-search" replace />}
+            />
+            <Route
+              path="/resources"
+              element={<Navigate to="/dashboard/global-search" replace />}
+            />
+
             {/* Layout Routes */}
             <Route
               path="/dashboard/admin"
@@ -231,16 +240,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/dashboard/moderator"
-              element={
-                <ProtectedRoute allowedRoles={['admin', 'moderator']}>
-                  <Layout>
-                    <ModeratorDashboard />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
+
             <Route
               path="/dashboard"
               element={

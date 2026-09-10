@@ -83,7 +83,7 @@ describe("Auth Middleware & Redis User Cache Tests", () => {
     const userId = "user456";
     mockRedisGet.mockResolvedValue(null); // Cache miss
 
-    const dbUser = { _id: userId, username: "mongo_user", role: "moderator" };
+    const dbUser = { _id: userId, username: "mongo_user", role: "admin" };
     mockFindById.mockReturnValue({
       select: jest.fn().mockReturnValue({
         lean: jest.fn().mockResolvedValue(dbUser),

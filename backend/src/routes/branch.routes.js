@@ -11,6 +11,7 @@ router.use(isLoggedIn);
 router.get("/", branchController.getBranches); // Maybe allow all logged-in users to view branches for UI dropdowns
 
 // Restrict mutations to Admin
+router.post("/seed-defaults", requireRole(["admin"]), branchController.seedDefaultBranches);
 router.post("/", requireRole(["admin"]), branchController.createBranch);
 router.put("/:id", requireRole(["admin"]), branchController.updateBranch);
 router.delete("/:id", requireRole(["admin"]), branchController.deleteBranch);

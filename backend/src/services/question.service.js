@@ -270,6 +270,21 @@ export const deleteQuestion = async (questionId, userId, userRole) => {
   // Delete all associated answers
   await Answer.deleteMany({ questionId });
   await questionRepository.deleteQuestion(questionId);
+
+  if (isAdmin && !isOwner) {
+    try {
+      const { logAdminAction } = await import("./auditLog.service.js");
+      await logAdminAction({
+        adminId: userId,
+        action: "DELETE_QUESTION",
+        targetType: "Question",
+        targetId: questionId,
+        details: { title: question.title, questionAuthorId: question.userId._id },
+      });
+    } catch (e) {
+      console.error("[AUDIT LOG ERROR]", e);
+    }
+  }
 };
 
 /**
@@ -292,6 +307,21 @@ export const deleteAnswer = async (questionId, answerId, userId, userRole) => {
   await Question.findByIdAndUpdate(questionId, {
     $pull: { answers: answer._id },
   });
+
+  if (isAdmin && !isOwner) {
+    try {
+      const { logAdminAction } = await import("./auditLog.service.js");
+      await logAdminAction({
+        adminId: userId,
+        action: "DELETE_ANSWER",
+        targetType: "Answer",
+        targetId: answerId,
+        details: { questionId, answerAuthorId: answer.userId._id },
+      });
+    } catch (e) {
+      console.error("[AUDIT LOG ERROR]", e);
+    }
+  }
 };
 
 /**
@@ -314,7 +344,24 @@ export const deleteComment = async (questionId, answerId, commentId, userId, use
     throw new AppError("You are not authorized to delete this comment", 403);
   }
 
-  return await answerRepository.deleteCommentFromAnswer(answerId, commentId);
+  const result = await answerRepository.deleteCommentFromAnswer(answerId, commentId);
+
+  if (isAdmin && !isOwner) {
+    try {
+      const { logAdminAction } = await import("./auditLog.service.js");
+      await logAdminAction({
+        adminId: userId,
+        action: "DELETE_COMMENT",
+        targetType: "Comment",
+        targetId: commentId,
+        details: { questionId, answerId, commentAuthorId },
+      });
+    } catch (e) {
+      console.error("[AUDIT LOG ERROR]", e);
+    }
+  }
+
+  return result;
 };
 
 /**

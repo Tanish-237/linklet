@@ -35,7 +35,12 @@ export const isLoggedIn = async (req, res, next) => {
             await setCachedUser(decodedToken.id, user);
         }
 
-        // 4. Attach user to request object
+        // 4. Enforce account ban/suspension status
+        if (user.isBanned) {
+            return next(new AppError(`Account suspended by administration. Reason: ${user.banReason || "Terms violation"}`, 403));
+        }
+
+        // 5. Attach user to request object
         req.user = user;
         next();
     } catch (error) {
@@ -66,7 +71,7 @@ export const optionalAuth = async (req, res, next) => {
                 await setCachedUser(decodedToken.id, user);
             }
         }
-        if (user) req.user = user;
+        if (user && !user.isBanned) req.user = user;
     } catch {
         // Ignore errors in optional auth
     }

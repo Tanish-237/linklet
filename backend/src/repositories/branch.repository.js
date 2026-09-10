@@ -20,3 +20,26 @@ export const updateBranch = async (id, updateData) => {
 export const deleteBranch = async (id) => {
   return await Branch.findByIdAndDelete(id);
 };
+
+export const seedDefaultBranches = async (branchList) => {
+  const operations = branchList.map((item) => {
+    const name = (typeof item === "string" ? item : item.name).toUpperCase().trim();
+    const description = typeof item === "object" ? item.description : `Department of ${item}`;
+    return {
+      updateOne: {
+        filter: { name },
+        update: {
+          $setOnInsert: {
+            name,
+            description,
+            isActive: true,
+          },
+        },
+        upsert: true,
+      },
+    };
+  });
+  await Branch.bulkWrite(operations);
+  return await Branch.find({}).lean();
+};
+

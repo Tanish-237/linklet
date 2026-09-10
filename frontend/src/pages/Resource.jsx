@@ -240,7 +240,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
   const [copying, setCopying] = useState(false);
 
   const ownerId = resource.userId?._id || resource.userId;
-  const isOwner = currentUser?._id && (ownerId?.toString() === currentUser._id || currentUser.role === "admin" || currentUser.role === "moderator");
+  const isOwner = currentUser?._id && (ownerId?.toString() === currentUser._id || currentUser.role === "admin");
 
   const copyLink = async (e) => {
     if (e) e.stopPropagation();

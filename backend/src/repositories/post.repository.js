@@ -125,6 +125,15 @@ export const toggleCommentUpvote = async (postId, commentId, userId) => {
   return await findPostById(postId);
 };
 
+export const deleteComment = async (postId, commentId) => {
+  const post = await Post.findById(postId);
+  if (!post) return null;
+
+  post.comments.pull(commentId);
+  await post.save();
+  return await findPostById(postId);
+};
+
 export const getPostsByUserId = async (userId) => {
   return await Post.find({ userId })
     .sort({ createdAt: -1 })
@@ -133,4 +142,5 @@ export const getPostsByUserId = async (userId) => {
     .populate("comments.replies.userId", "username avatar fullName")
     .lean();
 };
+
 

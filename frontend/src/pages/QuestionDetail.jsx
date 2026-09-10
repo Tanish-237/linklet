@@ -68,6 +68,7 @@ const ThreadedCommentItem = ({
   answerId,
   questionId,
   currentUserId,
+  currentUserRole,
   opUserId,
   onAddComment,
   onVoteComment,
@@ -84,6 +85,7 @@ const ThreadedCommentItem = ({
   const opUserIdStr = (opUserId?._id || opUserId?.id || opUserId)?.toString();
 
   const isCommentOwner = Boolean(commentAuthorId && curUserIdStr && commentAuthorId === curUserIdStr);
+  const canDeleteComment = isCommentOwner || currentUserRole === 'admin';
   const isOP = Boolean(commentAuthorId && opUserIdStr && commentAuthorId === opUserIdStr);
 
   // Children matching parentId
@@ -185,7 +187,7 @@ const ThreadedCommentItem = ({
               </button>
 
               {/* Delete trigger */}
-              {isCommentOwner && (
+              {canDeleteComment && (
                 <button
                   className="qd-comment-action-btn delete"
                   onClick={() => onDeleteComment(questionId, answerId, comment._id || comment.id)}
@@ -240,6 +242,7 @@ const ThreadedCommentItem = ({
                     answerId={answerId}
                     questionId={questionId}
                     currentUserId={currentUserId}
+                    currentUserRole={currentUserRole}
                     opUserId={opUserId}
                     onAddComment={onAddComment}
                     onVoteComment={onVoteComment}
@@ -263,6 +266,7 @@ const ThreadedCommentList = ({
   answerId,
   questionId,
   currentUserId,
+  currentUserRole,
   opUserId,
   onAddComment,
   onVoteComment,
@@ -335,6 +339,7 @@ const ThreadedCommentList = ({
                   answerId={answerId}
                   questionId={questionId}
                   currentUserId={currentUserId}
+                  currentUserRole={currentUserRole}
                   opUserId={opUserId}
                   onAddComment={onAddComment}
                   onVoteComment={onVoteComment}
@@ -359,6 +364,7 @@ const AnswerCard = ({
   questionId,
   questionAuthorId,
   currentUserId,
+  currentUserRole,
   onVote,
   onAccept,
   onDelete,
@@ -376,6 +382,7 @@ const AnswerCard = ({
 
   const isAnswerOwner = answer.userId?._id?.toString() === currentUserId ||
     answer.userId?.toString() === currentUserId;
+  const canDeleteAnswer = isAnswerOwner || currentUserRole === 'admin';
 
   return (
     <div className={`qd-answer-card ${isAccepted ? 'accepted' : ''}`}>
@@ -442,7 +449,7 @@ const AnswerCard = ({
                   {isAccepted ? 'Accepted' : 'Accept'}
                 </button>
               )}
-              {isAnswerOwner && (
+              {canDeleteAnswer && (
                 <button
                   className="qd-delete-btn"
                   onClick={() => onDelete(answer._id)}
@@ -460,6 +467,7 @@ const AnswerCard = ({
             answerId={answer._id}
             questionId={questionId}
             currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
             opUserId={questionAuthorId}
             onAddComment={onAddComment}
             onVoteComment={onVoteComment}
@@ -809,6 +817,7 @@ const QuestionDetail = ({ basePath = '' }) => {
     : null;
   const isQuestionOwner = question.userId?._id?.toString() === user?._id ||
     question.userId?.toString() === user?._id;
+  const canDeleteQuestion = isQuestionOwner || user?.role === 'admin';
 
   const hasQuestionAccepted =
     (Array.isArray(question.acceptedAnswers) && question.acceptedAnswers.length > 0) ||
@@ -896,7 +905,7 @@ const QuestionDetail = ({ basePath = '' }) => {
 
           <div style={{ flex: 1 }} />
 
-          {isQuestionOwner && (
+          {canDeleteQuestion && (
             <button
               id="qd-delete-question-btn"
               className="qd-delete-btn"
@@ -932,6 +941,7 @@ const QuestionDetail = ({ basePath = '' }) => {
               questionId={questionId}
               questionAuthorId={question.userId?._id || question.userId}
               currentUserId={user?._id}
+              currentUserRole={user?.role}
               onVote={handleVoteAnswer}
               onAccept={handleAcceptAnswer}
               onDelete={promptDeleteAnswer}

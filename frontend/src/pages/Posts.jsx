@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/apiClient";
+import { deletePost } from "../api/post.api";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -164,7 +165,7 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
 // ─── Post Detail Modal is imported from components/PostDetailModal ───────────
 
 // ─── Post Card ──────────────────────────────────────────────────────────────
-const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCollection, isSaved }) => {
+const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCollection, isSaved, onDeletePost }) => {
   const [showShareMenu, setShowShareMenu] = useState(false);
   const shareRef = useRef(null);
   const navigate = useNavigate();
@@ -207,12 +208,14 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
   };
 
   const author = post.userId || post.user || {};
+  const authorId = (author._id || author.id || author)?.toString();
+  const canDelete = currentUserId && (authorId === currentUserId?.toString() || user?.role === "admin");
   const username = author.username || "User";
   const avatar = author.avatar || defaultAvatar;
 
   return (
     <div className="feed-card">
-{/* Header: Avatar + Username + Bookmark toggle */}
+      {/* Header: Avatar + Username + Bookmark toggle */}
       <div className="feed-card__header">
         <img src={avatar} alt="Profile" className="feed-card__avatar" />
         <div className="feed-card__user-info">
@@ -225,14 +228,30 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
           <span className="feed-card__time">{formatTime(post.createdAt)}</span>
         </div>
 
-        {/* ONLY Single Bookmark Button (Triggers Save to Collection Modal like Global Search) */}
-        <button
-          className={`feed-card__save-btn ${isSaved ? "feed-card__save-btn--saved" : ""}`}
-          onClick={(e) => { e.stopPropagation(); onSaveToCollection(post._id); }}
-          title={isSaved ? "Remove / Manage Collections" : "Save to Collection"}
-        >
-          <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
-        </button>
+        <div className="flex items-center gap-1.5 ml-auto">
+          {canDelete && (
+            <button
+              className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeletePost(post._id);
+              }}
+              title={user?.role === "admin" && authorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
+              aria-label="Delete post"
+            >
+              <span className="material-icons text-base">delete_outline</span>
+            </button>
+          )}
+
+          {/* ONLY Single Bookmark Button (Triggers Save to Collection Modal like Global Search) */}
+          <button
+            className={`feed-card__save-btn ${isSaved ? "feed-card__save-btn--saved" : ""}`}
+            onClick={(e) => { e.stopPropagation(); onSaveToCollection(post._id); }}
+            title={isSaved ? "Remove / Manage Collections" : "Save to Collection"}
+          >
+            <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Caption / Description */}
@@ -439,6 +458,21 @@ const Posts = () => {
     setShowCreateModal(true);
   };
 
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await deletePost(postId);
+      setPosts((prev) => prev.filter((p) => p._id !== postId));
+      if (selectedPost && selectedPost._id === postId) {
+        setShowDetailModal(false);
+        setSelectedPost(null);
+      }
+      toast.success("Post deleted successfully");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete post");
+    }
+  };
+
   return (
     <div className="feed-container">
       {/* Create Post Prompt */}
@@ -488,6 +522,7 @@ const Posts = () => {
               onDownvote={handleDownvote}
               onOpenComments={handleOpenComments}
               onSaveToCollection={handleSaveToCollection}
+              onDeletePost={handleDeletePost}
               isSaved={savedPosts.has(post._id?.toString())}
             />
           ))}
@@ -509,6 +544,7 @@ const Posts = () => {
         post={selectedPost}
         user={user}
         onPostUpdated={handlePostUpdated}
+        onDeletePost={handleDeletePost}
       />
     </div>
   );

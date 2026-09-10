@@ -191,17 +191,6 @@ describe('Resource Service — Unit Tests', () => {
       expect(mockDeleteResource).toHaveBeenCalledWith(resourceId);
     });
 
-    it('should allow moderator to delete any resource', async () => {
-      console.log('[TEST] deleteResource › moderator override');
-      mockFindResourceById.mockResolvedValue({
-        _id: resourceId,
-        userId: { _id: { toString: () => ownerId } },
-      });
-      mockDeleteResource.mockResolvedValue({ _id: resourceId });
-
-      await resourceService.deleteResource(resourceId, otherUserId, 'moderator');
-      expect(mockDeleteResource).toHaveBeenCalledWith(resourceId);
-    });
 
     it('should throw AppError 403 when non-owner tries to delete', async () => {
       console.log('[TEST] deleteResource › non-owner → AppError 403');

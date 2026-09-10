@@ -73,7 +73,7 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const ownerId = resource.userId?._id || resource.userId;
-  const isOwner = user?._id && (ownerId?.toString() === user._id || user.role === "admin" || user.role === "moderator");
+  const isOwner = user?._id && (ownerId?.toString() === user._id || user.role === "admin");
 
   const copyLink = async () => {
     try {

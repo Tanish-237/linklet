@@ -264,13 +264,14 @@ const renderTextWithLinks = (text) => {
 
 // ─── Question Card ─────────────────────────────────────────────────────────────
 
-const QuestionCard = ({ question, currentUserId, onVote, onTagClick, onDelete }) => {
+const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, onDelete }) => {
   const navigate = useNavigate();
   const netVotes = (question.upvotes?.length || 0) - (question.downvotes?.length || 0);
   const isOwner = currentUserId && (
     question.userId?._id?.toString() === currentUserId ||
     question.userId?.toString() === currentUserId
   );
+  const canDelete = isOwner || userRole === 'admin';
   const userVote = question.upvotes?.some(
     (id) => (id._id || id)?.toString() === currentUserId
   )
@@ -346,7 +347,7 @@ const QuestionCard = ({ question, currentUserId, onVote, onTagClick, onDelete })
           </div>
 
           <div className="hf-meta-pills">
-            {isOwner && (
+            {canDelete && (
               <button
                 className="bm-del-btn inline-del-btn"
                 title="Delete Question"
@@ -744,6 +745,7 @@ const HelpForum = () => {
                   onTagClick={handleTagClick}
                   onDelete={promptDeleteQuestion}
                   currentUserId={user?._id}
+                  userRole={user?.role}
                   style={{ animationDelay: `${i * 0.04}s` }}
                 />
               ))

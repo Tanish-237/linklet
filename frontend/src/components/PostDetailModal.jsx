@@ -26,7 +26,7 @@ export const formatTime = (dateString) => {
   });
 };
 
-const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {} }) => {
+const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}, onDeletePost = () => {} }) => {
   const [commentText, setCommentText] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
   const [replyTextMap, setReplyTextMap] = useState({});
@@ -34,6 +34,19 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
   const [localPost, setLocalPost] = useState(post);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
+  const handleDeleteComment = async (commentId) => {
+    if (!window.confirm("Are you sure you want to delete this comment?")) return;
+    try {
+      const res = await apiClient.delete(`/posts/${localPost._id}/comments/${commentId}`);
+      const updatedPost = res.data.data;
+      setLocalPost(updatedPost);
+      onPostUpdated(updatedPost);
+      toast.success("Comment deleted");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete comment");
+    }
+  };
   const modalRef = useRef(null);
   const shareRef = useRef(null);
   const emojiRef = useRef(null);
@@ -209,6 +222,8 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
   const netVotes = (localPost.upvotes?.length || 0) - (localPost.downvotes?.length || 0);
 
   const postAuthor = localPost.userId || localPost.user || {};
+  const postAuthorId = (postAuthor._id || postAuthor.id || postAuthor)?.toString();
+  const canDeletePost = currentUserId && (postAuthorId === currentUserId?.toString() || user?.role === "admin");
   const postUsername = postAuthor.username || "User";
   const postAvatar = postAuthor.avatar || defaultAvatar;
 
@@ -237,6 +252,17 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
               </span>
               <span className="feed-detail__time">{formatTime(localPost.createdAt)}</span>
             </div>
+
+            {canDeletePost && (
+              <button
+                className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-auto cursor-pointer flex items-center gap-1"
+                onClick={() => onDeletePost(localPost._id)}
+                title={user?.role === "admin" && postAuthorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
+                aria-label="Delete post"
+              >
+                <span className="material-icons text-base">delete_outline</span>
+              </button>
+            )}
           </div>
 
           {/* Caption */}
@@ -334,6 +360,9 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
                 const commentUpvotes = comment.upvotes || [];
                 const isCommentLiked = commentUpvotes.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
 
+                const commentAuthorId = (commentUser._id || commentUser.id || commentUser)?.toString();
+                const canDeleteComment = currentUserId && (commentAuthorId === currentUserId?.toString() || user?.role === "admin");
+
                 return (
                   <div key={comment._id} className="feed-detail__comment-node">
                     <div className="feed-detail__comment-card">
@@ -368,6 +397,16 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
                           <span className="material-icons" style={{ fontSize: "0.85rem" }}>reply</span>
                           Reply
                         </button>
+                        {canDeleteComment && (
+                          <button
+                            onClick={() => handleDeleteComment(comment._id)}
+                            className="feed-detail__comment-action hover:text-red-400"
+                            title={user?.role === "admin" && commentAuthorId !== currentUserId?.toString() ? "Delete Comment (Admin Moderation)" : "Delete Comment"}
+                          >
+                            <span className="material-icons" style={{ fontSize: "0.85rem", color: "#f87171" }}>delete_outline</span>
+                            Delete
+                          </button>
+                        )}
                       </div>
 
                       {/* Reply Input Box for Top-level Comment */}
