@@ -16,8 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Notification Dropdown & Navigation**:
   - Sleek dark glassmorphic dropdown with modern SVG outline bell and live unread count badge.
   - Contextual category icons, auto-updating relative timestamps, and one-click navigation to relevant forum discussions and feed posts.
-- **Transient Release Notes Dropdown**:
-  - Lightweight `WhatsNewDropdown` visible for 24 hours following a rollout with one-click dismissal persisted to localStorage.
+- **Production-Grade Release Notes & Rollout Engine**:
+  - Version-based `localStorage` tracking (`linklet_last_seen_version`) replacing arbitrary wall-clock timers.
+  - Header announcement pill (`What's New v1.5`) displayed only while unread, cleanly disappearing upon view or dismissal.
+  - Permanent access to release notes from the Avatar dropdown (with unread `New` indicator) and clickable sidebar version badge (`v1.5.0`).
   - Three-way mutual exclusivity guaranteeing only one dropdown menu opens at a time.
 
 ### Changed
