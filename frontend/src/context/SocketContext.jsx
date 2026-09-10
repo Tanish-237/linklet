@@ -17,6 +17,14 @@ export const SocketProvider = ({ children }) => {
         auth: { token },
       });
 
+      if (newSocket && typeof newSocket.on === "function") {
+        newSocket.on("connect", () => {
+          if (typeof newSocket.emit === "function") {
+            newSocket.emit("setup", user);
+          }
+        });
+      }
+
       setSocket(newSocket);
 
       return () => {

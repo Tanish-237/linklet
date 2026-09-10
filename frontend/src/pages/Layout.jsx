@@ -6,12 +6,15 @@ import { apiClient } from '../api/apiClient';
 import linkletLogo from '../assets/linklet-logo.png';
 import defaultAvatar from '../assets/default-avatar.png';
 import AcademicOnboardingModal from '../components/AcademicOnboardingModal';
+import NotificationDropdown from '../components/NotificationDropdown';
+import WhatsNewDropdown from '../components/WhatsNewDropdown';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setUser } = useAuth();
   const [dropdownStates, setDropdownStates] = React.useState({
+    whatsNew: false,
     notifications: false,
     profile: false
   });
@@ -28,10 +31,18 @@ export default function Layout({ children }) {
 
   const toggleDropdown = (dropdown) => {
     setDropdownStates(prev => ({
-      ...prev,
-      [dropdown]: !prev[dropdown],
-      [dropdown === 'notifications' ? 'profile' : 'notifications']: false
+      whatsNew: dropdown === 'whatsNew' ? !prev.whatsNew : false,
+      notifications: dropdown === 'notifications' ? !prev.notifications : false,
+      profile: dropdown === 'profile' ? !prev.profile : false
     }));
+  };
+
+  const closeDropdowns = () => {
+    setDropdownStates({
+      whatsNew: false,
+      notifications: false,
+      profile: false
+    });
   };
 
   const handleLogout = async () => {
@@ -45,19 +56,26 @@ export default function Layout({ children }) {
     }
   };
 
-  // Close dropdowns when clicking outside
+  // Close dropdowns when clicking outside or pressing Escape
   React.useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownStates({
-          notifications: false,
-          profile: false
-        });
+        closeDropdowns();
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        closeDropdowns();
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   return (
@@ -94,7 +112,7 @@ export default function Layout({ children }) {
             ))}
           </ul>
         </nav>
-        <div className="p-4 border-t border-gray-800">
+        <div className="p-4 border-t border-gray-800 flex flex-col gap-2.5">
           <button
             onClick={handleLogout}
             className="w-full p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer"
@@ -102,6 +120,11 @@ export default function Layout({ children }) {
             <span className="material-icons text-lg">logout</span>
             Logout
           </button>
+
+          <div className="flex items-center justify-between text-[11px] text-gray-500 px-1 pt-1">
+            <span>Linklet</span>
+            <span className="text-gray-500 font-mono">v1.5.0</span>
+          </div>
         </div>
       </aside>
 
@@ -120,56 +143,26 @@ export default function Layout({ children }) {
               return "Dashboard";
             })()}
           </h1>
-          <div className="flex items-center space-x-6 pr-6 relative z-50" ref={dropdownRef}>
-            {/* Notification Icon */}
-            <div className="relative">
-              <button
-                className="p-2 rounded-full hover:bg-violet-900/30 transition-all duration-300 cursor-pointer group flex items-center justify-center"
-                onClick={() => toggleDropdown('notifications')}
-              >
-                <span className="material-icons text-2xl group-hover:text-violet-400 leading-none">notifications</span>
-                <span className="absolute -top-1 -right-1 bg-violet-600 text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
-              </button>
+          <div className="flex items-center gap-3 pr-6 relative z-50" ref={dropdownRef}>
+            {/* What's New Dropdown (24h rollout window / dismissible) */}
+            <WhatsNewDropdown
+              isOpen={dropdownStates.whatsNew}
+              onToggle={() => toggleDropdown('whatsNew')}
+              onClose={() => setDropdownStates(prev => ({ ...prev, whatsNew: false }))}
+            />
 
-              {dropdownStates.notifications && (
-                <div className="absolute right-0 mt-1 w-80 bg-gray-900/95 backdrop-blur-md rounded-xl shadow-2xl border border-gray-800 transition-all duration-300 z-50">
-                  <div className="p-4 border-b border-gray-800">
-                    <h3 className="text-lg font-semibold text-violet-400">Notifications</h3>
-                  </div>
-                  <ul className="py-2 max-h-[400px] overflow-y-auto">
-                    <li className="px-4 py-3 hover:bg-violet-900/30 cursor-pointer transition-all duration-200">
-                      <div className="flex items-start gap-3">
-                        <span className="material-icons text-violet-400">school</span>
-                        <div>
-                          <p className="text-sm text-gray-300">New resource available in DSA</p>
-                          <span className="text-xs text-gray-500">2 hours ago</span>
-                        </div>
-                      </div>
-                    </li>
-                    <li className="px-4 py-3 hover:bg-violet-900/30 cursor-pointer transition-all duration-200">
-                      <div className="flex items-start gap-3">
-                        <span className="material-icons text-violet-400">forum</span>
-                        <div>
-                          <p className="text-sm text-gray-300">Your question received a new answer</p>
-                          <span className="text-xs text-gray-500">5 hours ago</span>
-                        </div>
-                      </div>
-                    </li>
-                  </ul>
-                  <div className="p-3 border-t border-gray-800">
-                    <button className="w-full text-center text-sm text-violet-400 hover:text-violet-300 transition-colors">
-                      View all notifications
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Real-time Notification Dropdown */}
+            <NotificationDropdown
+              isOpen={dropdownStates.notifications}
+              onToggle={() => toggleDropdown('notifications')}
+              onClose={() => setDropdownStates(prev => ({ ...prev, notifications: false }))}
+            />
 
             {/* Profile */}
             <div className="relative">
               <button
                 id="layout-avatar-dropdown-btn"
-                className="group flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-violet-900/20 transition-all duration-200"
+                className="group flex items-center gap-2 cursor-pointer p-1 rounded-full hover:bg-violet-950/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
                 onClick={() => toggleDropdown('profile')}
                 aria-expanded={dropdownStates.profile}
                 aria-label="User menu"
@@ -177,9 +170,9 @@ export default function Layout({ children }) {
                 <img
                   src={user?.avatar || defaultAvatar}
                   alt="Avatar"
-                  className="w-12 h-12 rounded-full border-2 border-gray-800 group-hover:border-violet-500 transition-all duration-300 object-cover"
+                  className="w-10 h-10 rounded-full border-2 border-gray-800 group-hover:border-violet-500 transition-all duration-200 object-cover"
                 />
-                <span className={`material-icons text-gray-400 group-hover:text-violet-400 transition-all duration-300 ${
+                <span className={`material-icons text-gray-400 group-hover:text-violet-400 transition-all duration-200 ${
                   dropdownStates.profile ? "rotate-180 text-violet-400" : "group-hover:translate-y-0.5"
                 }`}>
                   expand_more
@@ -187,8 +180,8 @@ export default function Layout({ children }) {
               </button>
 
               {dropdownStates.profile && (
-                <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-md rounded-2xl border border-white/20 shadow-lg shadow-black/40 z-50 overflow-hidden">
-                  <div className="p-4 border-b border-gray-800">
+                <div className="absolute right-0 mt-2 w-64 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 overflow-hidden animate-in fade-in zoom-in-95">
+                  <div className="p-4 border-b border-gray-800/80 bg-gray-950/50">
                     <div className="flex flex-col">
                       <h4 className="font-medium text-violet-400 truncate text-[15px]">
                         {user?.username || "User"}
@@ -240,7 +233,7 @@ export default function Layout({ children }) {
                         </button>
                       </li>
                     )}
-                    <li className="border-t border-gray-800 mt-2 pt-2">
+                    <li className="border-t border-gray-800/80 mt-1 pt-1">
                       <button 
                         id="layout-dropdown-logout-btn"
                         onClick={() => {

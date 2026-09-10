@@ -240,6 +240,22 @@ export const toggleFollowUser = async (req, res, next) => {
       // Follow
       await User.findByIdAndUpdate(currentUserId, { $addToSet: { following: targetUserId } });
       await User.findByIdAndUpdate(targetUserId, { $addToSet: { followers: currentUserId } });
+
+      // Trigger notification to target user
+      import("../services/notification.service.js")
+        .then(({ createAndPushNotification }) => {
+          createAndPushNotification({
+            recipient: targetUserId,
+            sender: currentUserId,
+            type: "USER_FOLLOW",
+            title: "New Follower",
+            message: `${currentUser.fullName || currentUser.username} started following you.`,
+            link: `/dashboard/profile/${currentUser.username}`,
+            entityId: currentUserId,
+            entityType: "User",
+          });
+        })
+        .catch(() => {});
     }
 
     res.status(200).json({

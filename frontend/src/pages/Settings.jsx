@@ -25,6 +25,37 @@ export default function Settings() {
   const [isSocketConnected, setIsSocketConnected] = useState(Boolean(socket?.connected));
   const [apiStatus, setApiStatus] = useState({ status: "checking", latency: null });
 
+  // Notification alert preferences state
+  const [notificationPrefs, setNotificationPrefs] = useState(() => {
+    try {
+      const saved = localStorage.getItem("linklet_notif_prefs");
+      return saved
+        ? JSON.parse(saved)
+        : {
+            forumAlerts: true,
+            postAlerts: true,
+            systemAlerts: true,
+          };
+    } catch {
+      return {
+        forumAlerts: true,
+        postAlerts: true,
+        systemAlerts: true,
+      };
+    }
+  });
+
+  const togglePref = (key) => {
+    setNotificationPrefs((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem("linklet_notif_prefs", JSON.stringify(next));
+      } catch {}
+      toast.success("Notification preferences updated");
+      return next;
+    });
+  };
+
   useEffect(() => {
     if (!socket) {
       setIsSocketConnected(false);
@@ -285,11 +316,56 @@ export default function Settings() {
               <span className="material-icons text-violet-400 text-2xl">tune</span>
               <div>
                 <h3>Notification & Alerts Preferences</h3>
-                <p>Features currently in progress are labeled with Coming Soon badges.</p>
+                <p>Configure real-time in-app notification channels and campus alerts.</p>
               </div>
             </div>
 
             <div className="space-y-4">
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <h4>Forum Questions & Answer Alerts</h4>
+                  <p>In-app alerts when peers answer your question or accept your solution.</p>
+                </div>
+                <label className="settings-toggle-switch cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationPrefs.forumAlerts}
+                    onChange={() => togglePref("forumAlerts")}
+                  />
+                  <span className="settings-slider"></span>
+                </label>
+              </div>
+
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <h4>Feed Post Interactions</h4>
+                  <p>In-app alerts when students comment on or upvote your campus posts.</p>
+                </div>
+                <label className="settings-toggle-switch cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationPrefs.postAlerts}
+                    onChange={() => togglePref("postAlerts")}
+                  />
+                  <span className="settings-slider"></span>
+                </label>
+              </div>
+
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <h4>System & Administrative Alerts</h4>
+                  <p>Important platform security updates, role changes, and moderation notices.</p>
+                </div>
+                <label className="settings-toggle-switch cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationPrefs.systemAlerts}
+                    onChange={() => togglePref("systemAlerts")}
+                  />
+                  <span className="settings-slider"></span>
+                </label>
+              </div>
+
               <div className="settings-toggle-row opacity-75 cursor-not-allowed">
                 <div className="settings-toggle-info">
                   <div className="flex items-center gap-2">
@@ -298,55 +374,7 @@ export default function Settings() {
                       Coming Soon
                     </span>
                   </div>
-                  <p>Periodic summaries regarding forum questions and study resources.</p>
-                </div>
-                <label className="settings-toggle-switch cursor-not-allowed">
-                  <input type="checkbox" disabled />
-                  <span className="settings-slider opacity-50 cursor-not-allowed"></span>
-                </label>
-              </div>
-
-              <div className="settings-toggle-row opacity-75 cursor-not-allowed">
-                <div className="settings-toggle-info">
-                  <div className="flex items-center gap-2">
-                    <h4>Forum Questions & Answer Alerts</h4>
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/40 rounded-full">
-                      Coming Soon
-                    </span>
-                  </div>
-                  <p>Notifications when peers answer your question or upvote your solution.</p>
-                </div>
-                <label className="settings-toggle-switch cursor-not-allowed">
-                  <input type="checkbox" disabled />
-                  <span className="settings-slider opacity-50 cursor-not-allowed"></span>
-                </label>
-              </div>
-
-              <div className="settings-toggle-row opacity-75 cursor-not-allowed">
-                <div className="settings-toggle-info">
-                  <div className="flex items-center gap-2">
-                    <h4>Timetable & Class Countdown Reminders</h4>
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/40 rounded-full">
-                      Coming Soon
-                    </span>
-                  </div>
-                  <p>Pre-class reminder alerts prior to next scheduled class or lab sessions.</p>
-                </div>
-                <label className="settings-toggle-switch cursor-not-allowed">
-                  <input type="checkbox" disabled />
-                  <span className="settings-slider opacity-50 cursor-not-allowed"></span>
-                </label>
-              </div>
-
-              <div className="settings-toggle-row opacity-75 cursor-not-allowed">
-                <div className="settings-toggle-info">
-                  <div className="flex items-center gap-2">
-                    <h4>UI Interaction Sounds</h4>
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/40 rounded-full">
-                      Coming Soon
-                    </span>
-                  </div>
-                  <p>Audio cues for incoming chat messages and attendance check-ins.</p>
+                  <p>Periodic summaries sent directly to your @mnnit.ac.in institutional email.</p>
                 </div>
                 <label className="settings-toggle-switch cursor-not-allowed">
                   <input type="checkbox" disabled />

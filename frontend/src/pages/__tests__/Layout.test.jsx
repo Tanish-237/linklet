@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, describe, beforeEach, it, expect } from "vitest";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Layout from "../Layout";
 import * as AuthContextModule from "../../context/AuthContext";
 import { apiClient } from "../../api/apiClient";
@@ -22,6 +23,15 @@ vi.mock("../../api/apiClient", () => ({
   },
 }));
 
+vi.mock("../../api/notification.api", () => ({
+  getNotifications: vi.fn().mockResolvedValue({ success: true, data: [], unreadCount: 0 }),
+  getUnreadCount: vi.fn().mockResolvedValue(0),
+  markNotificationRead: vi.fn().mockResolvedValue({ success: true }),
+  markAllNotificationsRead: vi.fn().mockResolvedValue({ success: true, unreadCount: 0 }),
+  deleteNotification: vi.fn().mockResolvedValue({ success: true }),
+  clearReadNotifications: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock("react-toastify", () => ({
   toast: {
     success: vi.fn(),
@@ -37,8 +47,15 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     avatar: "https://api.dicebear.com/7.x/bottts/svg?seed=tanish",
   };
 
+  let queryClient;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
     vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({
       user: mockUser,
       setUser: vi.fn(),
@@ -48,11 +65,13 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
   const renderComponent = () => {
     return render(
-      <MemoryRouter initialEntries={["/dashboard"]}>
-        <Layout>
-          <div>Child Content</div>
-        </Layout>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/dashboard"]}>
+          <Layout>
+            <div>Child Content</div>
+          </Layout>
+        </MemoryRouter>
+      </QueryClientProvider>
     );
   };
 
@@ -163,4 +182,70 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     console.log("TRACE [Layout.test.jsx]: Dropdown closed on outside click");
   });
+
+  it("ensures mutual exclusivity between notification and avatar dropdowns (only one opens at a time)", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing mutual exclusivity between notification and profile dropdowns");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
+    const bellBtn = screen.getByRole("button", { name: /Notifications/i });
+
+    // Open avatar dropdown first
+    await user.click(avatarBtn);
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: /Notifications panel/i })).not.toBeInTheDocument();
+
+    // Now click notification bell -> Avatar dropdown MUST close and notification panel MUST open
+    await user.click(bellBtn);
+    expect(screen.queryByText("Settings")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Notifications panel/i })).toBeInTheDocument();
+
+    // Now click avatar button -> Notification panel MUST close and avatar dropdown MUST open
+    await user.click(avatarBtn);
+    expect(screen.queryByRole("dialog", { name: /Notifications panel/i })).not.toBeInTheDocument();
+    expect(screen.getByText("Settings")).toBeInTheDocument();
+
+    console.log("Passed: Only one dropdown opens at a time (mutually exclusive)");
+  });
+
+  it("verifies avatar dropdown shadow, border outline, and backdrop blur match notifications", async () => {
+    console.log("TRACE [Layout.test.jsx]: Verifying avatar dropdown styles match notification dropdown");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
+    await user.click(avatarBtn);
+
+    const avatarDropdown = screen.getByText("Settings").closest(".absolute");
+    expect(avatarDropdown.className).toContain("shadow-2xl");
+    expect(avatarDropdown.className).toContain("border-gray-800");
+    expect(avatarDropdown.className).toContain("backdrop-blur-xl");
+    console.log("Passed: Avatar dropdown styling strictly matches notification dropdown");
+  });
+
+  it("renders What's New trigger button to the left of notifications in the header and opens dropdown", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing What's New button in header");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const whatsNewBtn = document.getElementById("whats-new-btn");
+    expect(whatsNewBtn).toBeInTheDocument();
+    expect(whatsNewBtn).toHaveAttribute("aria-label", "What's New in Linklet");
+
+    // Click What's New button
+    await user.click(whatsNewBtn);
+    expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+
+    // Clicking notification bell closes What's New dropdown
+    const bellBtn = screen.getByRole("button", { name: /Notifications/i });
+    await user.click(bellBtn);
+    expect(screen.queryByRole("dialog", { name: /What's New release notes/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: /Notifications panel/i })).toBeInTheDocument();
+
+    console.log("Passed: What's New button opens simple release notes dropdown with mutual exclusivity");
+  });
 });
+
+

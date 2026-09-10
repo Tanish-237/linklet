@@ -112,8 +112,8 @@ describe("Settings Page Component Tests", () => {
     console.log("TRACE [Settings.test.jsx]: Password change request submitted successfully");
   });
 
-  it("switches to Preferences tab and displays disabled options with Coming Soon badges", async () => {
-    console.log("TRACE [Settings.test.jsx]: Testing Preferences tab with Coming Soon badges");
+  it("switches to Preferences tab and displays active notification options and email digest", async () => {
+    console.log("TRACE [Settings.test.jsx]: Testing Preferences tab with notification options");
     const user = userEvent.setup();
 
     renderComponent();
@@ -123,20 +123,22 @@ describe("Settings Page Component Tests", () => {
 
     expect(screen.getByText("Notification & Alerts Preferences")).toBeInTheDocument();
 
-    // Attendance Guardian should NOT exist
+    // Attendance Guardian and Active badge pills should NOT exist
     expect(screen.queryByText(/Attendance Guardian/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Active/i)).not.toBeInTheDocument();
 
-    // Coming Soon badges should exist
-    const comingSoonBadges = screen.getAllByText(/Coming Soon/i);
-    expect(comingSoonBadges.length).toBeGreaterThanOrEqual(4);
+    // Coming Soon badge should exist for Email Activity Digest
+    expect(screen.getByText(/Coming Soon/i)).toBeInTheDocument();
 
-    // All checkboxes should be disabled
+    // Checkboxes should exist and active ones should be toggleable
     const checkboxes = screen.getAllByRole("checkbox");
-    checkboxes.forEach((cb) => {
-      expect(cb).toBeDisabled();
-    });
+    expect(checkboxes.length).toBe(4);
+    expect(checkboxes[0]).toBeChecked(); // forum alerts default true
 
-    console.log("TRACE [Settings.test.jsx]: Coming Soon badges and disabled toggles verified");
+    await user.click(checkboxes[0]);
+    expect(checkboxes[0]).not.toBeChecked();
+
+    console.log("TRACE [Settings.test.jsx]: Notification preferences and clean toggles verified without pills");
   });
 
   it("switches to Display & App Info tab and verifies live diagnostics", async () => {

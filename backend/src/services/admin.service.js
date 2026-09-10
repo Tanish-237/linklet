@@ -139,6 +139,25 @@ export const assignRoleAndBranch = async (targetUserId, role, adminUserId = null
       targetId: targetUserId,
       details: { role, targetUsername: updatedUser.username },
     });
+
+    // Notify user of role update
+    import("./notification.service.js")
+      .then(({ createAndPushNotification }) => {
+        createAndPushNotification({
+          recipient: targetUserId,
+          sender: adminUserId,
+          type: "SYSTEM_ALERT",
+          title: "Account Role Updated",
+          message:
+            role === "admin"
+              ? "Congratulations! You have been granted Administrator privileges on Linklet."
+              : "Your account role has been updated to Student by an administrator.",
+          link: "/dashboard",
+          entityId: targetUserId,
+          entityType: "User",
+        });
+      })
+      .catch(() => {});
   }
 
   return updatedUser;

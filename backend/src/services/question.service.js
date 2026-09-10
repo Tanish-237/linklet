@@ -107,6 +107,28 @@ export const voteQuestion = async (questionId, userId, voteType) => {
     userId,
     voteType
   );
+
+  // Trigger notification if upvoted
+  if (voteType === "upvote") {
+    const questionAuthorId = (question.userId?._id || question.userId)?.toString();
+    if (questionAuthorId && questionAuthorId !== userId.toString()) {
+      import("./notification.service.js")
+        .then(({ createAndPushNotification }) => {
+          createAndPushNotification({
+            recipient: questionAuthorId,
+            sender: userId,
+            type: "FORUM_UPVOTE",
+            title: "Question Upvoted",
+            message: `Someone upvoted your question: "${question.title.slice(0, 50)}"`,
+            link: `/dashboard/question/${questionId}`,
+            entityId: questionId,
+            entityType: "Question",
+          });
+        })
+        .catch(() => {});
+    }
+  }
+
   return {
     upvotes: updated.upvotes.length,
     downvotes: updated.downvotes.length,
@@ -135,6 +157,26 @@ export const postAnswer = async (questionId, userId, body) => {
   });
 
   await questionRepository.addAnswerToQuestion(questionId, answer._id);
+
+  // Trigger notification to question author
+  const questionAuthorId = (question.userId?._id || question.userId)?.toString();
+  if (questionAuthorId && questionAuthorId !== userId.toString()) {
+    import("./notification.service.js")
+      .then(({ createAndPushNotification }) => {
+        createAndPushNotification({
+          recipient: questionAuthorId,
+          sender: userId,
+          type: "FORUM_ANSWER",
+          title: "New Answer on Your Question",
+          message: `Someone answered: "${question.title.slice(0, 60)}"`,
+          link: `/dashboard/question/${questionId}`,
+          entityId: questionId,
+          entityType: "Question",
+        });
+      })
+      .catch(() => {});
+  }
+
   return answer;
 };
 
@@ -159,6 +201,27 @@ export const voteAnswer = async (questionId, answerId, userId, voteType) => {
   }
 
   const updated = await answerRepository.voteAnswer(answerId, userId, voteType);
+
+  // Trigger notification if upvoted
+  if (voteType === "upvote") {
+    const answerAuthorId = (answer.userId?._id || answer.userId)?.toString();
+    if (answerAuthorId && answerAuthorId !== userId.toString()) {
+      import("./notification.service.js")
+        .then(({ createAndPushNotification }) => {
+          createAndPushNotification({
+            recipient: answerAuthorId,
+            sender: userId,
+            type: "FORUM_UPVOTE",
+            title: "Answer Upvoted",
+            message: "Someone upvoted your answer in the Help Forum.",
+            link: `/dashboard/question/${questionId}`,
+            entityId: answerId,
+            entityType: "Question",
+          });
+        })
+        .catch(() => {});
+    }
+  }
   return {
     upvotes: updated.upvotes.length,
     downvotes: updated.downvotes.length,
@@ -194,6 +257,26 @@ export const acceptAnswer = async (questionId, answerId, userId) => {
   } else {
     await questionRepository.addAcceptedAnswer(questionId, answerId);
     await answerRepository.setAnswerAccepted(answerId, true);
+
+    // Trigger notification to answer author
+    const answerAuthorId = (answer.userId?._id || answer.userId)?.toString();
+    if (answerAuthorId && answerAuthorId !== userId.toString()) {
+      import("./notification.service.js")
+        .then(({ createAndPushNotification }) => {
+          createAndPushNotification({
+            recipient: answerAuthorId,
+            sender: userId,
+            type: "FORUM_ACCEPT",
+            title: "Answer Accepted!",
+            message: `Your answer on "${question.title.slice(0, 60)}" was marked as accepted!`,
+            link: `/dashboard/question/${questionId}`,
+            entityId: questionId,
+            entityType: "Question",
+          });
+        })
+        .catch(() => {});
+    }
+
     return { accepted: true };
   }
 };
@@ -226,6 +309,54 @@ export const addComment = async (questionId, answerId, userId, text, parentId = 
     text.trim(),
     parentId
   );
+
+  // Trigger notification to answer author
+  const answerAuthorId = (answer.userId?._id || answer.userId)?.toString();
+  if (answerAuthorId && answerAuthorId !== userId.toString()) {
+    import("./notification.service.js")
+      .then(({ createAndPushNotification }) => {
+        createAndPushNotification({
+          recipient: answerAuthorId,
+          sender: userId,
+          type: "FORUM_COMMENT",
+          title: "New Reply on Your Answer",
+          message: `Someone replied: "${text.trim().slice(0, 60)}"`,
+          link: `/dashboard/question/${questionId}`,
+          entityId: questionId,
+          entityType: "Question",
+        });
+      })
+      .catch(() => {});
+  }
+
+  // If this is a nested reply to a specific sub-comment, notify the parent comment author
+  if (parentId) {
+    const parentComment = answer.comments.find(
+      (c) => (c._id || c).toString() === parentId.toString()
+    );
+    const parentAuthorId = (parentComment?.userId?._id || parentComment?.userId)?.toString();
+    if (
+      parentAuthorId &&
+      parentAuthorId !== userId.toString() &&
+      parentAuthorId !== answerAuthorId
+    ) {
+      import("./notification.service.js")
+        .then(({ createAndPushNotification }) => {
+          createAndPushNotification({
+            recipient: parentAuthorId,
+            sender: userId,
+            type: "FORUM_COMMENT",
+            title: "Reply to Your Comment",
+            message: `Someone replied to your comment: "${text.trim().slice(0, 60)}"`,
+            link: `/dashboard/question/${questionId}`,
+            entityId: questionId,
+            entityType: "Question",
+          });
+        })
+        .catch(() => {});
+    }
+  }
+
   return updated;
 };
 
@@ -281,8 +412,21 @@ export const deleteQuestion = async (questionId, userId, userRole) => {
         targetId: questionId,
         details: { title: question.title, questionAuthorId: question.userId._id },
       });
+
+      // Send SYSTEM_ALERT notification to question owner
+      const { createAndPushNotification } = await import("./notification.service.js");
+      await createAndPushNotification({
+        recipient: question.userId._id,
+        sender: userId,
+        type: "SYSTEM_ALERT",
+        title: "Content Moderated",
+        message: `Your question "${question.title.slice(0, 50)}" was removed by an administrator for content moderation.`,
+        link: "/dashboard",
+        entityId: null,
+        entityType: "System",
+      });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR]", e);
+      console.error("[AUDIT/NOTIF ERROR]", e);
     }
   }
 };

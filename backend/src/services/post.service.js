@@ -54,7 +54,7 @@ export const deletePost = async (postId, userId, userRole) => {
 
   const deleted = await postRepository.deletePost(postId);
 
-  // If deleted by an admin moderating another user's post, log to audit trail
+  // If deleted by an admin moderating another user's post, log to audit trail & notify author
   if (userRole === "admin" && postAuthorId !== userId.toString()) {
     try {
       const { logAdminAction } = await import("./auditLog.service.js");
@@ -65,8 +65,20 @@ export const deletePost = async (postId, userId, userRole) => {
         targetId: postId,
         details: { postAuthorId, captionSnippet: post.caption?.slice(0, 50) },
       });
+
+      const { createAndPushNotification } = await import("./notification.service.js");
+      await createAndPushNotification({
+        recipient: postAuthorId,
+        sender: userId,
+        type: "SYSTEM_ALERT",
+        title: "Content Moderated",
+        message: "Your post was removed by an administrator for content moderation.",
+        link: "/home",
+        entityId: null,
+        entityType: "System",
+      });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR]", e);
+      console.error("[AUDIT/NOTIF ERROR]", e);
     }
   }
 
@@ -95,7 +107,7 @@ export const deleteComment = async (postId, commentId, userId, userRole) => {
 
   const updatedPost = await postRepository.deleteComment(postId, commentId);
 
-  // If deleted by an admin moderating another user's comment, log to audit trail
+  // If deleted by an admin moderating another user's comment, log to audit trail & notify author
   if (userRole === "admin" && commentAuthorId !== userId.toString()) {
     try {
       const { logAdminAction } = await import("./auditLog.service.js");
@@ -106,8 +118,20 @@ export const deleteComment = async (postId, commentId, userId, userRole) => {
         targetId: commentId,
         details: { postId, commentAuthorId, textSnippet: comment.text?.slice(0, 50) },
       });
+
+      const { createAndPushNotification } = await import("./notification.service.js");
+      await createAndPushNotification({
+        recipient: commentAuthorId,
+        sender: userId,
+        type: "SYSTEM_ALERT",
+        title: "Content Moderated",
+        message: "Your comment was removed by an administrator for content moderation.",
+        link: `/posts/${postId}`,
+        entityId: null,
+        entityType: "System",
+      });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR]", e);
+      console.error("[AUDIT/NOTIF ERROR]", e);
     }
   }
 
@@ -120,6 +144,31 @@ export const toggleUpvote = async (postId, userId) => {
   if (!updatedPost) {
     throw new AppError("Post not found", 404);
   }
+
+  // Trigger notification if newly upvoted
+  const isUpvoted = updatedPost.upvotes?.some(
+    (id) => (id._id || id).toString() === userId.toString()
+  );
+  if (isUpvoted) {
+    const postAuthorId = (updatedPost.userId?._id || updatedPost.userId)?.toString();
+    if (postAuthorId && postAuthorId !== userId.toString()) {
+      import("./notification.service.js")
+        .then(({ createAndPushNotification }) => {
+          createAndPushNotification({
+            recipient: postAuthorId,
+            sender: userId,
+            type: "POST_LIKE",
+            title: "New Upvote on Post",
+            message: "Someone upvoted your post",
+            link: `/posts/${postId}`,
+            entityId: postId,
+            entityType: "Post",
+          });
+        })
+        .catch(() => {});
+    }
+  }
+
   return updatedPost;
 };
 
@@ -145,6 +194,26 @@ export const addComment = async (postId, userId, text) => {
   if (!updatedPost) {
     throw new AppError("Post not found", 404);
   }
+
+  // Trigger notification to post author
+  const postAuthorId = (updatedPost.userId?._id || updatedPost.userId)?.toString();
+  if (postAuthorId && postAuthorId !== userId.toString()) {
+    import("./notification.service.js")
+      .then(({ createAndPushNotification }) => {
+        createAndPushNotification({
+          recipient: postAuthorId,
+          sender: userId,
+          type: "POST_COMMENT",
+          title: "New Comment on Your Post",
+          message: `Someone commented: "${text.trim().slice(0, 80)}"`,
+          link: `/posts/${postId}`,
+          entityId: postId,
+          entityType: "Post",
+        });
+      })
+      .catch(() => {});
+  }
+
   return updatedPost;
 };
 
@@ -163,6 +232,29 @@ export const addReply = async (postId, commentId, userId, text, replyToUsername)
   if (!updatedPost) {
     throw new AppError("Post or comment not found", 404);
   }
+
+  // Trigger notification to comment author
+  const targetComment = updatedPost.comments?.find(
+    (c) => (c._id || c.id)?.toString() === commentId?.toString()
+  );
+  const commentAuthorId = (targetComment?.userId?._id || targetComment?.userId)?.toString();
+  if (commentAuthorId && commentAuthorId !== userId.toString()) {
+    import("./notification.service.js")
+      .then(({ createAndPushNotification }) => {
+        createAndPushNotification({
+          recipient: commentAuthorId,
+          sender: userId,
+          type: "POST_REPLY",
+          title: "Reply to Your Comment",
+          message: `Someone replied: "${text.trim().slice(0, 80)}"`,
+          link: `/posts/${postId}`,
+          entityId: postId,
+          entityType: "Post",
+        });
+      })
+      .catch(() => {});
+  }
+
   return updatedPost;
 };
 

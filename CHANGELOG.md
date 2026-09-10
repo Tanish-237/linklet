@@ -5,6 +5,26 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-09-10
+
+### Added
+- **Real-Time Notification Engine**:
+  - Dedicated MongoDB notification model with compound indexes for instant unread counts and lean cursor pagination.
+  - Multi-tier delivery: targeted Socket.IO push to user personal rooms with Redis caching (120s TTL).
+  - App-wide trigger hooks for peer follows (`USER_FOLLOW`), forum upvotes (`FORUM_UPVOTE`), nested forum comments (`FORUM_COMMENT`), and administrator moderation notices (`SYSTEM_ALERT`).
+  - Full REST API endpoints mounted at `/api/v1/notifications` for fetching, marking read, and deleting notifications.
+- **Notification Dropdown & Navigation**:
+  - Sleek dark glassmorphic dropdown with modern SVG outline bell and live unread count badge.
+  - Contextual category icons, auto-updating relative timestamps, and one-click navigation to relevant forum discussions and feed posts.
+- **Transient Release Notes Dropdown**:
+  - Lightweight `WhatsNewDropdown` visible for 24 hours following a rollout with one-click dismissal persisted to localStorage.
+  - Three-way mutual exclusivity guaranteeing only one dropdown menu opens at a time.
+
+### Changed
+- Synchronized backend and frontend package versions to `v1.5.0`.
+- Harmonized avatar profile dropdown border outline, elevation shadows, and backdrop blur with the notification dropdown.
+- Refined settings notification preferences to use clean, switch-only toggles.
+
 ## [1.4.0] - 2026-09-10
 
 ### Added

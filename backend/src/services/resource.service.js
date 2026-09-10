@@ -66,7 +66,7 @@ export const deleteResource = async (resourceId, userId, userRole) => {
 
   const deleted = await resourceRepository.deleteResource(resourceId);
 
-  // If deleted by an admin moderating another student's resource, log to audit trail
+  // If deleted by an admin moderating another student's resource, log to audit trail & notify owner
   if (userRole === "admin" && resource.userId._id.toString() !== userId.toString()) {
     try {
       const { logAdminAction } = await import("./auditLog.service.js");
@@ -77,8 +77,20 @@ export const deleteResource = async (resourceId, userId, userRole) => {
         targetId: resourceId,
         details: { title: resource.title, ownerId: resource.userId._id },
       });
+
+      const { createAndPushNotification } = await import("./notification.service.js");
+      await createAndPushNotification({
+        recipient: resource.userId._id,
+        sender: userId,
+        type: "SYSTEM_ALERT",
+        title: "Content Moderated",
+        message: `Your study resource "${resource.title}" was removed by an administrator for content moderation.`,
+        link: "/dashboard/global-search",
+        entityId: null,
+        entityType: "System",
+      });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR]", e);
+      console.error("[AUDIT/NOTIF ERROR]", e);
     }
   }
 

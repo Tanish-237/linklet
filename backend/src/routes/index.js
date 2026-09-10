@@ -11,6 +11,7 @@ import chatRoutes from "./chat.routes.js";
 import dashboardRoutes from "./dashboard.routes.js";
 import timetableRoutes from "./timetable.routes.js";
 import contactRoutes from "./contact.routes.js";
+import notificationRoutes from "./notification.routes.js";
 
 const router = express.Router();
 
@@ -25,6 +26,7 @@ router.use("/chat", chatRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/timetable", timetableRoutes);
 router.use("/contact", contactRoutes);
+router.use("/notifications", notificationRoutes);
 
 export default router;
 
