@@ -1,8 +1,13 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi, describe, beforeEach, afterEach, it, expect } from "vitest";
-import WhatsNewDropdown, { RELEASE_VERSION, RELEASE_DATE, DISPLAY_DURATION_MS } from "../WhatsNewDropdown";
+import { vi, describe, beforeEach, it, expect } from "vitest";
+import WhatsNewDropdown, {
+  RELEASE_VERSION,
+  STORAGE_KEY,
+  isReleaseSeen,
+  markReleaseSeen,
+} from "../WhatsNewDropdown";
 
 const fakeLocalStorage = (() => {
   let store = {};
@@ -22,28 +27,24 @@ const fakeLocalStorage = (() => {
 
 globalThis.localStorage = fakeLocalStorage;
 
-describe("WhatsNewDropdown Component Tests", () => {
+describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakeLocalStorage.clear();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("renders What's New trigger button when within 24 hours of release", () => {
-    console.log("TRACE [WhatsNewDropdown.test.jsx]: Verifying trigger button render within 24h");
-    render(<WhatsNewDropdown forceShow={true} />);
+  it("renders What's New trigger button when version has not been seen yet", () => {
+    console.log("TRACE [WhatsNewDropdown.test.jsx]: Verifying trigger button render for unread rollout");
+    render(<WhatsNewDropdown forceShow={false} />);
 
     const triggerBtn = screen.getByRole("button", { name: /What's New in Linklet/i });
     expect(triggerBtn).toBeInTheDocument();
     expect(screen.getByText("What's New")).toBeInTheDocument();
     expect(screen.getByText("v1.5")).toBeInTheDocument();
-    console.log("Passed: Trigger button rendered with clean pill and version badge");
+    console.log("Passed: Trigger button rendered for unseen version rollout");
   });
 
-  it("toggles simple dropdown on click and displays human-written release notes", async () => {
+  it("toggles dropdown on click and displays human-written release notes", async () => {
     console.log("TRACE [WhatsNewDropdown.test.jsx]: Testing dropdown open and human-written bullet points");
     const user = userEvent.setup();
     render(<WhatsNewDropdown forceShow={true} />);
@@ -68,37 +69,67 @@ describe("WhatsNewDropdown Component Tests", () => {
     console.log("Passed: Dropdown opens with simple, human-written release notes");
   });
 
-  it("hides and remembers dismissal in localStorage when Dismiss button is clicked", async () => {
-    console.log("TRACE [WhatsNewDropdown.test.jsx]: Testing Dismiss action and localStorage persistence");
+  it("persists version to localStorage and calls onMarkAsSeen when Dismiss is clicked", async () => {
+    console.log("TRACE [WhatsNewDropdown.test.jsx]: Testing Dismiss action and production localStorage persistence");
     const user = userEvent.setup();
     const handleClose = vi.fn();
+    const handleMarkAsSeen = vi.fn();
 
     render(
       <WhatsNewDropdown
         isOpen={true}
         onToggle={vi.fn()}
         onClose={handleClose}
-        forceShow={false}
+        onMarkAsSeen={handleMarkAsSeen}
+        hasSeen={false}
       />
     );
 
     const dismissBtn = screen.getByRole("button", { name: /Dismiss/i });
     await user.click(dismissBtn);
 
-    expect(fakeLocalStorage.getItem(`linklet_whats_new_seen_${RELEASE_VERSION}`)).toBe("true");
+    expect(fakeLocalStorage.getItem(STORAGE_KEY)).toBe(RELEASE_VERSION);
+    expect(handleMarkAsSeen).toHaveBeenCalled();
     expect(handleClose).toHaveBeenCalled();
-    console.log("Passed: Dismiss persisted to localStorage");
+    console.log("Passed: Dismiss persisted release version to localStorage");
   });
 
-  it("does not render when 24-hour expiration window has elapsed", () => {
-    console.log("TRACE [WhatsNewDropdown.test.jsx]: Verifying 24h expiration window auto-hide");
-    vi.useFakeTimers();
-    // Set system time to 25 hours after RELEASE_DATE
-    const releaseTime = new Date(RELEASE_DATE).getTime();
-    vi.setSystemTime(new Date(releaseTime + DISPLAY_DURATION_MS + 3600000));
+  it("hides header trigger button if version is already marked seen in localStorage", () => {
+    console.log("TRACE [WhatsNewDropdown.test.jsx]: Verifying trigger button auto-hides once seen");
+    markReleaseSeen(RELEASE_VERSION);
 
     const { container } = render(<WhatsNewDropdown forceShow={false} />);
+    expect(screen.queryByRole("button", { name: /What's New in Linklet/i })).not.toBeInTheDocument();
     expect(container.firstChild).toBeNull();
-    console.log("Passed: Automatically expired and hidden after 24 hours");
+    console.log("Passed: Header trigger button hidden once seen to avoid navbar clutter");
+  });
+
+  it("renders release notes dialog when isOpen is true even if already seen (e.g. opened from menu)", () => {
+    console.log("TRACE [WhatsNewDropdown.test.jsx]: Verifying release notes accessible when opened from menu");
+    markReleaseSeen(RELEASE_VERSION);
+
+    render(
+      <WhatsNewDropdown
+        isOpen={true}
+        onToggle={vi.fn()}
+        onClose={vi.fn()}
+        hasSeen={true}
+      />
+    );
+
+    // Dialog is visible
+    expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+    // But trigger button is NOT rendered
+    expect(screen.queryByRole("button", { name: /What's New in Linklet/i })).not.toBeInTheDocument();
+    console.log("Passed: Dialog displays cleanly without header trigger when opened from menu");
+  });
+
+  it("verifies isReleaseSeen and markReleaseSeen helper methods", () => {
+    console.log("TRACE [WhatsNewDropdown.test.jsx]: Testing isReleaseSeen and markReleaseSeen");
+    expect(isReleaseSeen(RELEASE_VERSION)).toBe(false);
+    markReleaseSeen(RELEASE_VERSION);
+    expect(isReleaseSeen(RELEASE_VERSION)).toBe(true);
+    console.log("Passed: isReleaseSeen and markReleaseSeen work as expected");
   });
 });

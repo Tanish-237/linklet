@@ -1,32 +1,43 @@
 import React, { useState, useEffect } from "react";
 
 export const RELEASE_VERSION = "v1.5.0";
-// 24-hour display window from rollout timestamp
-export const RELEASE_DATE = "2026-09-10T12:00:00.000Z";
-export const DISPLAY_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+export const STORAGE_KEY = "linklet_last_seen_version";
+
+export const isReleaseSeen = (version = RELEASE_VERSION) => {
+  try {
+    const lastSeen = localStorage.getItem(STORAGE_KEY);
+    if (lastSeen === version) return true;
+    const legacy = localStorage.getItem(`linklet_whats_new_seen_${version}`);
+    if (legacy === "true") return true;
+  } catch {
+    // localStorage may be restricted or unavailable
+  }
+  return false;
+};
+
+export const markReleaseSeen = (version = RELEASE_VERSION) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, version);
+    localStorage.setItem(`linklet_whats_new_seen_${version}`, "true");
+  } catch {
+    // ignore
+  }
+};
 
 export default function WhatsNewDropdown({
   isOpen: controlledIsOpen,
   onToggle: controlledOnToggle,
   onClose: controlledOnClose,
+  hasSeen: controlledHasSeen,
+  onMarkAsSeen,
   forceShow = false,
 } = {}) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
+  const [internalHasSeen, setInternalHasSeen] = useState(() => isReleaseSeen(RELEASE_VERSION));
 
   const isControlled = typeof controlledIsOpen === "boolean";
   const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
-
-  useEffect(() => {
-    try {
-      const dismissed = localStorage.getItem(`linklet_whats_new_seen_${RELEASE_VERSION}`);
-      if (dismissed === "true") {
-        setIsDismissed(true);
-      }
-    } catch {
-      // localStorage may not be available in private browsing or tests
-    }
-  }, []);
+  const hasSeen = typeof controlledHasSeen === "boolean" ? controlledHasSeen : internalHasSeen;
 
   const handleToggle = () => {
     if (isControlled && controlledOnToggle) {
@@ -45,38 +56,39 @@ export default function WhatsNewDropdown({
   };
 
   const handleDismiss = () => {
-    try {
-      localStorage.setItem(`linklet_whats_new_seen_${RELEASE_VERSION}`, "true");
-    } catch {
-      // ignore
+    markReleaseSeen(RELEASE_VERSION);
+    setInternalHasSeen(true);
+    if (onMarkAsSeen) {
+      onMarkAsSeen();
     }
-    setIsDismissed(true);
     handleClose();
   };
 
-  const isExpired = Date.now() - new Date(RELEASE_DATE).getTime() > DISPLAY_DURATION_MS;
+  const showTrigger = forceShow || !hasSeen;
 
-  // Display only within the 24-hour window from rollout, unless forceShow is set
-  if (!forceShow && (isExpired || isDismissed)) {
+  // If already seen and not open, don't occupy layout space
+  if (!showTrigger && !isOpen) {
     return null;
   }
 
   return (
     <div className="relative">
-      {/* What's New Trigger Button */}
-      <button
-        type="button"
-        id="whats-new-btn"
-        aria-label="What's New in Linklet"
-        aria-expanded={isOpen}
-        onClick={handleToggle}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800/60 hover:bg-gray-800 border border-gray-700/60 hover:border-gray-600 text-gray-300 hover:text-white text-xs font-medium transition-all duration-200 cursor-pointer shadow-sm group focus:outline-none focus:ring-2 focus:ring-violet-500/40"
-      >
-        <span>What's New</span>
-        <span className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
-          v1.5
-        </span>
-      </button>
+      {/* What's New Trigger Button (shown only when unread) */}
+      {showTrigger && (
+        <button
+          type="button"
+          id="whats-new-btn"
+          aria-label="What's New in Linklet"
+          aria-expanded={isOpen}
+          onClick={handleToggle}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800/60 hover:bg-gray-800 border border-gray-700/60 hover:border-gray-600 text-gray-300 hover:text-white text-xs font-medium transition-all duration-200 cursor-pointer shadow-sm group focus:outline-none focus:ring-2 focus:ring-violet-500/40"
+        >
+          <span>What's New</span>
+          <span className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
+            v1.5
+          </span>
+        </button>
+      )}
 
       {/* Release Notes Dropdown */}
       {isOpen && (

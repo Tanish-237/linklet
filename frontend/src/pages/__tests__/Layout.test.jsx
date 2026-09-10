@@ -246,6 +246,38 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     console.log("Passed: What's New button opens simple release notes dropdown with mutual exclusivity");
   });
+
+  it("opens release notes dropdown from Avatar menu item", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing What's New option in Avatar dropdown");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
+    await user.click(avatarBtn);
+
+    const whatsNewMenuItem = document.getElementById("layout-dropdown-whats-new-btn");
+    expect(whatsNewMenuItem).toBeInTheDocument();
+    expect(whatsNewMenuItem).toHaveTextContent("What's New");
+
+    await user.click(whatsNewMenuItem);
+    expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+    console.log("Passed: What's New opened from Avatar menu");
+  });
+
+  it("opens release notes dropdown from sidebar footer version button", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing sidebar version button click");
+    const user = userEvent.setup();
+    renderComponent();
+
+    const sidebarVersionBtn = document.getElementById("sidebar-version-btn");
+    expect(sidebarVersionBtn).toBeInTheDocument();
+
+    await user.click(sidebarVersionBtn);
+    expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+    console.log("Passed: What's New opened from sidebar footer version button");
+  });
 });
 
 

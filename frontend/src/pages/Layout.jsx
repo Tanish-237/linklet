@@ -7,18 +7,24 @@ import linkletLogo from '../assets/linklet-logo.png';
 import defaultAvatar from '../assets/default-avatar.png';
 import AcademicOnboardingModal from '../components/AcademicOnboardingModal';
 import NotificationDropdown from '../components/NotificationDropdown';
-import WhatsNewDropdown from '../components/WhatsNewDropdown';
+import WhatsNewDropdown, { isReleaseSeen, markReleaseSeen, RELEASE_VERSION } from '../components/WhatsNewDropdown';
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setUser } = useAuth();
+  const [hasSeenRelease, setHasSeenRelease] = React.useState(() => isReleaseSeen(RELEASE_VERSION));
   const [dropdownStates, setDropdownStates] = React.useState({
     whatsNew: false,
     notifications: false,
     profile: false
   });
   const dropdownRef = React.useRef(null);
+
+  const handleMarkReleaseSeen = () => {
+    markReleaseSeen(RELEASE_VERSION);
+    setHasSeenRelease(true);
+  };
 
   const menuItems = [
     { icon: "dynamic_feed", label: "Feed", path: "/home" },
@@ -123,7 +129,18 @@ export default function Layout({ children }) {
 
           <div className="flex items-center justify-between text-[11px] text-gray-500 px-1 pt-1">
             <span>Linklet</span>
-            <span className="text-gray-500 font-mono">v1.5.0</span>
+            <button
+              type="button"
+              id="sidebar-version-btn"
+              onClick={() => toggleDropdown('whatsNew')}
+              className="text-gray-500 hover:text-violet-400 font-mono transition-colors cursor-pointer flex items-center gap-1"
+              title={`View ${RELEASE_VERSION} release notes`}
+            >
+              <span>{RELEASE_VERSION}</span>
+              {!hasSeenRelease && (
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
+              )}
+            </button>
           </div>
         </div>
       </aside>
@@ -144,11 +161,13 @@ export default function Layout({ children }) {
             })()}
           </h1>
           <div className="flex items-center gap-3 pr-6 relative z-50" ref={dropdownRef}>
-            {/* What's New Dropdown (24h rollout window / dismissible) */}
+            {/* What's New Dropdown (Production-grade: transient announcement trigger until seen, permanent menu access) */}
             <WhatsNewDropdown
               isOpen={dropdownStates.whatsNew}
               onToggle={() => toggleDropdown('whatsNew')}
               onClose={() => setDropdownStates(prev => ({ ...prev, whatsNew: false }))}
+              hasSeen={hasSeenRelease}
+              onMarkAsSeen={handleMarkReleaseSeen}
             />
 
             {/* Real-time Notification Dropdown */}
@@ -216,6 +235,28 @@ export default function Layout({ children }) {
                       >
                         <span className="material-icons text-xl text-violet-400">settings</span>
                         <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">Settings</span>
+                      </button>
+                    </li>
+                    <li>
+                      <button 
+                        id="layout-dropdown-whats-new-btn"
+                        onClick={() => {
+                          setDropdownStates({ profile: false, notifications: false, whatsNew: true });
+                          if (!hasSeenRelease) {
+                            handleMarkReleaseSeen();
+                          }
+                        }}
+                        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <span className="material-icons text-xl text-violet-400">new_releases</span>
+                          <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">What's New</span>
+                        </div>
+                        {!hasSeenRelease && (
+                          <span className="text-[10px] font-semibold text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
+                            New
+                          </span>
+                        )}
                       </button>
                     </li>
                     {user?.role === "admin" && (
