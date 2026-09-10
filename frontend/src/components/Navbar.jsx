@@ -22,12 +22,20 @@ const Nav = styled.nav`
   justify-content: space-between;
   align-items: center;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+
+  @media (max-width: 640px) {
+    padding: 0.75rem 1rem;
+  }
 `;
 
 const NavLinks = styled.div`
   display: flex;
   align-items: center;
   gap: 1.25rem;
+
+  @media (max-width: 640px) {
+    gap: 0.5rem;
+  }
 
   > a:not(.nav-auth-btn),
   > button:not(.nav-auth-btn) {
@@ -39,6 +47,11 @@ const NavLinks = styled.div`
     cursor: pointer;
     padding: 0.5rem;
     border-radius: 0.375rem;
+
+    @media (max-width: 640px) {
+      font-size: 0.875rem;
+      padding: 0.35rem 0.5rem;
+    }
 
     &:hover {
       color: #8b5cf6;
@@ -62,6 +75,11 @@ const NavAuthLink = styled(Link)`
   border: 1px solid rgba(255, 255, 255, 0.2);
   background: transparent;
   outline: none;
+
+  @media (max-width: 640px) {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+  }
 
   &:hover {
     border-color: #8b5cf6;
@@ -134,6 +152,7 @@ const DropdownMenu = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 1rem;
   min-width: 15rem;
+  max-width: calc(100vw - 1.5rem);
   box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   z-index: 50;

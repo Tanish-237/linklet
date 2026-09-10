@@ -116,11 +116,11 @@ export default function Dashboard() {
     return (
       <div className="space-y-8 max-w-7xl mx-auto pb-12">
         {/* Top Hero Banner */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-950/70 via-gray-900 to-black p-6 sm:p-8 md:p-10 border border-violet-800/40 shadow-2xl">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-950/70 via-gray-900 to-black p-4 sm:p-8 md:p-10 border border-violet-800/40 shadow-2xl">
           <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 rounded-full bg-violet-600/10 blur-3xl pointer-events-none"></div>
           <div className="absolute bottom-0 left-1/3 -mb-12 w-60 h-60 rounded-full bg-purple-600/10 blur-3xl pointer-events-none"></div>
 
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-5 sm:gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-xs text-gray-400">
@@ -133,7 +133,7 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
                 {getTimeGreeting()},{" "}
                 <span className="text-violet-400 font-bold">
                   {user?.fullName?.split(" ")[0] || user?.username || "Scholar"}
@@ -186,7 +186,7 @@ export default function Dashboard() {
         </div>
 
         {/* Real-time KPI Stats Grid (4 Cards - Tasks Banner Removed) */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
           {[
             {
               icon: "quiz",
@@ -224,19 +224,19 @@ export default function Dashboard() {
             <div
               key={title}
               onClick={onClick}
-              className={`p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.03] cursor-pointer group flex flex-col justify-between ${color}`}
+              className={`p-3.5 sm:p-4 rounded-2xl border transition-all duration-200 hover:scale-[1.03] cursor-pointer group flex flex-col justify-between ${color}`}
             >
               <div className="flex items-center justify-between">
-                <span className="material-icons text-2xl group-hover:scale-110 transition-transform">
+                <span className="material-icons text-xl sm:text-2xl group-hover:scale-110 transition-transform">
                   {icon}
                 </span>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1.5 py-0.5 rounded bg-black/30">
+                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1.5 py-0.5 rounded bg-black/30">
                   {badge}
                 </span>
               </div>
-              <div className="mt-4">
-                <div className="text-2xl font-extrabold text-white font-mono">{count}</div>
-                <div className="text-xs text-gray-400 font-medium mt-0.5 truncate">{title}</div>
+              <div className="mt-3 sm:mt-4">
+                <div className="text-xl sm:text-2xl font-extrabold text-white font-mono">{count}</div>
+                <div className="text-[11px] sm:text-xs text-gray-400 font-medium mt-0.5 truncate">{title}</div>
               </div>
             </div>
           ))}
@@ -284,12 +284,12 @@ export default function Dashboard() {
         )}
 
         {/* Action Bar: Subject Info and Timetable Options */}
-        <div className="relative z-30 flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800/80 shadow-lg">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800/80 shadow-lg">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
               id="dashboard-subject-info-btn"
               onClick={() => setShowSubjectInfoModal(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
             >
               <span className="material-icons text-base text-violet-400">auto_stories</span>
               <span>Subject Info</span>
@@ -301,7 +301,7 @@ export default function Dashboard() {
             <button
               id="dashboard-timetable-options-btn"
               onClick={() => setIsTimetableMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
             >
               <span className="material-icons text-base text-violet-400">calendar_month</span>
               <span>Timetable Options</span>
@@ -315,7 +315,7 @@ export default function Dashboard() {
             </button>
 
             {isTimetableMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-gray-900/95 backdrop-blur-xl border border-violet-800/40 shadow-2xl z-50 py-2 divide-y divide-gray-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-2xl bg-gray-900/95 backdrop-blur-xl border border-violet-800/40 shadow-2xl z-50 py-2 divide-y divide-gray-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="p-1">
                   <button
                     id="dashboard-view-timetable-option"
@@ -353,7 +353,7 @@ export default function Dashboard() {
         </div>
 
         {/* Daily Schedule & Attendance Guardian */}
-        <div className="relative z-10 grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="relative z-10 grid grid-cols-1 xl:grid-cols-2 gap-6 sm:gap-8">
           <DailySchedule
             onScheduleChanged={() => {
               loadStats();

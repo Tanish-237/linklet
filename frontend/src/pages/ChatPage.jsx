@@ -14,17 +14,42 @@ const ChatPage = () => {
   const { user } = useAuth();
   const socket = useSocket();
 
-  // In-memory cached user chats (0ms instant tab switching)
+  const userChatsCacheKey = `linklet_cached_chats_${user?._id}`;
+
+  // Read chats from localStorage cache for instant 0ms mount
+  const initialLocalChats = () => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
+        const saved = window.localStorage.getItem(userChatsCacheKey);
+        return saved ? JSON.parse(saved) : [];
+      }
+    } catch {
+      return [];
+    }
+    return [];
+  };
+
+  // In-memory TanStack query with local storage initialData
   const {
     data: cachedChats = [],
-    isLoading: isChatsLoading,
     refetch: fetchChats,
   } = useQuery({
     queryKey: ["chats", user?._id],
     queryFn: async () => {
       const res = await apiClient.get("/chat");
-      return res.data.success ? res.data.data : [];
+      if (res.data.success) {
+        try {
+          if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+            window.localStorage.setItem(userChatsCacheKey, JSON.stringify(res.data.data));
+          }
+        } catch (e) {
+          // safe fallback
+        }
+        return res.data.data;
+      }
+      return [];
     },
+    placeholderData: initialLocalChats,
     enabled: !!user?._id,
     staleTime: 5 * 60 * 1000,
   });
@@ -34,11 +59,13 @@ const ChatPage = () => {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
+  const [typingMap, setTypingMap] = useState({}); // chatId -> username
+  const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> count
 
   useEffect(() => {
     if (cachedChats && cachedChats.length > 0) {
       setChats(cachedChats);
-      if (!activeChat) {
+      if (!activeChat && window.innerWidth > 768) {
         setActiveChat(cachedChats[0]);
       }
     }
@@ -48,6 +75,11 @@ const ChatPage = () => {
     setChats((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
       queryClient.setQueryData(["chats", user?._id], next);
+      try {
+        if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+          window.localStorage.setItem(userChatsCacheKey, JSON.stringify(next));
+        }
+      } catch {}
       return next;
     });
   };
@@ -74,11 +106,39 @@ const ChatPage = () => {
       }
     });
 
+    socket.on("typing", ({ chatId, username }) => {
+      if (chatId && username) {
+        setTypingMap((prev) => ({ ...prev, [chatId]: username }));
+      }
+    });
+
+    socket.on("stop typing", ({ chatId }) => {
+      if (chatId) {
+        setTypingMap((prev) => {
+          const next = { ...prev };
+          delete next[chatId];
+          return next;
+        });
+      }
+    });
+
     socket.on("message received", (newMessage) => {
-      updateChats((prevChats) =>
-        prevChats.map((chat) => {
-          const chatId = typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
-          if (chat._id === chatId) {
+      const msgChatId =
+        typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
+
+      // Increment unread count if not in the active chat
+      if (activeChat?._id !== msgChatId) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [msgChatId]: (prev[msgChatId] || 0) + 1,
+        }));
+      }
+
+      updateChats((prevChats) => {
+        let found = false;
+        const updated = prevChats.map((chat) => {
+          if (chat._id === msgChatId) {
+            found = true;
             return {
               ...chat,
               lastMessage: newMessage,
@@ -86,8 +146,18 @@ const ChatPage = () => {
             };
           }
           return chat;
-        })
-      );
+        });
+
+        // If it's a new chat not yet in list, re-fetch chats
+        if (!found) {
+          fetchChats();
+        }
+
+        // Re-sort with most recent message at the top (WhatsApp style)
+        return updated.sort(
+          (a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0)
+        );
+      });
     });
 
     socket.on("group updated", (updatedChat) => {
@@ -103,13 +173,17 @@ const ChatPage = () => {
       socket.off("user online status");
       socket.off("user_connected");
       socket.off("user_disconnected");
+      socket.off("typing");
+      socket.off("stop typing");
       socket.off("message received");
       socket.off("group updated");
     };
-  }, [socket, user, activeChat]);
+  }, [socket, user, activeChat, fetchChats]);
 
   const handleSelectChat = (chat) => {
     setActiveChat(chat);
+    // Clear unread count for selected chat
+    setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
   };
 
   const handleGroupCreated = (newGroup) => {
@@ -136,6 +210,9 @@ const ChatPage = () => {
         onOpenCreateGroup={() => setIsGroupModalOpen(true)}
         currentUser={user}
         onlineUsers={onlineUsers}
+        typingMap={typingMap}
+        unreadCounts={unreadCounts}
+        isMobileChatOpen={Boolean(activeChat)}
       />
 
       {/* Main Window */}
@@ -147,9 +224,10 @@ const ChatPage = () => {
           socket={socket}
           onlineUsers={onlineUsers}
           onToggleInfo={() => setShowInfoPanel(!showInfoPanel)}
+          onBackToSidebar={() => setActiveChat(null)}
         />
       ) : (
-        <div className="flex-1 flex items-center justify-center text-gray-400">
+        <div className="flex-1 hidden md:flex items-center justify-center text-gray-400">
           Select a chat to start messaging
         </div>
       )}

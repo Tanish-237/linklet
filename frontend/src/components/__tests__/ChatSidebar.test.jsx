@@ -68,4 +68,23 @@ describe("ChatSidebar Component", () => {
     fireEvent.click(screen.getByText("React Developers"));
     expect(onSelectChat).toHaveBeenCalledWith(sampleChats[1]);
   });
+
+  it("renders unread badge and typing indicator when active", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing unread badge and typing indicator");
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        unreadCounts={{ c1: 4 }}
+        typingMap={{ c2: "alice" }}
+      />
+    );
+
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText(/typing.../i)).toBeInTheDocument();
+    console.log("TRACE [ChatSidebar.test.jsx]: Verified unread badge (4) and typing indicator");
+  });
 });

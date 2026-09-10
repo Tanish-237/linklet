@@ -18,6 +18,9 @@ const mockFindMessageById = jest.fn();
 const mockMarkMessagesAsRead = jest.fn();
 const mockSearchUsers = jest.fn();
 const mockSearchMessagesInChat = jest.fn();
+const mockToggleReaction = jest.fn();
+const mockPinChatMessage = jest.fn();
+const mockUnpinChatMessage = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   createChat: mockCreateChat,
@@ -36,6 +39,9 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   markMessagesAsRead: mockMarkMessagesAsRead,
   searchUsers: mockSearchUsers,
   searchMessagesInChat: mockSearchMessagesInChat,
+  toggleReaction: mockToggleReaction,
+  pinChatMessage: mockPinChatMessage,
+  unpinChatMessage: mockUnpinChatMessage,
 }));
 
 jest.unstable_mockModule('../src/utils/cloudinary.js', () => ({
@@ -140,6 +146,33 @@ describe('Chat Service Unit Tests', () => {
       );
     });
 
+    it('handles audio voice notes file attachments', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - audio voice note upload');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      mockCreateMessage.mockImplementation((data) => ({
+        _id: 'mAudio',
+        ...data,
+      }));
+
+      const fakeAudioFile = {
+        path: '/tmp/voicenote.webm',
+        mimetype: 'audio/webm',
+      };
+
+      const result = await chatService.sendMessage(
+        'user1',
+        { chatId: 'chat1' },
+        fakeAudioFile
+      );
+
+      console.log('TRACE [chat.test.js]: Audio message created:', result.mediaType);
+      expect(result.mediaType).toBe('audio');
+      expect(result.media).toBe('https://cloudinary.com/fake.png');
+    });
+
     it('throws error if user is not in chat', async () => {
       console.log('TRACE [chat.test.js]: Testing sendMessage - non-participant error');
       mockFindChatById.mockResolvedValue({
@@ -150,6 +183,71 @@ describe('Chat Service Unit Tests', () => {
       await expect(
         chatService.sendMessage('user1', { chatId: 'chat1', content: 'Hi' })
       ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe('toggleMessageReaction', () => {
+    it('toggles reaction for chat participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing toggleMessageReaction - participant success');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      const updatedMsg = {
+        _id: 'm1',
+        reactions: [{ user: 'user1', emoji: '❤️' }],
+      };
+      mockToggleReaction.mockResolvedValue(updatedMsg);
+
+      const result = await chatService.toggleMessageReaction('user1', {
+        chatId: 'chat1',
+        messageId: 'm1',
+        emoji: '❤️',
+      });
+
+      console.log('TRACE [chat.test.js]: Reaction toggled:', result.reactions);
+      expect(result).toBe(updatedMsg);
+      expect(mockToggleReaction).toHaveBeenCalledWith('m1', 'user1', '❤️');
+    });
+  });
+
+  describe('pinMessage & unpinMessage', () => {
+    it('pins message for chat participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing pinMessage - participant success');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      const updatedChat = { _id: 'chat1', pinnedMessages: ['m1'] };
+      mockPinChatMessage.mockResolvedValue(updatedChat);
+
+      const result = await chatService.pinMessage('user1', {
+        chatId: 'chat1',
+        messageId: 'm1',
+      });
+
+      console.log('TRACE [chat.test.js]: Message pinned in chat:', result.pinnedMessages);
+      expect(result).toBe(updatedChat);
+      expect(mockPinChatMessage).toHaveBeenCalledWith('chat1', 'm1');
+    });
+
+    it('unpins message for chat participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing unpinMessage - participant success');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      const updatedChat = { _id: 'chat1', pinnedMessages: [] };
+      mockUnpinChatMessage.mockResolvedValue(updatedChat);
+
+      const result = await chatService.unpinMessage('user1', {
+        chatId: 'chat1',
+        messageId: 'm1',
+      });
+
+      console.log('TRACE [chat.test.js]: Message unpinned from chat:', result.pinnedMessages);
+      expect(result).toBe(updatedChat);
+      expect(mockUnpinChatMessage).toHaveBeenCalledWith('chat1', 'm1');
     });
   });
 

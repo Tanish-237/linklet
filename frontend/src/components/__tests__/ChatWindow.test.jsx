@@ -55,7 +55,10 @@ describe("ChatWindow Component", () => {
     );
 
     await waitFor(() => {
-      expect(apiClient.get).toHaveBeenCalledWith("/chat/message/c1");
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "/chat/message/c1",
+        expect.anything()
+      );
       expect(screen.getByText("Hello there!")).toBeInTheDocument();
     });
     console.log("TRACE [ChatWindow.test.jsx]: Successfully verified message fetching and rendering");
@@ -111,11 +114,129 @@ describe("ChatWindow Component", () => {
 
     await waitFor(() => {
       expect(apiClient.get).toHaveBeenCalledWith("/chat/message/c1", {
-        params: { cursor: "2026-09-01T00:00:00.000Z", limit: 30 },
+        params: { cursor: "2026-09-01T00:00:00.000Z", limit: 25 },
       });
       expect(screen.getByText("Ancient message from the past")).toBeInTheDocument();
     });
     console.log("TRACE [ChatWindow.test.jsx]: Successfully verified cursor-based older message pagination");
   });
+
+  it("toggles in-chat search bar and searches message text", async () => {
+    console.log("TRACE [ChatWindow.test.jsx]: Testing in-chat search feature");
+    apiClient.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: { messages: sampleMessages, hasMore: false },
+      },
+    });
+
+    render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+      />
+    );
+
+    const searchBtn = await screen.findByTitle("Search messages");
+    expect(searchBtn).toBeInTheDocument();
+    searchBtn.click();
+
+    const searchInput = await screen.findByPlaceholderText("Search within this chat...");
+    expect(searchInput).toBeInTheDocument();
+    console.log("TRACE [ChatWindow.test.jsx]: In-chat search bar verified successfully");
+  });
+
+  it("opens reaction picker, selects emoji, and sends reaction API call", async () => {
+    console.log("TRACE [ChatWindow.test.jsx]: Testing quick reaction picker and reaction toggle");
+    apiClient.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: { messages: sampleMessages, hasMore: false },
+      },
+    });
+    apiClient.post.mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          ...sampleMessages[0],
+          reactions: [{ user: "u1", emoji: "❤️" }],
+        },
+      },
+    });
+
+    render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+      />
+    );
+
+    await screen.findByText("Hello there!");
+
+    const reactBtn = screen.getByTitle("React");
+    expect(reactBtn).toBeInTheDocument();
+    reactBtn.click();
+
+    const heartEmojiBtn = await screen.findByTitle("React with ❤️");
+    expect(heartEmojiBtn).toBeInTheDocument();
+    heartEmojiBtn.click();
+
+    await waitFor(() => {
+      expect(apiClient.post).toHaveBeenCalledWith("/chat/message/react", {
+        chatId: "c1",
+        messageId: "m1",
+        emoji: "❤️",
+      });
+    });
+    console.log("TRACE [ChatWindow.test.jsx]: Reaction picker and toggle verified successfully");
+  });
+
+  it("opens message options context menu, renders options, and copies text", async () => {
+    console.log("TRACE [ChatWindow.test.jsx]: Testing message options dropdown menu");
+    apiClient.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: { messages: sampleMessages, hasMore: false },
+      },
+    });
+
+    const clipboardWriteMock = vi.fn().mockResolvedValue();
+    Object.assign(navigator, {
+      clipboard: { writeText: clipboardWriteMock },
+    });
+
+    render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+      />
+    );
+
+    await screen.findByText("Hello there!");
+
+    const optionsBtn = screen.getByTitle("Message options");
+    expect(optionsBtn).toBeInTheDocument();
+    optionsBtn.click();
+
+    expect(await screen.findByRole("button", { name: /reply/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /pin message/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /forward/i })).toBeInTheDocument();
+
+    const copyBtn = screen.getByRole("button", { name: /copy/i });
+    expect(copyBtn).toBeInTheDocument();
+    copyBtn.click();
+
+    await waitFor(() => {
+      expect(clipboardWriteMock).toHaveBeenCalledWith("Hello there!");
+    });
+    console.log("TRACE [ChatWindow.test.jsx]: Message options menu and copy verified successfully");
+  });
 });
+
 

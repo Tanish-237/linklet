@@ -25,15 +25,21 @@ const fileFilter = (req, file, cb) => {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
     "text/plain", // TXT
     "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", // Images
-    "video/mp4", "video/webm", "video/ogg", "video/quicktime" // Videos
+    "video/mp4", "video/webm", "video/ogg", "video/quicktime", // Videos
+    "audio/mp3", "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/m4a" // Audios
   ];
 
-  if (allowedFileTypes.includes(file.mimetype) || file.mimetype.startsWith("image/") || file.mimetype.startsWith("video/")) {
+  if (
+    allowedFileTypes.includes(file.mimetype) ||
+    file.mimetype.startsWith("image/") ||
+    file.mimetype.startsWith("video/") ||
+    file.mimetype.startsWith("audio/")
+  ) {
     cb(null, true); // Accept the file
   } else {
     cb(
       new Error(
-        "Unsupported file type. Only documents, images, and videos are allowed."
+        "Unsupported file type. Only documents, images, videos, and audio are allowed."
       ),
       false
     );

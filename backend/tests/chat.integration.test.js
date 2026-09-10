@@ -19,6 +19,9 @@ const mockDeleteMessage = jest.fn();
 const mockMarkAsRead = jest.fn();
 const mockSearchUsers = jest.fn();
 const mockSearchMessagesInChat = jest.fn();
+const mockToggleMessageReaction = jest.fn();
+const mockPinMessage = jest.fn();
+const mockUnpinMessage = jest.fn();
 
 jest.unstable_mockModule('../src/services/chat.service.js', () => ({
   accessOrCreateChat: mockAccessOrCreateChat,
@@ -36,6 +39,9 @@ jest.unstable_mockModule('../src/services/chat.service.js', () => ({
   markAsRead: mockMarkAsRead,
   searchUsers: mockSearchUsers,
   searchMessagesInChat: mockSearchMessagesInChat,
+  toggleMessageReaction: mockToggleMessageReaction,
+  pinMessage: mockPinMessage,
+  unpinMessage: mockUnpinMessage,
 }));
 
 // Mock auth middleware
@@ -145,5 +151,48 @@ describe('Chat API Integration Tests', () => {
     console.log('TRACE [chat.integration.test.js]: Found users:', res.body.data);
     expect(res.status).toBe(200);
     expect(res.body.data[0].username).toBe('john_doe');
+  });
+
+  it('POST /api/v1/chat/message/react — Toggle Message Reaction', async () => {
+    console.log('TRACE [chat.integration.test.js]: Testing POST /api/v1/chat/message/react');
+    mockToggleMessageReaction.mockResolvedValue({
+      _id: 'm1',
+      reactions: [{ user: 'testUserId123', emoji: '🔥' }],
+    });
+
+    const res = await request
+      .post('/api/v1/chat/message/react')
+      .send({ chatId: 'c1', messageId: 'm1', emoji: '🔥' });
+
+    console.log('TRACE [chat.integration.test.js]: Reaction response:', res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.reactions[0].emoji).toBe('🔥');
+  });
+
+  it('PUT /api/v1/chat/pin — Pin Message', async () => {
+    console.log('TRACE [chat.integration.test.js]: Testing PUT /api/v1/chat/pin');
+    mockPinMessage.mockResolvedValue({ _id: 'c1', pinnedMessages: ['m1'] });
+
+    const res = await request
+      .put('/api/v1/chat/pin')
+      .send({ chatId: 'c1', messageId: 'm1' });
+
+    console.log('TRACE [chat.integration.test.js]: Pin response:', res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.data.pinnedMessages).toContain('m1');
+  });
+
+  it('PUT /api/v1/chat/unpin — Unpin Message', async () => {
+    console.log('TRACE [chat.integration.test.js]: Testing PUT /api/v1/chat/unpin');
+    mockUnpinMessage.mockResolvedValue({ _id: 'c1', pinnedMessages: [] });
+
+    const res = await request
+      .put('/api/v1/chat/unpin')
+      .send({ chatId: 'c1', messageId: 'm1' });
+
+    console.log('TRACE [chat.integration.test.js]: Unpin response:', res.body);
+    expect(res.status).toBe(200);
+    expect(res.body.data.pinnedMessages).toHaveLength(0);
   });
 });

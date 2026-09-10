@@ -1,7 +1,20 @@
 import * as chatRepo from "../repositories/chat.repository.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { getRedisClient } from "../utils/redis.js";
 import logger from "../utils/logger.js";
+
+// Helper for invalidating user chats cache
+const invalidateUserChatsCache = async (participantIds) => {
+  try {
+    const redisClient = getRedisClient();
+    if (!redisClient || !participantIds?.length) return;
+    const keys = participantIds.map((id) => `user:chats:${(id._id || id).toString()}`);
+    await redisClient.del(keys);
+  } catch (err) {
+    // Graceful fallback when Redis is not running
+  }
+};
 
 // ─── 1:1 Chat ───────────────────────────────────────────────────────────────
 
@@ -29,6 +42,7 @@ export const accessOrCreateChat = async (userId, targetUserId) => {
     participants: [userId, targetUserId],
   });
 
+  await invalidateUserChatsCache([userId, targetUserId]);
   logger.info(`New 1:1 chat created between ${userId} and ${targetUserId}`);
   return chat;
 };
@@ -47,7 +61,7 @@ export const createGroup = async (userId, { chatName, participants }) => {
   }
 
   // Ensure the creator is included in participants
-  const allParticipants = [...new Set([userId.toString(), ...participants.map(p => p.toString())])];
+  const allParticipants = [...new Set([userId.toString(), ...participants.map((p) => p.toString())])];
 
   const chat = await chatRepo.createChat({
     chatName: chatName.trim(),
@@ -56,6 +70,7 @@ export const createGroup = async (userId, { chatName, participants }) => {
     groupAdmin: userId,
   });
 
+  await invalidateUserChatsCache(allParticipants);
   logger.info(`Group "${chatName}" created by ${userId} with ${allParticipants.length} members`);
   return chat;
 };
@@ -74,7 +89,9 @@ export const renameGroup = async (chatId, userId, newName) => {
     throw new AppError("Group name is required", 400);
   }
 
-  return chatRepo.updateChat(chatId, { chatName: newName.trim() });
+  const updated = await chatRepo.updateChat(chatId, { chatName: newName.trim() });
+  await invalidateUserChatsCache(chat.participants);
+  return updated;
 };
 
 /**
@@ -92,6 +109,7 @@ export const addToGroup = async (chatId, userId, userIds) => {
   }
 
   const updated = await chatRepo.addParticipants(chatId, userIds);
+  await invalidateUserChatsCache([...chat.participants, ...userIds]);
   logger.info(`Added ${userIds.length} member(s) to group ${chatId}`);
   return updated;
 };
@@ -111,6 +129,7 @@ export const removeFromGroup = async (chatId, adminId, targetUserId) => {
   }
 
   const updated = await chatRepo.removeParticipant(chatId, targetUserId);
+  await invalidateUserChatsCache([...chat.participants, targetUserId]);
   logger.info(`Removed user ${targetUserId} from group ${chatId}`);
   return updated;
 };
@@ -124,16 +143,18 @@ export const leaveGroup = async (chatId, userId) => {
   if (!chat.isGroup) throw new AppError("Cannot leave a 1:1 chat", 400);
 
   const isParticipant = chat.participants.some(
-    (p) => p._id.toString() === userId.toString()
+    (p) => (p._id || p).toString() === userId.toString()
   );
   if (!isParticipant) {
     throw new AppError("You are not a member of this group", 400);
   }
 
+  await invalidateUserChatsCache(chat.participants);
+
   // If the user is admin, transfer admin to the next participant
   if (chat.groupAdmin._id.toString() === userId.toString()) {
     const nextAdmin = chat.participants.find(
-      (p) => p._id.toString() !== userId.toString()
+      (p) => (p._id || p).toString() !== userId.toString()
     );
     if (nextAdmin) {
       await chatRepo.updateChat(chatId, { groupAdmin: nextAdmin._id });
@@ -165,7 +186,9 @@ export const updateGroupImage = async (chatId, userId, filePath) => {
   const uploadResult = await uploadOnCloudinary(filePath);
   if (!uploadResult) throw new AppError("Failed to upload image", 500);
 
-  return chatRepo.updateChat(chatId, { groupImage: uploadResult.secure_url });
+  const updated = await chatRepo.updateChat(chatId, { groupImage: uploadResult.secure_url });
+  await invalidateUserChatsCache(chat.participants);
+  return updated;
 };
 
 // ─── Messages ───────────────────────────────────────────────────────────────
@@ -177,7 +200,7 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
   if (!chat) throw new AppError("Chat not found", 404);
 
   const isParticipant = chat.participants.some(
-    (p) => p._id.toString() === userId.toString()
+    (p) => (p._id || p).toString() === userId.toString()
   );
   if (!isParticipant) {
     throw new AppError("You are not a participant in this chat", 403);
@@ -190,6 +213,9 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
   } else if (filesParam) {
     files = [filesParam];
   }
+
+  // Invalidate redis cache for all participants so their chat list shows the updated lastMessage
+  await invalidateUserChatsCache(chat.participants);
 
   // If no files, create a single text message
   if (files.length === 0) {
@@ -229,11 +255,13 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
       messageData.replyTo = replyTo;
     }
 
-    // Determine media type
+    // Determine media type (including audio support for voice notes!)
     if (file.mimetype.startsWith("image/")) {
       messageData.mediaType = "image";
     } else if (file.mimetype.startsWith("video/")) {
       messageData.mediaType = "video";
+    } else if (file.mimetype.startsWith("audio/")) {
+      messageData.mediaType = "audio";
     } else {
       messageData.mediaType = "document";
     }
@@ -248,12 +276,12 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
 /**
  * Get messages for a chat with cursor-based pagination.
  */
-export const getMessages = async (chatId, userId, query) => {
+export const getMessages = async (chatId, userId, query = {}) => {
   const chat = await chatRepo.findChatById(chatId);
   if (!chat) throw new AppError("Chat not found", 404);
 
   const isParticipant = chat.participants.some(
-    (p) => p._id.toString() === userId.toString()
+    (p) => (p._id || p).toString() === userId.toString()
   );
   if (!isParticipant) {
     throw new AppError("You are not a participant in this chat", 403);
@@ -261,7 +289,7 @@ export const getMessages = async (chatId, userId, query) => {
 
   return chatRepo.getMessages(chatId, {
     cursor: query.cursor,
-    limit: parseInt(query.limit) || 50,
+    limit: parseInt(query.limit) || 25,
   });
 };
 
@@ -278,7 +306,7 @@ export const editMessage = async (userId, { chatId, messageId, content }) => {
   if (message.sender._id.toString() !== userId.toString()) {
     throw new AppError("You can only edit your own messages", 403);
   }
-  if (message.chat.toString() !== chatId) {
+  if (message.chat?.toString() !== chatId && message.chat?._id?.toString() !== chatId) {
     throw new AppError("Message does not belong to this chat", 400);
   }
 
@@ -303,7 +331,7 @@ export const deleteMessage = async (userId, { chatId, messageId }) => {
   if (message.sender._id.toString() !== userId.toString()) {
     throw new AppError("You can only delete your own messages", 403);
   }
-  if (message.chat.toString() !== chatId) {
+  if (message.chat?.toString() !== chatId && message.chat?._id?.toString() !== chatId) {
     throw new AppError("Message does not belong to this chat", 400);
   }
 
@@ -321,6 +349,75 @@ export const markAsRead = async (chatId, userId) => {
   return chatRepo.markMessagesAsRead(chatId, userId);
 };
 
+// ─── Reactions ──────────────────────────────────────────────────────────────
+
+/**
+ * Toggle an emoji reaction on a message.
+ */
+export const toggleMessageReaction = async (userId, { chatId, messageId, emoji }) => {
+  if (!chatId || !messageId || !emoji) {
+    throw new AppError("Chat ID, Message ID, and Emoji are required", 400);
+  }
+
+  const chat = await chatRepo.findChatById(chatId);
+  if (!chat) throw new AppError("Chat not found", 404);
+
+  const isParticipant = chat.participants.some(
+    (p) => (p._id || p).toString() === userId.toString()
+  );
+  if (!isParticipant) {
+    throw new AppError("You are not a participant in this chat", 403);
+  }
+
+  return chatRepo.toggleReaction(messageId, userId, emoji);
+};
+
+export const toggleReaction = toggleMessageReaction;
+
+// ─── Pinned Messages ────────────────────────────────────────────────────────
+
+/**
+ * Pin a message in a chat.
+ */
+export const pinMessage = async (userId, { chatId, messageId }) => {
+  if (!chatId || !messageId) {
+    throw new AppError("Chat ID and Message ID are required", 400);
+  }
+
+  const chat = await chatRepo.findChatById(chatId);
+  if (!chat) throw new AppError("Chat not found", 404);
+
+  const isParticipant = chat.participants.some(
+    (p) => (p._id || p).toString() === userId.toString()
+  );
+  if (!isParticipant) {
+    throw new AppError("You are not a participant in this chat", 403);
+  }
+
+  return chatRepo.pinChatMessage(chatId, messageId);
+};
+
+/**
+ * Unpin a message from a chat.
+ */
+export const unpinMessage = async (userId, { chatId, messageId }) => {
+  if (!chatId || !messageId) {
+    throw new AppError("Chat ID and Message ID are required", 400);
+  }
+
+  const chat = await chatRepo.findChatById(chatId);
+  if (!chat) throw new AppError("Chat not found", 404);
+
+  const isParticipant = chat.participants.some(
+    (p) => (p._id || p).toString() === userId.toString()
+  );
+  if (!isParticipant) {
+    throw new AppError("You are not a participant in this chat", 403);
+  }
+
+  return chatRepo.unpinChatMessage(chatId, messageId);
+};
+
 // ─── Search ─────────────────────────────────────────────────────────────────
 
 /**
@@ -334,10 +431,39 @@ export const searchUsers = async (query, currentUserId) => {
 };
 
 /**
- * Get all chats for the current user.
+ * Get all chats for the current user with Redis caching (120s TTL) & graceful fallback.
  */
 export const getUserChats = async (userId) => {
-  return chatRepo.findChatsByUser(userId);
+  let redisClient = null;
+  try {
+    redisClient = getRedisClient();
+  } catch (e) {
+    // Redis not initialized or running in test/in-memory mode
+  }
+
+  const cacheKey = `user:chats:${userId}`;
+  if (redisClient) {
+    try {
+      const cached = await redisClient.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
+    } catch (err) {
+      logger.warn(`Redis get error for ${cacheKey}: ${err.message}`);
+    }
+  }
+
+  const chats = await chatRepo.findChatsByUser(userId);
+
+  if (redisClient && chats) {
+    try {
+      await redisClient.setEx(cacheKey, 120, JSON.stringify(chats));
+    } catch (err) {
+      logger.warn(`Redis set error for ${cacheKey}: ${err.message}`);
+    }
+  }
+
+  return chats;
 };
 
 /**
@@ -348,7 +474,7 @@ export const searchMessagesInChat = async (chatId, userId, query) => {
   if (!chat) throw new AppError("Chat not found", 404);
 
   const isParticipant = chat.participants.some(
-    (p) => p._id.toString() === userId.toString()
+    (p) => (p._id || p).toString() === userId.toString()
   );
   if (!isParticipant) {
     throw new AppError("You are not a participant in this chat", 403);
@@ -370,7 +496,7 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
   if (!targetChat) throw new AppError("Target chat not found", 404);
 
   const isParticipant = targetChat.participants.some(
-    (p) => p._id.toString() === userId.toString()
+    (p) => (p._id || p).toString() === userId.toString()
   );
   if (!isParticipant) {
     throw new AppError("You are not a participant in the target chat", 403);
@@ -399,6 +525,7 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
     forwardedMessages.push(forwardedMsg);
   }
 
+  await invalidateUserChatsCache(targetChat.participants);
   return forwardedMessages;
 };
 

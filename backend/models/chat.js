@@ -24,7 +24,7 @@ const messageSchema = new mongoose.Schema(
     },
     mediaType: {
       type: String,
-      enum: ["image", "video", "document", null],
+      enum: ["image", "video", "document", "audio", null],
       default: null,
     },
     replyTo: {
@@ -36,6 +36,18 @@ const messageSchema = new mongoose.Schema(
       {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User",
+      },
+    ],
+    reactions: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+        emoji: {
+          type: String,
+          required: true,
+        },
       },
     ],
     isEdited: {
@@ -55,8 +67,9 @@ messageSchema.pre("validate", function (next) {
   }
 });
 
-// Compound index for efficient message queries per chat
+// Compound index for efficient message queries per chat and read tracking
 messageSchema.index({ chat: 1, createdAt: -1 });
+messageSchema.index({ chat: 1, readBy: 1 });
 
 // ─── Chat Model ─────────────────────────────────────────────────────────────
 const chatSchema = new mongoose.Schema(

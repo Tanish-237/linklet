@@ -217,7 +217,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
     await user.click(avatarBtn);
 
-    const avatarDropdown = screen.getByText("Settings").closest(".absolute");
+    const avatarDropdown = screen.getByText("Settings").closest(".shadow-2xl");
     expect(avatarDropdown.className).toContain("shadow-2xl");
     expect(avatarDropdown.className).toContain("border-gray-800");
     expect(avatarDropdown.className).toContain("backdrop-blur-xl");
@@ -236,7 +236,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     // Click What's New button
     await user.click(whatsNewBtn);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6")).toBeInTheDocument();
 
     // Clicking notification bell closes What's New dropdown
     const bellBtn = screen.getByRole("button", { name: /Notifications/i });
@@ -261,7 +261,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     await user.click(whatsNewMenuItem);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6")).toBeInTheDocument();
     console.log("Passed: What's New opened from Avatar menu");
   });
 
@@ -275,8 +275,117 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     await user.click(sidebarVersionBtn);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.5")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6")).toBeInTheDocument();
     console.log("Passed: What's New opened from sidebar footer version button");
+  });
+
+  describe("Mobile Sidebar Drawer & Top-Left Hamburger Navigation Tests", () => {
+    it("renders top-left 3-line hamburger button with aria attributes and menu icon", () => {
+      console.log("TRACE [Layout.test.jsx]: Verifying top-left hamburger menu button");
+      renderComponent();
+
+      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
+      expect(hamburgerBtn).toBeInTheDocument();
+      expect(hamburgerBtn).toHaveAttribute("aria-label", "Open sidebar menu");
+      expect(hamburgerBtn).toHaveAttribute("aria-expanded", "false");
+
+      const icon = hamburgerBtn.querySelector(".material-icons");
+      expect(icon).toBeInTheDocument();
+      expect(icon.textContent).toBe("menu");
+      console.log("Passed: Hamburger menu button rendered with 3-lines menu icon and aria-label");
+    });
+
+    it("opens mobile drawer and backdrop when hamburger button is clicked", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing drawer open on hamburger click");
+      const user = userEvent.setup();
+      renderComponent();
+
+      const sidebar = document.getElementById("app-sidebar");
+      expect(sidebar.className).toContain("-translate-x-full");
+
+      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
+      await user.click(hamburgerBtn);
+
+      // Now drawer should be translated into view
+      expect(sidebar.className).toContain("translate-x-0");
+      expect(hamburgerBtn).toHaveAttribute("aria-expanded", "true");
+
+      // Backdrop overlay should be rendered
+      const backdrop = document.getElementById("mobile-sidebar-backdrop");
+      expect(backdrop).toBeInTheDocument();
+      console.log("Passed: Sidebar translated to view and backdrop displayed on hamburger click");
+    });
+
+    it("closes mobile drawer when the close button inside drawer is clicked", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing drawer close button");
+      const user = userEvent.setup();
+      renderComponent();
+
+      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
+      await user.click(hamburgerBtn);
+
+      const closeBtn = document.getElementById("mobile-sidebar-close-btn");
+      expect(closeBtn).toBeInTheDocument();
+      await user.click(closeBtn);
+
+      const sidebar = document.getElementById("app-sidebar");
+      expect(sidebar.className).toContain("-translate-x-full");
+      expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
+      console.log("Passed: Drawer successfully closed on close button click");
+    });
+
+    it("closes mobile drawer when clicking the backdrop overlay", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing drawer close on backdrop click");
+      const user = userEvent.setup();
+      renderComponent();
+
+      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
+      await user.click(hamburgerBtn);
+
+      const backdrop = document.getElementById("mobile-sidebar-backdrop");
+      expect(backdrop).toBeInTheDocument();
+      await user.click(backdrop);
+
+      const sidebar = document.getElementById("app-sidebar");
+      expect(sidebar.className).toContain("-translate-x-full");
+      expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
+      console.log("Passed: Drawer closed upon clicking backdrop");
+    });
+
+    it("closes mobile drawer and navigates when clicking a navigation link", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing navigation item click inside drawer");
+      const user = userEvent.setup();
+      renderComponent();
+
+      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
+      await user.click(hamburgerBtn);
+
+      const chatMenuItem = screen.getByText("Chat");
+      await user.click(chatMenuItem);
+
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard/chat");
+      const sidebar = document.getElementById("app-sidebar");
+      expect(sidebar.className).toContain("-translate-x-full");
+      console.log("Passed: Drawer closed and navigated to /dashboard/chat on menu item click");
+    });
+
+    it("closes mobile drawer when pressing the Escape key", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing drawer close on Escape key press");
+      const user = userEvent.setup();
+      renderComponent();
+
+      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
+      await user.click(hamburgerBtn);
+
+      const sidebar = document.getElementById("app-sidebar");
+      expect(sidebar.className).toContain("translate-x-0");
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(sidebar.className).toContain("-translate-x-full");
+      expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
+      console.log("Passed: Drawer closed on Escape key press");
+    });
   });
 });
 

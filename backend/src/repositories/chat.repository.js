@@ -9,8 +9,9 @@ import { User } from "../../models/users.js";
 export const createChat = async (chatData) => {
   const chat = await Chat.create(chatData);
   return Chat.findById(chat._id)
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
-    .populate("groupAdmin", "username fullName avatar");
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .lean();
 };
 
 /**
@@ -18,12 +19,17 @@ export const createChat = async (chatData) => {
  */
 export const findChatById = async (chatId) => {
   return Chat.findById(chatId)
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
+    .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
     .populate({
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
-    });
+    })
+    .populate({
+      path: "pinnedMessages",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .lean();
 };
 
 /**
@@ -34,25 +40,32 @@ export const findOneToOneChat = async (userId, targetUserId) => {
     isGroup: false,
     participants: { $all: [userId, targetUserId], $size: 2 },
   })
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
+    .populate("participants", "username fullName avatar")
     .populate({
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
-    });
+    })
+    .lean();
 };
 
 /**
  * Get all chats for a user, sorted by most recent activity.
+ * High-performance lean query with stripped projections to eliminate lag.
  */
 export const findChatsByUser = async (userId) => {
   return Chat.find({ participants: userId })
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
+    .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
     .populate({
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
     })
-    .sort({ updatedAt: -1 });
+    .populate({
+      path: "pinnedMessages",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .sort({ updatedAt: -1 })
+    .lean();
 };
 
 /**
@@ -60,8 +73,9 @@ export const findChatsByUser = async (userId) => {
  */
 export const updateChat = async (chatId, updateData) => {
   return Chat.findByIdAndUpdate(chatId, updateData, { new: true })
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
-    .populate("groupAdmin", "username fullName avatar");
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .lean();
 };
 
 /**
@@ -73,8 +87,9 @@ export const addParticipants = async (chatId, userIds) => {
     { $addToSet: { participants: { $each: userIds } } },
     { new: true }
   )
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
-    .populate("groupAdmin", "username fullName avatar");
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .lean();
 };
 
 /**
@@ -86,8 +101,9 @@ export const removeParticipant = async (chatId, userId) => {
     { $pull: { participants: userId } },
     { new: true }
   )
-    .populate("participants", "username fullName avatar email bio year department userType role skills phoneNumber")
-    .populate("groupAdmin", "username fullName avatar");
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .lean();
 };
 
 /**
@@ -118,14 +134,14 @@ export const createMessage = async (messageData) => {
     updatedAt: Date.now(),
   });
 
-  return message;
+  return message.toObject ? message.toObject() : message;
 };
 
 /**
  * Get paginated messages for a chat using cursor-based pagination.
- * Returns messages older than the cursor, ordered newest-first.
+ * Returns 25 messages older than the cursor, ordered chronologically.
  */
-export const getMessages = async (chatId, { cursor, limit = 50 }) => {
+export const getMessages = async (chatId, { cursor, limit = 25 }) => {
   const query = { chat: chatId };
   if (cursor) {
     query.createdAt = { $lt: new Date(cursor) };
@@ -137,8 +153,13 @@ export const getMessages = async (chatId, { cursor, limit = 50 }) => {
       path: "replyTo",
       populate: { path: "sender", select: "username fullName avatar" },
     })
+    .populate({
+      path: "reactions.user",
+      select: "username fullName avatar",
+    })
     .sort({ createdAt: -1 })
-    .limit(limit + 1); // Fetch one extra to determine hasMore
+    .limit(limit + 1)
+    .lean();
 
   const hasMore = messages.length > limit;
   const result = hasMore ? messages.slice(0, limit) : messages;
@@ -165,7 +186,88 @@ export const updateMessage = async (messageId, content) => {
     .populate({
       path: "replyTo",
       populate: { path: "sender", select: "username fullName avatar" },
-    });
+    })
+    .populate({
+      path: "reactions.user",
+      select: "username fullName avatar",
+    })
+    .lean();
+};
+
+/**
+ * Toggle reaction on a message.
+ * If user has same reaction, remove it. If different reaction, update it. If none, add it.
+ */
+export const toggleReaction = async (messageId, userId, emoji) => {
+  const message = await Message.findById(messageId);
+  if (!message) return null;
+
+  const existingIdx = message.reactions.findIndex(
+    (r) => r.user.toString() === userId.toString()
+  );
+
+  if (existingIdx > -1) {
+    if (message.reactions[existingIdx].emoji === emoji) {
+      // Toggle off
+      message.reactions.splice(existingIdx, 1);
+    } else {
+      // Update emoji
+      message.reactions[existingIdx].emoji = emoji;
+    }
+  } else {
+    // Add reaction
+    message.reactions.push({ user: userId, emoji });
+  }
+
+  await message.save();
+
+  return Message.findById(messageId)
+    .populate("sender", "username fullName avatar")
+    .populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .populate({
+      path: "reactions.user",
+      select: "username fullName avatar",
+    })
+    .lean();
+};
+
+/**
+ * Pin a message in chat.
+ */
+export const pinChatMessage = async (chatId, messageId) => {
+  return Chat.findByIdAndUpdate(
+    chatId,
+    { $addToSet: { pinnedMessages: messageId } },
+    { new: true }
+  )
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .populate({
+      path: "pinnedMessages",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .lean();
+};
+
+/**
+ * Unpin a message from chat.
+ */
+export const unpinChatMessage = async (chatId, messageId) => {
+  return Chat.findByIdAndUpdate(
+    chatId,
+    { $pull: { pinnedMessages: messageId } },
+    { new: true }
+  )
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .populate({
+      path: "pinnedMessages",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .lean();
 };
 
 /**
@@ -180,7 +282,12 @@ export const deleteMessage = async (messageId) => {
  */
 export const findMessageById = async (messageId) => {
   return Message.findById(messageId)
-    .populate("sender", "username fullName avatar");
+    .populate("sender", "username fullName avatar")
+    .populate({
+      path: "reactions.user",
+      select: "username fullName avatar",
+    })
+    .lean();
 };
 
 /**
@@ -205,7 +312,8 @@ export const searchUsers = async (query, currentUserId) => {
     ],
   })
     .select("username fullName avatar")
-    .limit(20);
+    .limit(20)
+    .lean();
 };
 
 /**
@@ -218,5 +326,6 @@ export const searchMessagesInChat = async (chatId, query) => {
   })
     .populate("sender", "username fullName avatar")
     .sort({ createdAt: -1 })
-    .limit(30);
+    .limit(30)
+    .lean();
 };

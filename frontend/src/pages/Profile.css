@@ -937,6 +937,8 @@
 @media (max-width: 768px) {
   .profile-page {
     padding: 0 4px;
+    width: 100%;
+    margin: 0;
   }
 
   .profile-cover {

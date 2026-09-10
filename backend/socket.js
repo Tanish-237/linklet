@@ -162,7 +162,23 @@ export const initializeSocket = async (server) => {
     });
 
     socket.on("read receipt", ({ chatId, userId }) => {
+      if (!chatId || !userId) return;
       socket.to(chatId).emit("read receipt", { chatId, userId });
+    });
+
+    socket.on("message reaction", ({ chatId, messageId, reactions }) => {
+      if (!chatId || !messageId) return;
+      io.to(chatId).emit("message reaction", { chatId, messageId, reactions });
+    });
+
+    socket.on("message pinned", ({ chatId, pinnedMessages }) => {
+      if (!chatId) return;
+      io.to(chatId).emit("message pinned", { chatId, pinnedMessages });
+    });
+
+    socket.on("message unpinned", ({ chatId, pinnedMessages }) => {
+      if (!chatId) return;
+      io.to(chatId).emit("message unpinned", { chatId, pinnedMessages });
     });
 
     socket.on("group updated", (updatedChat) => {

@@ -229,26 +229,26 @@ export default function WeeklyTimetableModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gray-900">
+        <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between bg-gray-900">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
-              <span className="material-icons">calendar_view_week</span>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
+              <span className="material-icons text-xl sm:text-2xl">calendar_view_week</span>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">Weekly Timetable</h2>
-              <p className="text-xs text-gray-400">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-white truncate">Weekly Timetable</h2>
+              <p className="text-[11px] sm:text-xs text-gray-400 truncate">
                 {timetable?.branch
                   ? `${timetable.branch} • Sem ${timetable.semester} • Sec ${timetable.section}`
-                  : "View & customize your weekly class schedule (Monday – Sunday)"}
+                  : "View & customize your weekly class schedule"}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 transition cursor-pointer"
+            className="text-gray-400 hover:text-white p-1.5 sm:p-2 rounded-lg hover:bg-gray-800 transition cursor-pointer shrink-0"
             aria-label="Close"
           >
             <span className="material-icons text-xl">close</span>
@@ -256,7 +256,7 @@ export default function WeeklyTimetableModal({
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-3.5 sm:p-6 overflow-y-auto space-y-5 sm:space-y-6 flex-1">
           {loading ? (
             <div className="p-12 text-center text-gray-400">
               <span className="material-icons animate-spin text-3xl text-violet-400 mb-2">sync</span>
@@ -265,7 +265,7 @@ export default function WeeklyTimetableModal({
           ) : (
             <div className="space-y-5">
               {/* Day selection tabs (All 7 days: Monday to Sunday) */}
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-gray-800 scrollbar-thin">
+              <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-2 border-b border-gray-800 no-scrollbar">
                 {DAYS.map((day) => {
                   const count = classes.filter((c) => c.day === day).length;
                   const isActive = selectedDay === day;

@@ -332,3 +332,42 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ── Responsive Mobile Styles ── */
+@media (max-width: 640px) {
+  .settings-container {
+    padding-bottom: 2rem;
+  }
+
+  .settings-header {
+    margin-bottom: 1.25rem;
+  }
+
+  .settings-nav-tabs {
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .settings-tab-btn {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.85rem;
+    border-radius: 0.5rem;
+  }
+
+  .settings-card {
+    padding: 1.25rem 1rem;
+    border-radius: 1rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .settings-form-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .settings-primary-btn {
+    width: 100%;
+    padding: 0.75rem 1.25rem;
+  }
+}

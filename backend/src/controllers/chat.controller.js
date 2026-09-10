@@ -199,3 +199,39 @@ export const deleteMultipleMessages = async (req, res, next) => {
     next(error);
   }
 };
+
+// ─── Reaction & Pin Operations ───────────────────────────────────────────────
+
+export const toggleReaction = async (req, res, next) => {
+  try {
+    const { chatId, messageId, emoji } = req.body;
+    const message = await chatService.toggleMessageReaction(req.user._id, {
+      chatId,
+      messageId,
+      emoji,
+    });
+    res.status(200).json({ success: true, data: message });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const pinMessage = async (req, res, next) => {
+  try {
+    const { chatId, messageId } = req.body;
+    const chat = await chatService.pinMessage(req.user._id, { chatId, messageId });
+    res.status(200).json({ success: true, data: chat });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unpinMessage = async (req, res, next) => {
+  try {
+    const { chatId, messageId } = req.body;
+    const chat = await chatService.unpinMessage(req.user._id, { chatId, messageId });
+    res.status(200).json({ success: true, data: chat });
+  } catch (error) {
+    next(error);
+  }
+};

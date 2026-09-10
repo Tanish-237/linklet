@@ -247,7 +247,7 @@ export default function NotificationDropdown({
         <div
           role="dialog"
           aria-label="Notifications panel"
-          className="absolute right-0 mt-2 w-84 sm:w-96 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-3 top-[76px] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] sm:max-h-none bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
         >
           {/* Header */}
           <div className="p-4 border-b border-gray-800/80 flex items-center justify-between gap-3 bg-gray-950/50">

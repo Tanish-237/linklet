@@ -706,6 +706,33 @@ const HelpForum = () => {
             </div>
           )}
 
+          {/* Mobile Categories Scroll Bar (Compact horizontal row, hidden on desktop >= 900px) */}
+          {categories.length > 0 && (
+            <div className="hf-mobile-categories-wrap" aria-label="Forum categories">
+              <div className="hf-mobile-categories">
+                <button
+                  type="button"
+                  id="hf-mobile-cat-all"
+                  className={`hf-mobile-cat-pill ${selectedCategory === '' ? 'active' : ''}`}
+                  onClick={() => setSelectedCategory('')}
+                >
+                  All
+                </button>
+                {categories.map((cat) => (
+                  <button
+                    type="button"
+                    key={cat}
+                    id={`hf-mobile-cat-${cat.toLowerCase().replace(/\s+/g, '-')}`}
+                    className={`hf-mobile-cat-pill ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => handleCategoryClick(cat)}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Filter Pills */}
           <div className="hf-filter-bar">
             {FILTERS.map((f) => (

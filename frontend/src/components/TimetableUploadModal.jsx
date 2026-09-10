@@ -166,19 +166,19 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
   const dayClasses = (previewData?.classes || []).filter((c) => c.day === selectedDayTab);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-gray-900 border border-violet-500/20 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-gray-900 border border-violet-500/20 rounded-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-gray-900 via-gray-850 to-gray-900">
+        <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-gray-900 via-gray-850 to-gray-900">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400">
-              <span className="material-icons">upload_file</span>
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
+              <span className="material-icons text-xl sm:text-2xl">upload_file</span>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-white">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-white truncate">
                 {previewData ? "Verify Extracted Classes" : "Import Timetable"}
               </h2>
-              <p className="text-xs text-gray-400">
+              <p className="text-[11px] sm:text-xs text-gray-400 truncate">
                 {previewData
                   ? "Review your classes before syncing to schedule"
                   : "Upload your official MNNIT semester timetable (PDF or Image)"}
@@ -187,14 +187,14 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
           </div>
           <button
             onClick={handleCloseModal}
-            className="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-gray-800 transition"
+            className="text-gray-400 hover:text-white p-1.5 sm:p-2 rounded-lg hover:bg-gray-800 transition shrink-0"
           >
             <span className="material-icons text-xl">close</span>
           </button>
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-5 sm:space-y-6 flex-1">
           {!previewData ? (
             /* ───── Upload State ───── */
             <div className="space-y-5">

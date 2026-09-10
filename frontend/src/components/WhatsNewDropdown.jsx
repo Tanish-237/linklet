@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export const RELEASE_VERSION = "v1.5.0";
+export const RELEASE_VERSION = "v1.6.0";
 export const STORAGE_KEY = "linklet_last_seen_version";
 
 export const isReleaseSeen = (version = RELEASE_VERSION) => {
@@ -85,7 +85,7 @@ export default function WhatsNewDropdown({
         >
           <span>What's New</span>
           <span className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
-            v1.5
+            v1.6
           </span>
         </button>
       )}
@@ -95,36 +95,36 @@ export default function WhatsNewDropdown({
         <div
           role="dialog"
           aria-label="What's New release notes"
-          className="absolute right-0 mt-2 w-80 sm:w-88 bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-3 top-[76px] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-88 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] sm:max-h-none bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
         >
           {/* Header */}
           <div className="p-3.5 border-b border-gray-800/80 bg-gray-950/50 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.5</h3>
+            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6</h3>
             <span className="text-[10px] font-mono text-violet-300 bg-violet-950/70 border border-violet-800/50 px-1.5 py-0.5 rounded">
-              v1.5.0
+              v1.6.0
             </span>
           </div>
 
           {/* Clean, Human-Written Release Notes */}
-          <ul className="p-4 space-y-3 text-xs text-gray-300">
+          <ul className="p-4 space-y-3 text-xs text-gray-300 overflow-y-auto max-h-[50dvh] sm:max-h-none">
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Live notifications:</span> Instant alerts for question answers, comment replies, upvotes, and new followers.
+              <span className="text-gray-100 font-medium">Mobile navigation drawer:</span> 3-line hamburger menu on top-left with fluid slide-out drawer navigation and backdrop blur.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Threaded reply notices:</span> When someone replies to your comment on a forum answer, you'll be notified directly.
+              <span className="text-gray-100 font-medium">Dedicated mobile chat:</span> Full-screen conversation view with dedicated top-left back button to return to all chats.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Moderation alerts:</span> Clear notifications if a post or resource was removed during content moderation.
+              <span className="text-gray-100 font-medium">Help forum layout overhaul:</span> Compact horizontal category chips and full-width question titles with zero text cutoff.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Faster load times:</span> Better caching across feeds and discussions so pages open quicker.
+              <span className="text-gray-100 font-medium">Responsive dropdown protection:</span> Notifications and release notes menus centered within safe viewport margins.
             </li>
           </ul>
 
           {/* Footer */}
           <div className="p-3 border-t border-gray-800/80 bg-gray-950/50 flex items-center justify-between text-xs">
             <a
-              href="https://github.com/Tanish-237/linklet/releases/tag/v1.5.0"
+              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.0"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-violet-300 transition-colors flex items-center gap-1 font-medium"

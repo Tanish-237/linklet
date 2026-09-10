@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import TimeAgo from "./TimeAgo";
 
 const ChatSidebar = ({
-  chats,
+  chats = [],
   activeChat,
   onSelectChat,
   onOpenCreateGroup,
   currentUser,
   onlineUsers = [],
+  typingMap = {},
+  unreadCounts = {},
+  isMobileChatOpen = false,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [userSearchResults, setUserSearchResults] = useState([]);
@@ -47,8 +50,10 @@ const ChatSidebar = ({
 
   const getChatDisplayName = (chat) => {
     if (chat.isGroup) return chat.chatName;
-    const otherUser = chat.participants?.find((p) => p._id !== currentUser?._id);
-    return otherUser ? otherUser.username : "User";
+    const otherUser = chat.participants?.find(
+      (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
+    );
+    return otherUser ? otherUser.username : "Direct Message";
   };
 
   const getChatDisplayAvatar = (chat) => {
@@ -58,7 +63,9 @@ const ChatSidebar = ({
         "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
       );
     }
-    const otherUser = chat.participants?.find((p) => p._id !== currentUser?._id);
+    const otherUser = chat.participants?.find(
+      (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
+    );
     return (
       otherUser?.avatar ||
       "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
@@ -68,15 +75,59 @@ const ChatSidebar = ({
   const isUserOnline = (chat) => {
     if (chat.isGroup) return false;
     const otherUser = chat.participants?.find(
-      (p) => p._id?.toString() !== currentUser?._id?.toString()
+      (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
     );
     return otherUser
-      ? onlineUsers.some((id) => id.toString() === otherUser._id?.toString())
+      ? onlineUsers.some((id) => id.toString() === (otherUser._id || otherUser)?.toString())
       : false;
   };
 
+  const renderMessagePreview = (chat) => {
+    const isTyping = typingMap[chat._id];
+    if (isTyping) {
+      return (
+        <span className="text-emerald-400 font-medium italic flex items-center gap-1 animate-pulse text-xs">
+          <span>typing...</span>
+        </span>
+      );
+    }
+
+    if (!chat.lastMessage) return "No messages yet";
+
+    const lastMsg = chat.lastMessage;
+    const isSentByMe =
+      lastMsg.sender?._id === currentUser?._id || lastMsg.sender === currentUser?._id;
+
+    let mediaLabel = "";
+    if (lastMsg.mediaType === "audio") mediaLabel = "🎤 Voice note";
+    else if (lastMsg.mediaType === "image") mediaLabel = "📷 Photo";
+    else if (lastMsg.mediaType === "video") mediaLabel = "🎥 Video";
+    else if (lastMsg.mediaType === "document") mediaLabel = "📄 Document";
+
+    const content = lastMsg.content || mediaLabel;
+
+    return (
+      <span className="flex items-center gap-1 truncate text-xs">
+        {isSentByMe && (
+          <span
+            className={`material-icons text-xs flex-shrink-0 ${
+              lastMsg.readBy?.length > 1 ? "tick-read" : "text-gray-400"
+            }`}
+          >
+            {lastMsg.readBy?.length > 1 ? "done_all" : "done"}
+          </span>
+        )}
+        <span className="truncate">{content}</span>
+      </span>
+    );
+  };
+
   return (
-    <div className="chat-sidebar">
+    <div
+      className={`chat-sidebar ${
+        isMobileChatOpen ? "mobile-hidden !hidden md:!flex" : "flex"
+      }`}
+    >
       {/* Header */}
       <div className="chat-sidebar-header">
         <h2 className="chat-sidebar-title">Messages</h2>
@@ -114,9 +165,9 @@ const ChatSidebar = ({
                 className="chat-user-result-item"
               >
                 <img
-                  src={user.avatar}
+                  src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
                   alt={user.username}
-                  className="w-9 h-9 rounded-full border border-violet-500/30"
+                  className="w-9 h-9 rounded-full border border-violet-500/30 object-cover"
                 />
                 <div>
                   <div className="text-sm font-semibold text-violet-300">
@@ -140,6 +191,7 @@ const ChatSidebar = ({
           chats.map((chat) => {
             const isActive = activeChat?._id === chat._id;
             const online = isUserOnline(chat);
+            const unread = unreadCounts[chat._id] || 0;
 
             return (
               <div
@@ -171,10 +223,11 @@ const ChatSidebar = ({
 
                   <div className="chat-item-bottom">
                     <span className="chat-item-preview">
-                      {chat.lastMessage
-                        ? chat.lastMessage.content || (chat.lastMessage.media ? "📷 Media" : "")
-                        : "No messages yet"}
+                      {renderMessagePreview(chat)}
                     </span>
+                    {unread > 0 && (
+                      <span className="unread-badge ml-2">{unread}</span>
+                    )}
                   </div>
                 </div>
               </div>

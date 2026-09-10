@@ -436,7 +436,7 @@
 
 .gs-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
   gap: 18px;
 }
 
@@ -1406,3 +1406,90 @@
 .bm-del-btn.inline-del-btn:hover .material-icons {
   color: #ffffff !important;
 }
+
+/* ── Responsive Mobile Styles ── */
+@media (max-width: 768px) {
+  .gs-toolbar {
+    top: -12px;
+    margin: -12px -12px 0;
+    padding: 12px 0 10px;
+  }
+
+  .gs-toolbar-inner {
+    padding: 0 12px 10px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .gs-search-wrap {
+    min-width: 100%;
+    order: 1;
+  }
+
+  .gs-search-input {
+    height: 42px;
+    font-size: 14px;
+    padding: 0 40px 0 42px;
+  }
+
+  .gs-search-icon {
+    left: 12px;
+    font-size: 20px;
+  }
+
+  .gs-toolbar-actions {
+    width: 100%;
+    order: 2;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .gs-btn-upload {
+    padding: 8px 14px;
+    font-size: 13px;
+    margin-left: auto;
+  }
+
+  .gs-filter-row {
+    padding: 0 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gs-filter-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    max-width: 100%;
+  }
+
+  .gs-filter-right {
+    width: 100%;
+  }
+
+  .gs-sort-wrap,
+  .gs-sort-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .gs-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .gs-card-grid {
+    padding: 14px;
+  }
+
+  .gs-preview-modal {
+    height: 95vh;
+    border-radius: 16px;
+  }
+
+  .gs-modal-backdrop {
+    padding: 8px;
+  }
+}
+

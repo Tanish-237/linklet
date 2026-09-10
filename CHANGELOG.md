@@ -5,6 +5,29 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-09-11
+
+### Added
+- **Mobile Responsiveness Overhaul & Hamburger Navigation**:
+  - Accessible top-left 3-line hamburger menu button (`#mobile-sidebar-toggle-btn`) in the header for viewports `< 768px`.
+  - Glassmorphic slide-out navigation drawer with dark blur backdrop overlay, close button, and automatic dismissal on route change, backdrop click, or Escape key press.
+  - Full mobile responsiveness across Dashboard, Daily Schedule, Attendance Tracker, Resource Library, Saved Collections, Profile, and Settings.
+- **Dedicated Full-Screen Mobile Chat**:
+  - Active chat window expands to full screen on mobile (`fixed inset-0 z-40 bg-gray-950 flex flex-col h-[100dvh]`), dedicating 100% of the screen to the active conversation.
+  - Prominent top-left back button (`#chat-back-to-sidebar-btn`) with `arrow_back` icon, returning users cleanly to all chats.
+  - Strict hiding of conversation sidebar on mobile while in an active chat (`display: none !important`).
+- **Help Forum Mobile Categories & Card Layout Overhaul**:
+  - Compact, horizontally swipeable category pills bar (`All`, `General`, `Academic`, `Tech`, etc.) replacing heavy desktop sidebar on mobile.
+  - Full-width question title layout with word-break protection, completely eliminating title cutoff.
+  - Dedicated status badges row (`Solved`, answer count) and top-aligned voting column.
+  - Username ellipsis truncation protecting footer metadata from overflow.
+- **Dropdown Viewport-Clamping Safety**:
+  - Notifications, What's New release notes, and Profile dropdowns fixed within safe 12px margins (`fixed inset-x-3 top-[76px]`) on mobile screens, eliminating horizontal clipping.
+
+### Changed
+- Synchronized frontend and backend package versions to `v1.6.0`.
+- Updated in-app release notes in `WhatsNewDropdown.jsx` to reflect `v1.6.0` highlights and GitHub release tag.
+
 ## [1.5.0] - 2026-09-10
 
 ### Added

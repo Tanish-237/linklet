@@ -19,6 +19,9 @@ import {
   searchMessagesInChat,
   forwardMessages,
   deleteMultipleMessages,
+  toggleReaction,
+  pinMessage,
+  unpinMessage,
 } from "../controllers/chat.controller.js";
 
 const router = express.Router();
@@ -29,6 +32,10 @@ router.use(isLoggedIn);
 // Chat endpoints
 router.route("/").post(accessOrCreateChat).get(getUserChats);
 router.route("/search").get(searchUsers);
+
+// Pin / Unpin endpoints
+router.route("/pin").put(pinMessage);
+router.route("/unpin").put(unpinMessage);
 
 // Group endpoints
 router.route("/group").post(createGroup);
@@ -47,6 +54,7 @@ router
   .put(editMessage)
   .delete(deleteMessage);
 
+router.route("/message/react").post(toggleReaction);
 router.route("/message/forward").post(forwardMessages);
 router.route("/message/bulk-delete").delete(deleteMultipleMessages);
 router.route("/message/:chatId").get(getMessages);

@@ -164,9 +164,9 @@ export default function AttendanceTracker({ refreshTrigger }) {
   };
 
   return (
-    <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl relative">
+    <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-gray-800 shadow-2xl relative">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8 border-b border-gray-800/80 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 border-b border-gray-800/80 pb-6">
         <div className="flex items-center gap-3">
           <span className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400 material-icons">
             how_to_reg
@@ -392,24 +392,24 @@ export default function AttendanceTracker({ refreshTrigger }) {
             </div>
 
             {/* 3 Metrics Cards Down the Chart: Total, Attended, Missed */}
-            <div className="grid grid-cols-3 gap-3 max-w-lg mx-auto w-full">
-              <div className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-3 text-center">
-                <div className="text-xs text-gray-400 font-medium">Total</div>
-                <div className="text-2xl font-bold text-white mt-1 font-mono">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mx-auto w-full">
+              <div className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-2.5 sm:p-3 text-center">
+                <div className="text-[11px] sm:text-xs text-gray-400 font-medium">Total</div>
+                <div className="text-xl sm:text-2xl font-bold text-white mt-1 font-mono">
                   {activeStats.total}
                 </div>
               </div>
 
-              <div className="bg-emerald-950/20 border border-emerald-900/40 rounded-xl p-3 text-center">
-                <div className="text-xs text-emerald-400 font-medium">Attended</div>
-                <div className="text-2xl font-bold text-emerald-400 mt-1 font-mono">
+              <div className="bg-emerald-950/20 border border-emerald-900/40 rounded-xl p-2.5 sm:p-3 text-center">
+                <div className="text-[11px] sm:text-xs text-emerald-400 font-medium">Attended</div>
+                <div className="text-xl sm:text-2xl font-bold text-emerald-400 mt-1 font-mono">
                   {activeStats.present}
                 </div>
               </div>
 
-              <div className="bg-rose-950/20 border border-rose-900/40 rounded-xl p-3 text-center">
-                <div className="text-xs text-rose-400 font-medium">Missed</div>
-                <div className="text-2xl font-bold text-rose-400 mt-1 font-mono">
+              <div className="bg-rose-950/20 border border-rose-900/40 rounded-xl p-2.5 sm:p-3 text-center">
+                <div className="text-[11px] sm:text-xs text-rose-400 font-medium">Missed</div>
+                <div className="text-xl sm:text-2xl font-bold text-rose-400 mt-1 font-mono">
                   {activeStats.absent}
                 </div>
               </div>

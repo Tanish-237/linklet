@@ -1,9 +1,42 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
+import EmojiPicker from "emoji-picker-react";
 import TimeAgo from "./TimeAgo";
 import ConfirmDeleteModal from "./ConfirmDeleteModal";
 import ForwardMessageModal from "./ForwardMessageModal";
+
+// Helper: Format date for WhatsApp-style date separators
+const formatMessageDate = (dateString) => {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) {
+    return "Today";
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return "Yesterday";
+  }
+  return date.toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== today.getFullYear() ? "numeric" : undefined,
+  });
+};
+
+// Helper: Format seconds to M:SS for audio
+const formatAudioTime = (seconds) => {
+  if (isNaN(seconds) || seconds < 0) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+};
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
 const ChatWindow = ({
   chat,
@@ -12,64 +45,139 @@ const ChatWindow = ({
   socket,
   onlineUsers = [],
   onToggleInfo,
+  onBackToSidebar,
 }) => {
-  const [messages, setMessages] = useState([]);
+  // Local storage cache keys
+  const cacheKey = `linklet_cached_msgs_${chat?._id}`;
+
+  // Initial messages from localStorage cache for instant 0ms render
+  const [messages, setMessages] = useState(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
+        const saved = window.localStorage.getItem(cacheKey);
+        return saved ? JSON.parse(saved) : [];
+      }
+    } catch {
+      return [];
+    }
+    return [];
+  });
+
   const [newMessage, setNewMessage] = useState("");
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [filePreviews, setFilePreviews] = useState([]);
   const [deletingMessageId, setDeletingMessageId] = useState(null);
   const [selectedMessageIds, setSelectedMessageIds] = useState([]);
   const [activeMenuMessageId, setActiveMenuMessageId] = useState(null);
+  const [activeReactionMessageId, setActiveReactionMessageId] = useState(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const [reactionPosition, setReactionPosition] = useState({ top: 0, left: 0 });
   const [isForwardModalOpen, setIsForwardModalOpen] = useState(false);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
 
-  useEffect(() => {
-    const handleWindowClick = () => setActiveMenuMessageId(null);
-    window.addEventListener("click", handleWindowClick);
-    return () => window.removeEventListener("click", handleWindowClick);
-  }, []);
+  // In-chat Search state
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [matchedIndices, setMatchedIndices] = useState([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+  // Floating Scroll-to-bottom & unread counter state
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
+  const [scrolledUnreadCount, setScrolledUnreadCount] = useState(0);
+
+  // Media Lightbox Modal state
+  const [lightboxMedia, setLightboxMedia] = useState(null); // { url, type }
+
+  // Audio Voice Notes Recording state
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const recordingTimerRef = useRef(null);
+
+  // Audio Playback states (messageId -> { isPlaying, currentTime, duration })
+  const [audioPlaybackState, setAudioPlaybackState] = useState({});
+  const activeAudioRefs = useRef({});
+
+  // Typing & Pagination
   const [typingUsers, setTypingUsers] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
-  const [editContent, setEditContent] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [isSending, setIsSending] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [loadingInitial, setLoadingInitial] = useState(false);
+
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
-  const messageCacheRef = useRef({});
+  const typingTimeoutRef = useRef(null);
+  const lastTypingEmitRef = useRef(0);
 
-  // Fetch messages when active chat changes
+  // Sync messages to localStorage cache
+  useEffect(() => {
+    if (!chat?._id || messages.length === 0) return;
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
+        const recent = messages.slice(-30);
+        window.localStorage.setItem(cacheKey, JSON.stringify(recent));
+      }
+    } catch (e) {
+      // safe fallback
+    }
+  }, [messages, chat?._id, cacheKey]);
+
+  // Click outside to close dropdowns
+  useEffect(() => {
+    const handleWindowClick = () => {
+      setActiveMenuMessageId(null);
+      setActiveReactionMessageId(null);
+    };
+    window.addEventListener("click", handleWindowClick);
+    return () => window.removeEventListener("click", handleWindowClick);
+  }, []);
+
+  // Fetch messages and mark as read on active chat change
   useEffect(() => {
     if (!chat?._id) return;
 
-    // Check in-memory cache for instant (0ms) rendering
-    const cached = messageCacheRef.current[chat._id];
-    if (cached && cached.length > 0) {
-      setMessages(cached);
-      setLoadingMessages(false);
-    } else {
+    // Load from cache if available
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
+        const cached = window.localStorage.getItem(`linklet_cached_msgs_${chat._id}`);
+        if (cached) {
+          setMessages(JSON.parse(cached));
+          setLoadingInitial(false);
+        } else {
+          setMessages([]);
+          setLoadingInitial(true);
+        }
+      } else {
+        setMessages([]);
+        setLoadingInitial(true);
+      }
+    } catch {
       setMessages([]);
-      setLoadingMessages(true);
+      setLoadingInitial(true);
     }
 
     const fetchMessages = async () => {
       try {
-        const res = await apiClient.get(`/chat/message/${chat._id}`);
+        const res = await apiClient.get(`/chat/message/${chat._id}`, {
+          params: { limit: 25 },
+        });
         if (res.data.success) {
           const fetchedMsgs = res.data.data.messages || [];
           setMessages(fetchedMsgs);
-          messageCacheRef.current[chat._id] = fetchedMsgs;
           setHasMore(res.data.data.hasMore);
           setNextCursor(res.data.data.nextCursor);
-          scrollToBottom();
+          scrollToBottom("auto");
         }
       } catch (error) {
         console.error("Failed to load messages:", error);
-        toast.error("Failed to load messages");
       } finally {
-        setLoadingMessages(false);
+        setLoadingInitial(false);
       }
     };
 
@@ -77,25 +185,53 @@ const ChatWindow = ({
     setReplyingTo(null);
     setEditingMessage(null);
     setSelectedMessageIds([]);
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    setScrolledUnreadCount(0);
 
-    // Join room
+    // Call markAsRead API endpoint
+    try {
+      const putPromise = apiClient.put(`/chat/message/read/${chat._id}`);
+      if (putPromise && typeof putPromise.catch === "function") {
+        putPromise.catch((err) => {
+          console.warn("Failed to mark chat as read:", err.message);
+        });
+      }
+    } catch (err) {
+      // safe fallback
+    }
+
+    // Join room & emit real-time read receipt
     if (socket) {
       socket.emit("join chat", chat._id);
       socket.emit("read receipt", { chatId: chat._id, userId: currentUser?._id });
     }
-  }, [chat?._id, socket]);
+  }, [chat?._id, socket, currentUser?._id]);
 
   // Socket event listeners
   useEffect(() => {
     if (!socket || !chat?._id) return;
 
     const handleMessageReceived = (message) => {
-      if (message.chat === chat._id || message.chat?._id === chat._id) {
+      const msgChatId = typeof message.chat === "object" ? message.chat._id : message.chat;
+      if (msgChatId === chat._id) {
         setMessages((prev) => {
           if (prev.some((m) => m._id === message._id)) return prev;
           return [...prev, message];
         });
-        scrollToBottom();
+
+        // If user is scrolled up, show unread badge on bottom floating button
+        if (showScrollBottom) {
+          setScrolledUnreadCount((c) => c + 1);
+        } else {
+          scrollToBottom("smooth");
+        }
+
+        // Mark incoming message as read
+        if (message.sender?._id !== currentUser?._id) {
+          apiClient.put(`/chat/message/read/${chat._id}`).catch(() => {});
+          socket.emit("read receipt", { chatId: chat._id, userId: currentUser?._id });
+        }
       }
     };
 
@@ -110,8 +246,8 @@ const ChatWindow = ({
     };
 
     const handleTyping = ({ username, chatId }) => {
-      if (chatId === chat._id && !typingUsers.includes(username)) {
-        setTypingUsers((prev) => [...prev, username]);
+      if (chatId === chat._id && username !== currentUser?.username) {
+        setTypingUsers((prev) => (prev.includes(username) ? prev : [...prev, username]));
       }
     };
 
@@ -121,11 +257,36 @@ const ChatWindow = ({
       }
     };
 
+    const handleReadReceipt = ({ chatId, userId }) => {
+      if (chatId === chat._id && userId !== currentUser?._id) {
+        setMessages((prev) =>
+          prev.map((m) => {
+            const readBy = m.readBy || [];
+            const hasUser = readBy.some((id) => (id._id || id).toString() === userId.toString());
+            if (!hasUser) {
+              return { ...m, readBy: [...readBy, userId] };
+            }
+            return m;
+          })
+        );
+      }
+    };
+
+    const handleReactionUpdate = ({ chatId, messageId, reactions }) => {
+      if (chatId === chat._id) {
+        setMessages((prev) =>
+          prev.map((m) => (m._id === messageId ? { ...m, reactions } : m))
+        );
+      }
+    };
+
     socket.on("message received", handleMessageReceived);
     socket.on("message updated", handleMessageUpdated);
     socket.on("message deleted", handleMessageDeleted);
     socket.on("typing", handleTyping);
     socket.on("stop typing", handleStopTyping);
+    socket.on("read receipt", handleReadReceipt);
+    socket.on("message reaction", handleReactionUpdate);
 
     return () => {
       socket.off("message received", handleMessageReceived);
@@ -133,13 +294,39 @@ const ChatWindow = ({
       socket.off("message deleted", handleMessageDeleted);
       socket.off("typing", handleTyping);
       socket.off("stop typing", handleStopTyping);
+      socket.off("read receipt", handleReadReceipt);
+      socket.off("message reaction", handleReactionUpdate);
     };
-  }, [socket, chat?._id, typingUsers]);
+  }, [socket, chat?._id, currentUser?._id, showScrollBottom]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
-    }, 100);
+  const scrollToBottom = (behavior = "smooth") => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView?.({ behavior });
+      setShowScrollBottom(false);
+      setScrolledUnreadCount(0);
+    });
+  };
+
+  // Scroll listener for: Load Older Messages + Scroll-To-Bottom button visibility
+  const handleMessagesScroll = (e) => {
+    const container = e.currentTarget;
+    if (!container) return;
+
+    // Close open message options or reaction bar on scroll (like WhatsApp Web)
+    if (activeMenuMessageId || activeReactionMessageId) {
+      setActiveMenuMessageId(null);
+      setActiveReactionMessageId(null);
+    }
+
+    // Show scroll-to-bottom button when scrolled up > 180px from bottom
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    setShowScrollBottom(distanceFromBottom > 180);
+
+    // Infinite scroll older messages
+    if (container.scrollTop <= 40 && hasMore && !loadingOlder) {
+      loadOlderMessages();
+    }
   };
 
   const loadOlderMessages = async () => {
@@ -151,7 +338,7 @@ const ChatWindow = ({
 
     try {
       const res = await apiClient.get(`/chat/message/${chat._id}`, {
-        params: { cursor: nextCursor, limit: 30 },
+        params: { cursor: nextCursor, limit: 25 },
       });
 
       if (res.data?.success) {
@@ -159,15 +346,13 @@ const ChatWindow = ({
         setMessages((prev) => {
           const existingIds = new Set(prev.map((m) => m._id));
           const newUnique = olderMsgs.filter((m) => !existingIds.has(m._id));
-          const updated = [...newUnique, ...prev];
-          messageCacheRef.current[chat._id] = updated;
-          return updated;
+          return [...newUnique, ...prev];
         });
 
         setHasMore(Boolean(res.data.data.hasMore));
         setNextCursor(res.data.data.nextCursor || null);
 
-        // WhatsApp-style scroll anchoring: keep viewport position stable after prepending
+        // Keep scroll position anchor stable
         if (container) {
           requestAnimationFrame(() => {
             const newScrollHeight = container.scrollHeight;
@@ -182,29 +367,58 @@ const ChatWindow = ({
     }
   };
 
-  const handleMessagesScroll = (e) => {
-    const container = e.currentTarget;
-    if (container && container.scrollTop <= 60 && hasMore && !loadingOlder) {
-      loadOlderMessages();
-    }
-  };
-
+  // Throttled typing handler
   const handleTyping = (e) => {
     setNewMessage(e.target.value);
-    if (socket && chat?._id) {
+    if (!socket || !chat?._id) return;
+
+    const now = Date.now();
+    if (now - lastTypingEmitRef.current > 2000) {
       socket.emit("typing", {
         chatId: chat._id,
         username: currentUser?.username,
       });
-      setTimeout(() => {
-        socket.emit("stop typing", {
-          chatId: chat._id,
-          username: currentUser?.username,
-        });
-      }, 3000);
+      lastTypingEmitRef.current = now;
     }
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stop typing", {
+        chatId: chat._id,
+        username: currentUser?.username,
+      });
+    }, 2500);
   };
 
+  // Pre-Send Attachment Previews
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      setSelectedFiles((prev) => [...prev, ...files]);
+
+      const previews = files.map((file) => ({
+        name: file.name,
+        size: (file.size / (1024 * 1024)).toFixed(1) + " MB",
+        type: file.type,
+        url: file.type.startsWith("image/") || file.type.startsWith("video/")
+          ? URL.createObjectURL(file)
+          : null,
+      }));
+      setFilePreviews((prev) => [...prev, ...previews]);
+    }
+    e.target.value = "";
+  };
+
+  const removeFile = (index) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setFilePreviews((prev) => {
+      const item = prev[index];
+      if (item?.url) URL.revokeObjectURL(item.url);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  // Send message with Optimistic UI update
   const handleSendMessage = async (e) => {
     e?.preventDefault();
     if (editingMessage) {
@@ -214,15 +428,50 @@ const ChatWindow = ({
 
     if (isSending || (!newMessage.trim() && selectedFiles.length === 0)) return;
 
+    const tempId = "temp_" + Date.now();
+    const optimisticMsg = {
+      _id: tempId,
+      chat: chat._id,
+      sender: currentUser,
+      content: newMessage.trim(),
+      media: filePreviews[0]?.url || null,
+      mediaType: filePreviews[0]?.type.startsWith("image/")
+        ? "image"
+        : filePreviews[0]?.type.startsWith("video/")
+        ? "video"
+        : filePreviews[0]?.type.startsWith("audio/")
+        ? "audio"
+        : filePreviews[0]
+        ? "document"
+        : null,
+      replyTo: replyingTo,
+      createdAt: new Date().toISOString(),
+      readBy: [currentUser?._id],
+      status: "sending",
+    };
+
+    // Optimistic inject
+    setMessages((prev) => [...prev, optimisticMsg]);
+    scrollToBottom("smooth");
+
+    const contentToSend = newMessage.trim();
+    const filesToSend = [...selectedFiles];
+    const replyToSend = replyingTo?._id;
+
+    // Reset input fields immediately
+    setNewMessage("");
+    setSelectedFiles([]);
+    setFilePreviews([]);
+    setReplyingTo(null);
+    setIsEmojiPickerOpen(false);
+
     setIsSending(true);
+
     const formData = new FormData();
     formData.append("chatId", chat._id);
-    if (newMessage.trim()) formData.append("content", newMessage.trim());
-    if (replyingTo) formData.append("replyTo", replyingTo._id);
-
-    selectedFiles.forEach((file) => {
-      formData.append("media", file);
-    });
+    if (contentToSend) formData.append("content", contentToSend);
+    if (replyToSend) formData.append("replyTo", replyToSend);
+    filesToSend.forEach((file) => formData.append("media", file));
 
     try {
       const res = await apiClient.post("/chat/message", formData, {
@@ -230,22 +479,261 @@ const ChatWindow = ({
       });
 
       if (res.data.success) {
-        const data = res.data.data;
-        const newMsgs = Array.isArray(data) ? data : [data];
-        setMessages((prev) => [...prev, ...newMsgs]);
-        newMsgs.forEach((msg) => socket?.emit("new message", msg));
+        const confirmedData = res.data.data;
+        const newMsgs = Array.isArray(confirmedData) ? confirmedData : [confirmedData];
 
-        // Reset input state
-        setNewMessage("");
-        setSelectedFiles([]);
-        setReplyingTo(null);
-        scrollToBottom();
+        setMessages((prev) =>
+          prev.map((m) => (m._id === tempId ? newMsgs[0] : m))
+        );
+
+        newMsgs.forEach((msg) => socket?.emit("new message", msg));
       }
     } catch (error) {
       console.error("Failed to send message:", error);
+      setMessages((prev) =>
+        prev.map((m) => (m._id === tempId ? { ...m, status: "failed" } : m))
+      );
       toast.error("Failed to send message");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  // Toggle emoji reactions
+  const handleToggleReaction = async (messageId, emoji) => {
+    try {
+      const res = await apiClient.post("/chat/message/react", {
+        chatId: chat._id,
+        messageId,
+        emoji,
+      });
+
+      if (res.data.success) {
+        const updatedMsg = res.data.data;
+        setMessages((prev) =>
+          prev.map((m) => (m._id === messageId ? updatedMsg : m))
+        );
+        socket?.emit("message reaction", {
+          chatId: chat._id,
+          messageId,
+          reactions: updatedMsg.reactions,
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to add reaction");
+    }
+    setActiveReactionMessageId(null);
+  };
+
+  // Pin & Unpin message
+  const handleTogglePin = async (messageId, isAlreadyPinned) => {
+    try {
+      const endpoint = isAlreadyPinned ? "/chat/unpin" : "/chat/pin";
+      const res = await apiClient.put(endpoint, {
+        chatId: chat._id,
+        messageId,
+      });
+
+      if (res.data.success) {
+        const updatedChat = res.data.data;
+        toast.success(isAlreadyPinned ? "Message unpinned" : "Message pinned");
+        socket?.emit(isAlreadyPinned ? "message unpinned" : "message pinned", {
+          chatId: chat._id,
+          pinnedMessages: updatedChat.pinnedMessages,
+        });
+      }
+    } catch (error) {
+      toast.error("Failed to update pinned status");
+    }
+    setActiveMenuMessageId(null);
+  };
+
+  // Viewport-clamped menu & reaction openers to prevent clipping or overflowing
+  const handleOpenMenu = (e, msgId) => {
+    e.stopPropagation();
+    if (activeMenuMessageId === msgId) {
+      setActiveMenuMessageId(null);
+      return;
+    }
+    setActiveReactionMessageId(null);
+
+    const rect = e.currentTarget?.getBoundingClientRect
+      ? e.currentTarget.getBoundingClientRect()
+      : { top: 150, bottom: 180, left: 200, right: 230, width: 28, height: 28 };
+
+    const menuWidth = 175;
+    const estimatedMenuHeight = 220;
+    const viewportHeight = window.innerHeight || 800;
+    const viewportWidth = window.innerWidth || 1200;
+
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
+
+    const openUpward = spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow;
+
+    let top = openUpward
+      ? rect.top - estimatedMenuHeight - 6
+      : rect.bottom + 6;
+
+    top = Math.max(72, Math.min(top, Math.max(72, viewportHeight - estimatedMenuHeight - 16)));
+
+    let left = rect.left;
+    if (rect.right + menuWidth > viewportWidth - 12) {
+      left = rect.right - menuWidth;
+    }
+    left = Math.max(12, Math.min(left, Math.max(12, viewportWidth - menuWidth - 12)));
+
+    setMenuPosition({ top, left });
+    setActiveMenuMessageId(msgId);
+  };
+
+  const handleOpenReaction = (e, msgId) => {
+    e.stopPropagation();
+    if (activeReactionMessageId === msgId) {
+      setActiveReactionMessageId(null);
+      return;
+    }
+    setActiveMenuMessageId(null);
+
+    const rect = e.currentTarget?.getBoundingClientRect
+      ? e.currentTarget.getBoundingClientRect()
+      : { top: 150, bottom: 180, left: 200, right: 230, width: 28, height: 28 };
+
+    const pickerWidth = 245;
+    const pickerHeight = 44;
+    const viewportHeight = window.innerHeight || 800;
+    const viewportWidth = window.innerWidth || 1200;
+
+    const openAbove = rect.top >= 72 + pickerHeight + 8;
+
+    let top = openAbove
+      ? rect.top - pickerHeight - 8
+      : rect.bottom + 8;
+
+    top = Math.max(72, Math.min(top, Math.max(72, viewportHeight - pickerHeight - 20)));
+
+    let left = rect.left - pickerWidth / 2 + (rect.width || 28) / 2;
+    left = Math.max(12, Math.min(left, Math.max(12, viewportWidth - pickerWidth - 12)));
+
+    setReactionPosition({ top, left });
+    setActiveReactionMessageId(msgId);
+  };
+
+  // Audio Voice Notes Recording
+  const startRecordingAudio = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        stream.getTracks().forEach((track) => track.stop());
+
+        if (audioChunksRef.current.length > 0 && !mediaRecorderRef.current?.cancelled) {
+          const audioFile = new File([audioBlob], `voicenote_${Date.now()}.webm`, {
+            type: "audio/webm",
+          });
+          // Send voice note
+          const formData = new FormData();
+          formData.append("chatId", chat._id);
+          formData.append("media", audioFile);
+
+          try {
+            const res = await apiClient.post("/chat/message", formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            if (res.data.success) {
+              const newMsg = res.data.data;
+              setMessages((prev) => [...prev, newMsg]);
+              socket?.emit("new message", newMsg);
+              scrollToBottom("smooth");
+            }
+          } catch (err) {
+            toast.error("Failed to send voice note");
+          }
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecordingAudio(true);
+      setRecordingSeconds(0);
+
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((sec) => sec + 1);
+      }, 1000);
+    } catch (err) {
+      toast.error("Microphone access denied or unavailable");
+    }
+  };
+
+  const stopAndSendAudio = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      clearInterval(recordingTimerRef.current);
+      mediaRecorderRef.current.cancelled = false;
+      mediaRecorderRef.current.stop();
+      setIsRecordingAudio(false);
+    }
+  };
+
+  const cancelRecordingAudio = () => {
+    if (mediaRecorderRef.current && isRecordingAudio) {
+      clearInterval(recordingTimerRef.current);
+      mediaRecorderRef.current.cancelled = true;
+      mediaRecorderRef.current.stop();
+      audioChunksRef.current = [];
+      setIsRecordingAudio(false);
+      setRecordingSeconds(0);
+    }
+  };
+
+  // Audio Playback Controls
+  const toggleAudioPlay = (msgId, audioUrl) => {
+    let audio = activeAudioRefs.current[msgId];
+    if (!audio) {
+      audio = new Audio(audioUrl);
+      activeAudioRefs.current[msgId] = audio;
+
+      audio.ontimeupdate = () => {
+        setAudioPlaybackState((prev) => ({
+          ...prev,
+          [msgId]: {
+            ...prev[msgId],
+            currentTime: audio.currentTime,
+            duration: audio.duration || 0,
+          },
+        }));
+      };
+
+      audio.onended = () => {
+        setAudioPlaybackState((prev) => ({
+          ...prev,
+          [msgId]: { ...prev[msgId], isPlaying: false, currentTime: 0 },
+        }));
+      };
+    }
+
+    if (audio.paused) {
+      // Pause any other playing audio
+      Object.entries(activeAudioRefs.current).forEach(([id, a]) => {
+        if (id !== msgId) a.pause();
+      });
+      audio.play();
+      setAudioPlaybackState((prev) => ({
+        ...prev,
+        [msgId]: { ...prev[msgId], isPlaying: true },
+      }));
+    } else {
+      audio.pause();
+      setAudioPlaybackState((prev) => ({
+        ...prev,
+        [msgId]: { ...prev[msgId], isPlaying: false },
+      }));
     }
   };
 
@@ -330,7 +818,7 @@ const ChatWindow = ({
         const forwardedMsgs = res.data.data;
         if (targetChatId === chat._id) {
           setMessages((prev) => [...prev, ...forwardedMsgs]);
-          scrollToBottom();
+          scrollToBottom("smooth");
         }
         forwardedMsgs.forEach((msg) => socket?.emit("new message", msg));
         toast.success(`${selectedMessageIds.length} message(s) forwarded!`);
@@ -341,39 +829,75 @@ const ChatWindow = ({
     }
   };
 
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const newFiles = Array.from(e.target.files);
-      setSelectedFiles((prev) => [...prev, ...newFiles]);
+  // In-chat search indexing
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setMatchedIndices([]);
+      setCurrentMatchIndex(0);
+      return;
     }
-    e.target.value = "";
+
+    const q = searchQuery.toLowerCase();
+    const indices = [];
+    messages.forEach((m, idx) => {
+      if (m.content && m.content.toLowerCase().includes(q)) {
+        indices.push(idx);
+      }
+    });
+    setMatchedIndices(indices);
+    setCurrentMatchIndex(indices.length > 0 ? 0 : 0);
+  }, [searchQuery, messages]);
+
+  const jumpToMatch = (index) => {
+    if (matchedIndices.length === 0) return;
+    const targetMsgIdx = matchedIndices[index];
+    const el = document.getElementById(`msg-${messages[targetMsgIdx]?._id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    setCurrentMatchIndex(index);
   };
 
-  const removeFile = (index) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const getOtherUser = () => {
+  const otherUser = useMemo(() => {
     if (chat.isGroup) return null;
     return chat.participants?.find(
-      (p) => p._id?.toString() !== currentUser?._id?.toString()
+      (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
     );
-  };
+  }, [chat, currentUser]);
 
-  const otherUser = getOtherUser();
   const isOnline =
     otherUser &&
-    onlineUsers.some((id) => id.toString() === otherUser._id?.toString());
+    onlineUsers.some((id) => id.toString() === (otherUser._id || otherUser)?.toString());
+
+  const pinnedMessage = chat.pinnedMessages?.[chat.pinnedMessages.length - 1];
+
+  const activeMenuMessage = activeMenuMessageId
+    ? messages.find((m) => m._id === activeMenuMessageId)
+    : null;
+
+  const activeMenuIsPinned =
+    activeMenuMessage &&
+    chat?.pinnedMessages?.some(
+      (p) => (p._id || p).toString() === activeMenuMessage._id?.toString()
+    );
+
+  const activeMenuIsSent =
+    activeMenuMessage &&
+    (activeMenuMessage.sender?._id || activeMenuMessage.sender)?.toString() ===
+      currentUser?._id?.toString();
 
   return (
-    <div className="chat-window relative">
+    <div className="chat-window relative fixed inset-0 z-40 md:relative md:inset-auto md:z-auto bg-gray-950 flex flex-col h-full h-[100dvh] md:h-full">
       {/* Header / Multi-Select Action Bar */}
       {selectedMessageIds.length > 0 ? (
         <div className="chat-header bg-slate-900 border-b border-violet-500/30 flex items-center justify-between px-6 py-3 z-20 shadow-lg">
           <div className="flex items-center gap-3">
             <button
+              type="button"
+              id="chat-multi-select-close-btn"
               onClick={() => setSelectedMessageIds([])}
               className="text-gray-400 hover:text-white cursor-pointer flex items-center"
+              aria-label="Cancel selection"
             >
               <span className="material-icons">close</span>
             </button>
@@ -398,30 +922,158 @@ const ChatWindow = ({
         </div>
       ) : (
         <div className="chat-header">
-          <div onClick={onToggleInfo} className="chat-header-user cursor-pointer hover:opacity-90 transition-opacity">
-            <img
-              src={
-                chat.isGroup
-                  ? chat.groupImage ||
-                    "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
-                  : otherUser?.avatar
-              }
-              alt="Avatar"
-              className="w-10 h-10 rounded-full border border-violet-500/30 object-cover"
-            />
-            <div>
-              <div className="chat-header-name">
-                {chat.isGroup ? chat.chatName : otherUser?.username}
-              </div>
-              <div className="chat-header-status">
-                {chat.isGroup
-                  ? `${chat.participants?.length || 0} members`
-                  : isOnline
-                  ? "Online"
-                  : "Offline"}
+          <div className="flex items-center gap-3">
+            {/* Mobile back button */}
+            {onBackToSidebar && (
+              <button
+                type="button"
+                id="chat-back-to-sidebar-btn"
+                onClick={onBackToSidebar}
+                className="md:hidden flex items-center justify-center w-9 h-9 -ml-1 text-gray-300 hover:text-white hover:bg-violet-950/50 active:scale-95 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                title="Back to all chats"
+                aria-label="Back to all chats"
+              >
+                <span className="material-icons text-2xl">arrow_back</span>
+              </button>
+            )}
+
+            <div
+              onClick={onToggleInfo}
+              className="chat-header-user cursor-pointer hover:opacity-90 transition-opacity"
+            >
+              <img
+                src={
+                  chat.isGroup
+                    ? chat.groupImage ||
+                      "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
+                    : otherUser?.avatar ||
+                      "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+                }
+                alt="Avatar"
+                className="w-10 h-10 rounded-full border border-violet-500/30 object-cover"
+              />
+              <div>
+                <div className="chat-header-name">
+                  {chat.isGroup ? chat.chatName : otherUser?.username}
+                </div>
+                <div className="chat-header-status flex items-center gap-1">
+                  {typingUsers.length > 0 ? (
+                    <span className="text-emerald-400 font-medium italic text-xs animate-pulse">
+                      typing...
+                    </span>
+                  ) : chat.isGroup ? (
+                    `${chat.participants?.length || 0} members`
+                  ) : isOnline ? (
+                    "Online"
+                  ) : (
+                    "Offline"
+                  )}
+                </div>
               </div>
             </div>
           </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className="chat-icon-btn"
+              title="Search messages"
+            >
+              <span className="material-icons text-lg">search</span>
+            </button>
+            <button
+              onClick={onToggleInfo}
+              className="chat-icon-btn"
+              title="Chat Details"
+            >
+              <span className="material-icons text-lg">more_vert</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* In-Chat Message Search Bar */}
+      {isSearchOpen && (
+        <div className="inchat-search-bar">
+          <span className="material-icons text-violet-400 text-lg">search</span>
+          <input
+            type="text"
+            placeholder="Search within this chat..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="flex-1 bg-transparent text-sm text-white focus:outline-none"
+            autoFocus
+          />
+          {matchedIndices.length > 0 && (
+            <div className="text-xs text-violet-300 font-medium">
+              {currentMatchIndex + 1} of {matchedIndices.length}
+            </div>
+          )}
+          <div className="flex items-center gap-1">
+            <button
+              disabled={matchedIndices.length === 0}
+              onClick={() =>
+                jumpToMatch(
+                  currentMatchIndex > 0
+                    ? currentMatchIndex - 1
+                    : matchedIndices.length - 1
+                )
+              }
+              className="text-gray-400 hover:text-white disabled:opacity-30 cursor-pointer p-1"
+            >
+              <span className="material-icons text-base">keyboard_arrow_up</span>
+            </button>
+            <button
+              disabled={matchedIndices.length === 0}
+              onClick={() =>
+                jumpToMatch(
+                  currentMatchIndex < matchedIndices.length - 1
+                    ? currentMatchIndex + 1
+                    : 0
+                )
+              }
+              className="text-gray-400 hover:text-white disabled:opacity-30 cursor-pointer p-1"
+            >
+              <span className="material-icons text-base">keyboard_arrow_down</span>
+            </button>
+            <button
+              onClick={() => {
+                setIsSearchOpen(false);
+                setSearchQuery("");
+              }}
+              className="text-gray-400 hover:text-white cursor-pointer p-1"
+            >
+              <span className="material-icons text-base">close</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Pinned Messages Banner */}
+      {pinnedMessage && (
+        <div className="pinned-messages-bar">
+          <div
+            className="pinned-msg-content"
+            onClick={() => {
+              const el = document.getElementById(`msg-${pinnedMessage._id}`);
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+            }}
+          >
+            <span className="material-icons text-violet-400 text-base">push_pin</span>
+            <div className="text-xs text-gray-300 truncate">
+              <span className="font-semibold text-violet-300">
+                {pinnedMessage.sender?.username || "Pinned"}:{" "}
+              </span>
+              <span>{pinnedMessage.content || "Media Attachment"}</span>
+            </div>
+          </div>
+          <button
+            onClick={() => handleTogglePin(pinnedMessage._id, true)}
+            className="text-gray-400 hover:text-red-400 p-1 cursor-pointer"
+            title="Unpin message"
+          >
+            <span className="material-icons text-sm">close</span>
+          </button>
         </div>
       )}
 
@@ -431,7 +1083,7 @@ const ChatWindow = ({
         ref={chatContainerRef}
         onScroll={handleMessagesScroll}
       >
-        {/* WhatsApp-style Scroll-Up Older Messages Indicator / Button */}
+        {/* Load older messages loader / button */}
         {loadingOlder && (
           <div className="flex justify-center py-2 text-violet-400 text-xs items-center gap-1.5 animate-pulse">
             <span className="material-icons text-sm animate-spin">sync</span>
@@ -450,12 +1102,12 @@ const ChatWindow = ({
           </div>
         )}
 
-        {loadingMessages && messages.length === 0 ? (
-          <div className="chat-empty-state">
-            <span className="material-icons animate-spin text-violet-400 text-3xl mb-2">
-              sync
-            </span>
-            <p className="text-sm text-gray-400">Loading conversation...</p>
+        {/* Skeleton shimmer on cold load */}
+        {loadingInitial && messages.length === 0 ? (
+          <div className="flex flex-col gap-4 p-4">
+            <div className="skeleton-bubble w-48 h-12 self-start" />
+            <div className="skeleton-bubble w-64 h-16 self-end" />
+            <div className="skeleton-bubble w-56 h-12 self-start" />
           </div>
         ) : messages.length === 0 ? (
           <div className="chat-empty-state">
@@ -465,238 +1117,371 @@ const ChatWindow = ({
           </div>
         ) : (
           messages.map((msg, index) => {
-            const isSent = msg.sender?._id === currentUser?._id;
+            const isSent =
+              (msg.sender?._id || msg.sender)?.toString() === currentUser?._id?.toString();
             const isSelected = selectedMessageIds.includes(msg._id);
-            const isNearTop = index < 2;
+
+            // Date separator check
+            const currentDate = formatMessageDate(msg.createdAt);
+            const prevDate =
+              index > 0 ? formatMessageDate(messages[index - 1]?.createdAt) : null;
+            const showDateSeparator = currentDate && currentDate !== prevDate;
+
+            // Search highlight check
+            const hasSearchMatch =
+              searchQuery &&
+              msg.content &&
+              msg.content.toLowerCase().includes(searchQuery.toLowerCase());
+
+            const isPinned = chat.pinnedMessages?.some(
+              (p) => (p._id || p).toString() === msg._id?.toString()
+            );
+
+            // Audio state
+            const audioState = audioPlaybackState[msg._id] || {
+              isPlaying: false,
+              currentTime: 0,
+              duration: 0,
+            };
 
             return (
-              <div
-                key={msg._id}
-                className="flex items-center gap-3 w-full my-1 relative group"
-                onClick={() => {
-                  if (selectedMessageIds.length > 0) {
-                    toggleSelectMessage(msg._id);
-                  }
-                }}
-              >
-                {/* Selection Checkbox - Fixed Far Left Gutter like WhatsApp */}
-                {selectedMessageIds.length > 0 && (
-                  <div
-                    className="flex-shrink-0 flex items-center justify-center cursor-pointer pl-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSelectMessage(msg._id);
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => {}}
-                      className="glass-checkbox"
-                    />
+              <React.Fragment key={msg._id || index}>
+                {showDateSeparator && (
+                  <div className="date-separator">
+                    <span className="date-separator-badge">{currentDate}</span>
                   </div>
                 )}
 
                 <div
-                  className={`flex-1 flex ${
-                    isSent ? "justify-end" : "justify-start"
-                  }`}
+                  id={`msg-${msg._id}`}
+                  className="flex items-center gap-3 w-full my-1 relative group"
+                  onClick={() => {
+                    if (selectedMessageIds.length > 0) {
+                      toggleSelectMessage(msg._id);
+                    }
+                  }}
                 >
-                  <div
-                    className={`message-bubble-wrapper ${
-                      isSent ? "sent" : "received"
-                    }`}
-                  >
-                  {!isSent && chat.isGroup && (
-                    <div className="message-sender-name">
-                      {msg.sender?.username}
+                  {/* Selection Checkbox */}
+                  {selectedMessageIds.length > 0 && (
+                    <div
+                      className="flex-shrink-0 flex items-center justify-center cursor-pointer pl-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleSelectMessage(msg._id);
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => {}}
+                        className="glass-checkbox"
+                      />
                     </div>
                   )}
 
+                  <div
+                    className={`flex-1 flex ${
+                      isSent ? "justify-end" : "justify-start"
+                    }`}
+                  >
                     <div
-                      className={`message-bubble ${
-                        isSelected ? "ring-2 ring-violet-500/60" : ""
+                      className={`message-bubble-wrapper ${
+                        isSent ? "sent" : "received"
                       }`}
                     >
-                      {/* Reply Context */}
-                      {msg.replyTo && (
-                        <div className="p-2 mb-1 rounded bg-black/20 border-l-2 border-violet-400 text-xs text-gray-300">
-                          <span className="font-bold text-violet-300 block">
-                            {msg.replyTo.sender?.username}
-                          </span>
-                          {msg.replyTo.content || "Media"}
+                      {!isSent && chat.isGroup && (
+                        <div className="message-sender-name">
+                          {msg.sender?.username}
                         </div>
                       )}
 
-                      {msg.content && <div>{msg.content}</div>}
+                      <div
+                        className={`message-bubble-row flex items-start gap-1.5 ${
+                          isSent ? "flex-row-reverse" : "flex-row"
+                        }`}
+                      >
+                        <div
+                          className={`message-bubble ${
+                            isSelected ? "ring-2 ring-violet-500/60" : ""
+                          }`}
+                        >
+                        {/* Reply Preview */}
+                        {msg.replyTo && (
+                          <div className="p-2 mb-1.5 rounded bg-black/20 border-l-2 border-violet-400 text-xs text-gray-300">
+                            <span className="font-bold text-violet-300 block">
+                              {msg.replyTo.sender?.username || "Replied"}
+                            </span>
+                            <span className="truncate block">
+                              {msg.replyTo.content || "Attachment"}
+                            </span>
+                          </div>
+                        )}
 
-                      {/* Media Display */}
-                      {msg.media && (
-                        <div>
-                          {msg.mediaType === "image" ? (
-                            <img
-                              src={msg.media}
-                              alt="Uploaded"
-                              className="message-media-img"
-                              onClick={() => window.open(msg.media, "_blank")}
-                            />
-                          ) : msg.mediaType === "video" ? (
-                            <video
-                              controls
-                              src={msg.media}
-                              className="message-media-img"
-                            />
-                          ) : (
-                            <a
-                              href={msg.media}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="message-media-doc text-violet-300 hover:underline"
-                            >
-                              <span className="material-icons">description</span>
-                              Download Document
-                            </a>
+                        {/* Content / Search Highlight */}
+                        {msg.content && (
+                          <div className="break-words">
+                            {hasSearchMatch ? (
+                              <span>
+                                {msg.content
+                                  .split(new RegExp(`(${searchQuery})`, "gi"))
+                                  .map((part, pIdx) =>
+                                    part.toLowerCase() === searchQuery.toLowerCase() ? (
+                                      <mark
+                                        key={pIdx}
+                                        className="search-match-highlight"
+                                      >
+                                        {part}
+                                      </mark>
+                                    ) : (
+                                      part
+                                    )
+                                  )}
+                              </span>
+                            ) : (
+                              msg.content
+                            )}
+                          </div>
+                        )}
+
+                        {/* Media: Image / Video / Audio / Document */}
+                        {msg.media && (
+                          <div className="mt-1">
+                            {msg.mediaType === "image" ? (
+                              <img
+                                src={msg.media}
+                                alt="Attachment"
+                                className="message-media-img"
+                                onClick={() =>
+                                  setLightboxMedia({ url: msg.media, type: "image" })
+                                }
+                              />
+                            ) : msg.mediaType === "video" ? (
+                              <div
+                                className="relative cursor-pointer"
+                                onClick={() =>
+                                  setLightboxMedia({ url: msg.media, type: "video" })
+                                }
+                              >
+                                <video src={msg.media} className="message-media-img" />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl">
+                                  <span className="material-icons text-4xl text-white">
+                                    play_circle_filled
+                                  </span>
+                                </div>
+                              </div>
+                            ) : msg.mediaType === "audio" ? (
+                              <div className="audio-player-widget">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleAudioPlay(msg._id, msg.media)}
+                                  className="audio-play-btn"
+                                >
+                                  <span className="material-icons text-xl">
+                                    {audioState.isPlaying ? "pause" : "play_arrow"}
+                                  </span>
+                                </button>
+                                <div className="audio-progress-container">
+                                  <div
+                                    className="audio-progress-bar"
+                                    onClick={(e) => {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      const pos = (e.clientX - rect.left) / rect.width;
+                                      const audio = activeAudioRefs.current[msg._id];
+                                      if (audio && audio.duration) {
+                                        audio.currentTime = pos * audio.duration;
+                                      }
+                                    }}
+                                  >
+                                    <div
+                                      className="audio-progress-fill"
+                                      style={{
+                                        width: `${
+                                          audioState.duration
+                                            ? (audioState.currentTime / audioState.duration) * 100
+                                            : 0
+                                        }%`,
+                                      }}
+                                    />
+                                  </div>
+                                  <div className="audio-time-label">
+                                    <span>{formatAudioTime(audioState.currentTime)}</span>
+                                    <span>{formatAudioTime(audioState.duration)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <a
+                                href={msg.media}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="doc-card"
+                              >
+                                <div className="doc-icon-badge">
+                                  <span className="material-icons text-xl">
+                                    description
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs font-semibold text-violet-200 truncate">
+                                    Attachment Document
+                                  </div>
+                                  <div className="text-[10px] text-gray-400">
+                                    Click to download
+                                  </div>
+                                </div>
+                                <span className="material-icons text-sm text-violet-400">
+                                  download
+                                </span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Timestamp & WhatsApp Delivery Ticks */}
+                        <div className="message-meta">
+                          {isPinned && (
+                            <span className="material-icons text-[11px] text-violet-300">
+                              push_pin
+                            </span>
+                          )}
+                          {msg.isEdited && <span>(edited)</span>}
+                          <TimeAgo date={msg.createdAt} />
+                          {isSent && (
+                            <span>
+                              {msg.status === "sending" ? (
+                                <span className="material-icons tick-sending">
+                                  schedule
+                                </span>
+                              ) : msg.status === "failed" ? (
+                                <span className="material-icons text-red-400 text-xs">
+                                  error_outline
+                                </span>
+                              ) : (
+                                <span
+                                  className={`material-icons text-xs ${
+                                    msg.readBy?.length > 1
+                                      ? "tick-read"
+                                      : "tick-sent"
+                                  }`}
+                                >
+                                  {msg.readBy?.length > 1 ? "done_all" : "done"}
+                                </span>
+                              )}
+                            </span>
                           )}
                         </div>
-                      )}
 
-                      {/* Timestamp & Meta */}
-                      <div className="message-meta">
-                        {msg.isEdited && <span>(edited)</span>}
-                        <TimeAgo date={msg.createdAt} />
-                        {isSent && (
-                          <span className="material-icons text-xs">
-                            {msg.readBy?.length > 1 ? "done_all" : "done"}
-                          </span>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* WhatsApp Dropdown Trigger */}
-                      <button
-                        className={`msg-dropdown-trigger ${
-                          activeMenuMessageId === msg._id ? "active" : ""
-                        }`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveMenuMessageId(
-                            activeMenuMessageId === msg._id ? null : msg._id
-                          );
-                        }}
-                        title="Message options"
-                      >
-                        <span className="material-icons text-base">
-                          keyboard_arrow_down
-                        </span>
-                      </button>
-
-                      {/* WhatsApp Context Menu Dropdown */}
-                      {activeMenuMessageId === msg._id && (
+                        {/* WhatsApp Hover Action Toolbar */}
                         <div
-                          className={`msg-context-menu ${
-                            isNearTop ? "pop-down" : "pop-up"
+                          className={`msg-actions-toolbar flex items-center gap-0.5 self-start mt-1 transition-all duration-150 ${
+                            activeMenuMessageId === msg._id || activeReactionMessageId === msg._id
+                              ? "opacity-100 scale-100 pointer-events-auto"
+                              : "opacity-0 scale-95 pointer-events-none group-hover:opacity-100 group-hover:scale-100 group-hover:pointer-events-auto"
                           }`}
-                          onClick={(e) => e.stopPropagation()}
                         >
                           <button
-                            onClick={() => {
-                              setReplyingTo(msg);
-                              setEditingMessage(null);
-                              if (editingMessage) setNewMessage("");
-                              setActiveMenuMessageId(null);
-                            }}
-                            className="msg-menu-item"
+                            type="button"
+                            className={`msg-action-btn ${
+                              activeReactionMessageId === msg._id ? "active" : ""
+                            }`}
+                            onClick={(e) => handleOpenReaction(e, msg._id)}
+                            title="React"
+                            aria-label="React to message"
                           >
-                            <span className="material-icons">reply</span> Reply
+                            <span className="text-sm select-none leading-none">😊</span>
                           </button>
-
-                          {msg.content && (
-                            <button
-                              onClick={() => {
-                                if (msg.content) {
-                                  navigator.clipboard.writeText(msg.content);
-                                  toast.info("Copied to clipboard");
-                                }
-                                setActiveMenuMessageId(null);
-                              }}
-                              className="msg-menu-item"
-                            >
-                              <span className="material-icons">
-                                content_copy
-                              </span>{" "}
-                              Copy
-                            </button>
-                          )}
-
                           <button
-                            onClick={() => {
-                              setSelectedMessageIds([msg._id]);
-                              setActiveMenuMessageId(null);
-                            }}
-                            className="msg-menu-item"
+                            type="button"
+                            className={`msg-action-btn ${
+                              activeMenuMessageId === msg._id ? "active" : ""
+                            }`}
+                            onClick={(e) => handleOpenMenu(e, msg._id)}
+                            title="Message options"
+                            aria-label="Message options"
                           >
-                            <span className="material-icons">shortcut</span>{" "}
-                            Forward
+                            <span className="material-icons text-base">keyboard_arrow_down</span>
                           </button>
+                        </div>
+                      </div>
 
-                          {isSent && !msg.media && (Date.now() - new Date(msg.createdAt).getTime() <= 15 * 60 * 1000) && (
-                            <button
-                              onClick={() => {
-                                setEditingMessage(msg);
-                                setNewMessage(msg.content || "");
-                                setReplyingTo(null);
-                                setActiveMenuMessageId(null);
-                              }}
-                              className="msg-menu-item"
-                            >
-                              <span className="material-icons">edit</span> Edit
-                            </button>
-                          )}
-
-                          {isSent && (
-                            <button
-                              onClick={() => {
-                                setSelectedMessageIds([msg._id]);
-                                setActiveMenuMessageId(null);
-                              }}
-                              className="msg-menu-item text-red-400 hover:bg-red-500/20"
-                            >
-                              <span className="material-icons text-red-400">
-                                delete
-                              </span>
-                              Delete
-                            </button>
-                          )}
+                      {/* Reaction Pills Container */}
+                      {msg.reactions && msg.reactions.length > 0 && (
+                        <div
+                          className={`reaction-pills-container flex flex-wrap gap-1 mt-1 ${
+                            isSent ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          {Object.entries(
+                            msg.reactions.reduce((acc, r) => {
+                              acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                              return acc;
+                            }, {})
+                          ).map(([emoji, count]) => {
+                            const userReacted = msg.reactions.some(
+                              (r) =>
+                                (r.user?._id || r.user)?.toString() ===
+                                  currentUser?._id?.toString() &&
+                                r.emoji === emoji
+                            );
+                            return (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleReaction(msg._id, emoji);
+                                }}
+                                className={`reaction-pill ${
+                                  userReacted ? "user-reacted" : ""
+                                }`}
+                                title="Click to toggle reaction"
+                              >
+                                <span>{emoji}</span>
+                                <span>{count}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          );
+              </React.Fragment>
+            );
           })
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Typing Indicator */}
-      {typingUsers.length > 0 && (
-        <div className="typing-indicator">
-          <span>{typingUsers.join(", ")} typing...</span>
-          <div className="typing-dot" />
-          <div className="typing-dot" />
-          <div className="typing-dot" />
-        </div>
+      {/* Floating Scroll-to-Bottom Button */}
+      {showScrollBottom && (
+        <button
+          onClick={() => scrollToBottom("smooth")}
+          className="scroll-to-bottom-btn"
+          title="Scroll to latest messages"
+        >
+          <span className="material-icons">keyboard_arrow_down</span>
+          {scrolledUnreadCount > 0 && (
+            <span className="scroll-unread-badge">{scrolledUnreadCount}</span>
+          )}
+        </button>
       )}
 
       {/* Replying-to Preview Bar */}
       {replyingTo && (
-        <div className="px-6 py-2 bg-slate-900/80 border-t border-violet-500/15 flex justify-between items-center text-xs text-violet-300">
+        <div className="px-6 py-2 bg-slate-900/90 border-t border-violet-500/20 flex justify-between items-center text-xs text-violet-300">
           <div>
-            Replying to <span className="font-bold">{replyingTo.sender?.username}</span>: "{replyingTo.content}"
+            Replying to{" "}
+            <span className="font-bold">
+              {replyingTo.sender?.username || "User"}
+            </span>
+            : "{replyingTo.content || "Attachment"}"
           </div>
           <button
             onClick={() => setReplyingTo(null)}
-            className="text-gray-400 hover:text-white"
+            className="text-gray-400 hover:text-white cursor-pointer font-bold text-base"
           >
             &times;
           </button>
@@ -705,11 +1490,14 @@ const ChatWindow = ({
 
       {/* Editing Message Preview Bar */}
       {editingMessage && (
-        <div className="px-6 py-2 bg-slate-900/90 border-t border-violet-500/20 flex justify-between items-center text-xs text-amber-300">
+        <div className="px-6 py-2 bg-slate-900/95 border-t border-violet-500/25 flex justify-between items-center text-xs text-amber-300">
           <div className="flex items-center gap-2">
             <span className="material-icons text-sm text-amber-400">edit</span>
             <span>
-              Editing message: <span className="font-semibold text-white">"{editingMessage.content || "Media"}"</span>
+              Editing message:{" "}
+              <span className="font-semibold text-white">
+                "{editingMessage.content || "Media"}"
+              </span>
             </span>
           </div>
           <button
@@ -724,65 +1512,318 @@ const ChatWindow = ({
         </div>
       )}
 
-      {/* Input Composer */}
-      <form onSubmit={handleSendMessage} className="chat-composer">
-        <input
-          type="file"
-          multiple
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="chat-icon-btn"
-          title="Attach files (multiple)"
-        >
-          <span className="material-icons">attach_file</span>
-        </button>
-
-        {selectedFiles.length > 0 && (
-          <div className="flex flex-wrap gap-2 max-w-xs overflow-x-auto">
-            {selectedFiles.map((file, idx) => (
-              <span
-                key={idx}
-                className="text-xs bg-violet-500/20 text-violet-300 px-2 py-1 rounded-lg flex items-center gap-1"
+      {/* Pre-Send Attachment Preview Tray */}
+      {filePreviews.length > 0 && (
+        <div className="attachment-preview-tray">
+          {filePreviews.map((preview, idx) => (
+            <div key={idx} className="attachment-preview-card">
+              {preview.url ? (
+                preview.type.startsWith("image/") ? (
+                  <img
+                    src={preview.url}
+                    alt="Preview"
+                    className="attachment-preview-img"
+                  />
+                ) : (
+                  <video
+                    src={preview.url}
+                    className="attachment-preview-img"
+                  />
+                )
+              ) : (
+                <div className="flex flex-col items-center justify-center p-1 text-center">
+                  <span className="material-icons text-2xl text-violet-400">
+                    description
+                  </span>
+                  <span className="text-[9px] text-gray-300 truncate max-w-[70px]">
+                    {preview.name}
+                  </span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => removeFile(idx)}
+                className="attachment-remove-btn"
+                title="Remove file"
               >
-                {file.name}
-                <button
-                  type="button"
-                  onClick={() => removeFile(idx)}
-                  className="ml-1 text-red-400 hover:text-red-300 font-bold"
-                >
-                  &times;
-                </button>
-              </span>
-            ))}
+                &times;
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Input Composer / Voice Recorder */}
+      {isRecordingAudio ? (
+        <div className="chat-composer">
+          <div className="voice-recording-tray">
+            <div className="recording-indicator">
+              <div className="recording-dot-pulse" />
+              <span>Recording: {formatAudioTime(recordingSeconds)}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={cancelRecordingAudio}
+                className="text-red-400 hover:text-red-300 cursor-pointer flex items-center p-2 rounded-full hover:bg-red-500/20"
+                title="Cancel recording"
+              >
+                <span className="material-icons">delete</span>
+              </button>
+              <button
+                type="button"
+                onClick={stopAndSendAudio}
+                className="send-btn"
+                title="Send voice note"
+              >
+                <span className="material-icons">send</span>
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      ) : (
+        <form onSubmit={handleSendMessage} className="chat-composer relative">
+          <input
+            type="file"
+            multiple
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+          />
 
-        <input
-          type="text"
-          placeholder="Type a message..."
-          value={newMessage}
-          onChange={handleTyping}
-          className="chat-input"
-        />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="chat-icon-btn"
+            title="Attach file (Images, Videos, Docs)"
+          >
+            <span className="material-icons">attach_file</span>
+          </button>
 
-        <button
-          type="submit"
-          disabled={isSending || (!newMessage.trim() && selectedFiles.length === 0)}
-          className="send-btn disabled:opacity-50 disabled:cursor-not-allowed"
+          <button
+            type="button"
+            onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+            className="chat-icon-btn"
+            title="Insert Emoji"
+          >
+            <span className="material-icons">sentiment_satisfied_alt</span>
+          </button>
+
+          {/* Emoji Picker Popover */}
+          {isEmojiPickerOpen && (
+            <div className="absolute bottom-16 left-12 z-50 shadow-2xl">
+              <EmojiPicker
+                theme="dark"
+                onEmojiClick={(emojiData) => {
+                  setNewMessage((prev) => prev + emojiData.emoji);
+                }}
+              />
+            </div>
+          )}
+
+          <input
+            type="text"
+            placeholder={
+              filePreviews.length > 0
+                ? "Add a caption..."
+                : "Type a message..."
+            }
+            value={newMessage}
+            onChange={handleTyping}
+            className="chat-input"
+          />
+
+          {newMessage.trim() || selectedFiles.length > 0 ? (
+            <button
+              type="submit"
+              disabled={isSending}
+              className="send-btn disabled:opacity-50"
+              title="Send message"
+            >
+              <span className="material-icons">
+                {isSending ? "hourglass_top" : "send"}
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startRecordingAudio}
+              className="send-btn bg-violet-700 hover:bg-violet-600"
+              title="Record voice note"
+            >
+              <span className="material-icons">mic</span>
+            </button>
+          )}
+        </form>
+      )}
+
+      {/* Media Lightbox Modal */}
+      {lightboxMedia && (
+        <div
+          className="lightbox-overlay"
+          onClick={() => setLightboxMedia(null)}
         >
-          <span className="material-icons">{isSending ? "hourglass_top" : "send"}</span>
-        </button>
-      </form>
+          <div className="absolute top-6 right-6 flex items-center gap-4 z-50">
+            <a
+              href={lightboxMedia.url}
+              download
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-white hover:text-violet-300 p-2 bg-black/40 rounded-full cursor-pointer"
+              title="Download"
+            >
+              <span className="material-icons text-2xl">download</span>
+            </a>
+            <button
+              onClick={() => setLightboxMedia(null)}
+              className="text-white hover:text-red-400 p-2 bg-black/40 rounded-full cursor-pointer"
+              title="Close"
+            >
+              <span className="material-icons text-2xl">close</span>
+            </button>
+          </div>
+          {lightboxMedia.type === "video" ? (
+            <video
+              controls
+              autoPlay
+              src={lightboxMedia.url}
+              className="lightbox-content"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <img
+              src={lightboxMedia.url}
+              alt="Lightbox"
+              className="lightbox-content"
+              onClick={(e) => e.stopPropagation()}
+            />
+          )}
+        </div>
+      )}
 
-      {/* Custom Delete Confirmation Modal */}
+      {/* Floating Quick Reaction Picker (Viewport Fixed, Zero Clipping, Clamped) */}
+      {activeReactionMessageId && (
+        <div
+          className="reaction-picker-bar"
+          style={{
+            top: `${reactionPosition.top}px`,
+            left: `${reactionPosition.left}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {QUICK_REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleReaction(activeReactionMessageId, emoji);
+                setActiveReactionMessageId(null);
+              }}
+              className="reaction-btn"
+              title={`React with ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Floating Message Context Menu (Viewport Fixed, Zero Clipping, Clamped) */}
+      {activeMenuMessage && (
+        <div
+          className="msg-context-menu"
+          style={{
+            top: `${menuPosition.top}px`,
+            left: `${menuPosition.left}px`,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              setReplyingTo(activeMenuMessage);
+              setEditingMessage(null);
+              setActiveMenuMessageId(null);
+            }}
+            className="msg-menu-item"
+          >
+            <span className="material-icons">reply</span> Reply
+          </button>
+
+          <button
+            onClick={() => {
+              handleTogglePin(activeMenuMessage._id, activeMenuIsPinned);
+              setActiveMenuMessageId(null);
+            }}
+            className="msg-menu-item"
+          >
+            <span className="material-icons">push_pin</span>{" "}
+            {activeMenuIsPinned ? "Unpin Message" : "Pin Message"}
+          </button>
+
+          {activeMenuMessage.content && (
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(activeMenuMessage.content);
+                toast.info("Copied to clipboard");
+                setActiveMenuMessageId(null);
+              }}
+              className="msg-menu-item"
+            >
+              <span className="material-icons">content_copy</span> Copy
+            </button>
+          )}
+
+          <button
+            onClick={() => {
+              setSelectedMessageIds([activeMenuMessage._id]);
+              setIsForwardModalOpen(true);
+              setActiveMenuMessageId(null);
+            }}
+            className="msg-menu-item"
+          >
+            <span className="material-icons">shortcut</span> Forward
+          </button>
+
+          {activeMenuIsSent &&
+            !activeMenuMessage.media &&
+            Date.now() - new Date(activeMenuMessage.createdAt).getTime() <=
+              15 * 60 * 1000 && (
+              <button
+                onClick={() => {
+                  setEditingMessage(activeMenuMessage);
+                  setNewMessage(activeMenuMessage.content || "");
+                  setReplyingTo(null);
+                  setActiveMenuMessageId(null);
+                }}
+                className="msg-menu-item"
+              >
+                <span className="material-icons">edit</span> Edit
+              </button>
+            )}
+
+          {activeMenuIsSent && (
+            <button
+              onClick={() => {
+                setDeletingMessageId(activeMenuMessage._id);
+                setActiveMenuMessageId(null);
+              }}
+              className="msg-menu-item text-red-400 hover:bg-red-500/20"
+            >
+              <span className="material-icons text-red-400">delete</span>{" "}
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
       <ConfirmDeleteModal
         isOpen={!!deletingMessageId}
-        title={deletingMessageId === "BULK" ? "Delete Messages" : "Delete Message"}
+        title={
+          deletingMessageId === "BULK" ? "Delete Messages" : "Delete Message"
+        }
         message={
           deletingMessageId === "BULK"
             ? `Are you sure you want to delete ${selectedMessageIds.length} selected message(s)?`

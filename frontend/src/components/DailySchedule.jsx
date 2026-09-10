@@ -622,7 +622,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div id="daily-schedule" className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-6 md:p-8 border border-gray-800 shadow-2xl relative">
+    <div id="daily-schedule" className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-gray-800 shadow-2xl relative">
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-gray-800/80 pb-6">
@@ -631,8 +631,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
             calendar_today
           </span>
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-wide">Daily Schedule</h2>
-            <p className="text-sm text-gray-400">{formattedSelectedDate}</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">Daily Schedule</h2>
+            <p className="text-xs sm:text-sm text-gray-400">{formattedSelectedDate}</p>
           </div>
         </div>
 
@@ -674,10 +674,10 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       </div>
 
       {/* ── 7-Day Strip ── */}
-      <div className="mb-6 p-2 rounded-2xl bg-black/40 border border-gray-800/80 flex items-center justify-between gap-1.5 sm:gap-2 overflow-x-auto">
+      <div className="mb-6 p-1.5 sm:p-2 rounded-2xl bg-black/40 border border-gray-800/80 flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => changeDateByDays(-1)}
-          className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition flex-shrink-0 cursor-pointer"
+          className="p-1.5 sm:p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition flex-shrink-0 cursor-pointer"
           title="Previous Day"
           aria-label="Previous Day"
         >
@@ -689,7 +689,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
             <button
               key={day.dateStr}
               onClick={() => setSelectedDate(day.dateStr)}
-              className={`flex-1 flex flex-col items-center py-2 px-1.5 sm:px-2 rounded-xl transition-all cursor-pointer min-w-[42px] ${
+              className={`flex-1 flex flex-col items-center py-2 px-1 sm:px-2 rounded-xl transition-all cursor-pointer min-w-[34px] sm:min-w-[42px] ${
                 day.isSelected
                   ? 'bg-violet-600 text-white shadow-sm font-semibold'
                   : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 font-medium'
