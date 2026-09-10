@@ -236,7 +236,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     // Click What's New button
     await user.click(whatsNewBtn);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6.1")).toBeInTheDocument();
 
     // Clicking notification bell closes What's New dropdown
     const bellBtn = screen.getByRole("button", { name: /Notifications/i });
@@ -261,7 +261,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     await user.click(whatsNewMenuItem);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6.1")).toBeInTheDocument();
     console.log("Passed: What's New opened from Avatar menu");
   });
 
@@ -275,7 +275,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     await user.click(sidebarVersionBtn);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6.1")).toBeInTheDocument();
     console.log("Passed: What's New opened from sidebar footer version button");
   });
 

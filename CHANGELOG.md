@@ -5,6 +5,33 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1] - 2026-09-11
+
+### Added
+- **Modular Application-Level Chat Architecture**:
+  - Decomposed the monolithic 1,850+ line `ChatWindow.jsx` into specialized subcomponents (`chat/header/`, `chat/messages/`, `chat/actions/`, `chat/composer/`, `chat/controls/`, `chat/modals/`).
+  - Created isolated custom hooks: `useChatMessages` (message lifecycle, cache sync, real-time socket events, cursor pagination), `useVoiceRecorder` (MediaRecorder lifecycle, stream management, timer), `useAudioPlayback` (multi-audio player state and scrubbing), and `useInChatSearch` (search query, regex match indexing, smooth element jump).
+- **WhatsApp-Grade Voice Notes & Waveform Player**:
+  - In-chat audio player widget with Play/Pause button, waveform progress bar, elapsed scrubber, and duration labels.
+  - Voice recording tray with live pulsing red indicator, elapsed timer, cancel/trash button, and send button.
+- **In-Chat Message Search**:
+  - Search bar in header with match counter (`2 of 5`) and Up/Down match navigation jumping directly to message elements.
+  - Instant text highlighting using golden/violet match markers.
+- **Pre-Send Attachment Preview Tray**:
+  - Visual preview chips for images, videos, audio notes, and documents with file size badges and remove buttons before sending.
+- **Real-Time WhatsApp Delivery & Read Ticks**:
+  - Message state indicators: `schedule` (sending), `done` (sent), `done_all` (delivered), and glowing violet `tick-read` (read receipt).
+
+### Changed
+- Refactored `ChatWindow.jsx` into an ultra-clean backward-compatible facade with zero breaking changes for existing routes and test suites.
+- Synchronized frontend and backend package versions to `v1.6.1`.
+- Enhanced mobile full-screen chat container styling with `h-[100dvh]` and dedicated back navigation button.
+
+### Fixed
+- **Reaction Button Text Overlap**: Replaced absolute-positioned buttons inside the message bubble with an external WhatsApp-style hover action toolbar `[😊] [⌄]`, eliminating text overlap on long or short messages.
+- **Context Menu & Reaction Picker Viewport Clipping**: Converted dropdowns to `position: fixed` with dynamic bounds checking, automatically popping DOWN when near the top header and popping UP when near the bottom composer.
+- **Auto-Dismiss on Scroll**: Menus and reaction pickers now dismiss immediately when scrolling the chat container or clicking outside.
+
 ## [1.6.0] - 2026-09-11
 
 ### Added
