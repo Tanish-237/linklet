@@ -20,6 +20,8 @@ router.delete("/collections/:id", isLoggedIn, collectionController.deleteCollect
 router.post("/collections/:id/resources/:resourceId", isLoggedIn, collectionController.toggleResourceInCollection);
 
 // Dynamic username routes SECOND
+router.get("/:username/followers", profileController.getFollowers);
+router.get("/:username/following", profileController.getFollowing);
 router.get("/:username/bookmarks", profileController.getUserBookmarks);
 router.get("/:username", profileController.getProfile);
 

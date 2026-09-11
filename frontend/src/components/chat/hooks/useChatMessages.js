@@ -192,7 +192,23 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       }
     };
 
+    const handleMessageDelivered = ({ chatId, messageId }) => {
+      if (chatId?.toString() === chat._id?.toString()) {
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m._id?.toString() === messageId?.toString()) {
+              if (m.status !== "read" && !m.isRead) {
+                return { ...m, status: "delivered", isDelivered: true };
+              }
+            }
+            return m;
+          })
+        );
+      }
+    };
+
     socket.on("message received", handleMessageReceived);
+    socket.on("message delivered", handleMessageDelivered);
     socket.on("message deleted", handleMessageDeleted);
     socket.on("messages_bulk_deleted", handleMessagesBulkDeleted);
     socket.on("message updated", handleMessageUpdated);
@@ -204,6 +220,7 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     return () => {
       socket.emit("leave chat", chat._id);
       socket.off("message received", handleMessageReceived);
+      socket.off("message delivered", handleMessageDelivered);
       socket.off("message deleted", handleMessageDeleted);
       socket.off("messages_bulk_deleted", handleMessagesBulkDeleted);
       socket.off("message updated", handleMessageUpdated);
@@ -298,30 +315,94 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     }
   }, [socket, chat?._id, chat?.isGroup, chat?.participants, currentUser]);
 
-  // Toggle emoji reaction
-  const toggleReaction = useCallback(async (messageId, emoji) => {
-    try {
-      const res = await apiClient.post("/chat/message/react", {
-        chatId: chat._id,
-        messageId,
-        emoji,
-      });
+  // Toggle emoji reaction with instant 0ms optimistic UI updates
+  const toggleReaction = useCallback(
+    async (messageId, emoji) => {
+      if (!messageId || !emoji) return;
 
-      if (res.data.success) {
-        const updatedMsg = res.data.data;
+      let previousReactions = [];
+
+      // 1. Instant optimistic update
+      setMessages((prev) =>
+        prev.map((m) => {
+          if (m._id !== messageId) return m;
+          const currentReactions = Array.isArray(m.reactions) ? m.reactions : [];
+          previousReactions = currentReactions;
+
+          const existingReactionIndex = currentReactions.findIndex(
+            (r) =>
+              (r.user?._id || r.user)?.toString() === currentUser?._id?.toString()
+          );
+
+          let nextReactions;
+          if (existingReactionIndex > -1) {
+            const existingReaction = currentReactions[existingReactionIndex];
+            if (existingReaction.emoji === emoji) {
+              // Same emoji clicked: toggle off
+              nextReactions = currentReactions.filter(
+                (_, idx) => idx !== existingReactionIndex
+              );
+            } else {
+              // Different emoji clicked: switch emoji
+              nextReactions = currentReactions.map((r, idx) =>
+                idx === existingReactionIndex ? { ...r, emoji } : r
+              );
+            }
+          } else {
+            // New reaction added
+            nextReactions = [
+              ...currentReactions,
+              { user: currentUser, emoji },
+            ];
+          }
+
+          // Optimistically emit to room peers
+          socket?.emit("message reaction", {
+            chatId: chat?._id,
+            messageId,
+            reactions: nextReactions,
+          });
+
+          return { ...m, reactions: nextReactions };
+        })
+      );
+
+      // 2. Persist to server in background
+      try {
+        const res = await apiClient.post("/chat/message/react", {
+          chatId: chat?._id,
+          messageId,
+          emoji,
+        });
+
+        if (res.data?.success && res.data.data) {
+          const updatedMsg = res.data.data;
+          setMessages((prev) =>
+            prev.map((m) => (m._id === messageId ? updatedMsg : m))
+          );
+          socket?.emit("message reaction", {
+            chatId: chat?._id,
+            messageId,
+            reactions: updatedMsg.reactions,
+          });
+        }
+      } catch (error) {
+        // Rollback on failure
         setMessages((prev) =>
-          prev.map((m) => (m._id === messageId ? updatedMsg : m))
+          prev.map((m) =>
+            m._id === messageId ? { ...m, reactions: previousReactions } : m
+          )
         );
         socket?.emit("message reaction", {
-          chatId: chat._id,
+          chatId: chat?._id,
           messageId,
-          reactions: updatedMsg.reactions,
+          reactions: previousReactions,
         });
+        toast.error("Failed to add reaction");
       }
-    } catch (error) {
-      toast.error("Failed to add reaction");
-    }
-  }, [chat?._id, socket]);
+    },
+    [chat?._id, currentUser, socket]
+  );
 
   // Pin & unpin message
   const togglePin = useCallback(async (messageId, isAlreadyPinned) => {

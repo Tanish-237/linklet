@@ -1,9 +1,15 @@
 import multer from "multer";
 import path from "path";
 
+import fs from "fs";
+
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "./public/temp"); //temp folder me file aaygi phir use upload karenge cloudinary pe
+    const uploadDir = path.resolve("./public/temp");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
@@ -24,16 +30,18 @@ const fileFilter = (req, file, cb) => {
     "application/vnd.ms-excel", // XLS
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // XLSX
     "text/plain", // TXT
+    "application/zip", "application/x-zip-compressed", "application/x-zip", "application/octet-stream", // Zips and binaries
     "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml", // Images
     "video/mp4", "video/webm", "video/ogg", "video/quicktime", // Videos
-    "audio/mp3", "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/m4a" // Audios
+    "audio/mp3", "audio/mpeg", "audio/ogg", "audio/wav", "audio/webm", "audio/m4a", "audio/mp4", "audio/x-m4a" // Audios
   ];
 
   if (
     allowedFileTypes.includes(file.mimetype) ||
-    file.mimetype.startsWith("image/") ||
-    file.mimetype.startsWith("video/") ||
-    file.mimetype.startsWith("audio/")
+    (file.mimetype && file.mimetype.startsWith("image/")) ||
+    (file.mimetype && file.mimetype.startsWith("video/")) ||
+    (file.mimetype && file.mimetype.startsWith("audio/")) ||
+    (file.originalname && /\.(jpg|jpeg|png|gif|webp|svg|mp4|webm|mov|ogg|mp3|wav|m4a|pdf|doc|docx|ppt|pptx|xls|xlsx|txt|zip|rar)$/i.test(file.originalname))
   ) {
     cb(null, true); // Accept the file
   } else {

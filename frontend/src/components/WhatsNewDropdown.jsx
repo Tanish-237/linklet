@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export const RELEASE_VERSION = "v1.6.3";
+export const RELEASE_VERSION = "v1.6.4";
 export const STORAGE_KEY = "linklet_last_seen_version";
 
 export const isReleaseSeen = (version = RELEASE_VERSION) => {
@@ -85,7 +85,7 @@ export default function WhatsNewDropdown({
         >
           <span>What's New</span>
           <span className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
-            v1.6.3
+            v1.6.4
           </span>
         </button>
       )}
@@ -99,35 +99,35 @@ export default function WhatsNewDropdown({
         >
           {/* Header */}
           <div className="p-3.5 border-b border-gray-800/80 bg-gray-950/50 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6.3</h3>
+            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6.4</h3>
             <span className="text-[10px] font-mono text-violet-300 bg-violet-950/70 border border-violet-800/50 px-1.5 py-0.5 rounded">
-              v1.6.3
+              v1.6.4
             </span>
           </div>
 
           {/* Clean, Human-Written Release Notes */}
           <ul className="p-4 space-y-3 text-xs text-gray-300 overflow-y-auto max-h-[50dvh] sm:max-h-none">
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Blazing-fast parallel media uploads:</span> Sending multiple attachments now uploads in parallel instead of sequentially, making photo and video sends up to 5x faster.
+              <span className="text-gray-100 font-medium">In-profile followers & following:</span> View followers and following lists directly inside the profile header and dedicated in-profile tabs with rich user cards and instant profile navigation.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Atomic emoji reactions:</span> Reactions are now processed atomically in the database to prevent race conditions during high-volume conversations.
+              <span className="text-gray-100 font-medium">WhatsApp-style double delivery ticks:</span> Sent messages now show double grey ticks when the recipient opens the website, transitioning to double blue ticks upon reading, with pixel-perfect normalized sizing.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Real-time read receipt broadcasts:</span> Read status synchronizes immediately across participants without needing manual refreshes.
+              <span className="text-gray-100 font-medium">Cross-app real-time notifications:</span> Incoming messages now immediately trigger interactive toast alerts and sidebar count badges, even while browsing posts, questions, or resources.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Resilient mobile connections:</span> Extended socket ping timeouts and automatic re-authentication ensure you never miss messages during spotty connectivity or app switching.
+              <span className="text-gray-100 font-medium">Optimized attachments & voice notes:</span> Streamlined media tray preview and voice recording with live waveform feedback, parallel uploading, and instant cancellation.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Hardened security & access control:</span> Chat room joins, reports, message deletions, and admin review routes now enforce strict server-side participant authorization.
+              <span className="text-gray-100 font-medium">Instant 0ms emoji reactions:</span> Reactions trigger optimistic UI updates with immediate feedback and background synchronization.
             </li>
           </ul>
 
           {/* Footer */}
           <div className="p-3 border-t border-gray-800/80 bg-gray-950/50 flex items-center justify-between text-xs">
             <a
-              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.3"
+              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.4"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-violet-300 transition-colors flex items-center gap-1 font-medium"

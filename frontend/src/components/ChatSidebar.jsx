@@ -291,15 +291,53 @@ const ChatSidebar = ({
     else if (lastMsg.mediaType === "video") mediaLabel = "🎥 Video";
     else if (lastMsg.mediaType === "document") mediaLabel = "📄 Document";
     const content = lastMsg.content || mediaLabel;
-    const isLastMsgRead = Boolean(lastMsg.isRead || lastMsg.status === "read" || lastMsg.status === "seen" || (lastMsg.readBy && lastMsg.readBy.length > 1));
+    const isLastMsgRead = Boolean(
+      lastMsg.isRead ||
+      lastMsg.status === "read" ||
+      lastMsg.status === "seen" ||
+      (lastMsg.readBy && lastMsg.readBy.length > 1)
+    );
+
+    // Check if recipient is online for double grey delivered ticks in sidebar
+    let isRecipientOnline = false;
+    if (chat && onlineUsers && onlineUsers.length > 0) {
+      if (!chat.isGroup && Array.isArray(chat.participants)) {
+        const recipient = chat.participants.find(
+          (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
+        );
+        const recipientId = (recipient?._id || recipient)?.toString();
+        isRecipientOnline = Boolean(recipientId && onlineUsers.includes(recipientId));
+      } else if (chat.isGroup && Array.isArray(chat.participants)) {
+        isRecipientOnline = chat.participants.some((p) => {
+          const pid = (p._id || p)?.toString();
+          return pid && pid !== currentUser?._id?.toString() && onlineUsers.includes(pid);
+        });
+      }
+    }
+
+    const isDelivered = Boolean(
+      isLastMsgRead ||
+      lastMsg.status === "delivered" ||
+      lastMsg.isDelivered ||
+      isRecipientOnline
+    );
+
     const senderPrefix = chat.isGroup && !isSentByMe && lastMsg.sender
       ? `${lastMsg.sender.fullName || lastMsg.sender.username}: `
       : isSentByMe ? "You: " : "";
+
+    const tickClass = isLastMsgRead ? "tick-read" : isDelivered ? "tick-delivered" : "tick-sent";
+    const tickIcon = isLastMsgRead || isDelivered ? "done_all" : "done";
+    const tickTitle = isLastMsgRead ? "Read" : isDelivered ? "Delivered" : "Sent";
+
     return (
       <span className="flex items-center gap-0.5 truncate text-xs text-gray-400">
         {isSentByMe && (
-          <span className={`material-icons text-[12px] flex-shrink-0 mr-0.5 ${isLastMsgRead ? "tick-read" : "text-gray-400"}`}>
-            {isLastMsgRead ? "done_all" : "done"}
+          <span
+            className={`material-icons mr-1 ${tickClass}`}
+            title={tickTitle}
+          >
+            {tickIcon}
           </span>
         )}
         <span className="truncate">{senderPrefix}{content}</span>

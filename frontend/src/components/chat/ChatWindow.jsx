@@ -162,13 +162,16 @@ const ChatWindow = ({
       try {
         const formData = new FormData();
         formData.append("chatId", chat._id);
+        formData.append("media", audioFile);
         formData.append("file", audioFile);
         formData.append("mediaType", "audio");
 
-        const res = await apiClient.post("/chat/message", formData);
+        const res = await apiClient.post("/chat/message", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
 
         if (res.data.success) {
-          const confirmed = res.data.data;
+          const confirmed = Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
           setMessages((prev) =>
             prev.map((m) => (m._id === optimisticId ? confirmed : m))
           );
@@ -176,7 +179,8 @@ const ChatWindow = ({
           if (onUpdateLastMessage) onUpdateLastMessage(chat._id, confirmed);
         }
       } catch (error) {
-        toast.error("Failed to send voice note");
+        console.error("Failed to send voice note:", error.response?.data || error.message);
+        toast.error(error.response?.data?.message || "Failed to send voice note");
         setMessages((prev) =>
           prev.map((m) => (m._id === optimisticId ? { ...m, status: "failed" } : m))
         );
@@ -469,29 +473,6 @@ const ChatWindow = ({
     [activeReactionMessageId]
   );
 
-  // Trigger quick reactions bar from context menu "React" item
-  const handleOpenReactionForMessage = useCallback((msg) => {
-    if (!msg) return;
-    const msgElem = document.getElementById(`msg-${msg._id}`);
-    const rect = msgElem?.getBoundingClientRect
-      ? msgElem.getBoundingClientRect()
-      : { top: 200, bottom: 250, left: 300, right: 400, width: 150, height: 50 };
-
-    const pickerWidth = 245;
-    const pickerHeight = 44;
-    const viewportHeight = window.innerHeight || 800;
-    const viewportWidth = window.innerWidth || 1200;
-
-    const openAbove = rect.top >= 72 + pickerHeight + 8;
-    let top = openAbove ? rect.top - pickerHeight - 8 : rect.bottom + 8;
-    top = Math.max(72, Math.min(top, viewportHeight - pickerHeight - 16));
-
-    let left = rect.left + (rect.width || 150) / 2 - pickerWidth / 2;
-    left = Math.max(12, Math.min(left, viewportWidth - pickerWidth - 12));
-
-    setReactionPosition({ top, left });
-    setActiveReactionMessageId(msg._id);
-  }, []);
 
   // WhatsApp-style multi-selection trigger from context menu
   const handleSelectMessageFromMenu = useCallback((msg) => {
@@ -519,6 +500,9 @@ const ChatWindow = ({
 
     setSelectedFiles((prev) => [...prev, ...files]);
     setFilePreviews((prev) => [...prev, ...newPreviews]);
+    if (e.target) {
+      e.target.value = "";
+    }
   };
 
   const handleRemoveFile = (index) => {
@@ -590,10 +574,12 @@ const ChatWindow = ({
       if (tempFiles.length > 0) {
         const formData = new FormData();
         formData.append("chatId", chat._id);
-        formData.append("content", tempContent);
+        if (tempContent) formData.append("content", tempContent);
         if (tempReplyTo) formData.append("replyTo", tempReplyTo._id);
-        tempFiles.forEach((file) => formData.append("files", file));
-        res = await apiClient.post("/chat/message", formData);
+        tempFiles.forEach((file) => formData.append("media", file));
+        res = await apiClient.post("/chat/message", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
       } else {
         res = await apiClient.post("/chat/message", {
           chatId: chat._id,
@@ -604,14 +590,26 @@ const ChatWindow = ({
 
       if (res.data.success) {
         const confirmed = res.data.data;
-        setMessages((prev) =>
-          prev.map((m) => (m._id === optimisticId ? confirmed : m))
-        );
-        socket?.emit("new message", confirmed);
-        if (onUpdateLastMessage) onUpdateLastMessage(chat._id, confirmed);
+        if (Array.isArray(confirmed)) {
+          setMessages((prev) => [
+            ...prev.filter((m) => m._id !== optimisticId),
+            ...confirmed,
+          ]);
+          confirmed.forEach((msg) => socket?.emit("new message", msg));
+          if (onUpdateLastMessage && confirmed.length > 0) {
+            onUpdateLastMessage(chat._id, confirmed[confirmed.length - 1]);
+          }
+        } else {
+          setMessages((prev) =>
+            prev.map((m) => (m._id === optimisticId ? confirmed : m))
+          );
+          socket?.emit("new message", confirmed);
+          if (onUpdateLastMessage) onUpdateLastMessage(chat._id, confirmed);
+        }
       }
     } catch (error) {
-      toast.error("Failed to send message");
+      console.error("Failed to send message:", error.response?.data || error.message);
+      toast.error(error.response?.data?.message || "Failed to send message");
       setMessages((prev) =>
         prev.map((m) => (m._id === optimisticId ? { ...m, status: "failed" } : m))
       );
@@ -814,6 +812,7 @@ const ChatWindow = ({
         messages={messages}
         currentUser={currentUser}
         chat={chat}
+        onlineUsers={onlineUsers}
         loadingInitial={loadingInitial}
         loadingOlder={loadingOlder}
         hasMore={hasMore}
@@ -904,7 +903,6 @@ const ChatWindow = ({
             document.querySelector(".chat-input")?.focus();
           }, 50);
         }}
-        onReact={handleOpenReactionForMessage}
         onTogglePin={(msgId, isPin) => togglePin(msgId, isPin)}
         onToggleStar={handleToggleStar}
         onForward={(msg) => {

@@ -267,3 +267,43 @@ export const toggleFollowUser = async (req, res, next) => {
     next(error);
   }
 };
+
+/** Get list of followers for a user */
+export const getFollowers = async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    const user = await User.findOne({ username })
+      .select("followers")
+      .populate("followers", "username fullName avatar department year semester")
+      .lean();
+
+    if (!user) throw new AppError("User not found", 404);
+
+    res.status(200).json({
+      success: true,
+      data: user.followers || [],
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Get list of users that a user is following */
+export const getFollowing = async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    const user = await User.findOne({ username })
+      .select("following")
+      .populate("following", "username fullName avatar department year semester")
+      .lean();
+
+    if (!user) throw new AppError("User not found", 404);
+
+    res.status(200).json({
+      success: true,
+      data: user.following || [],
+    });
+  } catch (error) {
+    next(error);
+  }
+};

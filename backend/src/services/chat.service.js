@@ -289,7 +289,7 @@ export const updateGroupImage = async (chatId, userId, filePath) => {
 
 // ─── Messages ───────────────────────────────────────────────────────────────
 
-export const sendMessage = async (userId, { chatId, content, replyTo }, filesParam) => {
+export const sendMessage = async (userId, { chatId, content, replyTo, mediaType }, filesParam) => {
   if (!chatId) throw new AppError("Chat ID is required", 400);
 
   const chat = await chatRepo.findChatById(chatId);
@@ -352,12 +352,16 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
     }
 
     // Determine media type (including audio support for voice notes!)
-    if (file.mimetype.startsWith("image/")) {
-      messageData.mediaType = "image";
-    } else if (file.mimetype.startsWith("video/")) {
-      messageData.mediaType = "video";
-    } else if (file.mimetype.startsWith("audio/")) {
+    if (
+      mediaType === "audio" ||
+      (file.mimetype && file.mimetype.startsWith("audio/")) ||
+      (file.originalname && file.originalname.includes("voicenote"))
+    ) {
       messageData.mediaType = "audio";
+    } else if (file.mimetype && file.mimetype.startsWith("image/")) {
+      messageData.mediaType = "image";
+    } else if (file.mimetype && file.mimetype.startsWith("video/")) {
+      messageData.mediaType = "video";
     } else {
       messageData.mediaType = "document";
     }

@@ -72,7 +72,7 @@ router.route("/message/search/:chatId").get(searchMessagesInChat);
 
 router
   .route("/message")
-  .post(fileCleanupMiddleware, documentUploadMiddleware.array("media", 10), sendMessage)
+  .post(fileCleanupMiddleware, documentUploadMiddleware.any(), sendMessage)
   .put(editMessage)
   .delete(deleteMessage);
 

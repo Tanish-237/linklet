@@ -32,10 +32,9 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
       sender: { _id: "user1", username: "tanish" },
     };
 
-    it("renders WhatsApp context menu items with portal and triggers onReact, onSelectMessage", () => {
+    it("renders WhatsApp context menu items with portal without redundant React option and triggers onSelectMessage", () => {
       console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageContextMenu portal and callbacks");
       const onReply = vi.fn();
-      const onReact = vi.fn();
       const onTogglePin = vi.fn();
       const onForward = vi.fn();
       const onSelect = vi.fn();
@@ -48,7 +47,6 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
           isPinned={false}
           isSent={true}
           onReply={onReply}
-          onReact={onReact}
           onTogglePin={onTogglePin}
           onForward={onForward}
           onSelectMessage={onSelect}
@@ -56,16 +54,16 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
         />
       );
 
-      // Verify menu items
+      // Verify menu items: React should NOT be in dropdown menu (icon is separate on message hover)
+      expect(screen.queryByRole("button", { name: /react/i })).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: /reply/i })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /react/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /pin message/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /forward/i })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /select messages/i })).toBeInTheDocument();
 
-      // Click React
-      fireEvent.click(screen.getByRole("button", { name: /react/i }));
-      expect(onReact).toHaveBeenCalledWith(mockMessage);
+      // Click Reply
+      fireEvent.click(screen.getByRole("button", { name: /reply/i }));
+      expect(onReply).toHaveBeenCalledWith(mockMessage);
       expect(onClose).toHaveBeenCalled();
 
       // Click Select messages
@@ -272,6 +270,32 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
       expect(tickIcon).toBeInTheDocument();
       expect(tickIcon.textContent).toBe("done");
       console.log("TRACE [ChatModularComponents.test.jsx]: Grey tick verified on unread message");
+    });
+
+    it("renders grey double ticks (tick-delivered) when recipient is online on the website but hasn't read the chat", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageBubble double grey tick for delivered/online recipient");
+      const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
+      const deliveredMsg = {
+        _id: "m_deliv1",
+        content: "Delivered message content",
+        createdAt: testDate,
+        sender: { _id: "user1" },
+        readBy: ["user1"],
+      };
+
+      const { container } = render(
+        <MessageBubble
+          msg={deliveredMsg}
+          isSent={true}
+          isRecipientOnline={true}
+          isMenuActive={false}
+        />
+      );
+
+      const tickIcon = container.querySelector(".tick-delivered");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.textContent).toBe("done_all");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Grey double tick verified when recipient is online");
     });
 
     it("renders voice messages with duration and delivery ticks on the same line", () => {
@@ -579,18 +603,17 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
           audioPlaybackState={{}}
         />
       );
-
       expect(screen.getByText("2 Unread Messages")).toBeInTheDocument();
       const separator = container.querySelector("#unread-messages-separator");
       expect(separator).toBeInTheDocument();
       console.log("TRACE [ChatModularComponents.test.jsx]: Unread separator element and id verified successfully");
     });
 
-    it("renders delivery ticks with 13.5px size class for enhanced legibility", () => {
-      console.log("TRACE [ChatModularComponents.test.jsx]: Testing 13.5px delivery tick sizing");
+    it("renders delivery ticks with 14px equal sizing for enhanced legibility", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing 14px equal delivery tick sizing");
       const readMsg = {
-        _id: "m_read135",
-        content: "13.5px tick message",
+        _id: "m_read_size",
+        content: "Size test",
         createdAt: new Date().toISOString(),
         sender: { _id: "user1" },
         readBy: ["user1", "user2"],
@@ -602,8 +625,8 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
 
       const tickIcon = container.querySelector(".tick-read");
       expect(tickIcon).toBeInTheDocument();
-      expect(tickIcon.className).toContain("text-[13.5px]");
-      console.log("TRACE [ChatModularComponents.test.jsx]: Confirmed tick has text-[13.5px] styling");
+      expect(tickIcon.className).toContain("text-[14px]");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Confirmed tick has text-[14px] styling");
     });
 
     it("does not display star icon badge when message is starred (per design spec: silent save)", () => {

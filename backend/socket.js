@@ -147,7 +147,7 @@ export const initializeSocket = async (server) => {
       logger.info(`User ${socket.id} left room: ${room}`);
     });
 
-    socket.on("new message", (newMessage) => {
+    socket.on("new message", async (newMessage) => {
       if (!newMessage || !newMessage.chat) return;
 
       // Authenticated socket security validation: ensure sender matches registered socket identity
@@ -162,7 +162,46 @@ export const initializeSocket = async (server) => {
       }
 
       const chatId = typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
+      
+      // 1. Emit to active chat room for users currently in the conversation
       io.to(chatId).emit("message received", newMessage);
+
+      // 2. Emit to each participant's individual user room so users across the site receive notifications & updates
+      try {
+        let participants = newMessage.chat?.participants;
+        if (!participants || participants.length === 0) {
+          const chatDoc = await chatRepo.findChatById(chatId);
+          participants = chatDoc?.participants || [];
+        }
+
+        const senderId = (newMessage.sender?._id || newMessage.sender)?.toString();
+        let deliveredToAny = false;
+
+        if (Array.isArray(participants)) {
+          participants.forEach((p) => {
+            const pId = (p._id || p)?.toString();
+            if (pId && pId !== senderId) {
+              // Send message to participant's personal room for global notification toasts & unread counts
+              io.to(pId).emit("message received", newMessage);
+
+              // If this recipient is currently connected/online on the website, mark delivered
+              if (onlineUsers.has(pId)) {
+                deliveredToAny = true;
+              }
+            }
+          });
+        }
+
+        // If at least one recipient is online on the site, inform the sender so their single tick becomes a double delivered tick!
+        if (deliveredToAny && senderId) {
+          io.to(senderId).emit("message delivered", {
+            chatId,
+            messageId: newMessage._id,
+          });
+        }
+      } catch (notifErr) {
+        logger.error(`Error broadcasting new message to participant rooms: ${notifErr.message}`);
+      }
     });
 
     socket.on("message updated", async (updatedMessage) => {

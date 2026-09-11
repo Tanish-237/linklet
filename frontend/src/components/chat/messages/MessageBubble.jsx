@@ -12,14 +12,14 @@ export const formatMessageClock = (dateStr) => {
   }
 };
 
-export const renderDeliveryTicks = (msg, isSent) => {
+export const renderDeliveryTicks = (msg, isSent, isRecipientOnline = false) => {
   if (!isSent) return null;
   if (msg.status === "sending") {
-    return <span className="material-icons tick-sending text-[13.5px]">schedule</span>;
+    return <span className="material-icons tick-sending">schedule</span>;
   }
   if (msg.status === "failed") {
     return (
-      <span className="material-icons text-red-400 text-[13.5px]">
+      <span className="material-icons text-red-400">
         error_outline
       </span>
     );
@@ -33,16 +33,20 @@ export const renderDeliveryTicks = (msg, isSent) => {
   const isDelivered = Boolean(
     isRead ||
     msg.status === "delivered" ||
-    msg.isDelivered
+    msg.isDelivered ||
+    isRecipientOnline
   );
+
+  const tickClass = isRead ? "tick-read" : isDelivered ? "tick-delivered" : "tick-sent";
+  const tickIcon = isRead || isDelivered ? "done_all" : "done";
+  const tickTitle = isRead ? "Read" : isDelivered ? "Delivered" : "Sent";
+
   return (
     <span
-      className={`material-icons text-[13.5px] leading-none ${
-        isRead ? "tick-read" : "tick-sent"
-      }`}
-      title={isRead ? "Read" : isDelivered ? "Delivered" : "Sent"}
+      className={`material-icons text-[14px] leading-none ${tickClass}`}
+      title={tickTitle}
     >
-      {isRead || isDelivered ? "done_all" : "done"}
+      {tickIcon}
     </span>
   );
 };
@@ -53,6 +57,7 @@ const MessageBubble = ({
   isSelected,
   isPinned,
   isStarred,
+  isRecipientOnline = false,
   searchQuery,
   audioState,
   isMenuActive,
@@ -104,6 +109,7 @@ const MessageBubble = ({
       <MessageMedia
         msg={msg}
         isSent={isSent}
+        isRecipientOnline={isRecipientOnline}
         formatMessageClock={formatMessageClock}
         renderDeliveryTicks={renderDeliveryTicks}
         audioState={audioState}
@@ -154,7 +160,7 @@ const MessageBubble = ({
             </span>
             {isSent && (
               <span className="ml-1.5 flex items-center">
-                {renderDeliveryTicks(msg, isSent)}
+                {renderDeliveryTicks(msg, isSent, isRecipientOnline)}
               </span>
             )}
           </div>

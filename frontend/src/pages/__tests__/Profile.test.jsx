@@ -77,7 +77,8 @@ describe("Profile Component", () => {
 
     renderComponent("/dashboard/profile/jordan");
 
-    const followBtn = await screen.findByRole("button", { name: /Follow/i });
+    const followBtnText = await screen.findByText("Follow");
+    const followBtn = followBtnText.closest("button");
     console.log("TRACE [Profile.test.jsx]: Found follow button:", followBtn.className);
     expect(followBtn).toBeInTheDocument();
     expect(followBtn).toHaveClass("profile-btn-follow");
@@ -116,5 +117,120 @@ describe("Profile Component", () => {
       expect(saveBtn).toHaveClass("profile-btn-primary");
     });
     console.log("TRACE [Profile.test.jsx]: Modal verified with solid primary save button");
+  });
+
+  it("renders admin badge without lightning emoji on admin profile", async () => {
+    console.log("TRACE [Profile.test.jsx]: Testing admin role badge formatting");
+    const adminUser = {
+      ...mockOtherUser,
+      role: "admin",
+    };
+
+    useAuth.mockReturnValue({
+      user: mockCurrentUser,
+      fetchUser: vi.fn(),
+    });
+
+    apiClient.get.mockImplementation((url) => {
+      if (url.includes("/profile/jordan")) {
+        return Promise.resolve({ data: { data: adminUser } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    renderComponent("/dashboard/profile/jordan");
+
+    const badge = await screen.findByText("admin");
+    expect(badge).toBeInTheDocument();
+    expect(badge.textContent).toBe("admin");
+    expect(badge.textContent).not.toContain("⚡");
+    console.log("Passed: Admin badge rendered cleanly without lightning emoji");
+  });
+
+  it("opens followers and following modals when clicking stat cards and displays user list", async () => {
+    console.log("TRACE [Profile.test.jsx]: Testing followers and following modal interaction");
+    useAuth.mockReturnValue({
+      user: mockCurrentUser,
+      fetchUser: vi.fn(),
+    });
+
+    const mockFollowersList = [
+      { _id: "f1", username: "alice", fullName: "Alice Wonder", department: "Computer Science" },
+      { _id: "f2", username: "charlie", fullName: "Charlie Day", department: "Electronics" },
+    ];
+
+    apiClient.get.mockImplementation((url) => {
+      if (url.endsWith("/profile/jordan/followers")) {
+        return Promise.resolve({ data: { success: true, data: mockFollowersList } });
+      }
+      if (url.includes("/profile/jordan")) {
+        return Promise.resolve({ data: { data: mockOtherUser } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    renderComponent("/dashboard/profile/jordan");
+
+    const followersCard = await screen.findByRole("button", { name: /view followers/i });
+    expect(followersCard).toBeInTheDocument();
+
+    fireEvent.click(followersCard);
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Wonder")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Day")).toBeInTheDocument();
+    });
+
+    console.log("Passed: Followers modal opened and displayed follower users");
+
+    // Close modal
+    const closeBtn = screen.getByRole("button", { name: /close modal/i });
+    fireEvent.click(closeBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Alice Wonder")).not.toBeInTheDocument();
+    });
+    console.log("Passed: Followers modal closed successfully");
+  });
+
+  it("renders and switches to followers tab directly in profile itself and displays followers", async () => {
+    console.log("TRACE [Profile.test.jsx]: Testing in-profile followers tab and header button");
+    useAuth.mockReturnValue({
+      user: mockCurrentUser,
+      fetchUser: vi.fn(),
+    });
+
+    const mockFollowersList = [
+      { _id: "f1", username: "alice", fullName: "Alice Wonder", department: "Computer Science" },
+      { _id: "f2", username: "charlie", fullName: "Charlie Day", department: "Electronics" },
+    ];
+
+    apiClient.get.mockImplementation((url) => {
+      if (url.endsWith("/profile/jordan/followers")) {
+        return Promise.resolve({ data: { success: true, data: mockFollowersList } });
+      }
+      if (url.includes("/profile/jordan")) {
+        return Promise.resolve({ data: { data: mockOtherUser } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+
+    renderComponent("/dashboard/profile/jordan");
+
+    // Header counter buttons are present in profile itself
+    const headerFollowersBtn = await screen.findByRole("button", { name: /followers count/i });
+    expect(headerFollowersBtn).toBeInTheDocument();
+    console.log("Passed: Header followers counter button is clickable in profile itself");
+
+    // Click followers tab in profile tabs
+    const followersTabBtn = screen.getByRole("button", { name: /group\s*Followers/i });
+    expect(followersTabBtn).toBeInTheDocument();
+    fireEvent.click(followersTabBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Wonder")).toBeInTheDocument();
+      expect(screen.getByText("Charlie Day")).toBeInTheDocument();
+    });
+    console.log("Passed: In-profile followers tab displayed followers directly on profile page");
   });
 });

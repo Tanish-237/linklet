@@ -275,5 +275,112 @@ describe("ChatSidebar Component", () => {
     vi.useRealTimers();
     console.log("TRACE [ChatSidebar.test.jsx]: Verified search debouncing past 300ms threshold");
   });
+
+  describe("Sidebar Delivery Ticks Tests", () => {
+    it("renders single grey tick (tick-sent) when user sent last message and recipient is offline", () => {
+      console.log("TRACE [ChatSidebar.test.jsx]: Testing sidebar single grey tick for sent message");
+      const chatsWithSent = [
+        {
+          _id: "c_sent",
+          isGroup: false,
+          participants: [
+            { _id: "user1", username: "me" },
+            { _id: "user2", username: "bob" },
+          ],
+          lastMessage: {
+            content: "Hello bob!",
+            sender: { _id: "user1" },
+            readBy: ["user1"],
+            createdAt: new Date().toISOString(),
+          },
+        },
+      ];
+
+      const { container } = render(
+        <ChatSidebar
+          chats={chatsWithSent}
+          activeChat={null}
+          onSelectChat={vi.fn()}
+          currentUser={{ _id: "user1" }}
+          onlineUsers={[]} // recipient user2 is offline
+        />
+      );
+
+      const tickIcon = container.querySelector(".tick-sent");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.textContent).toBe("done");
+      console.log("Passed: Sidebar rendered single grey tick for offline recipient");
+    });
+
+    it("renders double grey tick (tick-delivered) when user sent last message and recipient is online on the website", () => {
+      console.log("TRACE [ChatSidebar.test.jsx]: Testing sidebar double grey tick for delivered message");
+      const chatsWithDelivered = [
+        {
+          _id: "c_delivered",
+          isGroup: false,
+          participants: [
+            { _id: "user1", username: "me" },
+            { _id: "user2", username: "bob" },
+          ],
+          lastMessage: {
+            content: "Hello bob online!",
+            sender: { _id: "user1" },
+            readBy: ["user1"],
+            createdAt: new Date().toISOString(),
+          },
+        },
+      ];
+
+      const { container } = render(
+        <ChatSidebar
+          chats={chatsWithDelivered}
+          activeChat={null}
+          onSelectChat={vi.fn()}
+          currentUser={{ _id: "user1" }}
+          onlineUsers={["user2"]} // recipient user2 is online on website!
+        />
+      );
+
+      const tickIcon = container.querySelector(".tick-delivered");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.textContent).toBe("done_all");
+      console.log("Passed: Sidebar rendered double grey tick for online recipient");
+    });
+
+    it("renders double blue tick (tick-read) when user sent last message and recipient has read it", () => {
+      console.log("TRACE [ChatSidebar.test.jsx]: Testing sidebar double blue tick for read message");
+      const chatsWithRead = [
+        {
+          _id: "c_read",
+          isGroup: false,
+          participants: [
+            { _id: "user1", username: "me" },
+            { _id: "user2", username: "bob" },
+          ],
+          lastMessage: {
+            content: "Hello bob read!",
+            sender: { _id: "user1" },
+            readBy: ["user1", "user2"],
+            createdAt: new Date().toISOString(),
+          },
+        },
+      ];
+
+      const { container } = render(
+        <ChatSidebar
+          chats={chatsWithRead}
+          activeChat={null}
+          onSelectChat={vi.fn()}
+          currentUser={{ _id: "user1" }}
+          onlineUsers={["user2"]}
+        />
+      );
+
+      const tickIcon = container.querySelector(".tick-read");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.textContent).toBe("done_all");
+      console.log("Passed: Sidebar rendered double blue tick for read message");
+    });
+  });
 });
 

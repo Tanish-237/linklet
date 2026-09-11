@@ -4,6 +4,7 @@ import AudioMessagePlayer from "./AudioMessagePlayer";
 const MessageMedia = ({
   msg,
   isSent,
+  isRecipientOnline = false,
   formatMessageClock,
   renderDeliveryTicks,
   audioState,
@@ -28,7 +29,7 @@ const MessageMedia = ({
             <span>{formatMessageClock(msg.createdAt)}</span>
             {isSent && (
               <span className="ml-1.5 flex items-center">
-                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent, isRecipientOnline)}
               </span>
             )}
           </div>
@@ -57,7 +58,7 @@ const MessageMedia = ({
             <span>{formatMessageClock(msg.createdAt)}</span>
             {isSent && (
               <span className="ml-1.5 flex items-center">
-                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent, isRecipientOnline)}
               </span>
             )}
           </div>
@@ -77,6 +78,7 @@ const MessageMedia = ({
           onSeek={onSeekAudio}
           msg={msg}
           isSent={isSent}
+          isRecipientOnline={isRecipientOnline}
           formatMessageClock={formatMessageClock}
           renderDeliveryTicks={renderDeliveryTicks}
         />
@@ -109,7 +111,7 @@ const MessageMedia = ({
       {!msg.content && formatMessageClock && (
         <div className="flex items-center justify-end gap-1 mt-1 text-[11px] opacity-80 select-none">
           <span>{formatMessageClock(msg.createdAt)}</span>
-          {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+          {renderDeliveryTicks && renderDeliveryTicks(msg, isSent, isRecipientOnline)}
         </div>
       )}
     </div>

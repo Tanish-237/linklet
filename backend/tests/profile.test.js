@@ -39,6 +39,8 @@ const {
   getUserBookmarks,
   toggleFollowUser,
   updateProfile,
+  getFollowers,
+  getFollowing,
 } = await import('../src/controllers/profile.controller.js');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -537,6 +539,67 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       const err = next.mock.calls[0][0];
       expect(err).toBeInstanceOf(AppError);
       expect(err.statusCode).toBe(400);
+    });
+  });
+
+  // ── getFollowers & getFollowing ───────────────────────────────────────────────
+  describe('getFollowers and getFollowing', () => {
+    it('getFollowers returns populated followers list', async () => {
+      console.log('[TEST] getFollowers › returns populated followers array');
+      const req = makeReq({ params: { username: 'testuser' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      const mockQuery = {
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          followers: [
+            { _id: 'f1', username: 'follower1', fullName: 'Follower One' },
+          ],
+        }),
+      };
+      mockFindOne.mockReturnValue(mockQuery);
+
+      await getFollowers(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [{ _id: 'f1', username: 'follower1', fullName: 'Follower One' }],
+      });
+      expect(next).not.toHaveBeenCalled();
+      console.log('[TEST] getFollowers executed successfully');
+    });
+
+    it('getFollowing returns populated following list', async () => {
+      console.log('[TEST] getFollowing › returns populated following array');
+      const req = makeReq({ params: { username: 'testuser' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      const mockQuery = {
+        select: jest.fn().mockReturnThis(),
+        populate: jest.fn().mockReturnThis(),
+        lean: jest.fn().mockResolvedValue({
+          _id: 'user1',
+          following: [
+            { _id: 'f2', username: 'followed1', fullName: 'Followed User' },
+          ],
+        }),
+      };
+      mockFindOne.mockReturnValue(mockQuery);
+
+      await getFollowing(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        success: true,
+        data: [{ _id: 'f2', username: 'followed1', fullName: 'Followed User' }],
+      });
+      expect(next).not.toHaveBeenCalled();
+      console.log('[TEST] getFollowing executed successfully');
     });
   });
 });

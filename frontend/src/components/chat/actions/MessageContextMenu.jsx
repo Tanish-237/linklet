@@ -62,20 +62,7 @@ const MessageContextMenu = ({
         <span className="material-icons">reply</span> Reply
       </button>
 
-      {/* 2. React */}
-      <button
-        type="button"
-        aria-label="React"
-        onClick={() => {
-          if (onReact) onReact(activeMessage);
-          onClose();
-        }}
-        className="msg-menu-item"
-      >
-        <span className="material-icons">sentiment_satisfied_alt</span> React
-      </button>
-
-      {/* 3. Star / Unstar (Only for media messages) */}
+      {/* 2. Star / Unstar (Only for media messages) */}
       {Boolean(activeMessage?.media || activeMessage?.mediaType) && (
         <button
           type="button"

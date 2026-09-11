@@ -14,6 +14,7 @@ const AudioMessagePlayer = ({
   onSeek,
   msg,
   isSent,
+  isRecipientOnline = false,
   formatMessageClock,
   renderDeliveryTicks,
 }) => {
@@ -100,7 +101,7 @@ const AudioMessagePlayer = ({
             <div className="flex items-center text-gray-300">
               <span>{formatMessageClock(msg.createdAt)}</span>
               <span className="ml-1.5 flex items-center">
-                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent, isRecipientOnline)}
               </span>
             </div>
           )}

@@ -1,55 +1,82 @@
 import React from "react";
 
-const AttachmentPreviewTray = ({ previews = [], onRemoveFile }) => {
-  if (!previews || previews.length === 0) return null;
+const AttachmentPreviewTray = ({ previews = [], filePreviews, onRemoveFile }) => {
+  const items = filePreviews || previews || [];
+  if (!items || items.length === 0) return null;
 
   return (
     <div className="attachment-preview-tray">
-      {previews.map((file, idx) => (
-        <div key={idx} className="attachment-preview-chip">
-          {file.type === "image" ? (
-            <img
-              src={file.url}
-              alt="Preview"
-              className="attachment-preview-thumb"
-            />
-          ) : file.type === "video" ? (
-            <div className="attachment-preview-video">
-              <span className="material-icons text-white text-lg">
-                videocam
-              </span>
-            </div>
-          ) : file.type === "audio" ? (
-            <div className="attachment-preview-doc">
-              <span className="material-icons text-violet-400 text-lg">
-                audiotrack
-              </span>
-            </div>
-          ) : (
-            <div className="attachment-preview-doc">
-              <span className="material-icons text-violet-400 text-lg">
-                description
-              </span>
-            </div>
-          )}
+      {items.map((file, idx) => {
+        const isImage = file.type === "image";
 
-          <div className="flex-1 min-w-0 pr-1">
-            <div className="text-[11px] font-medium text-gray-200 truncate">
-              {file.name}
+        if (isImage) {
+          return (
+            <div
+              key={idx}
+              className="attachment-preview-card attachment-preview-img-card group"
+              title={file.name}
+            >
+              <img
+                src={file.url}
+                alt={file.name || "Preview"}
+                className="attachment-preview-img"
+              />
+              <div className="attachment-preview-info-overlay">
+                <span className="attachment-preview-filename">{file.name}</span>
+                <span className="attachment-preview-filesize">{file.size}</span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemoveFile(idx);
+                }}
+                className="attachment-remove-btn"
+                title="Remove attachment"
+                aria-label="Remove attachment"
+              >
+                <span className="material-icons">close</span>
+              </button>
             </div>
-            <div className="text-[9px] text-gray-400">{file.size}</div>
-          </div>
+          );
+        }
 
-          <button
-            type="button"
-            onClick={() => onRemoveFile(idx)}
-            className="attachment-preview-remove"
-            title="Remove attachment"
+        return (
+          <div
+            key={idx}
+            className="attachment-preview-card attachment-preview-doc-card group"
+            title={file.name}
           >
-            <span className="material-icons text-xs">close</span>
-          </button>
-        </div>
-      ))}
+            <div className="attachment-doc-icon-wrapper">
+              <span className="material-icons">
+                {file.type === "video"
+                  ? "videocam"
+                  : file.type === "audio"
+                  ? "audiotrack"
+                  : "description"}
+              </span>
+            </div>
+            <div className="attachment-doc-meta">
+              <span className="attachment-doc-name">{file.name}</span>
+              <span className="attachment-doc-sub">
+                {file.size} {file.type ? `• ${file.type.toUpperCase()}` : ""}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemoveFile(idx);
+              }}
+              className="attachment-doc-remove-btn"
+              title="Remove attachment"
+              aria-label="Remove attachment"
+            >
+              <span className="material-icons">close</span>
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 };

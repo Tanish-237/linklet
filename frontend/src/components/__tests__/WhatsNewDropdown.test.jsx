@@ -60,11 +60,11 @@ describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () =>
     const dialog = screen.getByRole("dialog", { name: /What's New release notes/i });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
-    expect(screen.getByText(/Blazing-fast parallel media uploads:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Atomic emoji reactions:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Real-time read receipt broadcasts:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Resilient mobile connections:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Hardened security & access control:/i)).toBeInTheDocument();
+    expect(screen.getByText(/In-profile followers & following:/i)).toBeInTheDocument();
+    expect(screen.getByText(/WhatsApp-style double delivery ticks:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cross-app real-time notifications:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Optimized attachments & voice notes:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Instant 0ms emoji reactions:/i)).toBeInTheDocument();
     expect(screen.getByText("GitHub release")).toBeInTheDocument();
 
     console.log("Passed: Dropdown opens with simple, human-written release notes");

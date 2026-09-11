@@ -114,11 +114,18 @@ export const demoteAdmin = async (req, res, next) => {
 
 export const sendMessage = async (req, res, next) => {
   try {
-    const { chatId, content, replyTo } = req.body;
-    const files = req.files || (req.file ? [req.file] : []);
+    const { chatId, content, replyTo, mediaType } = req.body;
+    let files = [];
+    if (Array.isArray(req.files)) {
+      files = req.files;
+    } else if (req.files && typeof req.files === "object") {
+      files = Object.values(req.files).flat();
+    } else if (req.file) {
+      files = [req.file];
+    }
     const result = await chatService.sendMessage(
       req.user._id,
-      { chatId, content, replyTo },
+      { chatId, content, replyTo, mediaType },
       files
     );
     res.status(201).json({ success: true, data: result });

@@ -471,6 +471,11 @@
   overflow: hidden;
 }
 
+.profile-stat-card.cursor-pointer,
+.profile-stat-card[role="button"] {
+  cursor: pointer !important;
+}
+
 /* Subtle gradient accent line at top */
 .profile-stat-card::before {
   content: '';
@@ -635,6 +640,49 @@
 
 .profile-tab-btn .material-icons {
   font-size: 1.1rem;
+}
+
+.profile-tab-count-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  color: #c4b5fd;
+  margin-left: 4px;
+}
+
+.profile-tab-btn.active .profile-tab-count-badge {
+  background: rgba(139, 92, 246, 0.3);
+  border-color: rgba(139, 92, 246, 0.5);
+  color: #ffffff;
+}
+
+/* Header follow counts bar in profile card */
+.profile-follow-counts-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0 2px;
+}
+
+.profile-follow-header-btn {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(139, 92, 246, 0.05);
+  border: 1px solid rgba(139, 92, 246, 0.14);
+  padding: 6px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.profile-follow-header-btn:hover {
+  background: rgba(139, 92, 246, 0.14);
+  border-color: rgba(139, 92, 246, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.12);
 }
 
 /* Tab content area */
@@ -1419,4 +1467,52 @@
   .profile-posts-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   FOLLOWERS & FOLLOWING MODAL
+   ═══════════════════════════════════════════════════════════════ */
+.profile-follow-modal {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(13, 13, 22, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(139, 92, 246, 0.22);
+  border-radius: 20px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 40px rgba(139, 92, 246, 0.15);
+  overflow: hidden;
+  animation: modalScaleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.profile-follow-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+  background: rgba(20, 20, 35, 0.5);
+}
+
+.profile-follow-modal-body {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.profile-follow-modal-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.profile-follow-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.profile-follow-modal-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+}
+
+.profile-follow-modal-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.4);
 }

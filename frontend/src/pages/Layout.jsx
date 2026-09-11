@@ -6,6 +6,7 @@ import { apiClient } from '../api/apiClient';
 import linkletLogo from '../assets/linklet-logo.png';
 import defaultAvatar from '../assets/default-avatar.png';
 import AcademicOnboardingModal from '../components/AcademicOnboardingModal';
+import { useSocket } from '../hooks/useSocket';
 import NotificationDropdown from '../components/NotificationDropdown';
 import WhatsNewDropdown, { isReleaseSeen, markReleaseSeen, RELEASE_VERSION } from '../components/WhatsNewDropdown';
 
@@ -13,6 +14,8 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setUser } = useAuth();
+  const socket = useSocket();
+  const [unreadChatCount, setUnreadChatCount] = React.useState(0);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
   const [hasSeenRelease, setHasSeenRelease] = React.useState(() => isReleaseSeen(RELEASE_VERSION));
   const [dropdownStates, setDropdownStates] = React.useState({
@@ -21,6 +24,69 @@ export default function Layout({ children }) {
     profile: false
   });
   const dropdownRef = React.useRef(null);
+
+  // Clear unread chat count when user visits chat page
+  React.useEffect(() => {
+    if (location.pathname.startsWith("/dashboard/chat")) {
+      setUnreadChatCount(0);
+    }
+  }, [location.pathname]);
+
+  // Global socket listener for chat message notifications across the entire app
+  React.useEffect(() => {
+    if (!socket || !user?._id) return;
+
+    const handleGlobalMessageReceived = (newMessage) => {
+      const senderId = (newMessage?.sender?._id || newMessage?.sender)?.toString();
+      const currentUserId = (user?._id || user?.id)?.toString();
+
+      // Don't notify sender of their own messages
+      if (senderId && senderId === currentUserId) return;
+
+      // If user is currently on the chat page, let ChatPage handle in-chat alerts
+      if (location.pathname.startsWith("/dashboard/chat")) return;
+
+      // Increment sidebar chat badge
+      setUnreadChatCount((prev) => prev + 1);
+
+      // Show toast notification
+      try {
+        const rawPrefs = localStorage.getItem("linklet_notif_prefs");
+        const notifPrefs = rawPrefs ? JSON.parse(rawPrefs) : { chatAlerts: true };
+        if (notifPrefs.chatAlerts !== false) {
+          const senderName =
+            newMessage?.sender?.fullName || newMessage?.sender?.username || "New message";
+          const previewText =
+            newMessage?.content ||
+            (newMessage?.mediaType ? `sent a ${newMessage.mediaType}` : "sent a message");
+
+          toast.info(
+            <div
+              className="cursor-pointer"
+              onClick={() => {
+                const chatId = (newMessage?.chat?._id || newMessage?.chat)?.toString();
+                navigate(`/dashboard/chat${chatId ? `?chatId=${chatId}` : ""}`);
+              }}
+            >
+              <span className="font-semibold block text-violet-300">{senderName}</span>
+              <span className="text-sm text-gray-200 truncate block">{previewText}</span>
+            </div>,
+            {
+              toastId: `global_chat_${senderId || 'msg'}`,
+              autoClose: 5000,
+            }
+          );
+        }
+      } catch (err) {
+        // Safe fallback
+      }
+    };
+
+    socket.on("message received", handleGlobalMessageReceived);
+    return () => {
+      socket.off("message received", handleGlobalMessageReceived);
+    };
+  }, [socket, user?._id, location.pathname, navigate]);
 
   // Auto-close mobile sidebar on route change
   React.useEffect(() => {
@@ -148,13 +214,20 @@ export default function Layout({ children }) {
                 className={`p-3.5 sm:p-4 rounded-xl transition-all duration-200 cursor-pointer border border-violet-500/10 hover:border-violet-500/30 group
                   ${location.pathname === item.path ? 'bg-violet-900/30 border-violet-500/30' : 'bg-gray-800/40 hover:bg-violet-900/20'}`}
               >
-                <div className="flex items-center gap-3">
-                  <span className={`material-icons text-2xl transition-colors ${location.pathname === item.path ? 'text-violet-400' : 'text-gray-400 group-hover:text-violet-400'}`}>
-                    {item.icon}
-                  </span>
-                  <span className={`font-medium transition-colors ${location.pathname === item.path ? 'text-violet-300 font-semibold' : 'text-gray-300 group-hover:text-white'}`}>
-                    {item.label}
-                  </span>
+                <div className="flex items-center justify-between flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className={`material-icons text-2xl transition-colors ${location.pathname === item.path ? 'text-violet-400' : 'text-gray-400 group-hover:text-violet-400'}`}>
+                      {item.icon}
+                    </span>
+                    <span className={`font-medium transition-colors ${location.pathname === item.path ? 'text-violet-300 font-semibold' : 'text-gray-300 group-hover:text-white'}`}>
+                      {item.label}
+                    </span>
+                  </div>
+                  {item.path === "/dashboard/chat" && unreadChatCount > 0 && (
+                    <span className="px-2 py-0.5 text-xs font-bold bg-violet-600 text-white rounded-full shadow-sm animate-pulse">
+                      {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                    </span>
+                  )}
                 </div>
               </li>
             ))}

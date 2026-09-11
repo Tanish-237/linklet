@@ -65,6 +65,7 @@ const ChatComposer = ({
 
       {/* Attachment Previews Tray */}
       <AttachmentPreviewTray
+        previews={filePreviews}
         filePreviews={filePreviews}
         onRemoveFile={onRemoveFile}
       />
@@ -72,7 +73,9 @@ const ChatComposer = ({
       {/* Voice Note Recording Tray or Main Input Bar */}
       {isRecordingAudio ? (
         <VoiceNoteRecordingTray
+          isRecording={isRecordingAudio}
           recordingSeconds={recordingSeconds}
+          onCancel={onCancelRecordAudio}
           onCancelRecord={onCancelRecordAudio}
           onStopAndSend={onStopAndSendAudio}
         />

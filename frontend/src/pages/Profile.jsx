@@ -37,6 +37,13 @@ const Profile = () => {
   const [postToDelete, setPostToDelete] = useState(null);
   const [isDeletingPost, setIsDeletingPost] = useState(false);
 
+  // Followers / Following Modal & Tab state
+  const [followModalType, setFollowModalType] = useState(null); // 'followers' | 'following' | null
+  const [followList, setFollowList] = useState([]);
+  const [followListLoading, setFollowListLoading] = useState(false);
+  const [tabFollowList, setTabFollowList] = useState([]);
+  const [tabFollowLoading, setTabFollowLoading] = useState(false);
+
   // Editable fields
   const [editBio, setEditBio] = useState("");
   const [editSkills, setEditSkills] = useState("");
@@ -160,6 +167,40 @@ const Profile = () => {
       }
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to update follow status");
+    }
+  };
+
+  const fetchFollowData = async (type) => {
+    if (!profileUser?.username) return [];
+    try {
+      const res = await apiClient.get(`/profile/${profileUser.username}/${type}`);
+      if (res.data.success) {
+        return res.data.data || [];
+      }
+    } catch {
+      toast.error(`Failed to load ${type}`);
+    }
+    return [];
+  };
+
+  const openFollowModal = async (type) => {
+    if (!profileUser?.username) return;
+    setFollowModalType(type);
+    setFollowListLoading(true);
+    setFollowList([]);
+    const data = await fetchFollowData(type);
+    setFollowList(data);
+    setFollowListLoading(false);
+  };
+
+  const handleTabChange = async (tab) => {
+    setActiveTab(tab);
+    if (tab === "followers" || tab === "following") {
+      setTabFollowLoading(true);
+      setTabFollowList([]);
+      const data = await fetchFollowData(tab);
+      setTabFollowList(data);
+      setTabFollowLoading(false);
     }
   };
 
@@ -406,7 +447,7 @@ const Profile = () => {
                   <h1 className="profile-name">{profileUser.fullName}</h1>
                   {profileUser.role && profileUser.role !== "user" && (
                     <span className="profile-badge profile-badge-role">
-                      {profileUser.role === "admin" ? "⚡" : "🛡️"} {profileUser.role}
+                      {profileUser.role}
                     </span>
                   )}
                 </div>
@@ -416,6 +457,39 @@ const Profile = () => {
               {profileUser.bio && (
                 <p className="profile-bio">{profileUser.bio}</p>
               )}
+
+              {/* Followers and Following counters in profile itself */}
+              <div className="profile-follow-counts-bar">
+                <button
+                  type="button"
+                  onClick={() => openFollowModal("followers")}
+                  className="profile-follow-header-btn group"
+                  aria-label="Followers count"
+                >
+                  <span className="font-bold text-white text-base group-hover:text-violet-300 transition-colors mr-1.5">
+                    {profileUser.followers?.length || 0}
+                  </span>
+                  <span className="text-gray-400 text-xs sm:text-sm group-hover:text-gray-300 transition-colors">
+                    Followers
+                  </span>
+                </button>
+
+                <span className="text-gray-600 font-bold">•</span>
+
+                <button
+                  type="button"
+                  onClick={() => openFollowModal("following")}
+                  className="profile-follow-header-btn group"
+                  aria-label="Following count"
+                >
+                  <span className="font-bold text-white text-base group-hover:text-violet-300 transition-colors mr-1.5">
+                    {profileUser.following?.length || 0}
+                  </span>
+                  <span className="text-gray-400 text-xs sm:text-sm group-hover:text-gray-300 transition-colors">
+                    Following
+                  </span>
+                </button>
+              </div>
 
               <div className="profile-info-chips">
                 {profileUser.department && (
@@ -651,14 +725,30 @@ const Profile = () => {
 
         {/* ── Stats Row ── */}
         <div className="profile-stats-row mt-6 profile-section-fade">
-          <div className="profile-stat-card">
+          <div
+            className="profile-stat-card cursor-pointer hover:border-violet-500/40"
+            onClick={() => openFollowModal("followers")}
+            title="View Followers"
+            aria-label="View Followers"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFollowModal("followers"); }}
+          >
             <div className="stat-icon-bg">
               <span className="material-icons">group</span>
             </div>
             <div className="stat-value">{profileUser.followers?.length || 0}</div>
             <div className="stat-label">Followers</div>
           </div>
-          <div className="profile-stat-card">
+          <div
+            className="profile-stat-card cursor-pointer hover:border-violet-500/40"
+            onClick={() => openFollowModal("following")}
+            title="View Following"
+            aria-label="View Following"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFollowModal("following"); }}
+          >
             <div className="stat-icon-bg">
               <span className="material-icons">person_add</span>
             </div>
@@ -678,15 +768,35 @@ const Profile = () => {
         <div className="profile-glass mt-6 overflow-hidden profile-section-fade">
           <div className="profile-tabs">
             <button
-              onClick={() => setActiveTab("posts")}
+              onClick={() => handleTabChange("posts")}
               className={`profile-tab-btn ${activeTab === "posts" ? "active" : ""}`}
             >
               <span className="material-icons">article</span>
               Recent Posts
             </button>
+            <button
+              onClick={() => handleTabChange("followers")}
+              className={`profile-tab-btn ${activeTab === "followers" ? "active" : ""}`}
+            >
+              <span className="material-icons">group</span>
+              Followers
+              <span className="profile-tab-count-badge">
+                {profileUser.followers?.length || 0}
+              </span>
+            </button>
+            <button
+              onClick={() => handleTabChange("following")}
+              className={`profile-tab-btn ${activeTab === "following" ? "active" : ""}`}
+            >
+              <span className="material-icons">person_add</span>
+              Following
+              <span className="profile-tab-count-badge">
+                {profileUser.following?.length || 0}
+              </span>
+            </button>
             {isOwnProfile && (
               <button
-                onClick={() => setActiveTab("resources")}
+                onClick={() => handleTabChange("resources")}
                 className={`profile-tab-btn ${activeTab === "resources" ? "active" : ""}`}
               >
                 <span className="material-icons">bookmark</span>
@@ -696,7 +806,76 @@ const Profile = () => {
           </div>
 
           <div className="profile-tab-content">
-            {activeTab === "posts" ? (
+            {activeTab === "followers" || activeTab === "following" ? (
+              tabFollowLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 animate-pulse flex items-center gap-3.5"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-gray-800 shrink-0" />
+                      <div className="flex-1 space-y-2 min-w-0">
+                        <div className="w-28 h-3.5 bg-gray-800 rounded" />
+                        <div className="w-20 h-2.5 bg-gray-800/60 rounded" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : tabFollowList.length === 0 ? (
+                <div className="profile-empty-state">
+                  <div className="profile-empty-icon">
+                    <span className="material-icons">
+                      {activeTab === "followers" ? "people_outline" : "person_search"}
+                    </span>
+                  </div>
+                  <h3 className="profile-empty-title">No {activeTab} yet</h3>
+                  <p className="profile-empty-desc">
+                    {activeTab === "followers"
+                      ? "When people follow this profile, they will appear here."
+                      : "This user isn't following anyone yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {tabFollowList.map((u) => {
+                    const uId = u._id || u;
+                    return (
+                      <div
+                        key={uId}
+                        onClick={() => navigate(`/dashboard/profile/${u.username}`)}
+                        className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 hover:border-violet-500/40 hover:bg-gray-900/90 transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 shadow-sm hover:shadow-violet-500/10 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={u.avatar || defaultAvatar}
+                            alt={u.username}
+                            className="w-12 h-12 rounded-full object-cover border border-violet-500/20 group-hover:border-violet-500/50 transition-colors shrink-0"
+                            onError={(e) => {
+                              e.target.src = defaultAvatar;
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white truncate group-hover:text-violet-300 transition-colors">
+                              {u.fullName || u.username}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">@{u.username}</p>
+                            {u.department && (
+                              <span className="inline-block text-[11px] text-gray-400 bg-gray-800/80 px-2 py-0.5 rounded border border-gray-700/60 mt-1 truncate max-w-full">
+                                {u.department}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="material-icons text-gray-500 group-hover:text-violet-400 group-hover:translate-x-0.5 transition-all text-xl shrink-0">
+                          chevron_right
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : activeTab === "posts" ? (
               postsLoading ? (
                 <div className="profile-posts-skeleton">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -878,6 +1057,111 @@ const Profile = () => {
           setSelectedPost(updated);
         }}
       />
+
+      {/* ── Followers / Following Modal ── */}
+      {followModalType && (
+        <div
+          id="follow-modal-backdrop"
+          className="profile-modal-backdrop"
+          onClick={() => setFollowModalType(null)}
+        >
+          <div
+            className="profile-follow-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="follow-modal-title"
+          >
+            <div className="profile-follow-modal-header">
+              <div className="flex items-center gap-2">
+                <span className="material-icons text-violet-400">
+                  {followModalType === "followers" ? "group" : "person_add"}
+                </span>
+                <h3 id="follow-modal-title" className="text-lg font-bold text-white capitalize">
+                  {followModalType}
+                </h3>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-950/80 border border-violet-800/50 text-violet-300">
+                  {followList.length}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFollowModalType(null)}
+                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
+                aria-label="Close modal"
+              >
+                <span className="material-icons text-xl">close</span>
+              </button>
+            </div>
+
+            <div className="profile-follow-modal-body">
+              {followListLoading ? (
+                <div className="flex flex-col gap-3 p-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-3 animate-pulse">
+                      <div className="w-10 h-10 rounded-full bg-gray-800" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="w-24 h-3 rounded bg-gray-800" />
+                        <div className="w-16 h-2.5 rounded bg-gray-800/60" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : followList.length === 0 ? (
+                <div className="text-center py-10 px-4 text-gray-400">
+                  <span className="material-icons text-4xl text-gray-600 mb-2">
+                    {followModalType === "followers" ? "people_outline" : "person_search"}
+                  </span>
+                  <p className="text-sm font-medium">No {followModalType} yet</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {followModalType === "followers"
+                      ? "When people follow this profile, they will appear here."
+                      : "This user isn't following anyone yet."}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-800/60">
+                  {followList.map((u) => {
+                    const uId = u._id || u;
+                    const isCurrent = currentUser?._id?.toString() === uId?.toString();
+                    return (
+                      <div
+                        key={uId}
+                        className="flex items-center justify-between p-3.5 hover:bg-violet-950/20 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setFollowModalType(null);
+                          navigate(`/dashboard/profile/${u.username}`);
+                        }}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={u.avatar || defaultAvatar}
+                            alt={u.username}
+                            className="w-10 h-10 rounded-full object-cover border border-violet-500/20"
+                            onError={(e) => { e.target.src = defaultAvatar; }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-white truncate hover:text-violet-300 transition-colors">
+                              {u.fullName || u.username}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">@{u.username}</p>
+                          </div>
+                        </div>
+
+                        {u.department && (
+                          <span className="text-[11px] text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded border border-gray-800 shrink-0 ml-2 hidden sm:inline-block">
+                            {u.department}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

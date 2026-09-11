@@ -6,6 +6,7 @@ const ChatMessagesList = ({
   messages = [],
   currentUser,
   chat,
+  onlineUsers = [],
   loadingInitial,
   loadingOlder,
   hasMore,
@@ -150,6 +151,7 @@ const ChatMessagesList = ({
                 msg={msg}
                 currentUser={currentUser}
                 chat={chat}
+                onlineUsers={onlineUsers}
                 isSelected={isSelected}
                 isSelectionActive={isSelectionActive}
                 isPinned={isPinned}

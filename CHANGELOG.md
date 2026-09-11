@@ -5,6 +5,39 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.4] - 2026-09-11
+
+### Added
+- **In-Profile Followers & Following Infrastructure**:
+  - Added `getFollowers` and `getFollowing` controllers with `.lean()` projection (`username fullName avatar department year semester`) and registered public GET endpoints `/api/profile/:username/followers` and `/api/profile/:username/following`.
+  - Added clickable followers and following count pills directly within the profile header glass card (`.profile-follow-counts-bar`).
+  - Added dedicated in-profile "Followers" and "Following" tabs with responsive user grids, department chips, and one-click profile navigation.
+- **WhatsApp-Style Double Tick Delivery**:
+  - Implemented real-time `message delivered` socket broadcast when recipient is online on the platform.
+  - Rendered double grey ticks (`tick-delivered`) when recipient is active on the website but hasn't read the chat yet, smoothly transitioning to cyan double blue ticks (`tick-read`) upon reading.
+- **Global Cross-App Message Notifications**:
+  - Routed message socket broadcasts to recipient personal rooms (`io.to(pId).emit("message received")`).
+  - Implemented interactive notification toasts with direct-to-chat click navigation and unread chat navigation badges in `Layout.jsx`.
+- **Modernized Media & Voice Note Messaging**:
+  - Re-engineered chat attachment preview tray with thumbnail grids, file removal, and parallel uploads.
+  - Built interactive voice note recording tray with live waveform animation, timer, and cancel controls.
+
+### Changed
+- **Unified Delivery Tick Sizing**:
+  - Normalized glyph dimensions, baseline alignment, and container sizing (`14px`) for single (`done`) and double (`done_all`) ticks across both message bubbles and sidebar chat previews.
+- **Instant Optimistic Reactions**:
+  - Reduced reaction feedback latency to 0ms with immediate optimistic state updates and rollback safety.
+  - Removed redundant reaction actions from message dropdown menus to preserve cleaner message bubble actions.
+- **Streamlined Profile Admin Badge**:
+  - Removed lightning emoji (`⚡`) prefix from admin badge, displaying clean role typography.
+- **Pointer Cursor Accessibility**:
+  - Enforced `cursor: pointer !important` on clickable profile stat cards and header counter buttons.
+
+### Fixed
+- Fixed missing message notifications when recipient was navigating pages outside the active chat conversation.
+- Fixed attachment tray display and multipart payload handling in chat composer.
+- Fixed voice note recording bottom bar disappearance during active recording sessions.
+
 ## [1.6.3] - 2026-09-11
 
 ### Added

@@ -37,7 +37,23 @@ vi.mock("react-toastify", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    info: vi.fn(),
   },
+}));
+
+const mockSocketListeners = {};
+const mockSocket = {
+  on: vi.fn((event, cb) => {
+    mockSocketListeners[event] = cb;
+  }),
+  off: vi.fn((event) => {
+    delete mockSocketListeners[event];
+  }),
+  emit: vi.fn(),
+};
+
+vi.mock("../../hooks/useSocket", () => ({
+  useSocket: () => mockSocket,
 }));
 
 describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
@@ -386,6 +402,34 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
       expect(sidebar.className).toContain("-translate-x-full");
       expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
       console.log("Passed: Drawer closed on Escape key press");
+    });
+  });
+
+  describe("Global Chat Notifications & Sidebar Badge Tests", () => {
+    it("increments unread chat badge on sidebar when a new message is received via socket", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing global chat socket message receipt and badge increment");
+      renderComponent();
+
+      expect(screen.queryByText("1")).not.toBeInTheDocument();
+
+      // Simulate incoming socket message from another user
+      const mockMsg = {
+        _id: "m_incoming_999",
+        content: "Hey, are you free for the project discussion?",
+        sender: { _id: "user456", fullName: "Shubhrati", username: "shubhrati" },
+        chat: { _id: "chat_abc123" },
+      };
+
+      // Find the registered message received handler on the socket
+      const handler = mockSocketListeners["message received"];
+      expect(handler).toBeDefined();
+      handler(mockMsg);
+
+      await waitFor(() => {
+        expect(screen.getByText("1")).toBeInTheDocument();
+      });
+
+      console.log("Passed: Unread chat badge appeared on sidebar Chat item");
     });
   });
 });

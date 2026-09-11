@@ -7,6 +7,7 @@ const MessageItem = ({
   msg,
   currentUser,
   chat,
+  onlineUsers = [],
   isSelected,
   isSelectionActive,
   isPinned,
@@ -29,6 +30,25 @@ const MessageItem = ({
   const msgChatId = (msg.chat?._id || msg.chat)?.toString();
   const activeChatId = chat?._id?.toString();
   const isMessageForThisChat = !msgChatId || !activeChatId || msgChatId === activeChatId;
+
+  // Determine if recipient is online on the website for 1-on-1 chats (or if any recipient is online in group)
+  const isRecipientOnline = React.useMemo(() => {
+    if (!chat || !onlineUsers || onlineUsers.length === 0) return false;
+    if (!chat.isGroup && Array.isArray(chat.participants)) {
+      const recipient = chat.participants.find(
+        (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
+      );
+      const recipientId = (recipient?._id || recipient)?.toString();
+      return recipientId ? onlineUsers.includes(recipientId) : false;
+    }
+    if (chat.isGroup && Array.isArray(chat.participants)) {
+      return chat.participants.some((p) => {
+        const pid = (p._id || p)?.toString();
+        return pid && pid !== currentUser?._id?.toString() && onlineUsers.includes(pid);
+      });
+    }
+    return false;
+  }, [chat, onlineUsers, currentUser?._id]);
 
   return (
     <div
@@ -77,6 +97,7 @@ const MessageItem = ({
               isSelected={isSelected}
               isPinned={isPinned}
               isStarred={isStarred}
+              isRecipientOnline={isRecipientOnline}
               searchQuery={searchQuery}
               audioState={audioState}
               isMenuActive={isMenuActive}
