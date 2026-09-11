@@ -23,6 +23,11 @@ const mockPinChatMessage = jest.fn();
 const mockUnpinChatMessage = jest.fn();
 const mockAddGroupAdmin = jest.fn();
 const mockRemoveGroupAdmin = jest.fn();
+const mockFindMessagesByIds = jest.fn();
+const mockCreateManyMessages = jest.fn();
+const mockDeleteManyMessages = jest.fn();
+const mockIsParticipant = jest.fn();
+const mockChatExists = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   createChat: mockCreateChat,
@@ -46,6 +51,11 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   unpinChatMessage: mockUnpinChatMessage,
   addGroupAdmin: mockAddGroupAdmin,
   removeGroupAdmin: mockRemoveGroupAdmin,
+  findMessagesByIds: mockFindMessagesByIds,
+  createManyMessages: mockCreateManyMessages,
+  deleteManyMessages: mockDeleteManyMessages,
+  isParticipant: mockIsParticipant,
+  chatExists: mockChatExists,
 }));
 
 jest.unstable_mockModule('../src/utils/cloudinary.js', () => ({
@@ -57,6 +67,16 @@ const chatService = await import('../src/services/chat.service.js');
 describe('Chat Service Unit Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockIsParticipant.mockResolvedValue(true);
+    mockChatExists.mockResolvedValue(true);
+    mockCreateManyMessages.mockImplementation((arr) =>
+      Promise.resolve(
+        arr.map((item, idx) => ({
+          _id: `mMsg_${idx}`,
+          ...item,
+        }))
+      )
+    );
   });
 
   describe('accessOrCreateChat', () => {
@@ -369,10 +389,7 @@ describe('Chat Service Unit Tests', () => {
   describe('deleteMultipleMessages', () => {
     it('bulk deletes multiple messages owned by the user', async () => {
       console.log('TRACE [chat.test.js]: Testing deleteMultipleMessages - success');
-      mockFindMessageById
-        .mockResolvedValueOnce({ _id: 'm1', sender: { _id: 'user1' }, chat: 'chat1' })
-        .mockResolvedValueOnce({ _id: 'm2', sender: { _id: 'user1' }, chat: 'chat1' });
-      mockDeleteMessage.mockResolvedValue(true);
+      mockDeleteManyMessages.mockResolvedValue(['m1', 'm2']);
 
       const res = await chatService.deleteMultipleMessages('user1', {
         chatId: 'chat1',
@@ -381,7 +398,7 @@ describe('Chat Service Unit Tests', () => {
       console.log('TRACE [chat.test.js]: Bulk delete result:', res);
       expect(res.success).toBe(true);
       expect(res.deletedIds).toEqual(['m1', 'm2']);
-      expect(mockDeleteMessage).toHaveBeenCalledTimes(2);
+      expect(mockDeleteManyMessages).toHaveBeenCalledWith(['m1', 'm2'], 'user1');
     });
 
     it('throws error if messageIds is empty', async () => {
@@ -400,23 +417,22 @@ describe('Chat Service Unit Tests', () => {
         participants: ['user1', 'user2'],
       });
 
-      // m2 is newer than m1, but passed in reverse order [m2, m1]
-      mockFindMessageById.mockImplementation((id) => {
-        if (id === 'm2') {
-          return Promise.resolve({
-            _id: 'm2',
-            content: 'Second message',
-            createdAt: new Date('2026-09-11T12:05:00Z'),
-          });
-        }
-        return Promise.resolve({
+      mockFindMessagesByIds.mockResolvedValue([
+        {
+          _id: 'm2',
+          content: 'Second message',
+          createdAt: new Date('2026-09-11T12:05:00Z'),
+        },
+        {
           _id: 'm1',
           content: 'First message',
           createdAt: new Date('2026-09-11T12:00:00Z'),
-        });
-      });
+        },
+      ]);
 
-      mockCreateMessage.mockImplementation((data) => Promise.resolve({ _id: `fwd_${data.content}`, ...data }));
+      mockCreateManyMessages.mockImplementation((msgs) =>
+        Promise.resolve(msgs.map((m) => ({ _id: `fwd_${m.content}`, ...m })))
+      );
 
       const forwarded = await chatService.forwardMessages('user1', {
         targetChatId: 'chat2',
@@ -427,6 +443,190 @@ describe('Chat Service Unit Tests', () => {
       expect(forwarded).toHaveLength(2);
       expect(forwarded[0].content).toBe('First message');
       expect(forwarded[1].content).toBe('Second message');
+      expect(mockCreateManyMessages).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('pinMessage 3-pin limit', () => {
+    it('throws error when trying to pin more than 3 messages', async () => {
+      console.log('TRACE [chat.test.js]: Testing 3-pin limit enforcement');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: ['user1'],
+        pinnedMessages: ['p1', 'p2', 'p3'],
+      });
+
+      await expect(
+        chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'p4' })
+      ).rejects.toThrow('Maximum of 3 pinned messages allowed per chat');
+    });
+
+    it('allows pinning if under 3 messages', async () => {
+      console.log('TRACE [chat.test.js]: Testing pin under limit');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: ['user1'],
+        pinnedMessages: ['p1'],
+      });
+      mockPinChatMessage.mockResolvedValue({ _id: 'chat1', pinnedMessages: ['p1', 'p2'] });
+
+      const res = await chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'p2' });
+      expect(mockPinChatMessage).toHaveBeenCalledWith('chat1', 'p2');
+    });
+  });
+
+  describe('updateGroupImage admin validation', () => {
+    it('allows secondary admin in groupAdmins array to update group image', async () => {
+      console.log('TRACE [chat.test.js]: Testing secondary admin in groupAdmins can update group image');
+      mockFindChatById.mockResolvedValue({
+        _id: 'groupChat1',
+        isGroup: true,
+        groupAdmin: { _id: 'primaryAdmin' },
+        groupAdmins: [{ _id: 'secondaryAdmin' }],
+        participants: ['primaryAdmin', 'secondaryAdmin', 'user3'],
+      });
+      mockUpdateChat.mockResolvedValue({ _id: 'groupChat1', groupImage: 'https://cloudinary.com/fake.png' });
+
+      const updated = await chatService.updateGroupImage('groupChat1', 'secondaryAdmin', '/tmp/fake.png');
+      expect(updated).toBeDefined();
+      expect(mockUpdateChat).toHaveBeenCalled();
+    });
+  });
+
+  describe('getMessages participant & existence validation', () => {
+    it('returns messages when user is a participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing getMessages for participant');
+      mockIsParticipant.mockResolvedValue(true);
+      mockGetMessages.mockResolvedValue({ messages: [{ _id: 'm1' }], hasMore: false });
+
+      const res = await chatService.getMessages('c1', 'u1', { limit: 10 });
+      expect(res.messages).toHaveLength(1);
+      expect(mockIsParticipant).toHaveBeenCalledWith('c1', 'u1');
+    });
+
+    it('throws 404 when chat does not exist', async () => {
+      console.log('TRACE [chat.test.js]: Testing getMessages when chat does not exist');
+      mockIsParticipant.mockResolvedValue(false);
+      mockChatExists.mockResolvedValue(false);
+
+      await expect(chatService.getMessages('cMissing', 'u1')).rejects.toThrow('Chat not found');
+    });
+
+    it('throws 403 when user is not a participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing getMessages when user is not participant');
+      mockIsParticipant.mockResolvedValue(false);
+      mockChatExists.mockResolvedValue(true);
+
+      await expect(chatService.getMessages('c1', 'unauthorizedUser')).rejects.toThrow(
+        'You are not a participant in this chat'
+      );
+    });
+  });
+
+  describe('markAsRead participant & existence validation', () => {
+    it('marks messages as read when user is participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing markAsRead success');
+      mockIsParticipant.mockResolvedValue(true);
+      mockMarkMessagesAsRead.mockResolvedValue(true);
+
+      const res = await chatService.markAsRead('c1', 'u1');
+      expect(res).toBe(true);
+      expect(mockMarkMessagesAsRead).toHaveBeenCalledWith('c1', 'u1');
+    });
+
+    it('throws 404 when chat does not exist on markAsRead', async () => {
+      console.log('TRACE [chat.test.js]: Testing markAsRead non-existent chat');
+      mockIsParticipant.mockResolvedValue(false);
+      mockChatExists.mockResolvedValue(false);
+
+      await expect(chatService.markAsRead('cMissing', 'u1')).rejects.toThrow('Chat not found');
+    });
+
+    it('throws 403 when user is not a participant on markAsRead', async () => {
+      console.log('TRACE [chat.test.js]: Testing markAsRead non-participant');
+      mockIsParticipant.mockResolvedValue(false);
+      mockChatExists.mockResolvedValue(true);
+
+      await expect(chatService.markAsRead('c1', 'unauth')).rejects.toThrow(
+        'You are not a participant in this chat'
+      );
+    });
+  });
+
+  describe('deleteMultipleMessages validation', () => {
+    it('throws 400 if chatId is missing', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteMultipleMessages missing chatId');
+      await expect(
+        chatService.deleteMultipleMessages('u1', { messageIds: ['m1'] })
+      ).rejects.toThrow('Chat ID is required');
+    });
+
+    it('throws 403 if user is not participant of chatId', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteMultipleMessages non-participant');
+      mockIsParticipant.mockResolvedValue(false);
+      await expect(
+        chatService.deleteMultipleMessages('u1', { chatId: 'c1', messageIds: ['m1'] })
+      ).rejects.toThrow('You are not a participant in this chat');
+    });
+  });
+
+  describe('leaveGroup admin cleanup', () => {
+    it('updates groupAdmins to remove leaving admin when other admins remain', async () => {
+      console.log('TRACE [chat.test.js]: Testing leaveGroup admin cleanup with remaining admins');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        isGroup: true,
+        participants: [{ _id: 'admin1' }, { _id: 'admin2' }, { _id: 'member1' }],
+        groupAdmin: { _id: 'admin1' },
+        groupAdmins: [{ _id: 'admin1' }, { _id: 'admin2' }],
+      });
+      mockUpdateChat.mockResolvedValue({ _id: 'g1' });
+      mockRemoveParticipant.mockResolvedValue({ _id: 'g1' });
+
+      await chatService.leaveGroup('g1', 'admin1');
+
+      expect(mockUpdateChat).toHaveBeenCalledWith('g1', {
+        groupAdmin: 'admin2',
+        groupAdmins: ['admin2'],
+      });
+      expect(mockRemoveParticipant).toHaveBeenCalledWith('g1', 'admin1');
+    });
+
+    it('deletes group when last participant leaves', async () => {
+      console.log('TRACE [chat.test.js]: Testing leaveGroup when last participant leaves');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        isGroup: true,
+        participants: [{ _id: 'soleUser' }],
+        groupAdmin: { _id: 'soleUser' },
+        groupAdmins: [{ _id: 'soleUser' }],
+      });
+      mockDeleteChat.mockResolvedValue(true);
+
+      const res = await chatService.leaveGroup('g1', 'soleUser');
+      expect(res).toBeNull();
+      expect(mockDeleteChat).toHaveBeenCalledWith('g1');
+    });
+  });
+
+  describe('sendMessage parallel media uploads', () => {
+    it('parallelizes multi-file uploads and batch-creates messages with createManyMessages', async () => {
+      console.log('TRACE [chat.test.js]: Testing parallel multi-file uploads');
+      mockFindChatById.mockResolvedValue({
+        _id: 'c1',
+        participants: [{ _id: 'u1' }],
+      });
+
+      const files = [
+        { path: '/tmp/img1.jpg', mimetype: 'image/jpeg' },
+        { path: '/tmp/img2.png', mimetype: 'image/png' },
+      ];
+
+      const res = await chatService.sendMessage('u1', { chatId: 'c1', content: 'Here are pics' }, files);
+      expect(mockCreateManyMessages).toHaveBeenCalled();
+      expect(Array.isArray(res)).toBe(true);
+      expect(res).toHaveLength(2);
+      console.log('TRACE [chat.test.js]: Batch messages created in parallel successfully');
     });
   });
 });

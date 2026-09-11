@@ -93,14 +93,37 @@ const ChatSidebar = ({
     };
   }, [menuChat]);
 
-  const handleSearch = async (e) => {
+  const searchTimeoutRef = useRef(null);
+  const searchAbortControllerRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      if (searchAbortControllerRef.current) searchAbortControllerRef.current.abort();
+    };
+  }, []);
+
+  const handleSearch = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    if (searchAbortControllerRef.current) searchAbortControllerRef.current.abort();
+
     if (query.trim().length >= 2) {
-      try {
-        const res = await apiClient.get(`/chat/search?query=${query}`);
-        if (res.data.success) setUserSearchResults(res.data.data);
-      } catch {}
+      searchTimeoutRef.current = setTimeout(async () => {
+        searchAbortControllerRef.current = new AbortController();
+        try {
+          const res = await apiClient.get(`/chat/search?query=${encodeURIComponent(query.trim())}`, {
+            signal: searchAbortControllerRef.current.signal,
+          });
+          if (res.data.success) setUserSearchResults(res.data.data);
+        } catch (err) {
+          if (err?.name !== "CanceledError" && err?.name !== "AbortError") {
+            // ignore aborted searches
+          }
+        }
+      }, 300);
     } else {
       setUserSearchResults([]);
     }

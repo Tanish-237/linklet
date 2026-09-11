@@ -110,6 +110,16 @@ const ChatPage = () => {
   const [typingMap, setTypingMap] = useState({}); // chatId -> username
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> count
 
+  const activeChatRef = useRef(activeChat);
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
+
+  const fetchChatsRef = useRef(fetchChats);
+  useEffect(() => {
+    fetchChatsRef.current = fetchChats;
+  }, [fetchChats]);
+
   useEffect(() => {
     if (cachedChats && cachedChats.length > 0) {
       setChats(cachedChats);
@@ -257,7 +267,7 @@ const ChatPage = () => {
         typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
 
       // Increment unread count if not in the active chat
-      if (activeChat?._id !== msgChatId) {
+      if (activeChatRef.current?._id !== msgChatId) {
         setUnreadCounts((prev) => ({
           ...prev,
           [msgChatId]: (prev[msgChatId] || 0) + 1,
@@ -315,7 +325,7 @@ const ChatPage = () => {
 
         // If it's a new chat not yet in list, re-fetch chats
         if (!found) {
-          fetchChats();
+          fetchChatsRef.current();
         }
 
         // Re-sort with most recent message at the top (WhatsApp style)
@@ -329,7 +339,7 @@ const ChatPage = () => {
       updateChats((prev) =>
         prev.map((c) => (c._id === updatedChat._id ? updatedChat : c))
       );
-      if (activeChat?._id === updatedChat._id) {
+      if (activeChatRef.current?._id === updatedChat._id) {
         setActiveChat(updatedChat);
       }
     });
@@ -344,7 +354,7 @@ const ChatPage = () => {
       socket.off("group updated");
       Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
     };
-  }, [socket, user, activeChat, fetchChats]);
+  }, [socket, user?._id]);
 
   const handleSelectChat = (chat) => {
     setActiveChat(chat);
@@ -433,17 +443,6 @@ const ChatPage = () => {
   const otherParticipantId = otherParticipant ? (otherParticipant._id || otherParticipant)?.toString() : null;
   const isCurrentChatBlocked = Boolean(otherParticipantId && blockedUserIds.includes(otherParticipantId));
 
-  // Auto-select chat from URL parameter (e.g. from Saved section)
-  useEffect(() => {
-    const urlChatId = searchParams.get("chatId");
-    if (urlChatId && chats?.length > 0 && activeChat?._id !== urlChatId) {
-      const found = chats.find((c) => c._id === urlChatId);
-      if (found) {
-        setActiveChat(found);
-      }
-    }
-  }, [searchParams, chats, activeChat?._id]);
-
   return (
     <div className="chat-container">
       {/* Sidebar */}
@@ -451,7 +450,6 @@ const ChatPage = () => {
         chats={chats}
         activeChat={activeChat}
         onSelectChat={handleSelectChat}
-        onOpenCreateGroup={() => setIsGroupModalOpen(true)}
         currentUser={user}
         onlineUsers={onlineUsers}
         lastSeenMap={lastSeenMap}

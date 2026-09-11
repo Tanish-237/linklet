@@ -1,5 +1,7 @@
 import * as chatService from "../services/chat.service.js";
+import * as chatRepo from "../repositories/chat.repository.js";
 import { MessageReport } from "../models/messageReport.model.js";
+import { getIo } from "../../socket.js";
 
 // ─── 1:1 & Group Chat Operations ──────────────────────────────────────────────
 
@@ -157,6 +159,19 @@ export const deleteMessage = async (req, res, next) => {
       chatId,
       messageId,
     });
+
+    try {
+      const io = getIo();
+      if (io && result?.chatId && result?.messageId) {
+        io.to(result.chatId).emit("message deleted", {
+          chatId: result.chatId,
+          messageId: result.messageId.toString(),
+        });
+      }
+    } catch (err) {
+      // Gracefully ignore if socket not initialized in test context
+    }
+
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -167,6 +182,19 @@ export const markAsRead = async (req, res, next) => {
   try {
     const { chatId } = req.params;
     await chatService.markAsRead(chatId, req.user._id);
+
+    try {
+      const io = getIo();
+      if (io && chatId) {
+        io.to(chatId).emit("messages_read", {
+          chatId,
+          readBy: req.user._id,
+        });
+      }
+    } catch (err) {
+      // Gracefully ignore if socket not initialized in test context
+    }
+
     res.status(200).json({ success: true, message: "Messages marked as read" });
   } catch (error) {
     next(error);
@@ -216,6 +244,19 @@ export const deleteMultipleMessages = async (req, res, next) => {
       chatId,
       messageIds,
     });
+
+    try {
+      const io = getIo();
+      if (io && chatId && result?.deletedIds?.length) {
+        io.to(chatId).emit("messages_bulk_deleted", {
+          chatId,
+          messageIds: result.deletedIds.map((id) => id.toString()),
+        });
+      }
+    } catch (err) {
+      // Gracefully ignore if socket not initialized in test context
+    }
+
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -262,16 +303,28 @@ export const unpinMessage = async (req, res, next) => {
 
 export const reportMessage = async (req, res, next) => {
   try {
-    const { messageId, chatId, senderId, messageContent, reason } = req.body;
+    const { messageId, reason } = req.body;
     if (!messageId) {
       return res.status(400).json({ success: false, message: "messageId is required" });
     }
+
+    const message = await chatRepo.findMessageById(messageId);
+    if (!message) {
+      return res.status(404).json({ success: false, message: "Message not found" });
+    }
+
+    const chatId = (message.chat?._id || message.chat)?.toString();
+    const isParticipant = await chatRepo.isParticipant(chatId, req.user._id);
+    if (!isParticipant) {
+      return res.status(403).json({ success: false, message: "You are not a participant in this chat" });
+    }
+
     const report = await MessageReport.create({
       reportedBy: req.user._id,
-      messageId,
+      messageId: message._id,
       chatId,
-      senderId,
-      messageContent: messageContent?.slice(0, 500) || "",
+      senderId: message.sender?._id || message.sender,
+      messageContent: (message.content || "").slice(0, 500),
       reason: reason || "Reported by user",
     });
     res.status(201).json({ success: true, data: report });

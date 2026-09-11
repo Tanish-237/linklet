@@ -23,6 +23,12 @@ jest.unstable_mockModule('@socket.io/redis-adapter', () => ({
   createAdapter: mockCreateAdapter,
 }));
 
+// Mock chat repository
+const mockIsParticipant = jest.fn();
+jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
+  isParticipant: mockIsParticipant,
+}));
+
 // Mock socket.io Server
 const mockAdapter = jest.fn();
 const mockOn = jest.fn();
@@ -245,8 +251,60 @@ describe('Socket Initialization Unit Tests', () => {
     expect(mockSocket.emit).toHaveBeenCalledWith('error', {
       message: 'Unauthorized socket registration',
     });
-    expect(mockSocket.join).not.toHaveBeenCalled();
     console.log('[TEST] Confirmed unauthorized room registration was blocked');
+  });
+
+  test('sets robust pingTimeout and pingInterval for mobile clients', async () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] initializeSocket › sets pingTimeout 20000 and pingInterval 25000');
+
+    const { initializeSocket } = await import('../socket.js');
+    const mockHttpServer = http.createServer();
+    await initializeSocket(mockHttpServer);
+
+    expect(capturedOptions.pingTimeout).toBe(20000);
+    expect(capturedOptions.pingInterval).toBe(25000);
+    console.log('[TEST] Verified socket ping configuration is mobile-resilient');
+  });
+
+  test('join chat blocks users who are not participants of the chat room', async () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] initializeSocket › verifies room participant on join chat');
+
+    const { initializeSocket } = await import('../socket.js');
+    const mockHttpServer = http.createServer();
+    await initializeSocket(mockHttpServer);
+
+    const connectionCall = mockOn.mock.calls.find((call) => call[0] === 'connection');
+    const connectionHandler = connectionCall[1];
+
+    const registeredHandlers = {};
+    const mockSocket = {
+      id: 'socket-join-test',
+      userId: 'attacker_user',
+      join: jest.fn(),
+      emit: jest.fn(),
+      on: jest.fn((event, handler) => {
+        registeredHandlers[event] = handler;
+      }),
+    };
+
+    connectionHandler(mockSocket);
+
+    mockIsParticipant.mockResolvedValue(false);
+    await registeredHandlers['join chat']('secret_chat_room');
+
+    expect(mockSocket.emit).toHaveBeenCalledWith('error', {
+      message: 'Unauthorized to join this chat room',
+    });
+    expect(mockSocket.join).not.toHaveBeenCalled();
+    console.log('[TEST] Non-participant blocked from joining chat room');
+
+    // Now test authorized member
+    mockIsParticipant.mockResolvedValue(true);
+    await registeredHandlers['join chat']('allowed_chat_room');
+    expect(mockSocket.join).toHaveBeenCalledWith('allowed_chat_room');
+    console.log('[TEST] Authorized member allowed to join chat room');
   });
 });
 

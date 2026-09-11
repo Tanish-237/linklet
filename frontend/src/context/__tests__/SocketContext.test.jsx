@@ -88,4 +88,77 @@ describe("SocketProvider Component Tests", () => {
     expect(screen.getByTestId("socket-status").textContent).toBe("disconnected");
     console.log("[TEST] Verified socket disconnect was called on logout");
   });
+
+  it("does not reconnect or recreate socket when user profile changes with same _id", () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] SocketProvider › preserves connection on user object ref change with same _id");
+
+    let authState = { user: { _id: "user-123", username: "initial", bio: "hello" } };
+    useAuth.mockImplementation(() => authState);
+
+    const { rerender } = render(
+      <SocketProvider>
+        <TestConsumer />
+      </SocketProvider>
+    );
+
+    expect(io).toHaveBeenCalledTimes(1);
+
+    // Simulate profile update (new object reference, same _id)
+    act(() => {
+      authState = { user: { _id: "user-123", username: "updated", bio: "new bio", avatar: "http://img.jpg" } };
+      rerender(
+        <SocketProvider>
+          <TestConsumer />
+        </SocketProvider>
+      );
+    });
+
+    // Socket io should NOT have been called again and disconnect should NOT have been called
+    expect(io).toHaveBeenCalledTimes(1);
+    expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    console.log("[TEST] Verified socket remains connected without reconnection on profile update");
+  });
+
+  it("re-emits setup on both connect and reconnect socket events", () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] SocketProvider › handles connect and reconnect events to emit setup");
+
+    const events = {};
+    const emitSpy = vi.fn();
+    const eventSocket = {
+      disconnect: vi.fn(),
+      on: vi.fn((event, cb) => {
+        events[event] = cb;
+      }),
+      emit: emitSpy,
+    };
+    io.mockReturnValue(eventSocket);
+
+    useAuth.mockReturnValue({
+      user: { _id: "user-reconnect-test", username: "reconnector" },
+    });
+
+    render(
+      <SocketProvider>
+        <TestConsumer />
+      </SocketProvider>
+    );
+
+    expect(events["connect"]).toBeDefined();
+    expect(events["reconnect"]).toBeDefined();
+
+    // Trigger connect
+    act(() => {
+      events["connect"]();
+    });
+    expect(emitSpy).toHaveBeenCalledWith("setup", expect.objectContaining({ _id: "user-reconnect-test" }));
+
+    // Trigger reconnect
+    act(() => {
+      events["reconnect"]();
+    });
+    expect(emitSpy).toHaveBeenCalledTimes(2);
+    console.log("[TEST] Verified setup was emitted on both connect and reconnect events");
+  });
 });

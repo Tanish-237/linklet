@@ -28,6 +28,11 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
 
   // Immediately synchronize messages if chat changes while component remains mounted
   const prevChatIdRef = useRef(chat?._id);
+  const onUpdateLastMessageRef = useRef(onUpdateLastMessage);
+
+  useEffect(() => {
+    onUpdateLastMessageRef.current = onUpdateLastMessage;
+  }, [onUpdateLastMessage]);
   if (prevChatIdRef.current !== chat?._id) {
     prevChatIdRef.current = chat?._id;
     setMessages(getInitialMessages());
@@ -115,15 +120,14 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
           return [...prev, newMessage];
         });
 
-        // Mark as read immediately if chat is active
-        Promise.resolve(apiClient.put?.(`/chat/message/read/${chat._id}`)).catch(() => {});
+        // Broadcast real-time read receipt via socket
         socket.emit("read receipt", {
           chatId: chat._id,
           userId: currentUser?._id,
         });
 
-        if (onUpdateLastMessage) {
-          onUpdateLastMessage(chat._id, newMessage);
+        if (onUpdateLastMessageRef.current) {
+          onUpdateLastMessageRef.current(chat._id, newMessage);
         }
       }
     };
@@ -131,6 +135,13 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     const handleMessageDeleted = ({ chatId, messageId }) => {
       if (chatId?.toString() === chat._id?.toString()) {
         setMessages((prev) => prev.filter((m) => m._id !== messageId));
+      }
+    };
+
+    const handleMessagesBulkDeleted = ({ chatId, messageIds }) => {
+      if (chatId?.toString() === chat._id?.toString() && Array.isArray(messageIds)) {
+        const idSet = new Set(messageIds.map((id) => id.toString()));
+        setMessages((prev) => prev.filter((m) => !idSet.has(m._id?.toString())));
       }
     };
 
@@ -183,6 +194,7 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
 
     socket.on("message received", handleMessageReceived);
     socket.on("message deleted", handleMessageDeleted);
+    socket.on("messages_bulk_deleted", handleMessagesBulkDeleted);
     socket.on("message updated", handleMessageUpdated);
     socket.on("message reaction", handleReactionUpdate);
     socket.on("read receipt", handleReadReceipt);
@@ -193,13 +205,14 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       socket.emit("leave chat", chat._id);
       socket.off("message received", handleMessageReceived);
       socket.off("message deleted", handleMessageDeleted);
+      socket.off("messages_bulk_deleted", handleMessagesBulkDeleted);
       socket.off("message updated", handleMessageUpdated);
       socket.off("message reaction", handleReactionUpdate);
       socket.off("read receipt", handleReadReceipt);
       socket.off("typing", handleTyping);
       socket.off("stop typing", handleStopTyping);
     };
-  }, [socket, chat?._id, currentUser?._id, onUpdateLastMessage]);
+  }, [socket, chat?._id, currentUser?._id]);
 
   // Load older messages via cursor pagination
   const loadOlderMessages = useCallback(async (container) => {
@@ -365,11 +378,9 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       });
       if (res.data.success) {
         setMessages((prev) => prev.filter((m) => !messageIds.includes(m._id)));
-        messageIds.forEach((id) => {
-          socket?.emit("message deleted", {
-            chatId: chat._id,
-            messageId: id,
-          });
+        socket?.emit("messages_bulk_deleted", {
+          chatId: chat._id,
+          messageIds,
         });
         toast.success(`${messageIds.length} messages deleted`);
       }

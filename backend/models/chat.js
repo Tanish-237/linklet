@@ -69,7 +69,8 @@ messageSchema.pre("validate", function (next) {
 
 // Compound index for efficient message queries per chat and read tracking
 messageSchema.index({ chat: 1, createdAt: -1 });
-messageSchema.index({ chat: 1, readBy: 1 });
+messageSchema.index({ chat: 1, readBy: 1, sender: 1 });
+messageSchema.index({ content: "text" });
 
 // ─── Chat Model ─────────────────────────────────────────────────────────────
 const chatSchema = new mongoose.Schema(

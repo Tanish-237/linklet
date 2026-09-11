@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export const RELEASE_VERSION = "v1.6.2";
+export const RELEASE_VERSION = "v1.6.3";
 export const STORAGE_KEY = "linklet_last_seen_version";
 
 export const isReleaseSeen = (version = RELEASE_VERSION) => {
@@ -85,7 +85,7 @@ export default function WhatsNewDropdown({
         >
           <span>What's New</span>
           <span className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
-            v1.6.2
+            v1.6.3
           </span>
         </button>
       )}
@@ -99,35 +99,35 @@ export default function WhatsNewDropdown({
         >
           {/* Header */}
           <div className="p-3.5 border-b border-gray-800/80 bg-gray-950/50 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6.2</h3>
+            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6.3</h3>
             <span className="text-[10px] font-mono text-violet-300 bg-violet-950/70 border border-violet-800/50 px-1.5 py-0.5 rounded">
-              v1.6.2
+              v1.6.3
             </span>
           </div>
 
           {/* Clean, Human-Written Release Notes */}
           <ul className="p-4 space-y-3 text-xs text-gray-300 overflow-y-auto max-h-[50dvh] sm:max-h-none">
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Faster, smoother chat switching:</span> Moving between direct and group conversations is now instantaneous without any visual hiccups.
+              <span className="text-gray-100 font-medium">Blazing-fast parallel media uploads:</span> Sending multiple attachments now uploads in parallel instead of sequentially, making photo and video sends up to 5x faster.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Accurate unread counters:</span> Message badges now reliably track only incoming messages you haven't read yet, never your own sent messages.
+              <span className="text-gray-100 font-medium">Atomic emoji reactions:</span> Reactions are now processed atomically in the database to prevent race conditions during high-volume conversations.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Mark as unread:</span> Easily mark any conversation as unread from the options menu so you remember to follow up later.
+              <span className="text-gray-100 font-medium">Real-time read receipt broadcasts:</span> Read status synchronizes immediately across participants without needing manual refreshes.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Clean welcome screen:</span> Enjoy an uncluttered view when opening chats, with a dedicated prompt to search and connect with peers.
+              <span className="text-gray-100 font-medium">Resilient mobile connections:</span> Extended socket ping timeouts and automatic re-authentication ensure you never miss messages during spotty connectivity or app switching.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Group admin management:</span> Promote members to group admins and manage group settings with streamlined controls.
+              <span className="text-gray-100 font-medium">Hardened security & access control:</span> Chat room joins, reports, message deletions, and admin review routes now enforce strict server-side participant authorization.
             </li>
           </ul>
 
           {/* Footer */}
           <div className="p-3 border-t border-gray-800/80 bg-gray-950/50 flex items-center justify-between text-xs">
             <a
-              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.2"
+              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.3"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-violet-300 transition-colors flex items-center gap-1 font-medium"

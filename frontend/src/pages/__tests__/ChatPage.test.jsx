@@ -22,13 +22,14 @@ vi.mock("../../context/AuthContext", () => ({
 const mockSocketOn = vi.fn();
 const mockSocketOff = vi.fn();
 const mockSocketEmit = vi.fn();
+const mockSocket = {
+  emit: mockSocketEmit,
+  on: mockSocketOn,
+  off: mockSocketOff,
+};
 
 vi.mock("../../hooks/useSocket", () => ({
-  useSocket: () => ({
-    emit: mockSocketEmit,
-    on: mockSocketOn,
-    off: mockSocketOff,
-  }),
+  useSocket: () => mockSocket,
 }));
 
 describe("ChatPage Component", () => {
@@ -295,5 +296,78 @@ describe("ChatPage Component", () => {
       expect(screen.getByRole("button", { name: "Unread" })).toBeInTheDocument();
     });
     console.log("TRACE [ChatPage.test.jsx]: Successfully marked as unread and marked as read");
+  });
+
+  it("does not tear down and re-register socket listeners when switching active chats", async () => {
+    console.log("TRACE [ChatPage.test.jsx]: Testing socket listener stability on chat selection");
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/chat") {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: [
+              {
+                _id: "chat_a",
+                isGroup: false,
+                chatName: "Chat A",
+                participants: [{ _id: "user123" }, { _id: "u_a", username: "alice" }],
+              },
+              {
+                _id: "chat_b",
+                isGroup: false,
+                chatName: "Chat B",
+                participants: [{ _id: "user123" }, { _id: "u_b", username: "bob" }],
+              },
+            ],
+          },
+        });
+      }
+      if (url.startsWith("/chat/message/")) {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: { messages: [], hasMore: false },
+          },
+        });
+      }
+      return Promise.resolve({ data: { success: true, data: [] } });
+    });
+
+    const queryClient6 = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient6}>
+        <BrowserRouter>
+          <ChatPage />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("alice")).toBeInTheDocument();
+      expect(screen.getByText("bob")).toBeInTheDocument();
+    });
+
+    const initialOffCalls = mockSocketOff.mock.calls.length;
+
+    // Click on Chat A
+    fireEvent.click(screen.getByText("alice"));
+    await waitFor(() => {
+      expect(screen.getAllByText("alice").length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Click on Chat B
+    fireEvent.click(screen.getByText("bob"));
+    await waitFor(() => {
+      expect(screen.getAllByText("bob").length).toBeGreaterThanOrEqual(1);
+    });
+
+    // Global ChatPage socket listeners (such as "user online status") must NOT have been torn down
+    const userOnlineStatusOffCalls = mockSocketOff.mock.calls.filter(
+      (c) => c[0] === "user online status"
+    ).length;
+    expect(userOnlineStatusOffCalls).toBe(0);
+    console.log("TRACE [ChatPage.test.jsx]: Confirmed ChatPage global listeners were NOT torn down on chat switch");
   });
 });

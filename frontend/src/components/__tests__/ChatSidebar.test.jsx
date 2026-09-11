@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
 import ChatSidebar from "../ChatSidebar";
 
@@ -232,6 +232,48 @@ describe("ChatSidebar Component", () => {
 
     expect(onMarkAsUnread).toHaveBeenCalledWith("c_sent");
     console.log("TRACE [ChatSidebar.test.jsx]: Confirmed onMarkAsUnread is triggered with chat ID");
+  });
+
+  it("debounces user search queries with 300ms delay", async () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing user search debouncing");
+    vi.useFakeTimers();
+    const { apiClient } = await import("../../api/apiClient");
+    apiClient.get.mockResolvedValue({
+      data: { success: true, data: [{ _id: "u3", username: "charlie", fullName: "Charlie Brown" }] },
+    });
+
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        currentUser={{ _id: "user1" }}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText("Search");
+    fireEvent.change(searchInput, { target: { value: "ch" } });
+
+    // Should NOT have called apiClient immediately
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    // Advance timer by 290ms - still not called
+    act(() => {
+      vi.advanceTimersByTime(290);
+    });
+    expect(apiClient.get).not.toHaveBeenCalled();
+
+    // Advance past 300ms
+    act(() => {
+      vi.advanceTimersByTime(20);
+    });
+    expect(apiClient.get).toHaveBeenCalledWith(
+      expect.stringContaining("ch"),
+      expect.objectContaining({ signal: expect.any(Object) })
+    );
+
+    vi.useRealTimers();
+    console.log("TRACE [ChatSidebar.test.jsx]: Verified search debouncing past 300ms threshold");
   });
 });
 

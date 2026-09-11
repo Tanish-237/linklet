@@ -5,6 +5,46 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3] - 2026-09-11
+
+### Added
+- **Atomic Concurrency Operations**:
+  - Implemented atomic MongoDB update queries (`findOneAndUpdate` with `$pull`, `$set`, and `$push`) for emoji reactions in `chat.repository.js`, eliminating concurrent write conflicts.
+  - Added indexed boolean helper queries `isParticipant(chatId, userId)` and `chatExists(chatId)` for lightning-fast participant verification without full document population.
+- **Bulk Deletion & Read State Real-Time Synchronization**:
+  - Implemented single atomic `messages_bulk_deleted` socket event payload (`{ chatId, messageIds }`) bridging client and server without duplicate event storms.
+  - Implemented real-time `messages_read` socket broadcast on `PUT /api/chat/message/read/:chatId` for instantaneous participant read receipts.
+- **Robust Mobile Socket Connectivity**:
+  - Re-registered user room presence upon socket `reconnect` events in `SocketContext.jsx`.
+  - Adjusted WebSocket ping parameters to `pingTimeout: 20000ms` and `pingInterval: 25000ms` to prevent mobile disconnection loops during backgrounding and app switches.
+
+### Changed
+- **Parallel Multi-File Cloud Uploads**:
+  - Refactored `sendMessage` in `chat.service.js` to upload attachments concurrently via `Promise.all` and persist messages in bulk with `createManyMessages`, reducing multi-image send times by up to 80%.
+- **Bounded Sidebar Feed Ingestion**:
+  - Constrained `findChatsByUser` queries with default `.limit(50)` to safeguard memory consumption and database bandwidth under scale.
+- **Optimized Pinned Messages Payloads**:
+  - Restricted `pinChatMessage` and `unpinChatMessage` responses to minimal deltas (`{ _id, pinnedMessages }`), eliminating redundant chat and participant population.
+- Synchronized frontend and backend package versions to `v1.6.3`.
+
+### Fixed
+- **Authorization & Security Guarding Across Chat Routes**:
+  - Secured message report moderation routes (`GET /api/chat/message/reports`, `PUT /api/chat/message/reports`) with `requireRole(["admin"])`.
+  - Enforced server-side database lookup and chat participant checks in `reportMessage` to eliminate spoofed sender and content parameters.
+  - Enforced chat membership authorization prior to room subscription in `socket.on("join chat")`.
+  - Enforced caller authorization in `deleteMultipleMessages` and `markAsRead`.
+  - Guarded `message updated` and `message reaction` socket events with sender and participant validation.
+- **Socket Listener Churn on Chat Render**:
+  - Wrapped `onUpdateLastMessage` callback with `useRef` in `useChatMessages.js`, stabilizing effect dependencies and preventing rapid socket listener teardown and re-registration.
+- **Ghost Admin Persistence on Group Leave**:
+  - Updated `leaveGroup` to purge the departing user from `groupAdmins` immediately when transferring primary admin rights to remaining admins.
+- **Unindexed Database Query Scans**:
+  - Corrected `searchMessagesInChat` text search fallback to prevent unindexed `$regex` full-collection scans when searches yield zero results.
+- **Duplicate URL Param Effect**:
+  - Removed redundant `useEffect` for `chatId` query parameter auto-selection in `ChatPage.jsx`.
+- **Upload Route Restrictions**:
+  - Configured 25MB file size limits and allowed MIME type filters across all chat upload middlewares.
+
 ## [1.6.2] - 2026-09-11
 
 ### Added

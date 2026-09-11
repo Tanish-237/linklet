@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 import { API_BASE_URL } from "../config";
@@ -8,9 +8,14 @@ export const SocketContext = createContext();
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const { user } = useAuth();
+  const userRef = useRef(user);
 
   useEffect(() => {
-    if (user) {
+    userRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    if (user?._id) {
       const token = typeof window !== "undefined" && window.localStorage ? localStorage.getItem("accessToken") : null;
       const newSocket = io(API_BASE_URL, {
         withCredentials: true,
@@ -18,11 +23,14 @@ export const SocketProvider = ({ children }) => {
       });
 
       if (newSocket && typeof newSocket.on === "function") {
-        newSocket.on("connect", () => {
+        const handleSetup = () => {
           if (typeof newSocket.emit === "function") {
-            newSocket.emit("setup", user);
+            newSocket.emit("setup", userRef.current || user);
           }
-        });
+        };
+
+        newSocket.on("connect", handleSetup);
+        newSocket.on("reconnect", handleSetup);
       }
 
       setSocket(newSocket);
@@ -38,7 +46,7 @@ export const SocketProvider = ({ children }) => {
         return null;
       });
     }
-  }, [user]);
+  }, [user?._id]);
 
   return (
     <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>

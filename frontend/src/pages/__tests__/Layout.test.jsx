@@ -5,6 +5,7 @@ import { vi, describe, beforeEach, it, expect } from "vitest";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Layout from "../Layout";
+import { RELEASE_VERSION } from "../../components/WhatsNewDropdown";
 import * as AuthContextModule from "../../context/AuthContext";
 import { apiClient } from "../../api/apiClient";
 
@@ -236,7 +237,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     // Click What's New button
     await user.click(whatsNewBtn);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6.2")).toBeInTheDocument();
+    expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
 
     // Clicking notification bell closes What's New dropdown
     const bellBtn = screen.getByRole("button", { name: /Notifications/i });
@@ -261,7 +262,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     await user.click(whatsNewMenuItem);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6.2")).toBeInTheDocument();
+    expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
     console.log("Passed: What's New opened from Avatar menu");
   });
 
@@ -275,7 +276,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
     await user.click(sidebarVersionBtn);
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6.2")).toBeInTheDocument();
+    expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
     console.log("Passed: What's New opened from sidebar footer version button");
   });
 

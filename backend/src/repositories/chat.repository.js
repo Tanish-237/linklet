@@ -1,6 +1,24 @@
 import { Chat, Message } from "../../models/chat.js";
 import { User } from "../../models/users.js";
 
+/**
+ * Check if a user is a participant of a chat using a lightweight indexed query.
+ */
+export const isParticipant = async (chatId, userId) => {
+  if (!chatId || !userId) return false;
+  const exists = await Chat.exists({ _id: chatId, participants: userId });
+  return !!exists;
+};
+
+/**
+ * Check if a chat exists using a lightweight indexed query.
+ */
+export const chatExists = async (chatId) => {
+  if (!chatId) return false;
+  const exists = await Chat.exists({ _id: chatId });
+  return !!exists;
+};
+
 // ─── Chat Repository ────────────────────────────────────────────────────────
 
 /**
@@ -54,7 +72,7 @@ export const findOneToOneChat = async (userId, targetUserId) => {
  * Get all chats for a user, sorted by most recent activity.
  * High-performance lean query with stripped projections to eliminate lag.
  */
-export const findChatsByUser = async (userId) => {
+export const findChatsByUser = async (userId, limit = 50) => {
   return Chat.find({ participants: userId })
     .populate("participants", "username fullName avatar lastSeen")
     .populate("groupAdmin", "username fullName avatar")
@@ -63,11 +81,8 @@ export const findChatsByUser = async (userId) => {
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
     })
-    .populate({
-      path: "pinnedMessages",
-      populate: { path: "sender", select: "username fullName avatar" },
-    })
     .sort({ updatedAt: -1 })
+    .limit(limit)
     .lean();
 };
 
@@ -238,27 +253,35 @@ export const updateMessage = async (messageId, content) => {
  * If user has same reaction, remove it. If different reaction, update it. If none, add it.
  */
 export const toggleReaction = async (messageId, userId, emoji) => {
-  const message = await Message.findById(messageId);
-  if (!message) return null;
+  const messageExists = await Message.exists({ _id: messageId });
+  if (!messageExists) return null;
 
-  const existingIdx = message.reactions.findIndex(
-    (r) => r.user.toString() === userId.toString()
+  // 1. Try atomic toggle off (if user already has the exact same emoji)
+  let updated = await Message.findOneAndUpdate(
+    { _id: messageId, reactions: { $elemMatch: { user: userId, emoji } } },
+    { $pull: { reactions: { user: userId } } },
+    { new: true }
   );
 
-  if (existingIdx > -1) {
-    if (message.reactions[existingIdx].emoji === emoji) {
-      // Toggle off
-      message.reactions.splice(existingIdx, 1);
-    } else {
-      // Update emoji
-      message.reactions[existingIdx].emoji = emoji;
-    }
-  } else {
-    // Add reaction
-    message.reactions.push({ user: userId, emoji });
+  // 2. If user already reacted with a different emoji, atomically update it
+  if (!updated) {
+    updated = await Message.findOneAndUpdate(
+      { _id: messageId, "reactions.user": userId },
+      { $set: { "reactions.$.emoji": emoji } },
+      { new: true }
+    );
   }
 
-  await message.save();
+  // 3. If user has no existing reaction on this message, atomically push it
+  if (!updated) {
+    updated = await Message.findOneAndUpdate(
+      { _id: messageId },
+      { $push: { reactions: { user: userId, emoji } } },
+      { new: true }
+    );
+  }
+
+  if (!updated) return null;
 
   return Message.findById(messageId)
     .populate("sender", "username fullName avatar")
@@ -275,6 +298,7 @@ export const toggleReaction = async (messageId, userId, emoji) => {
 
 /**
  * Pin a message in chat.
+ * Returns minimal delta (_id, pinnedMessages) to eliminate over-fetching.
  */
 export const pinChatMessage = async (chatId, messageId) => {
   return Chat.findByIdAndUpdate(
@@ -282,9 +306,7 @@ export const pinChatMessage = async (chatId, messageId) => {
     { $addToSet: { pinnedMessages: messageId } },
     { new: true }
   )
-    .populate("participants", "username fullName avatar")
-    .populate("groupAdmin", "username fullName avatar")
-    .populate("groupAdmins", "username fullName avatar")
+    .select("_id pinnedMessages")
     .populate({
       path: "pinnedMessages",
       populate: { path: "sender", select: "username fullName avatar" },
@@ -294,6 +316,7 @@ export const pinChatMessage = async (chatId, messageId) => {
 
 /**
  * Unpin a message from chat.
+ * Returns minimal delta (_id, pinnedMessages) to eliminate over-fetching.
  */
 export const unpinChatMessage = async (chatId, messageId) => {
   return Chat.findByIdAndUpdate(
@@ -301,9 +324,7 @@ export const unpinChatMessage = async (chatId, messageId) => {
     { $pull: { pinnedMessages: messageId } },
     { new: true }
   )
-    .populate("participants", "username fullName avatar")
-    .populate("groupAdmin", "username fullName avatar")
-    .populate("groupAdmins", "username fullName avatar")
+    .select("_id pinnedMessages")
     .populate({
       path: "pinnedMessages",
       populate: { path: "sender", select: "username fullName avatar" },
@@ -358,15 +379,79 @@ export const searchUsers = async (query, currentUserId) => {
 };
 
 /**
- * Search messages within a specific chat.
+ * Find messages by IDs in bulk.
+ */
+export const findMessagesByIds = async (messageIds) => {
+  return Message.find({ _id: { $in: messageIds } }).lean();
+};
+
+/**
+ * Insert multiple messages in bulk and update chat lastMessage.
+ */
+export const createManyMessages = async (messagesData) => {
+  if (!messagesData || messagesData.length === 0) return [];
+  const created = await Message.insertMany(messagesData);
+  const ids = created.map((m) => m._id);
+  const lastId = ids[ids.length - 1];
+  const chatId = messagesData[0].chat;
+  await Chat.findByIdAndUpdate(chatId, {
+    lastMessage: lastId,
+    updatedAt: Date.now(),
+  });
+  return Message.find({ _id: { $in: ids } })
+    .populate("sender", "username fullName avatar")
+    .populate("chat")
+    .populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .populate({
+      path: "reactions.user",
+      select: "username fullName avatar",
+    })
+    .sort({ createdAt: 1 })
+    .lean();
+};
+
+/**
+ * Delete multiple messages by IDs owned by the specified user.
+ */
+export const deleteManyMessages = async (messageIds, userId) => {
+  const messages = await Message.find({
+    _id: { $in: messageIds },
+    sender: userId,
+  }).select("_id").lean();
+  const ids = messages.map((m) => m._id);
+  if (ids.length > 0) {
+    await Message.deleteMany({ _id: { $in: ids } });
+  }
+  return ids;
+};
+
+/**
+ * Search messages within a specific chat using text index with fallback.
  */
 export const searchMessagesInChat = async (chatId, query) => {
-  return Message.find({
-    chat: chatId,
-    content: { $regex: query, $options: "i" },
-  })
-    .populate("sender", "username fullName avatar")
-    .sort({ createdAt: -1 })
-    .limit(30)
-    .lean();
+  if (!query || !query.trim()) return [];
+  try {
+    const results = await Message.find({
+      chat: chatId,
+      $text: { $search: query.trim() },
+    })
+      .populate("sender", "username fullName avatar")
+      .sort({ createdAt: -1 })
+      .limit(30)
+      .lean();
+    return results || [];
+  } catch (err) {
+    // Fallback if text index is missing or unsupported in test mock
+    return Message.find({
+      chat: chatId,
+      content: { $regex: query, $options: "i" },
+    })
+      .populate("sender", "username fullName avatar")
+      .sort({ createdAt: -1 })
+      .limit(30)
+      .lean();
+  }
 };

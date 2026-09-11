@@ -14,6 +14,14 @@ jest.unstable_mockModule('../src/models/messageReport.model.js', () => ({
   },
 }));
 
+const mockFindMessageById = jest.fn();
+const mockIsParticipant = jest.fn();
+
+jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
+  findMessageById: mockFindMessageById,
+  isParticipant: mockIsParticipant,
+}));
+
 // Mock chat.service so chat.controller imports cleanly
 jest.unstable_mockModule('../src/services/chat.service.js', () => ({
   accessOrCreateChat: jest.fn(),
@@ -61,20 +69,73 @@ describe('Message Report Controller Unit Tests', () => {
       await reportMessage(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ success: false, message: 'messageId is required' })
-      );
-      console.log('TRACE [chat.report.test.js]: 400 returned for missing messageId as expected');
+      expect(res.json).toHaveBeenCalledWith({ success: false, message: 'messageId is required' });
+      console.log('TRACE [chat.report.test.js]: Missing messageId rejected with 400');
     });
 
-    it('creates message report successfully and returns 201', async () => {
-      console.log('TRACE [chat.report.test.js]: Testing successful message report creation');
+    it('returns 404 if message is not found in database', async () => {
+      console.log('TRACE [chat.report.test.js]: Testing reportMessage with non-existent message');
+      mockFindMessageById.mockResolvedValue(null);
+      const req = {
+        body: { messageId: 'm_missing', reason: 'Harassment' },
+        user: { _id: 'u1' },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+      const next = jest.fn();
+
+      await reportMessage(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ success: false, message: 'Message not found' });
+      console.log('TRACE [chat.report.test.js]: Non-existent message returned 404');
+    });
+
+    it('returns 403 if user is not a participant of the chat', async () => {
+      console.log('TRACE [chat.report.test.js]: Testing reportMessage for non-participant user');
+      mockFindMessageById.mockResolvedValue({
+        _id: 'm123',
+        chat: 'c1',
+        sender: 'u2',
+        content: 'Some message',
+      });
+      mockIsParticipant.mockResolvedValue(false);
+
+      const req = {
+        body: { messageId: 'm123', reason: 'Harassment' },
+        user: { _id: 'unauth_user' },
+      };
+      const res = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      };
+      const next = jest.fn();
+
+      await reportMessage(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({
+        success: false,
+        message: 'You are not a participant in this chat',
+      });
+      console.log('TRACE [chat.report.test.js]: Non-participant report blocked with 403');
+    });
+
+    it('creates message report successfully using verified DB data and returns 201', async () => {
+      console.log('TRACE [chat.report.test.js]: Testing reportMessage creation success');
+      mockFindMessageById.mockResolvedValue({
+        _id: 'm123',
+        chat: { _id: 'c1' },
+        sender: { _id: 'u2' },
+        content: 'Abusive language text here',
+      });
+      mockIsParticipant.mockResolvedValue(true);
+
       const req = {
         body: {
           messageId: 'm123',
-          chatId: 'c1',
-          senderId: 'u2',
-          messageContent: 'Abusive language text here',
           reason: 'Harassment / Abusive content',
         },
         user: { _id: 'u1' },

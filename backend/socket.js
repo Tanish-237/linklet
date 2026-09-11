@@ -7,6 +7,7 @@ import { getRedisClient } from "./src/utils/redis.js";
 import logger from "./src/utils/logger.js";
 
 import { corsOriginHandler } from "./src/utils/cors.js";
+import * as chatRepo from "./src/repositories/chat.repository.js";
 
 export let io;
 
@@ -19,8 +20,8 @@ export const initializeSocket = async (server) => {
       origin: corsOriginHandler,
       credentials: true,
     },
-    pingTimeout: 5000,
-    pingInterval: 10000,
+    pingTimeout: 20000,
+    pingInterval: 25000,
     allowEIO3: true,
   });
 
@@ -124,7 +125,19 @@ export const initializeSocket = async (server) => {
     });
 
     // Chat room events
-    socket.on("join chat", (room) => {
+    socket.on("join chat", async (room) => {
+      if (!room) return;
+      if (socket.userId) {
+        try {
+          const isMember = await chatRepo.isParticipant(room, socket.userId);
+          if (!isMember) {
+            logger.warn(`User ${socket.userId} unauthorized to join chat room: ${room}`);
+            return socket.emit("error", { message: "Unauthorized to join this chat room" });
+          }
+        } catch (err) {
+          logger.error(`Error verifying chat participant for room ${room}: ${err.message}`);
+        }
+      }
       socket.join(room);
       logger.info(`User ${socket.id} joined room: ${room}`);
     });
@@ -136,19 +149,51 @@ export const initializeSocket = async (server) => {
 
     socket.on("new message", (newMessage) => {
       if (!newMessage || !newMessage.chat) return;
+
+      // Authenticated socket security validation: ensure sender matches registered socket identity
+      if (socket.userId) {
+        const senderId = (newMessage.sender?._id || newMessage.sender)?.toString();
+        if (senderId && senderId !== socket.userId.toString()) {
+          logger.warn(
+            `Spoofed sender ID on socket ${socket.id}: expected ${socket.userId}, got ${senderId}`
+          );
+          return;
+        }
+      }
+
       const chatId = typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
       io.to(chatId).emit("message received", newMessage);
     });
 
-    socket.on("message updated", (updatedMessage) => {
+    socket.on("message updated", async (updatedMessage) => {
       if (!updatedMessage || !updatedMessage.chat) return;
       const chatId = typeof updatedMessage.chat === "object" ? updatedMessage.chat._id : updatedMessage.chat;
+
+      if (socket.userId) {
+        const senderId = (updatedMessage.sender?._id || updatedMessage.sender)?.toString();
+        if (senderId && senderId !== socket.userId.toString()) {
+          logger.warn(
+            `Spoofed sender ID on message updated on socket ${socket.id}: expected ${socket.userId}, got ${senderId}`
+          );
+          return;
+        }
+        try {
+          const isMember = await chatRepo.isParticipant(chatId, socket.userId);
+          if (!isMember) return;
+        } catch (err) {}
+      }
+
       io.to(chatId).emit("message updated", updatedMessage);
     });
 
     socket.on("message deleted", ({ chatId, messageId }) => {
       if (!chatId || !messageId) return;
-      io.to(chatId).emit("message deleted", messageId);
+      io.to(chatId).emit("message deleted", { chatId, messageId });
+    });
+
+    socket.on("messages_bulk_deleted", ({ chatId, messageIds }) => {
+      if (!chatId || !Array.isArray(messageIds) || messageIds.length === 0) return;
+      io.to(chatId).emit("messages_bulk_deleted", { chatId, messageIds });
     });
 
     socket.on("typing", (data) => {
@@ -174,8 +219,16 @@ export const initializeSocket = async (server) => {
       socket.to(chatId).emit("read receipt", { chatId, userId });
     });
 
-    socket.on("message reaction", ({ chatId, messageId, reactions }) => {
+    socket.on("message reaction", async ({ chatId, messageId, reactions }) => {
       if (!chatId || !messageId) return;
+
+      if (socket.userId) {
+        try {
+          const isMember = await chatRepo.isParticipant(chatId, socket.userId);
+          if (!isMember) return;
+        } catch (err) {}
+      }
+
       io.to(chatId).emit("message reaction", { chatId, messageId, reactions });
     });
 

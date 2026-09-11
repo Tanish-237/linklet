@@ -240,9 +240,11 @@ export const leaveGroup = async (chatId, userId) => {
       .filter((id) => id !== userId.toString());
 
     if (remainingAdmins.length > 0) {
+      const updates = { groupAdmins: remainingAdmins };
       if (chat.groupAdmin && (chat.groupAdmin._id || chat.groupAdmin).toString() === userId.toString()) {
-        await chatRepo.updateChat(chatId, { groupAdmin: remainingAdmins[0] });
+        updates.groupAdmin = remainingAdmins[0];
       }
+      await chatRepo.updateChat(chatId, updates);
     } else {
       const nextMember = chat.participants.find(
         (p) => (p._id || p).toString() !== userId.toString()
@@ -273,7 +275,7 @@ export const updateGroupImage = async (chatId, userId, filePath) => {
   const chat = await chatRepo.findChatById(chatId);
   if (!chat) throw new AppError("Chat not found", 404);
   if (!chat.isGroup) throw new AppError("Cannot set image for a 1:1 chat", 400);
-  if (chat.groupAdmin._id.toString() !== userId.toString()) {
+  if (!isUserGroupAdmin(chat, userId)) {
     throw new AppError("Only the group admin can update the group image", 403);
   }
 
@@ -328,10 +330,8 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
   // Invalidate redis cache for all participants
   await invalidateUserChatsCache(chat.participants);
 
-  // If there are files, upload each file and create messages
-  const createdMessages = [];
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+  // If there are files, upload files concurrently and create messages in bulk
+  const uploadPromises = files.map(async (file, i) => {
     const uploadResult = await uploadOnCloudinary(file.path);
     if (!uploadResult) throw new AppError("Failed to upload media", 500);
 
@@ -362,10 +362,11 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
       messageData.mediaType = "document";
     }
 
-    const message = await chatRepo.createMessage(messageData);
-    createdMessages.push(message);
-  }
+    return messageData;
+  });
 
+  const messagesData = await Promise.all(uploadPromises);
+  const createdMessages = await chatRepo.createManyMessages(messagesData);
   return createdMessages.length === 1 ? createdMessages[0] : createdMessages;
 };
 
@@ -373,13 +374,10 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
  * Get messages for a chat with cursor-based pagination.
  */
 export const getMessages = async (chatId, userId, query = {}) => {
-  const chat = await chatRepo.findChatById(chatId);
-  if (!chat) throw new AppError("Chat not found", 404);
-
-  const isParticipant = chat.participants.some(
-    (p) => (p._id || p).toString() === userId.toString()
-  );
-  if (!isParticipant) {
+  const isMember = await chatRepo.isParticipant(chatId, userId);
+  if (!isMember) {
+    const exists = await chatRepo.chatExists(chatId);
+    if (!exists) throw new AppError("Chat not found", 404);
     throw new AppError("You are not a participant in this chat", 403);
   }
 
@@ -432,16 +430,21 @@ export const deleteMessage = async (userId, { chatId, messageId }) => {
     throw new AppError("Message does not belong to this chat", 400);
   }
 
+  const targetChatId = chatId || (message.chat?._id || message.chat)?.toString();
   await chatRepo.deleteMessage(messageId);
-  return { success: true, messageId };
+  return { success: true, messageId, chatId: targetChatId };
 };
 
 /**
  * Mark all messages in a chat as read by the user.
  */
 export const markAsRead = async (chatId, userId) => {
-  const chat = await chatRepo.findChatById(chatId);
-  if (!chat) throw new AppError("Chat not found", 404);
+  const isMember = await chatRepo.isParticipant(chatId, userId);
+  if (!isMember) {
+    const exists = await chatRepo.chatExists(chatId);
+    if (!exists) throw new AppError("Chat not found", 404);
+    throw new AppError("You are not a participant in this chat", 403);
+  }
 
   return chatRepo.markMessagesAsRead(chatId, userId);
 };
@@ -489,6 +492,13 @@ export const pinMessage = async (userId, { chatId, messageId }) => {
   );
   if (!isParticipant) {
     throw new AppError("You are not a participant in this chat", 403);
+  }
+
+  const isAlreadyPinned = (chat.pinnedMessages || []).some(
+    (m) => (m._id || m).toString() === messageId.toString()
+  );
+  if (!isAlreadyPinned && (chat.pinnedMessages || []).length >= 3) {
+    throw new AppError("Maximum of 3 pinned messages allowed per chat", 400);
   }
 
   return chatRepo.pinChatMessage(chatId, messageId);
@@ -554,7 +564,7 @@ export const getUserChats = async (userId) => {
 
   if (redisClient && chats) {
     try {
-      await redisClient.setEx(cacheKey, 120, JSON.stringify(chats));
+      await redisClient.setEx(cacheKey, 300, JSON.stringify(chats));
     } catch (err) {
       logger.warn(`Redis set error for ${cacheKey}: ${err.message}`);
     }
@@ -599,18 +609,14 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
     throw new AppError("You are not a participant in the target chat", 403);
   }
 
-  const originalMessages = [];
-  for (const msgId of messageIds) {
-    const originalMsg = await chatRepo.findMessageById(msgId);
-    if (originalMsg) originalMessages.push(originalMsg);
-  }
+  const originalMessages = await chatRepo.findMessagesByIds(messageIds);
 
   // Sort chronologically ascending based on original creation date
   originalMessages.sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
 
-  const forwardedMessages = [];
+  const messagesToInsert = [];
   for (const originalMsg of originalMessages) {
     const messageData = {
       sender: userId,
@@ -625,10 +631,10 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
     }
 
     if (!messageData.content && !messageData.media) continue;
-
-    const forwardedMsg = await chatRepo.createMessage(messageData);
-    forwardedMessages.push(forwardedMsg);
+    messagesToInsert.push(messageData);
   }
+
+  const forwardedMessages = await chatRepo.createManyMessages(messagesToInsert);
 
   invalidateUserChatsCache(targetChat.participants).catch(() => {});
   return forwardedMessages;
@@ -638,21 +644,18 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
  * Bulk delete multiple messages.
  */
 export const deleteMultipleMessages = async (userId, { chatId, messageIds }) => {
+  if (!chatId) {
+    throw new AppError("Chat ID is required", 400);
+  }
   if (!messageIds || messageIds.length === 0) {
     throw new AppError("Message IDs are required", 400);
   }
 
-  const deletedIds = [];
-  for (const msgId of messageIds) {
-    const message = await chatRepo.findMessageById(msgId);
-    if (message) {
-      const senderId = message.sender?._id?.toString() || message.sender?.toString();
-      if (senderId === userId.toString()) {
-        await chatRepo.deleteMessage(msgId);
-        deletedIds.push(msgId);
-      }
-    }
+  const isMember = await chatRepo.isParticipant(chatId, userId);
+  if (!isMember) {
+    throw new AppError("You are not a participant in this chat", 403);
   }
 
+  const deletedIds = await chatRepo.deleteManyMessages(messageIds, userId);
   return { success: true, deletedIds };
 };
