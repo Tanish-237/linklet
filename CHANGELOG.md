@@ -5,6 +5,34 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-09-11
+
+### Added
+- **Multi-Admin Group Infrastructure**:
+  - Added `groupAdmins` array to `Chat` MongoDB schema and repository queries with multi-admin population.
+  - Implemented `promoteToAdmin` (`PUT /api/chat/group/promote`) and `demoteAdmin` (`PUT /api/chat/group/demote`) services and endpoints.
+  - Added group admin badges, participant action dropdowns, and group avatar upload in `ChatInfoPanel.jsx`.
+- **Persistent Manual Unread State**:
+  - Implemented `manualUnreadIds` backed by `localStorage` (`linklet_manual_unread_${user._id}`) with dedicated "Mark as unread" / "Mark as read" toggle.
+- **Linklet Chats Branded Empty State**:
+  - High-res Linklet app squircle emblem with matching rounded curvature (`rounded-2xl` inside `rounded-[28px]`) and "Search a person to start chatting" prompt.
+
+### Changed
+- **Default Unselected Chat on Mount**:
+  - Removed automatic fallback that previously auto-selected the first chat (`cachedChats[0]`) on desktop viewports, preserving a clean unselected sidebar state on reload and fresh visits.
+- Synchronized frontend and backend package versions to `v1.6.2`.
+
+### Fixed
+- **Transition Flash of Group Sender Names**:
+  - Added React `key={activeChat._id}` to `<ChatWindow>`, forcing instantaneous component teardown and remount when switching between 1:1 and group conversations.
+  - Added lazy cache initialization and synchronous prop alignment in `useChatMessages` hook.
+  - Implemented `isMessageForThisChat` guard in `MessageItem.jsx` and filtered `validMessages` in `ChatMessagesList.jsx` to eliminate foreign message rendering across transition frames.
+- **False Unread Badge on Reload**:
+  - Resolved race condition in `ChatPage.jsx` during auth rehydration where sent messages were misclassified as unread.
+  - Enforced `isSentByMe` unread suppression on mount and updated state spreading order to guarantee clean recalculation.
+- **Context Menu "Mark as Unread" Functionality**:
+  - Eliminated rigid sender-ID guard in `ChatSidebar.jsx`, delegating directly to unread state to allow manual unread marking on any conversation.
+
 ## [1.6.1] - 2026-09-11
 
 ### Added

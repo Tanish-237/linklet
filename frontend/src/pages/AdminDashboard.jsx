@@ -17,6 +17,8 @@ import {
   deleteAdminResource,
   deleteAdminQuestion,
   deleteAdminPost,
+  getReportedMessages,
+  updateReportStatus,
 } from '../api/admin.api';
 import defaultAvatar from '../assets/default-avatar.png';
 import './AdminDashboard.css';
@@ -47,6 +49,10 @@ export default function AdminDashboard() {
 
   // Audit Logs State
   const [auditPage, setAuditPage] = useState(1);
+
+  // Message Reports State
+  const [reportsPage, setReportsPage] = useState(1);
+  const [reportsStatusFilter, setReportsStatusFilter] = useState('pending'); // 'pending', 'reviewed', 'dismissed'
 
   // Debounce search query
   useEffect(() => {
@@ -123,7 +129,32 @@ export default function AdminDashboard() {
     enabled: activeTab === 'audit',
   });
 
+  // 6. Fetch Reported Messages
+  const {
+    data: reportsData,
+    isLoading: isReportsLoading,
+    refetch: refetchReports,
+    isRefetching: isReportsRefetching,
+  } = useQuery({
+    queryKey: ['adminReportedMessages', reportsPage, reportsStatusFilter],
+    queryFn: () => getReportedMessages({ page: reportsPage, limit: 15, status: reportsStatusFilter }),
+    staleTime: 15000,
+    enabled: activeTab === 'reports',
+  });
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
+
+  // Update Report Status Mutation
+  const updateReportStatusMutation = useMutation({
+    mutationFn: ({ reportId, status }) => updateReportStatus(reportId, status),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['adminReportedMessages'] });
+      toast.success(`Report marked as ${variables.status}`);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.message || 'Failed to update report');
+    },
+  });
 
   // Promote / Demote Mutation
   const promoteUserMutation = useMutation({
@@ -262,6 +293,7 @@ export default function AdminDashboard() {
     refetchUsers();
     if (activeTab === 'content') refetchContent();
     if (activeTab === 'audit') refetchAuditLogs();
+    if (activeTab === 'reports') refetchReports();
     toast.info('Platform analytics refreshed');
   };
 
@@ -269,6 +301,8 @@ export default function AdminDashboard() {
   const pagination = usersData?.pagination || { totalDocs: 0, totalPages: 1, page: 1, limit: 10 };
   const auditLogs = auditData?.data || [];
   const auditPagination = auditData?.pagination || { totalDocs: 0, totalPages: 1, page: 1, limit: 15 };
+  const reportedMessages = reportsData?.data || [];
+  const reportsPagination = reportsData?.pagination || { totalDocs: 0, totalPages: 1, page: 1, limit: 15 };
 
   const formatAuditDetails = (log) => {
     const { action, details = {}, targetType } = log;
@@ -498,6 +532,16 @@ export default function AdminDashboard() {
         >
           <span className="material-icons text-lg">history_edu</span>
           Security & Audit Trail
+        </button>
+        <button
+          id="admin-tab-reports"
+          className={`admin-tab-btn ${activeTab === 'reports' ? 'active' : ''}`}
+          onClick={() => setActiveTab('reports')}
+          role="tab"
+          aria-selected={activeTab === 'reports'}
+        >
+          <span className="material-icons text-lg">flag</span>
+          Reported Messages
         </button>
       </div>
 
@@ -1219,6 +1263,227 @@ export default function AdminDashboard() {
                   <button
                     onClick={() => setAuditPage((p) => Math.min(auditPagination.totalPages, p + 1))}
                     disabled={auditPage >= auditPagination.totalPages || isAuditLoading}
+                    className="px-3 py-1.5 rounded-lg bg-gray-800/80 hover:bg-gray-700 border border-gray-700/60 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-gray-300 transition-all flex items-center gap-1"
+                  >
+                    Next
+                    <span className="material-icons text-xs">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ─── TAB 5: Message Reports ────────────────────────────────────────── */}
+      {activeTab === 'reports' && (
+        <div className="space-y-4">
+          <div className="admin-card p-0 overflow-hidden">
+            <div className="p-4 border-b border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-900/40">
+              <div>
+                <h3 className="text-base font-semibold text-white">Reported Chat Messages</h3>
+                <p className="text-xs text-gray-400">
+                  User-submitted reports for inappropriate, abusive, or spam chat messages.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                {/* Status Filter Tabs */}
+                <div className="inline-flex p-1 bg-gray-800/80 rounded-xl border border-gray-700/60 text-xs">
+                  {['pending', 'reviewed', 'dismissed'].map((status) => (
+                    <button
+                      key={status}
+                      onClick={() => {
+                        setReportsStatusFilter(status);
+                        setReportsPage(1);
+                      }}
+                      className={`px-3 py-1 rounded-lg font-medium capitalize transition-all cursor-pointer ${
+                        reportsStatusFilter === status
+                          ? 'bg-violet-600 text-white shadow'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      {status}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => refetchReports()}
+                  disabled={isReportsRefetching}
+                  className="p-2 rounded-xl bg-gray-800/80 hover:bg-gray-700 border border-gray-700/60 text-gray-300 transition-colors cursor-pointer"
+                  title="Refresh reports"
+                >
+                  <span className={`material-icons text-base ${isReportsRefetching ? 'animate-spin' : ''}`}>refresh</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="admin-table w-full">
+                <thead>
+                  <tr>
+                    <th className="text-left">Timestamp</th>
+                    <th className="text-left">Reported By</th>
+                    <th className="text-left">Message Sender</th>
+                    <th className="text-left">Report Reason</th>
+                    <th className="text-left">Message Content</th>
+                    <th className="text-left">Status</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isReportsLoading ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-gray-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <span className="material-icons animate-spin text-2xl text-violet-400">refresh</span>
+                          <span className="text-sm">Loading reported messages...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : reportedMessages.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-gray-400">
+                        <div className="flex flex-col items-center justify-center gap-2">
+                          <span className="material-icons text-3xl text-gray-500">check_circle</span>
+                          <span className="text-sm font-medium">No {reportsStatusFilter} message reports</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    reportedMessages.map((report) => {
+                      const reporter = report.reportedBy || {};
+                      const sender = report.senderId || {};
+
+                      return (
+                        <tr key={report._id} className="hover:bg-gray-800/30 transition-colors">
+                          <td className="text-xs text-gray-400 whitespace-nowrap">
+                            {new Date(report.createdAt).toLocaleString()}
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={reporter.avatar || defaultAvatar}
+                                alt=""
+                                className="w-6 h-6 rounded-full object-cover border border-gray-700"
+                              />
+                              <span className="text-xs font-medium text-gray-200">
+                                @{reporter.username || 'user'}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <div className="flex items-center gap-2">
+                              <img
+                                src={sender.avatar || defaultAvatar}
+                                alt=""
+                                className="w-6 h-6 rounded-full object-cover border border-gray-700"
+                              />
+                              <span className="text-xs font-medium text-gray-200">
+                                @{sender.username || 'unknown'}
+                              </span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-950/70 border border-rose-500/40 text-rose-300">
+                              {report.reason || 'Flagged content'}
+                            </span>
+                          </td>
+                          <td className="text-xs text-gray-300 max-w-xs">
+                            <div className="truncate px-2 py-1 bg-gray-900/60 rounded border border-gray-800 font-mono text-[11px]" title={report.messageContent}>
+                              {report.messageContent || <span className="italic text-gray-500">No text content / media</span>}
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold capitalize ${
+                                report.status === 'reviewed'
+                                  ? 'bg-emerald-950/70 border border-emerald-500/40 text-emerald-300'
+                                  : report.status === 'dismissed'
+                                  ? 'bg-gray-800 border border-gray-700 text-gray-400'
+                                  : 'bg-amber-950/70 border border-amber-500/40 text-amber-300'
+                              }`}
+                            >
+                              {report.status}
+                            </span>
+                          </td>
+                          <td className="text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-1.5">
+                              {report.status !== 'reviewed' && (
+                                <button
+                                  onClick={() =>
+                                    updateReportStatusMutation.mutate({
+                                      reportId: report._id,
+                                      status: 'reviewed',
+                                    })
+                                  }
+                                  disabled={updateReportStatusMutation.isPending}
+                                  className="px-2.5 py-1 text-xs rounded-lg bg-emerald-600/20 text-emerald-300 hover:bg-emerald-600/40 border border-emerald-500/30 transition-all cursor-pointer flex items-center gap-1"
+                                  title="Mark as reviewed and resolved"
+                                >
+                                  <span className="material-icons text-xs">done</span>
+                                  Resolve
+                                </button>
+                              )}
+                              {report.status !== 'dismissed' && (
+                                <button
+                                  onClick={() =>
+                                    updateReportStatusMutation.mutate({
+                                      reportId: report._id,
+                                      status: 'dismissed',
+                                    })
+                                  }
+                                  disabled={updateReportStatusMutation.isPending}
+                                  className="px-2.5 py-1 text-xs rounded-lg bg-gray-800 text-gray-300 hover:bg-gray-700 border border-gray-700/50 transition-all cursor-pointer flex items-center gap-1"
+                                  title="Dismiss report"
+                                >
+                                  <span className="material-icons text-xs">close</span>
+                                  Dismiss
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Reports Pagination */}
+            {reportsPagination.totalDocs > 0 && (
+              <div className="p-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-gray-900/30">
+                <div>
+                  Showing{' '}
+                  <span className="font-semibold text-white">
+                    {(reportsPagination.page - 1) * reportsPagination.limit + 1}
+                  </span>{' '}
+                  to{' '}
+                  <span className="font-semibold text-white">
+                    {Math.min(reportsPagination.page * reportsPagination.limit, reportsPagination.totalDocs)}
+                  </span>{' '}
+                  of <span className="font-semibold text-white">{reportsPagination.totalDocs}</span> reports
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setReportsPage((p) => Math.max(1, p - 1))}
+                    disabled={reportsPage <= 1 || isReportsLoading}
+                    className="px-3 py-1.5 rounded-lg bg-gray-800/80 hover:bg-gray-700 border border-gray-700/60 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-gray-300 transition-all flex items-center gap-1"
+                  >
+                    <span className="material-icons text-xs">chevron_left</span>
+                    Previous
+                  </button>
+
+                  <span className="px-3 py-1.5 rounded-lg bg-gray-800/40 border border-gray-700/40 text-gray-300 font-medium">
+                    Page {reportsPage} of {reportsPagination.totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setReportsPage((p) => Math.min(reportsPagination.totalPages, p + 1))}
+                    disabled={reportsPage >= reportsPagination.totalPages || isReportsLoading}
                     className="px-3 py-1.5 rounded-lg bg-gray-800/80 hover:bg-gray-700 border border-gray-700/60 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer text-gray-300 transition-all flex items-center gap-1"
                   >
                     Next

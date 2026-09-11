@@ -6,12 +6,33 @@ import { apiClient } from "../../../api/apiClient";
  * Custom hook for managing the message lifecycle, caching, socket listeners, and message operations
  */
 export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage }) => {
-  const [messages, setMessages] = useState([]);
+  const getInitialMessages = () => {
+    if (!chat?._id) return [];
+    try {
+      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
+        const cached = window.localStorage.getItem(`linklet_cached_msgs_${chat._id}`);
+        if (cached) return JSON.parse(cached);
+      }
+    } catch {
+      // safe fallback
+    }
+    return [];
+  };
+
+  const [messages, setMessages] = useState(getInitialMessages);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState(null);
   const [typingUsers, setTypingUsers] = useState([]);
+
+  // Immediately synchronize messages if chat changes while component remains mounted
+  const prevChatIdRef = useRef(chat?._id);
+  if (prevChatIdRef.current !== chat?._id) {
+    prevChatIdRef.current = chat?._id;
+    setMessages(getInitialMessages());
+    setLoadingInitial(false);
+  }
 
   const typingTimeoutRef = useRef(null);
   const lastTypingEmitRef = useRef(0);
@@ -217,11 +238,19 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
   const emitTypingActivity = useCallback(() => {
     if (!socket || !chat?._id) return;
     const now = Date.now();
+    const otherUser = chat.isGroup
+      ? null
+      : chat.participants?.find(
+          (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
+        );
+    const recipientId = (otherUser?._id || otherUser)?.toString();
+
     if (now - lastTypingEmitRef.current > 2000) {
       socket.emit("typing", {
         chatId: chat._id,
         userId: currentUser?._id,
         username: currentUser?.username,
+        recipientId,
       });
       lastTypingEmitRef.current = now;
     }
@@ -232,20 +261,29 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
         chatId: chat._id,
         userId: currentUser?._id,
         username: currentUser?.username,
+        recipientId,
       });
     }, 2500);
-  }, [socket, chat?._id, currentUser]);
+  }, [socket, chat?._id, chat?.isGroup, chat?.participants, currentUser]);
 
   const emitStopTypingImmediate = useCallback(() => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     if (socket && chat?._id) {
+      const otherUser = chat.isGroup
+        ? null
+        : chat.participants?.find(
+            (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
+          );
+      const recipientId = (otherUser?._id || otherUser)?.toString();
+
       socket.emit("stop typing", {
         chatId: chat._id,
         userId: currentUser?._id,
         username: currentUser?.username,
+        recipientId,
       });
     }
-  }, [socket, chat?._id, currentUser]);
+  }, [socket, chat?._id, chat?.isGroup, chat?.participants, currentUser]);
 
   // Toggle emoji reaction
   const toggleReaction = useCallback(async (messageId, emoji) => {
@@ -299,7 +337,10 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
   // Delete message
   const deleteMessage = useCallback(async (messageId) => {
     try {
-      const res = await apiClient.delete(`/chat/message/${messageId}`);
+      const res = await apiClient.delete(`/chat/message/${messageId}`, {
+        data: { chatId: chat?._id, messageId },
+        params: { chatId: chat?._id },
+      });
       if (res.data.success) {
         setMessages((prev) => prev.filter((m) => m._id !== messageId));
         socket?.emit("message deleted", {
@@ -316,8 +357,11 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
   // Bulk delete messages
   const bulkDeleteMessages = useCallback(async (messageIds) => {
     try {
-      const res = await apiClient.post("/chat/message/bulk-delete", {
-        messageIds,
+      const res = await apiClient.delete("/chat/message/bulk-delete", {
+        data: {
+          chatId: chat?._id,
+          messageIds,
+        },
       });
       if (res.data.success) {
         setMessages((prev) => prev.filter((m) => !messageIds.includes(m._id)));

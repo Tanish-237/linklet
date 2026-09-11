@@ -341,6 +341,10 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/chat"
+              element={<Navigate to="/dashboard/chat" replace />}
+            />
 
             {/* Static Pages */}
             <Route

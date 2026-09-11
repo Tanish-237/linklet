@@ -1,4 +1,5 @@
 import * as chatService from "../services/chat.service.js";
+import { MessageReport } from "../models/messageReport.model.js";
 
 // ─── 1:1 & Group Chat Operations ──────────────────────────────────────────────
 
@@ -87,6 +88,26 @@ export const updateGroupImage = async (req, res, next) => {
   }
 };
 
+export const promoteToAdmin = async (req, res, next) => {
+  try {
+    const { chatId, userId } = req.body;
+    const chat = await chatService.promoteToAdmin(chatId, req.user._id, userId);
+    res.status(200).json({ success: true, data: chat });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const demoteAdmin = async (req, res, next) => {
+  try {
+    const { chatId, userId } = req.body;
+    const chat = await chatService.demoteAdmin(chatId, req.user._id, userId);
+    res.status(200).json({ success: true, data: chat });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ─── Messages Operations ──────────────────────────────────────────────────────
 
 export const sendMessage = async (req, res, next) => {
@@ -130,7 +151,8 @@ export const editMessage = async (req, res, next) => {
 
 export const deleteMessage = async (req, res, next) => {
   try {
-    const { chatId, messageId } = req.body;
+    const messageId = req.params.messageId || req.body?.messageId;
+    const chatId = req.body?.chatId || req.query?.chatId;
     const result = await chatService.deleteMessage(req.user._id, {
       chatId,
       messageId,
@@ -189,7 +211,7 @@ export const forwardMessages = async (req, res, next) => {
 
 export const deleteMultipleMessages = async (req, res, next) => {
   try {
-    const { chatId, messageIds } = req.body;
+    const { chatId, messageIds } = req.body || {};
     const result = await chatService.deleteMultipleMessages(req.user._id, {
       chatId,
       messageIds,
@@ -231,6 +253,75 @@ export const unpinMessage = async (req, res, next) => {
     const { chatId, messageId } = req.body;
     const chat = await chatService.unpinMessage(req.user._id, { chatId, messageId });
     res.status(200).json({ success: true, data: chat });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ─── Report Message ────────────────────────────────────────────────────────────
+
+export const reportMessage = async (req, res, next) => {
+  try {
+    const { messageId, chatId, senderId, messageContent, reason } = req.body;
+    if (!messageId) {
+      return res.status(400).json({ success: false, message: "messageId is required" });
+    }
+    const report = await MessageReport.create({
+      reportedBy: req.user._id,
+      messageId,
+      chatId,
+      senderId,
+      messageContent: messageContent?.slice(0, 500) || "",
+      reason: reason || "Reported by user",
+    });
+    res.status(201).json({ success: true, data: report });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getReportedMessages = async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const skip = (page - 1) * limit;
+    const statusFilter = req.query.status || "pending";
+
+    const [reports, totalDocs] = await Promise.all([
+      MessageReport.find({ status: statusFilter })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate("reportedBy", "username fullName avatar")
+        .populate("senderId", "username fullName avatar")
+        .lean(),
+      MessageReport.countDocuments({ status: statusFilter }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: reports,
+      pagination: {
+        totalDocs,
+        totalPages: Math.ceil(totalDocs / limit),
+        page,
+        limit,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateReportStatus = async (req, res, next) => {
+  try {
+    const { reportId, status } = req.body;
+    const report = await MessageReport.findByIdAndUpdate(
+      reportId,
+      { status },
+      { new: true }
+    ).lean();
+    res.status(200).json({ success: true, data: report });
   } catch (error) {
     next(error);
   }

@@ -104,6 +104,10 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    lastSeen: {
+      type: Date,
+      default: Date.now,
+    },
   },
   {
     timestamps: true,

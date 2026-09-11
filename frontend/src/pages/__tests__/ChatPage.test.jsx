@@ -184,9 +184,116 @@ describe("ChatPage Component", () => {
       const backBtnAfter = document.getElementById("chat-back-to-sidebar-btn");
       expect(backBtnAfter).not.toBeInTheDocument();
       // Selection placeholder should be visible
-      expect(screen.getByText("Select a chat to start messaging")).toBeInTheDocument();
+      expect(screen.getByText("Linklet Chats")).toBeInTheDocument();
     });
 
     console.log("TRACE [ChatPage.test.jsx]: Successfully navigated back to all chats");
+  });
+
+  it("defaults to no selected chat on mount even on desktop viewports", async () => {
+    console.log("TRACE [ChatPage.test.jsx]: Testing no default selected chat on desktop mount");
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/chat") {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: [
+              {
+                _id: "c1",
+                isGroup: false,
+                chatName: "Jaggu dada",
+                participants: [{ _id: "user123" }, { _id: "u2", username: "jaggudada" }],
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { success: true, data: [] } });
+    });
+
+    window.innerWidth = 1024;
+    window.dispatchEvent(new Event("resize"));
+
+    const queryClient4 = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient4}>
+        <BrowserRouter>
+          <ChatPage />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Linklet Chats")).toBeInTheDocument();
+      expect(screen.getByText("Search a person to start chatting")).toBeInTheDocument();
+      expect(document.getElementById("chat-back-to-sidebar-btn")).not.toBeInTheDocument();
+    });
+    console.log("TRACE [ChatPage.test.jsx]: Confirmed no default chat selected on load");
+  });
+
+  it("allows marking a chat as unread and then marking as read", async () => {
+    console.log("TRACE [ChatPage.test.jsx]: Testing mark as unread and mark as read");
+    apiClient.get.mockImplementation((url) => {
+      if (url === "/chat") {
+        return Promise.resolve({
+          data: {
+            success: true,
+            data: [
+              {
+                _id: "c_unread_test",
+                isGroup: false,
+                chatName: "Jaggu dada",
+                participants: [{ _id: "user123" }, { _id: "u2", username: "jaggudada" }],
+                lastMessage: {
+                  content: "Hey",
+                  sender: { _id: "user123", username: "testuser" },
+                  createdAt: new Date().toISOString(),
+                },
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { success: true, data: [] } });
+    });
+
+    const queryClient5 = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient5}>
+        <BrowserRouter>
+          <ChatPage />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+
+    // Wait for chat to render
+    const chevronBtn = await screen.findByTitle("Chat options");
+    fireEvent.click(chevronBtn);
+
+    // Click "Mark as unread"
+    const markUnreadBtn = screen.getByText("Mark as unread");
+    fireEvent.click(markUnreadBtn);
+
+    // Unread badge 1 should appear
+    await waitFor(() => {
+      expect(screen.getByText("1")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Unread 1" })).toBeInTheDocument();
+    });
+
+    // Open context menu again, now it should say "Mark as read"
+    fireEvent.click(chevronBtn);
+    const markReadBtn = screen.getByText("Mark as read");
+    fireEvent.click(markReadBtn);
+
+    // Unread badge should disappear
+    await waitFor(() => {
+      expect(screen.queryByText("1")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Unread" })).toBeInTheDocument();
+    });
+    console.log("TRACE [ChatPage.test.jsx]: Successfully marked as unread and marked as read");
   });
 });

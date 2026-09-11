@@ -3,6 +3,9 @@ import AudioMessagePlayer from "./AudioMessagePlayer";
 
 const MessageMedia = ({
   msg,
+  isSent,
+  formatMessageClock,
+  renderDeliveryTicks,
   audioState,
   onToggleAudioPlay,
   onSeekAudio,
@@ -11,45 +14,71 @@ const MessageMedia = ({
   if (!msg.media) return null;
 
   if (msg.mediaType === "image") {
+    const hasCaption = Boolean(msg.content);
     return (
-      <div className="mt-1">
+      <div className={`relative ${hasCaption ? "rounded-t-xl rounded-b-sm overflow-hidden" : "rounded-xl overflow-hidden"}`}>
         <img
           src={msg.media}
           alt="Attachment"
-          className="message-media-img cursor-pointer hover:opacity-95 transition-opacity"
+          className="message-media-img cursor-pointer hover:opacity-95 transition-opacity block w-full object-cover"
           onClick={() => onOpenLightbox({ url: msg.media, type: "image" })}
         />
+        {!hasCaption && formatMessageClock && (
+          <div className="absolute bottom-1.5 right-2 flex items-center px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-sm text-[11px] text-white/95 select-none shadow pointer-events-none">
+            <span>{formatMessageClock(msg.createdAt)}</span>
+            {isSent && (
+              <span className="ml-1.5 flex items-center">
+                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
   if (msg.mediaType === "video") {
+    const hasCaption = Boolean(msg.content);
     return (
-      <div className="mt-1">
+      <div className={`relative ${hasCaption ? "rounded-t-xl rounded-b-sm overflow-hidden" : "rounded-xl overflow-hidden"}`}>
         <div
           className="relative cursor-pointer group"
           onClick={() => onOpenLightbox({ url: msg.media, type: "video" })}
         >
-          <video src={msg.media} className="message-media-img" />
+          <video src={msg.media} className="message-media-img block w-full object-cover" />
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors rounded-xl">
             <span className="material-icons text-4xl text-white drop-shadow-md">
               play_circle_filled
             </span>
           </div>
         </div>
+        {!hasCaption && formatMessageClock && (
+          <div className="absolute bottom-1.5 right-2 flex items-center px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-sm text-[11px] text-white/95 select-none shadow pointer-events-none">
+            <span>{formatMessageClock(msg.createdAt)}</span>
+            {isSent && (
+              <span className="ml-1.5 flex items-center">
+                {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+              </span>
+            )}
+          </div>
+        )}
       </div>
     );
   }
 
   if (msg.mediaType === "audio") {
     return (
-      <div className="mt-1">
+      <div>
         <AudioMessagePlayer
           messageId={msg._id}
           audioUrl={msg.media}
           audioState={audioState}
           onTogglePlay={onToggleAudioPlay}
           onSeek={onSeekAudio}
+          msg={msg}
+          isSent={isSent}
+          formatMessageClock={formatMessageClock}
+          renderDeliveryTicks={renderDeliveryTicks}
         />
       </div>
     );
@@ -57,7 +86,7 @@ const MessageMedia = ({
 
   // Document download card
   return (
-    <div className="mt-1">
+    <div>
       <a
         href={msg.media}
         target="_blank"
@@ -77,6 +106,12 @@ const MessageMedia = ({
         </div>
         <span className="material-icons text-sm text-violet-400">download</span>
       </a>
+      {!msg.content && formatMessageClock && (
+        <div className="flex items-center justify-end gap-1 mt-1 text-[11px] opacity-80 select-none">
+          <span>{formatMessageClock(msg.createdAt)}</span>
+          {renderDeliveryTicks && renderDeliveryTicks(msg, isSent)}
+        </div>
+      )}
     </div>
   );
 };

@@ -10,6 +10,8 @@ const MessageItem = ({
   isSelected,
   isSelectionActive,
   isPinned,
+  isStarred,
+  isSameSenderAsPrev,
   searchQuery,
   audioState,
   isMenuActive,
@@ -24,11 +26,16 @@ const MessageItem = ({
 }) => {
   const isSent =
     (msg.sender?._id || msg.sender)?.toString() === currentUser?._id?.toString();
+  const msgChatId = (msg.chat?._id || msg.chat)?.toString();
+  const activeChatId = chat?._id?.toString();
+  const isMessageForThisChat = !msgChatId || !activeChatId || msgChatId === activeChatId;
 
   return (
     <div
       id={`msg-${msg._id}`}
-      className="flex items-center gap-3 w-full my-1 relative group"
+      className={`flex items-center gap-3 w-full relative group ${
+        isSameSenderAsPrev ? "mt-[3px] mb-0" : "mt-2.5 mb-0"
+      }`}
       onClick={() => {
         if (isSelectionActive) {
           onToggleSelect(msg._id);
@@ -55,12 +62,12 @@ const MessageItem = ({
 
       <div className={`flex-1 flex ${isSent ? "justify-end" : "justify-start"}`}>
         <div className={`message-bubble-wrapper ${isSent ? "sent" : "received"}`}>
-          {!isSent && chat.isGroup && (
+          {!isSent && chat.isGroup && isMessageForThisChat && !isSameSenderAsPrev && (
             <div className="message-sender-name">{msg.sender?.username}</div>
           )}
 
           <div
-            className={`message-bubble-row flex items-start gap-1.5 ${
+            className={`message-bubble-row flex items-center gap-2 ${
               isSent ? "flex-row-reverse" : "flex-row"
             }`}
           >
@@ -69,20 +76,21 @@ const MessageItem = ({
               isSent={isSent}
               isSelected={isSelected}
               isPinned={isPinned}
+              isStarred={isStarred}
               searchQuery={searchQuery}
               audioState={audioState}
+              isMenuActive={isMenuActive}
+              onOpenMenu={onOpenMenu}
               onToggleAudioPlay={onToggleAudioPlay}
               onSeekAudio={onSeekAudio}
               onOpenLightbox={onOpenLightbox}
             />
 
-            {/* Hover Action Toolbar */}
+            {/* Standalone Circular WhatsApp Reaction Button */}
             <MessageActionsToolbar
               messageId={msg._id}
-              isMenuActive={isMenuActive}
               isReactionActive={isReactionActive}
               onOpenReaction={onOpenReaction}
-              onOpenMenu={onOpenMenu}
             />
           </div>
 

@@ -132,7 +132,7 @@ describe("Settings Page Component Tests", () => {
 
     // Checkboxes should exist and active ones should be toggleable
     const checkboxes = screen.getAllByRole("checkbox");
-    expect(checkboxes.length).toBe(4);
+    expect(checkboxes.length).toBe(5); // Added: chatAlerts (Direct & Group Chat Messages)
     expect(checkboxes[0]).toBeChecked(); // forum alerts default true
 
     await user.click(checkboxes[0]);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 
@@ -8,6 +8,24 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [loading, setLoading] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleOutside = (e) => {
+      if (e.target && e.target.closest && e.target.closest(".chat-icon-btn")) return;
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleOutside, true);
+    document.addEventListener("touchstart", handleOutside, true);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside, true);
+      document.removeEventListener("touchstart", handleOutside, true);
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -19,7 +37,6 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
       try {
         const res = await apiClient.get(`/chat/search?query=${query}`);
         if (res.data.success) {
-          // Filter out already selected members
           const filtered = res.data.data.filter(
             (u) => !selectedMembers.some((sm) => sm._id === u._id)
           );
@@ -65,7 +82,6 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
         toast.success("Group created successfully!");
         onGroupCreated(res.data.data);
         onClose();
-        // Reset state
         setGroupName("");
         setSelectedMembers([]);
         setSearchQuery("");
@@ -78,108 +94,117 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-violet-400">Create New Group</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white text-xl cursor-pointer"
-          >
-            &times;
-          </button>
+    <div
+      ref={dropdownRef}
+      className="create-group-dropdown"
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-800">
+        <div className="flex items-center gap-2">
+          <span className="material-icons text-violet-400 text-lg">group_add</span>
+          <h2 className="text-sm font-semibold text-white">Create New Group</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+          aria-label="Close"
+        >
+          <span className="material-icons text-base">close</span>
+        </button>
+      </div>
+
+      <form onSubmit={handleCreateGroup}>
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-gray-300 mb-1">
+            Group Name
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. Project Team Alpha"
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900/90 border border-gray-700/80 text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none transition-colors"
+            autoFocus
+          />
         </div>
 
-        <form onSubmit={handleCreateGroup}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Group Name
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Project Team Alpha"
-              value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              className="w-full p-3 rounded-xl bg-slate-900 border border-violet-500/20 text-white focus:border-violet-500 focus:outline-none"
-            />
-          </div>
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-gray-300 mb-1">
+            Add Members (at least 1)
+          </label>
+          <input
+            type="text"
+            placeholder="Search user by name or username..."
+            value={searchQuery}
+            onChange={handleSearch}
+            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900/90 border border-gray-700/80 text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none transition-colors"
+          />
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-300 mb-1">
-              Add Members (Unlimited)
-            </label>
-            <input
-              type="text"
-              placeholder="Search user by name or username..."
-              value={searchQuery}
-              onChange={handleSearch}
-              className="w-full p-3 rounded-xl bg-slate-900 border border-violet-500/20 text-white focus:border-violet-500 focus:outline-none"
-            />
-
-            {/* Selected Members Chips */}
-            {selectedMembers.length > 0 && (
-              <div className="chip-container">
-                {selectedMembers.map((member) => (
-                  <span key={member._id} className="chip">
-                    {member.username}
-                    <button
-                      type="button"
-                      onClick={() => removeMember(member._id)}
-                      className="hover:text-red-400 cursor-pointer ml-1"
-                    >
-                      &times;
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {/* Search Dropdown */}
-            {searchResults.length > 0 && (
-              <div className="chat-user-search-results">
-                {searchResults.map((user) => (
-                  <div
-                    key={user._id}
-                    onClick={() => addMember(user)}
-                    className="chat-user-result-item"
+          {/* Selected Members Chips */}
+          {selectedMembers.length > 0 && (
+            <div className="chip-container mt-2 max-h-24 overflow-y-auto">
+              {selectedMembers.map((member) => (
+                <span key={member._id} className="chip">
+                  {member.username}
+                  <button
+                    type="button"
+                    onClick={() => removeMember(member._id)}
+                    className="hover:text-red-400 cursor-pointer ml-1"
                   >
-                    <img
-                      src={user.avatar}
-                      alt={user.username}
-                      className="w-8 h-8 rounded-full border border-violet-500/30"
-                    />
-                    <div>
-                      <div className="text-sm font-semibold text-violet-300">
-                        {user.username}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {user.fullName}
-                      </div>
+                    &times;
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Search Results List */}
+          {searchResults.length > 0 && (
+            <div className="chat-user-search-results mt-1.5 max-h-36 overflow-y-auto rounded-xl border border-gray-700/70 bg-slate-900/95 shadow-xl">
+              {searchResults.map((user) => (
+                <div
+                  key={user._id}
+                  onClick={() => addMember(user)}
+                  className="chat-user-result-item px-2.5 py-1.5 hover:bg-violet-600/15 cursor-pointer flex items-center gap-2.5 transition-colors"
+                >
+                  <img
+                    src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+                    alt={user.username}
+                    className="w-7 h-7 rounded-full border border-violet-500/30 object-cover"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-semibold text-violet-300 truncate">
+                      {user.username}
+                    </div>
+                    <div className="text-[11px] text-gray-400 truncate">
+                      {user.fullName}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <span className="material-icons text-sm text-violet-400">add</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-sm shadow-sm transition-colors duration-150 disabled:opacity-50 cursor-pointer"
-            >
-              {loading ? "Creating..." : "Create Group"}
-            </button>
-          </div>
-        </form>
-      </div>
+        <div className="flex justify-end gap-2 pt-2 border-t border-gray-800">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-xl bg-gray-800/80 hover:bg-gray-700 text-gray-300 text-xs font-medium transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !groupName.trim() || selectedMembers.length === 0}
+            className="px-4 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium text-xs shadow-lg shadow-violet-600/20 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {loading ? "Creating..." : "Create Group"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

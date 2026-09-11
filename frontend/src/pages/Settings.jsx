@@ -35,12 +35,14 @@ export default function Settings() {
             forumAlerts: true,
             postAlerts: true,
             systemAlerts: true,
+            chatAlerts: true,
           };
     } catch {
       return {
         forumAlerts: true,
         postAlerts: true,
         systemAlerts: true,
+        chatAlerts: true,
       };
     }
   });
@@ -321,6 +323,21 @@ export default function Settings() {
             </div>
 
             <div className="space-y-4">
+              <div className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <h4>Direct & Group Chat Messages</h4>
+                  <p>Real-time notifications when contacts message you while in other sections.</p>
+                </div>
+                <label className="settings-toggle-switch cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={notificationPrefs.chatAlerts !== false}
+                    onChange={() => togglePref("chatAlerts")}
+                  />
+                  <span className="settings-slider"></span>
+                </label>
+              </div>
+
               <div className="settings-toggle-row">
                 <div className="settings-toggle-info">
                   <h4>Forum Questions & Answer Alerts</h4>

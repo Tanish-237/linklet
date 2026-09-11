@@ -177,6 +177,7 @@ describe('Socket Initialization Unit Tests', () => {
     console.log('[TEST] disconnect triggered, broadcast called with:', mockSocket.broadcast.emit.mock.calls);
     expect(mockSocket.broadcast.emit).toHaveBeenCalledWith('user_disconnected', {
       userId: 'user-456',
+      lastSeen: expect.any(Date),
     });
   });
 

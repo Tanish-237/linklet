@@ -23,6 +23,8 @@ vi.mock('../../api/admin.api', () => ({
   deleteAdminResource: vi.fn(),
   deleteAdminQuestion: vi.fn(),
   deleteAdminPost: vi.fn(),
+  getReportedMessages: vi.fn(),
+  updateReportStatus: vi.fn(),
 }));
 
 vi.mock('react-toastify', () => ({
@@ -116,6 +118,25 @@ describe('AdminDashboard Component Tests', () => {
         },
       ],
       pagination: { totalDocs: 1, totalPages: 1, page: 1, limit: 15 },
+    });
+    adminApi.getReportedMessages.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          _id: 'rep_1',
+          reportedBy: { _id: 'u1', username: 'reporter_user', fullName: 'Reporter User' },
+          senderId: { _id: 'u2', username: 'spammer_user', fullName: 'Spammer User' },
+          reason: 'Harassment / Abusive content',
+          messageContent: 'Inappropriate spam text',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      pagination: { totalDocs: 1, totalPages: 1, page: 1, limit: 15 },
+    });
+    adminApi.updateReportStatus.mockResolvedValue({
+      success: true,
+      data: { _id: 'rep_1', status: 'reviewed' },
     });
   });
 
@@ -291,5 +312,33 @@ describe('AdminDashboard Component Tests', () => {
     });
 
     console.log('TRACE [AdminDashboard.test.jsx]: Audit trail logs rendered correctly');
+  });
+
+  it('switches to Reported Messages tab, displays reports, and allows resolving a report', async () => {
+    console.log('TRACE [AdminDashboard.test.jsx]: Testing Reported Messages tab navigation and action');
+    const user = userEvent.setup();
+    renderComponent();
+
+    const reportsTab = screen.getByRole('tab', { name: /Reported Messages/i });
+    await user.click(reportsTab);
+
+    // Verify reported message row rendered
+    await waitFor(() => {
+      expect(screen.getByText('Reported Chat Messages')).toBeInTheDocument();
+      expect(screen.getByText('@reporter_user')).toBeInTheDocument();
+      expect(screen.getByText('@spammer_user')).toBeInTheDocument();
+      expect(screen.getByText('Harassment / Abusive content')).toBeInTheDocument();
+      expect(screen.getByText('Inappropriate spam text')).toBeInTheDocument();
+    });
+
+    // Click Resolve button
+    const resolveBtn = screen.getByRole('button', { name: /Resolve/i });
+    await user.click(resolveBtn);
+
+    await waitFor(() => {
+      expect(adminApi.updateReportStatus).toHaveBeenCalledWith('rep_1', 'reviewed');
+    });
+
+    console.log('TRACE [AdminDashboard.test.jsx]: Reported message successfully resolved');
   });
 });

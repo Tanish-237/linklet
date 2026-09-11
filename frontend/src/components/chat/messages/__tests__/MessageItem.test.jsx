@@ -1,0 +1,101 @@
+import React from "react";
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect } from "vitest";
+import MessageItem from "../MessageItem";
+
+describe("MessageItem Component", () => {
+  const currentUser = { _id: "me123", username: "current_user" };
+  const groupChat = { _id: "group1", isGroup: true };
+  const directChat = { _id: "dm1", isGroup: false };
+
+  it("renders sender username in group chat when isSameSenderAsPrev is false", () => {
+    console.log("TRACE [MessageItem.test.jsx]: Testing sender username in group for first message of block");
+    const msg = {
+      _id: "m1",
+      content: "Hello from Sakshi",
+      sender: { _id: "user_sakshi", username: "sakshi_patil" },
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <MessageItem
+        msg={msg}
+        currentUser={currentUser}
+        chat={groupChat}
+        isSameSenderAsPrev={false}
+      />
+    );
+
+    const senderEl = screen.getByText("sakshi_patil");
+    expect(senderEl).toBeInTheDocument();
+    expect(senderEl.className).toContain("message-sender-name");
+    console.log("TRACE [MessageItem.test.jsx]: Sender username verified in group chat");
+  });
+
+  it("does NOT render sender username when isSameSenderAsPrev is true (consecutive messages)", () => {
+    console.log("TRACE [MessageItem.test.jsx]: Testing sender username deduplication on consecutive messages");
+    const msg = {
+      _id: "m2",
+      content: "Second message from Sakshi",
+      sender: { _id: "user_sakshi", username: "sakshi_patil" },
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <MessageItem
+        msg={msg}
+        currentUser={currentUser}
+        chat={groupChat}
+        isSameSenderAsPrev={true}
+      />
+    );
+
+    expect(screen.queryByText("sakshi_patil")).toBeNull();
+    console.log("TRACE [MessageItem.test.jsx]: Confirmed consecutive message does not repeat sender username");
+  });
+
+  it("does NOT render sender username in direct (1-on-1) chats", () => {
+    console.log("TRACE [MessageItem.test.jsx]: Testing direct chat without sender name above bubble");
+    const msg = {
+      _id: "m3",
+      content: "Direct message",
+      sender: { _id: "user_sakshi", username: "sakshi_patil" },
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <MessageItem
+        msg={msg}
+        currentUser={currentUser}
+        chat={directChat}
+        isSameSenderAsPrev={false}
+      />
+    );
+
+    expect(screen.queryByText("sakshi_patil")).toBeNull();
+    console.log("TRACE [MessageItem.test.jsx]: Confirmed direct chat hides redundant sender name");
+  });
+
+  it("does NOT render sender username when message belongs to another chat during transition", () => {
+    console.log("TRACE [MessageItem.test.jsx]: Testing transition guard when message chat does not match active group chat");
+    const msg = {
+      _id: "m4",
+      chat: "old_dm_chat",
+      content: "Message from old chat",
+      sender: { _id: "user_sakshi", username: "sakshi_patil" },
+      createdAt: new Date().toISOString(),
+    };
+
+    render(
+      <MessageItem
+        msg={msg}
+        currentUser={currentUser}
+        chat={groupChat}
+        isSameSenderAsPrev={false}
+      />
+    );
+
+    expect(screen.queryByText("sakshi_patil")).toBeNull();
+    console.log("TRACE [MessageItem.test.jsx]: Confirmed foreign chat message does not display group sender name");
+  });
+});

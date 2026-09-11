@@ -19,19 +19,20 @@ describe("ChatSidebar Component", () => {
         { _id: "user1", username: "me" },
         { _id: "user2", username: "bob" },
       ],
-      lastMessage: { content: "Hey there!", createdAt: new Date().toISOString() },
+      lastMessage: { content: "Hey there!", createdAt: new Date(Date.now() + 10000).toISOString() },
     },
     {
       _id: "c2",
       isGroup: true,
       chatName: "React Developers",
       participants: [{ _id: "user1" }],
-      lastMessage: { content: "Welcome all!", createdAt: new Date().toISOString() },
+      lastMessage: { content: "Welcome all!", createdAt: new Date(Date.now() - 10000).toISOString() },
     },
   ];
 
   beforeEach(() => {
     vi.clearAllMocks();
+    try { localStorage.clear(); } catch {}
   });
 
   it("renders list of chats correctly", () => {
@@ -87,4 +88,150 @@ describe("ChatSidebar Component", () => {
     expect(screen.getByText(/typing.../i)).toBeInTheDocument();
     console.log("TRACE [ChatSidebar.test.jsx]: Verified unread badge (4) and typing indicator");
   });
+
+  it("filters chats using WhatsApp filter pills (All, Unread, Groups)", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing filter pills");
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        unreadCounts={{ c1: 2 }}
+      />
+    );
+
+    // Initial state: both chats rendered under "All"
+    expect(screen.getByText("bob")).toBeInTheDocument();
+    expect(screen.getByText("React Developers")).toBeInTheDocument();
+
+    // Click "Groups" pill
+    const groupsPill = screen.getByRole("button", { name: /groups/i });
+    fireEvent.click(groupsPill);
+
+    // Only group chat should be visible
+    expect(screen.getByText("React Developers")).toBeInTheDocument();
+    expect(screen.queryByText("bob")).not.toBeInTheDocument();
+
+    // Click "Unread" pill
+    const unreadPill = screen.getByRole("button", { name: /unread/i });
+    fireEvent.click(unreadPill);
+
+    // Only unread chat (c1, bob) should be visible
+    expect(screen.getByText("bob")).toBeInTheDocument();
+    expect(screen.queryByText("React Developers")).not.toBeInTheDocument();
+    console.log("TRACE [ChatSidebar.test.jsx]: Filter pills verified successfully");
+  });
+
+  it("opens WhatsApp chat context menu with working actions (Mark as read, Pin, Mute)", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing chat item context menu");
+    const onMarkAsRead = vi.fn();
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={sampleChats[0]}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        unreadCounts={{ c1: 3 }}
+        onMarkAsRead={onMarkAsRead}
+      />
+    );
+
+    // Find chevron buttons
+    const chevronButtons = screen.getAllByTitle("Chat options");
+    expect(chevronButtons.length).toBeGreaterThan(0);
+
+    // Click chevron for first chat
+    fireEvent.click(chevronButtons[0]);
+
+    // Context menu should appear with WhatsApp options
+    expect(screen.getByText("Close Chat")).toBeInTheDocument();
+    expect(screen.getByText("Mark as read")).toBeInTheDocument();
+    expect(screen.getByText("Pin")).toBeInTheDocument();
+    expect(screen.getByText("Mute")).toBeInTheDocument();
+
+    // Click "Mark as read"
+    fireEvent.click(screen.getByText("Mark as read"));
+    expect(onMarkAsRead).toHaveBeenCalledWith("c1");
+    console.log("TRACE [ChatSidebar.test.jsx]: Chat context menu actions verified");
+  });
+
+  it("toggles context menu closed on re-clicking the chevron and closes on outside click", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing toggle on re-click and outside click");
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+      />
+    );
+
+    const chevronButtons = screen.getAllByTitle("Chat options");
+    expect(chevronButtons.length).toBeGreaterThan(0);
+
+    // 1. Click opens menu
+    fireEvent.click(chevronButtons[0]);
+    expect(screen.getByText("Pin")).toBeInTheDocument();
+
+    // 2. Re-click chevron closes menu
+    fireEvent.click(chevronButtons[0]);
+    expect(screen.queryByText("Pin")).not.toBeInTheDocument();
+
+    // 3. Open again, then click outside
+    fireEvent.click(chevronButtons[0]);
+    expect(screen.getByText("Pin")).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByText("Pin")).not.toBeInTheDocument();
+    console.log("TRACE [ChatSidebar.test.jsx]: Re-click toggle and outside click verified");
+  });
+
+  it("calls onMarkAsUnread when selecting 'Mark as unread' from context menu", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing onMarkAsUnread callback from context menu");
+    const onMarkAsUnread = vi.fn();
+    const sentByMeChat = [
+      {
+        _id: "c_sent",
+        isGroup: true,
+        chatName: "Shanks & me",
+        participants: [{ _id: "user1" }, { _id: "user2" }],
+        lastMessage: {
+          content: "Ok no",
+          sender: { _id: "user1", username: "me" },
+          createdAt: new Date().toISOString(),
+        },
+      },
+    ];
+
+    render(
+      <ChatSidebar
+        chats={sentByMeChat}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        unreadCounts={{ c_sent: 0 }}
+        onMarkAsUnread={onMarkAsUnread}
+      />
+    );
+
+    // Initial state: unread badge '1' should NOT be in the document
+    expect(screen.queryByText("1")).toBeNull();
+
+    // Click chevron for options menu
+    const chevronBtn = screen.getByTitle("Chat options");
+    fireEvent.click(chevronBtn);
+
+    // Click "Mark as unread"
+    const markUnreadBtn = screen.getByText("Mark as unread");
+    fireEvent.click(markUnreadBtn);
+
+    expect(onMarkAsUnread).toHaveBeenCalledWith("c_sent");
+    console.log("TRACE [ChatSidebar.test.jsx]: Confirmed onMarkAsUnread is triggered with chat ID");
+  });
 });
+

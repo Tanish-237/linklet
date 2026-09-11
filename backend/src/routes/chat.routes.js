@@ -22,6 +22,11 @@ import {
   toggleReaction,
   pinMessage,
   unpinMessage,
+  reportMessage,
+  getReportedMessages,
+  updateReportStatus,
+  promoteToAdmin,
+  demoteAdmin,
 } from "../controllers/chat.controller.js";
 
 const router = express.Router();
@@ -43,6 +48,8 @@ router.route("/group/rename").put(renameGroup);
 router.route("/group/add").put(addToGroup);
 router.route("/group/remove").put(removeFromGroup);
 router.route("/group/leave").put(leaveGroup);
+router.route("/group/promote").put(promoteToAdmin);
+router.route("/group/demote").put(demoteAdmin);
 router
   .route("/group/image")
   .put(documentUploadMiddleware.single("media"), updateGroupImage);
@@ -56,7 +63,10 @@ router
 
 router.route("/message/react").post(toggleReaction);
 router.route("/message/forward").post(forwardMessages);
-router.route("/message/bulk-delete").delete(deleteMultipleMessages);
+router.route("/message/bulk-delete").delete(deleteMultipleMessages).post(deleteMultipleMessages);
+router.route("/message/report").post(reportMessage);
+router.route("/message/reports").get(getReportedMessages).put(updateReportStatus);
+router.route("/message/:messageId").delete(deleteMessage);
 router.route("/message/:chatId").get(getMessages);
 router.route("/message/read/:chatId").put(markAsRead);
 router.route("/message/search/:chatId").get(searchMessagesInChat);

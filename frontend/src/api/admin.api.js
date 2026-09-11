@@ -76,3 +76,13 @@ export const deleteAdminPost = async (postId) => {
   return response.data;
 };
 
+export const getReportedMessages = async ({ page = 1, limit = 20, status = "pending" } = {}) => {
+  const params = new URLSearchParams({ page, limit, status });
+  const response = await apiClient.get(`/chat/message/reports?${params.toString()}`);
+  return response.data;
+};
+
+export const updateReportStatus = async (reportId, status) => {
+  const response = await apiClient.put("/chat/message/reports", { reportId, status });
+  return response.data;
+};

@@ -237,6 +237,81 @@ describe("ChatWindow Component", () => {
     });
     console.log("TRACE [ChatWindow.test.jsx]: Message options menu and copy verified successfully");
   });
+
+  it("instantly anchors chat to unread separator or bottom without smooth scroll animation", async () => {
+    console.log("TRACE [ChatWindow.test.jsx]: Testing instant scroll anchoring on chat open");
+    const unreadMessages = [
+      {
+        _id: "m_read1",
+        sender: { _id: "u2", username: "alice" },
+        content: "Old message",
+        readBy: ["u1", "u2"],
+        createdAt: new Date(Date.now() - 60000).toISOString(),
+      },
+      {
+        _id: "m_unread1",
+        sender: { _id: "u2", username: "alice" },
+        content: "New unread message",
+        readBy: ["u2"],
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    apiClient.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: { messages: unreadMessages, hasMore: false },
+      },
+    });
+
+    const { container } = render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+      />
+    );
+
+    await screen.findByText("New unread message");
+
+    const messagesContainer = container.querySelector(".chat-messages");
+    expect(messagesContainer).toBeInTheDocument();
+    // Verify scrollBehavior is auto (not smooth) to eliminate up-to-down scroll jump
+    expect(messagesContainer.style.scrollBehavior).toBe("auto");
+
+    const unreadSeparator = container.querySelector("#unread-messages-separator");
+    expect(unreadSeparator).toBeInTheDocument();
+    console.log("TRACE [ChatWindow.test.jsx]: Confirmed instant auto-scroll anchoring to unread separator");
+  });
+
+  it("renders blocked contact banner and hides composer when isBlocked is true", async () => {
+    console.log("TRACE [ChatWindow.test.jsx]: Testing blocked contact banner rendering");
+    apiClient.get.mockResolvedValue({
+      data: {
+        success: true,
+        data: { messages: sampleMessages, hasMore: false },
+      },
+    });
+
+    render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+        isBlocked={true}
+      />
+    );
+
+    await screen.findByText("Hello there!");
+
+    expect(
+      screen.getByText("You have blocked this contact. Unblock them from the sidebar menu to send messages.")
+    ).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
+    console.log("TRACE [ChatWindow.test.jsx]: Verified blocked banner renders and composer is hidden");
+  });
 });
 
 

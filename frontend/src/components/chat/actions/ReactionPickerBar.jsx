@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal } from "react-dom";
 
 export const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 
@@ -9,7 +10,7 @@ const ReactionPickerBar = ({
 }) => {
   if (!activeMessageId) return null;
 
-  return (
+  const barContent = (
     <div
       className="reaction-picker-bar"
       style={{
@@ -34,6 +35,10 @@ const ReactionPickerBar = ({
       ))}
     </div>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(barContent, document.body)
+    : barContent;
 };
 
 export default ReactionPickerBar;

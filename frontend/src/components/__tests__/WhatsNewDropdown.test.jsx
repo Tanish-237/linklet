@@ -40,7 +40,7 @@ describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () =>
     const triggerBtn = screen.getByRole("button", { name: /What's New in Linklet/i });
     expect(triggerBtn).toBeInTheDocument();
     expect(screen.getByText("What's New")).toBeInTheDocument();
-    expect(screen.getByText("v1.6.1")).toBeInTheDocument();
+    expect(screen.getByText("v1.6.2")).toBeInTheDocument();
     console.log("Passed: Trigger button rendered for unseen version rollout");
   });
 
@@ -59,11 +59,12 @@ describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () =>
     // Dropdown open
     const dialog = screen.getByRole("dialog", { name: /What's New release notes/i });
     expect(dialog).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6.1")).toBeInTheDocument();
-    expect(screen.getByText(/Modular chat architecture:/i)).toBeInTheDocument();
-    expect(screen.getByText(/WhatsApp-grade voice notes:/i)).toBeInTheDocument();
-    expect(screen.getByText(/In-chat search & navigation:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Hover actions & viewport menus:/i)).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6.2")).toBeInTheDocument();
+    expect(screen.getByText(/Faster, smoother chat switching:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Accurate unread counters:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Mark as unread:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Clean welcome screen:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Group admin management:/i)).toBeInTheDocument();
     expect(screen.getByText("GitHub release")).toBeInTheDocument();
 
     console.log("Passed: Dropdown opens with simple, human-written release notes");
@@ -119,7 +120,7 @@ describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () =>
 
     // Dialog is visible
     expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText("What's new in v1.6.1")).toBeInTheDocument();
+    expect(screen.getByText("What's new in v1.6.2")).toBeInTheDocument();
     // But trigger button is NOT rendered
     expect(screen.queryByRole("button", { name: /What's New in Linklet/i })).not.toBeInTheDocument();
     console.log("Passed: Dialog displays cleanly without header trigger when opened from menu");

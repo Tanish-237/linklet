@@ -21,6 +21,8 @@ const mockSearchMessagesInChat = jest.fn();
 const mockToggleReaction = jest.fn();
 const mockPinChatMessage = jest.fn();
 const mockUnpinChatMessage = jest.fn();
+const mockAddGroupAdmin = jest.fn();
+const mockRemoveGroupAdmin = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   createChat: mockCreateChat,
@@ -42,6 +44,8 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   toggleReaction: mockToggleReaction,
   pinChatMessage: mockPinChatMessage,
   unpinChatMessage: mockUnpinChatMessage,
+  addGroupAdmin: mockAddGroupAdmin,
+  removeGroupAdmin: mockRemoveGroupAdmin,
 }));
 
 jest.unstable_mockModule('../src/utils/cloudinary.js', () => ({
@@ -109,6 +113,7 @@ describe('Chat Service Unit Tests', () => {
         isGroup: true,
         participants: expect.arrayContaining(['adminUser', 'p1', 'p2']),
         groupAdmin: 'adminUser',
+        groupAdmins: ['adminUser'],
       });
     });
 
@@ -117,6 +122,87 @@ describe('Chat Service Unit Tests', () => {
       await expect(
         chatService.createGroup('adminUser', { chatName: '', participants: ['p1'] })
       ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe('renameGroup', () => {
+    it('throws error if new group name is identical to current name', async () => {
+      console.log('TRACE [chat.test.js]: Testing renameGroup - rejects identical name');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        chatName: 'Study Group',
+        isGroup: true,
+        groupAdmin: { _id: 'adminUser' },
+        groupAdmins: [{ _id: 'adminUser' }],
+      });
+
+      await expect(
+        chatService.renameGroup('g1', 'adminUser', 'Study Group')
+      ).rejects.toThrow('New group name cannot be the same as the current name');
+      console.log('TRACE [chat.test.js]: Same-name validation confirmed rejected');
+    });
+
+    it('renames group successfully when different name is provided by admin', async () => {
+      console.log('TRACE [chat.test.js]: Testing renameGroup - successful rename');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        chatName: 'Study Group',
+        isGroup: true,
+        participants: ['adminUser', 'p1'],
+        groupAdmin: { _id: 'adminUser' },
+        groupAdmins: [{ _id: 'adminUser' }],
+      });
+      mockUpdateChat.mockResolvedValue({
+        _id: 'g1',
+        chatName: 'Advanced Study Group',
+      });
+
+      const res = await chatService.renameGroup('g1', 'adminUser', 'Advanced Study Group');
+      expect(res.chatName).toBe('Advanced Study Group');
+      expect(mockUpdateChat).toHaveBeenCalledWith('g1', { chatName: 'Advanced Study Group' });
+      console.log('TRACE [chat.test.js]: Group rename verified successfully');
+    });
+  });
+
+  describe('promoteToAdmin & demoteAdmin', () => {
+    it('promotes member to group admin', async () => {
+      console.log('TRACE [chat.test.js]: Testing promoteToAdmin - success');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        isGroup: true,
+        participants: [{ _id: 'adminUser' }, { _id: 'member1' }],
+        groupAdmin: { _id: 'adminUser' },
+        groupAdmins: [{ _id: 'adminUser' }],
+      });
+      mockAddGroupAdmin.mockResolvedValue({
+        _id: 'g1',
+        groupAdmins: [{ _id: 'adminUser' }, { _id: 'member1' }],
+      });
+
+      const res = await chatService.promoteToAdmin('g1', 'adminUser', 'member1');
+      expect(mockAddGroupAdmin).toHaveBeenCalledWith('g1', 'member1');
+      expect(res.groupAdmins).toHaveLength(2);
+      console.log('TRACE [chat.test.js]: Member promoted to admin verified');
+    });
+
+    it('demotes admin to regular member', async () => {
+      console.log('TRACE [chat.test.js]: Testing demoteAdmin - success');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        isGroup: true,
+        participants: [{ _id: 'adminUser' }, { _id: 'admin2' }],
+        groupAdmin: { _id: 'adminUser' },
+        groupAdmins: [{ _id: 'adminUser' }, { _id: 'admin2' }],
+      });
+      mockRemoveGroupAdmin.mockResolvedValue({
+        _id: 'g1',
+        groupAdmins: [{ _id: 'adminUser' }],
+      });
+
+      const res = await chatService.demoteAdmin('g1', 'adminUser', 'admin2');
+      expect(mockRemoveGroupAdmin).toHaveBeenCalledWith('g1', 'admin2');
+      expect(res.groupAdmins).toHaveLength(1);
+      console.log('TRACE [chat.test.js]: Admin demoted to member verified');
     });
   });
 
@@ -277,6 +363,70 @@ describe('Chat Service Unit Tests', () => {
       await expect(
         chatService.deleteMessage('user1', { chatId: 'chat1', messageId: 'm1' })
       ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe('deleteMultipleMessages', () => {
+    it('bulk deletes multiple messages owned by the user', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteMultipleMessages - success');
+      mockFindMessageById
+        .mockResolvedValueOnce({ _id: 'm1', sender: { _id: 'user1' }, chat: 'chat1' })
+        .mockResolvedValueOnce({ _id: 'm2', sender: { _id: 'user1' }, chat: 'chat1' });
+      mockDeleteMessage.mockResolvedValue(true);
+
+      const res = await chatService.deleteMultipleMessages('user1', {
+        chatId: 'chat1',
+        messageIds: ['m1', 'm2'],
+      });
+      console.log('TRACE [chat.test.js]: Bulk delete result:', res);
+      expect(res.success).toBe(true);
+      expect(res.deletedIds).toEqual(['m1', 'm2']);
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws error if messageIds is empty', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteMultipleMessages - empty messageIds error');
+      await expect(
+        chatService.deleteMultipleMessages('user1', { chatId: 'chat1', messageIds: [] })
+      ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe('forwardMessages', () => {
+    it('forwards messages chronologically based on createdAt timestamp', async () => {
+      console.log('TRACE [chat.test.js]: Testing forwardMessages - chronological ordering');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat2',
+        participants: ['user1', 'user2'],
+      });
+
+      // m2 is newer than m1, but passed in reverse order [m2, m1]
+      mockFindMessageById.mockImplementation((id) => {
+        if (id === 'm2') {
+          return Promise.resolve({
+            _id: 'm2',
+            content: 'Second message',
+            createdAt: new Date('2026-09-11T12:05:00Z'),
+          });
+        }
+        return Promise.resolve({
+          _id: 'm1',
+          content: 'First message',
+          createdAt: new Date('2026-09-11T12:00:00Z'),
+        });
+      });
+
+      mockCreateMessage.mockImplementation((data) => Promise.resolve({ _id: `fwd_${data.content}`, ...data }));
+
+      const forwarded = await chatService.forwardMessages('user1', {
+        targetChatId: 'chat2',
+        messageIds: ['m2', 'm1'], // passed out of chronological order
+      });
+
+      console.log('TRACE [chat.test.js]: Forwarded result chronologically ordered:', forwarded);
+      expect(forwarded).toHaveLength(2);
+      expect(forwarded[0].content).toBe('First message');
+      expect(forwarded[1].content).toBe('Second message');
     });
   });
 });

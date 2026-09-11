@@ -7,8 +7,13 @@ import ChatSelectionBar from "../chat/header/ChatSelectionBar";
 import PinnedMessageBanner from "../chat/header/PinnedMessageBanner";
 import AttachmentPreviewTray from "../chat/composer/AttachmentPreviewTray";
 import VoiceNoteRecordingTray from "../chat/composer/VoiceNoteRecordingTray";
-import MessageBubble from "../chat/messages/MessageBubble";
+import MessageBubble, { formatMessageClock, renderDeliveryTicks } from "../chat/messages/MessageBubble";
 import DateSeparator, { formatMessageDate } from "../chat/messages/DateSeparator";
+import ChatMessagesList from "../chat/messages/ChatMessagesList";
+import AudioMessagePlayer from "../chat/messages/AudioMessagePlayer";
+import MessageContextMenu from "../chat/actions/MessageContextMenu";
+import ReactionPickerBar, { QUICK_REACTIONS } from "../chat/actions/ReactionPickerBar";
+import MessageActionsToolbar from "../chat/actions/MessageActionsToolbar";
 
 // Hooks
 import { useAudioPlayback, formatAudioTime } from "../chat/hooks/useAudioPlayback";
@@ -17,6 +22,341 @@ import { useInChatSearch } from "../chat/hooks/useInChatSearch";
 describe("Modular Chat Subcomponents & Hooks Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("MessageContextMenu Component (WhatsApp-style Portal & Actions)", () => {
+    const mockMessage = {
+      _id: "msg123",
+      content: "Hello from Linklet",
+      createdAt: new Date().toISOString(),
+      sender: { _id: "user1", username: "tanish" },
+    };
+
+    it("renders WhatsApp context menu items with portal and triggers onReact, onSelectMessage", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageContextMenu portal and callbacks");
+      const onReply = vi.fn();
+      const onReact = vi.fn();
+      const onTogglePin = vi.fn();
+      const onForward = vi.fn();
+      const onSelect = vi.fn();
+      const onClose = vi.fn();
+
+      render(
+        <MessageContextMenu
+          activeMessage={mockMessage}
+          position={{ top: 100, left: 150 }}
+          isPinned={false}
+          isSent={true}
+          onReply={onReply}
+          onReact={onReact}
+          onTogglePin={onTogglePin}
+          onForward={onForward}
+          onSelectMessage={onSelect}
+          onClose={onClose}
+        />
+      );
+
+      // Verify menu items
+      expect(screen.getByRole("button", { name: /reply/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /react/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /pin message/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /forward/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /select messages/i })).toBeInTheDocument();
+
+      // Click React
+      fireEvent.click(screen.getByRole("button", { name: /react/i }));
+      expect(onReact).toHaveBeenCalledWith(mockMessage);
+      expect(onClose).toHaveBeenCalled();
+
+      // Click Select messages
+      fireEvent.click(screen.getByRole("button", { name: /select messages/i }));
+      expect(onSelect).toHaveBeenCalledWith(mockMessage);
+      console.log("TRACE [ChatModularComponents.test.jsx]: MessageContextMenu verified successfully");
+    });
+
+    it("supports upward positioning with bottom style property above message bubble", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageContextMenu upward bottom positioning");
+      render(
+        <MessageContextMenu
+          activeMessage={mockMessage}
+          position={{ bottom: 210, left: 150, maxHeight: 350 }}
+          isPinned={false}
+          isSent={true}
+          onReply={vi.fn()}
+          onClose={vi.fn()}
+        />
+      );
+      const menu = document.querySelector(".msg-context-menu");
+      expect(menu).toBeInTheDocument();
+      expect(menu.style.bottom).toBe("210px");
+      expect(menu.style.maxHeight).toBe("350px");
+      console.log("TRACE [ChatModularComponents.test.jsx]: MessageContextMenu upward positioning verified");
+    });
+
+    it("renders Star button only for media messages, and delete button triggers selection mode", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing WhatsApp dropdown items with media vs text");
+      const onToggleStar = vi.fn();
+      const onReport = vi.fn();
+      const onDelete = vi.fn();
+      const onSelect = vi.fn();
+      const onClose = vi.fn();
+
+      const mockMediaMessage = {
+        ...mockMessage,
+        media: "https://example.com/photo.jpg",
+        mediaType: "image",
+      };
+
+      // 1. Render plain text message: Star should NOT be in the document
+      const { unmount } = render(
+        <MessageContextMenu
+          activeMessage={mockMessage}
+          position={{ top: 100, left: 150 }}
+          isPinned={false}
+          isSent={false}
+          isStarred={false}
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onTogglePin={vi.fn()}
+          onToggleStar={onToggleStar}
+          onForward={vi.fn()}
+          onSelectMessage={onSelect}
+          onReport={onReport}
+          onDelete={onDelete}
+          onClose={onClose}
+        />
+      );
+
+      expect(screen.queryByRole("button", { name: /star message/i })).not.toBeInTheDocument();
+
+      // Verify Delete button selects message to enter multi-selection mode
+      const deleteBtn = screen.getByRole("button", { name: /delete/i });
+      expect(deleteBtn).toBeInTheDocument();
+      fireEvent.click(deleteBtn);
+      expect(onSelect).toHaveBeenCalledWith(mockMessage);
+      expect(onClose).toHaveBeenCalled();
+      unmount();
+
+      // 2. Render media message: Star SHOULD be in the document
+      render(
+        <MessageContextMenu
+          activeMessage={mockMediaMessage}
+          position={{ top: 100, left: 150 }}
+          isPinned={false}
+          isSent={false}
+          isStarred={false}
+          onReply={vi.fn()}
+          onReact={vi.fn()}
+          onTogglePin={vi.fn()}
+          onToggleStar={onToggleStar}
+          onForward={vi.fn()}
+          onSelectMessage={onSelect}
+          onReport={onReport}
+          onDelete={onDelete}
+          onClose={onClose}
+        />
+      );
+
+      const starBtn = screen.getByRole("button", { name: /star message/i });
+      expect(starBtn).toBeInTheDocument();
+      fireEvent.click(starBtn);
+      expect(onToggleStar).toHaveBeenCalledWith("msg123");
+
+      console.log("TRACE [ChatModularComponents.test.jsx]: Media star and delete selection verified successfully");
+    });
+  });
+
+  describe("ReactionPickerBar Component (WhatsApp Quick Reactions Portal)", () => {
+    it("renders 6 quick reactions and triggers onSelectEmoji on click", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing ReactionPickerBar portal and clicks");
+      const onSelectEmoji = vi.fn();
+
+      render(
+        <ReactionPickerBar
+          activeMessageId="msg123"
+          position={{ top: 120, left: 220 }}
+          onSelectEmoji={onSelectEmoji}
+        />
+      );
+
+      QUICK_REACTIONS.forEach((emoji) => {
+        expect(screen.getByTitle(`React with ${emoji}`)).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTitle("React with ❤️"));
+      expect(onSelectEmoji).toHaveBeenCalledWith("msg123", "❤️");
+      console.log("TRACE [ChatModularComponents.test.jsx]: ReactionPickerBar verified successfully");
+    });
+  });
+
+  describe("MessageBubble Component & WhatsApp Chevron Button", () => {
+    it("formats message timestamp to clean 12-hour clock time and renders chevron button", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing formatMessageClock and chevron button");
+      const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
+      const clockStr = formatMessageClock(testDate);
+      expect(clockStr).toBeTruthy();
+      expect(clockStr.length).toBeGreaterThan(0);
+      expect(formatMessageClock(null)).toBe("");
+
+      const onOpenMenu = vi.fn();
+      const mockMsg = {
+        _id: "m_test1",
+        content: "arre lite liteee",
+        createdAt: testDate,
+        sender: { username: "shubhrati" },
+      };
+
+      render(
+        <MessageBubble
+          msg={mockMsg}
+          isSent={false}
+          isMenuActive={false}
+          onOpenMenu={onOpenMenu}
+        />
+      );
+
+      expect(screen.getByText("arre lite liteee")).toBeInTheDocument();
+      const chevronBtn = screen.getByRole("button", { name: /message options/i });
+      expect(chevronBtn).toBeInTheDocument();
+
+      fireEvent.click(chevronBtn);
+      expect(onOpenMenu).toHaveBeenCalledTimes(1);
+      console.log("TRACE [ChatModularComponents.test.jsx]: MessageBubble chevron verified successfully");
+    });
+
+    it("renders blue double ticks (tick-read) when message is seen/read", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageBubble blue tick for read message");
+      const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
+      const readMsg = {
+        _id: "m_read1",
+        content: "Seen message content",
+        createdAt: testDate,
+        sender: { _id: "user1" },
+        readBy: ["user1", "user2"],
+      };
+
+      const { container } = render(
+        <MessageBubble
+          msg={readMsg}
+          isSent={true}
+          isMenuActive={false}
+        />
+      );
+
+      const tickIcon = container.querySelector(".tick-read");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.textContent).toBe("done_all");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Blue tick verified on read message");
+    });
+
+    it("renders grey single tick (tick-sent) when message is sent but not yet read", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageBubble grey tick for unread message");
+      const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
+      const sentMsg = {
+        _id: "m_sent1",
+        content: "Unread message content",
+        createdAt: testDate,
+        sender: { _id: "user1" },
+        readBy: ["user1"],
+      };
+
+      const { container } = render(
+        <MessageBubble
+          msg={sentMsg}
+          isSent={true}
+          isMenuActive={false}
+        />
+      );
+
+      const tickIcon = container.querySelector(".tick-sent");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.textContent).toBe("done");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Grey tick verified on unread message");
+    });
+
+    it("renders voice messages with duration and delivery ticks on the same line", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing voice message single line duration & ticks");
+      const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
+      const voiceMsg = {
+        _id: "m_voice1",
+        media: "https://linklet.org/audio/sample.mp3",
+        mediaType: "audio",
+        createdAt: testDate,
+        sender: { _id: "user1" },
+        readBy: ["user1", "user2"],
+      };
+
+      const { container } = render(
+        <MessageBubble
+          msg={voiceMsg}
+          isSent={true}
+          isMenuActive={false}
+          audioState={{ isPlaying: false, currentTime: 0, duration: 42 }}
+        />
+      );
+
+      const timeLabel = container.querySelector(".audio-time-label");
+      expect(timeLabel).toBeInTheDocument();
+      expect(timeLabel.textContent).toContain("0:42");
+      const tick = timeLabel.querySelector(".tick-read");
+      expect(tick).toBeInTheDocument();
+      expect(tick.textContent).toBe("done_all");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Voice message duration and ticks verified on same line");
+    });
+
+    it("renders image message with text at bottom on the left and time at exact bottom right", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing image with caption layout");
+      const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
+      const imgMsg = {
+        _id: "m_img1",
+        media: "https://linklet.org/images/cat.png",
+        mediaType: "image",
+        content: "Look at this cool cat",
+        createdAt: testDate,
+        sender: { _id: "user1" },
+        readBy: ["user1"],
+      };
+
+      const { container } = render(
+        <MessageBubble
+          msg={imgMsg}
+          isSent={true}
+          isMenuActive={false}
+        />
+      );
+
+      const img = container.querySelector("img");
+      expect(img).toBeInTheDocument();
+      expect(screen.getByText("Look at this cool cat")).toBeInTheDocument();
+
+      const meta = container.querySelector(".message-meta");
+      expect(meta).toBeInTheDocument();
+      expect(meta.querySelector(".tick-sent")).toBeInTheDocument();
+      console.log("TRACE [ChatModularComponents.test.jsx]: Image caption and time layout verified");
+    });
+  });
+
+  describe("MessageActionsToolbar (Standalone Circular WhatsApp Reaction Button)", () => {
+    it("renders circular smiley button and triggers onOpenReaction on click", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing MessageActionsToolbar circular reaction button");
+      const onOpenReaction = vi.fn();
+
+      render(
+        <MessageActionsToolbar
+          messageId="m_test1"
+          isReactionActive={false}
+          onOpenReaction={onOpenReaction}
+        />
+      );
+
+      const reactionBtn = screen.getByRole("button", { name: /react to message/i });
+      expect(reactionBtn).toBeInTheDocument();
+      expect(screen.getByText("sentiment_satisfied_alt")).toBeInTheDocument();
+
+      fireEvent.click(reactionBtn);
+      expect(onOpenReaction).toHaveBeenCalledWith(expect.anything(), "m_test1");
+      console.log("TRACE [ChatModularComponents.test.jsx]: MessageActionsToolbar reaction button verified successfully");
+    });
   });
 
   describe("useAudioPlayback Hook", () => {
@@ -198,6 +538,134 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
       render(<DateSeparator dateLabel="Today" />);
       expect(screen.getByText("Today")).toBeInTheDocument();
       console.log("TRACE [ChatModularComponents.test.jsx]: DateSeparator verified successfully");
+    });
+  });
+
+  describe("ChatMessagesList Component & Unread Messages Separator", () => {
+    it("renders unread messages separator above the first unread incoming message", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing ChatMessagesList unread separator");
+      const currentUser = { _id: "me123", username: "tanish" };
+      const chat = { _id: "c1", users: [currentUser, { _id: "other456", username: "alex" }] };
+      const messages = [
+        {
+          _id: "msg_read",
+          content: "Previous message",
+          sender: { _id: "other456", username: "alex" },
+          readBy: ["me123", "other456"],
+          createdAt: new Date(Date.now() - 60000).toISOString(),
+        },
+        {
+          _id: "msg_unread_1",
+          content: "First new message",
+          sender: { _id: "other456", username: "alex" },
+          readBy: ["other456"], // unread by me123
+          createdAt: new Date().toISOString(),
+        },
+        {
+          _id: "msg_unread_2",
+          content: "Second new message",
+          sender: { _id: "other456", username: "alex" },
+          readBy: ["other456"], // unread by me123
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      const { container } = render(
+        <ChatMessagesList
+          messages={messages}
+          currentUser={currentUser}
+          chat={chat}
+          selectedMessageIds={[]}
+          audioPlaybackState={{}}
+        />
+      );
+
+      expect(screen.getByText("2 Unread Messages")).toBeInTheDocument();
+      const separator = container.querySelector("#unread-messages-separator");
+      expect(separator).toBeInTheDocument();
+      console.log("TRACE [ChatModularComponents.test.jsx]: Unread separator element and id verified successfully");
+    });
+
+    it("renders delivery ticks with 13.5px size class for enhanced legibility", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing 13.5px delivery tick sizing");
+      const readMsg = {
+        _id: "m_read135",
+        content: "13.5px tick message",
+        createdAt: new Date().toISOString(),
+        sender: { _id: "user1" },
+        readBy: ["user1", "user2"],
+      };
+
+      const { container } = render(
+        <MessageBubble msg={readMsg} isSent={true} isMenuActive={false} />
+      );
+
+      const tickIcon = container.querySelector(".tick-read");
+      expect(tickIcon).toBeInTheDocument();
+      expect(tickIcon.className).toContain("text-[13.5px]");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Confirmed tick has text-[13.5px] styling");
+    });
+
+    it("does not display star icon badge when message is starred (per design spec: silent save)", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing that star icon is not rendered on bubble");
+      const starredMsg = {
+        _id: "msg_star_1",
+        content: "Starred message without visual star badge",
+        sender: { _id: "u1", username: "me" },
+        createdAt: new Date().toISOString(),
+      };
+
+      const { container } = render(
+        <MessageBubble
+          msg={starredMsg}
+          isSent={true}
+          isStarred={true}
+          isMenuActive={false}
+        />
+      );
+
+      const starIcon = container.querySelector(".material-icons.text-amber-400");
+      expect(starIcon).not.toBeInTheDocument();
+      console.log("TRACE [ChatModularComponents.test.jsx]: Confirmed star icon is not displayed on bubble");
+    });
+
+    it("applies compact mt-[3px] mb-0 spacing between consecutive messages from the same sender", () => {
+      console.log("TRACE [ChatModularComponents.test.jsx]: Testing compact message spacing");
+      const currentUser = { _id: "u1", username: "me" };
+      const chat = { _id: "c1", users: [currentUser] };
+      const messages = [
+        {
+          _id: "msg_a",
+          content: "First message from me",
+          sender: currentUser,
+          readBy: ["u1"],
+          createdAt: new Date(Date.now() - 10000).toISOString(),
+        },
+        {
+          _id: "msg_b",
+          content: "Second message from me",
+          sender: currentUser,
+          readBy: ["u1"],
+          createdAt: new Date().toISOString(),
+        },
+      ];
+
+      const { container } = render(
+        <ChatMessagesList
+          messages={messages}
+          currentUser={currentUser}
+          chat={chat}
+          selectedMessageIds={[]}
+          audioPlaybackState={{}}
+        />
+      );
+
+      const secondMsgRow = container.querySelector("#msg-msg_b");
+      expect(secondMsgRow).toBeInTheDocument();
+      // Should have compact mt-[3px] mb-0 spacing class
+      expect(secondMsgRow.className).toContain("mt-[3px]");
+      expect(secondMsgRow.className).toContain("mb-0");
+      console.log("TRACE [ChatModularComponents.test.jsx]: Compact mt-[3px] spacing confirmed between consecutive messages");
     });
   });
 });

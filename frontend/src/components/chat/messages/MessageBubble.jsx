@@ -1,14 +1,62 @@
 import React from "react";
-import TimeAgo from "../../TimeAgo";
 import MessageMedia from "./MessageMedia";
+
+export const formatMessageClock = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
+  } catch {
+    return "";
+  }
+};
+
+export const renderDeliveryTicks = (msg, isSent) => {
+  if (!isSent) return null;
+  if (msg.status === "sending") {
+    return <span className="material-icons tick-sending text-[13.5px]">schedule</span>;
+  }
+  if (msg.status === "failed") {
+    return (
+      <span className="material-icons text-red-400 text-[13.5px]">
+        error_outline
+      </span>
+    );
+  }
+  const isRead = Boolean(
+    msg.isRead ||
+    msg.status === "read" ||
+    msg.status === "seen" ||
+    (msg.readBy && msg.readBy.length > 1)
+  );
+  const isDelivered = Boolean(
+    isRead ||
+    msg.status === "delivered" ||
+    msg.isDelivered
+  );
+  return (
+    <span
+      className={`material-icons text-[13.5px] leading-none ${
+        isRead ? "tick-read" : "tick-sent"
+      }`}
+      title={isRead ? "Read" : isDelivered ? "Delivered" : "Sent"}
+    >
+      {isRead || isDelivered ? "done_all" : "done"}
+    </span>
+  );
+};
 
 const MessageBubble = ({
   msg,
   isSent,
   isSelected,
   isPinned,
+  isStarred,
   searchQuery,
   audioState,
+  isMenuActive,
+  onOpenMenu,
   onToggleAudioPlay,
   onSeekAudio,
   onOpenLightbox,
@@ -18,12 +66,28 @@ const MessageBubble = ({
     msg.content &&
     msg.content.toLowerCase().includes(searchQuery.toLowerCase());
 
+  // If message has media and no text caption, the media component (audio/image) handles its own inline timestamp
+  const showContentRow = !msg.media || Boolean(msg.content);
+
   return (
     <div
-      className={`message-bubble ${
+      className={`message-bubble relative group ${
         isSelected ? "ring-2 ring-violet-500/60" : ""
       }`}
     >
+      {/* WhatsApp Fixed Top-Right Dropdown Trigger Button (Overlapping, only visible on hover) */}
+      {onOpenMenu && (
+        <button
+          type="button"
+          onClick={(e) => onOpenMenu(e, msg._id)}
+          className={`msg-bubble-chevron-btn ${isMenuActive ? "active" : ""}`}
+          title="Message options"
+          aria-label="Message options"
+        >
+          <span className="material-icons">keyboard_arrow_down</span>
+        </button>
+      )}
+
       {/* Reply Preview */}
       {msg.replyTo && (
         <div className="p-2 mb-1.5 rounded bg-black/20 border-l-2 border-violet-400 text-xs text-gray-300">
@@ -36,67 +100,66 @@ const MessageBubble = ({
         </div>
       )}
 
-      {/* Message Content & Search Highlight */}
-      {msg.content && (
-        <div className="break-words">
-          {hasSearchMatch ? (
-            <span>
-              {msg.content
-                .split(new RegExp(`(${searchQuery})`, "gi"))
-                .map((part, pIdx) =>
-                  part.toLowerCase() === searchQuery.toLowerCase() ? (
-                    <mark key={pIdx} className="search-match-highlight">
-                      {part}
-                    </mark>
-                  ) : (
-                    part
-                  )
-                )}
-            </span>
-          ) : (
-            msg.content
-          )}
-        </div>
-      )}
-
       {/* Media Rendering */}
       <MessageMedia
         msg={msg}
+        isSent={isSent}
+        formatMessageClock={formatMessageClock}
+        renderDeliveryTicks={renderDeliveryTicks}
         audioState={audioState}
         onToggleAudioPlay={onToggleAudioPlay}
         onSeekAudio={onSeekAudio}
         onOpenLightbox={onOpenLightbox}
       />
 
-      {/* Message Metadata & WhatsApp Delivery Ticks */}
-      <div className="message-meta">
-        {isPinned && (
-          <span className="material-icons text-[11px] text-violet-300">
-            push_pin
-          </span>
-        )}
-        {msg.isEdited && <span>(edited)</span>}
-        <TimeAgo date={msg.createdAt} />
-        {isSent && (
-          <span>
-            {msg.status === "sending" ? (
-              <span className="material-icons tick-sending">schedule</span>
-            ) : msg.status === "failed" ? (
-              <span className="material-icons text-red-400 text-xs">
-                error_outline
-              </span>
-            ) : (
-              <span
-                className={`material-icons text-xs ${
-                  msg.readBy?.length > 1 ? "tick-read" : "tick-sent"
-                }`}
-              >
-                {msg.readBy?.length > 1 ? "done_all" : "done"}
+      {/* Message Content & Metadata (For text messages or captions on bottom of media with time on exact bottom right) */}
+      {showContentRow && (
+        <div className={`message-content-row flex flex-wrap items-end justify-between gap-x-2.5 ${msg.media ? "pt-1.5 px-0.5" : ""}`}>
+          {msg.content && (
+            <div className="break-words flex-1 min-w-[50px] leading-[1.35] select-text">
+              {hasSearchMatch ? (
+                <span>
+                  {msg.content
+                    .split(new RegExp(`(${searchQuery})`, "gi"))
+                    .map((part, pIdx) =>
+                      part.toLowerCase() === searchQuery.toLowerCase() ? (
+                        <mark key={pIdx} className="search-match-highlight">
+                          {part}
+                        </mark>
+                      ) : (
+                        part
+                      )
+                    )}
+                </span>
+              ) : (
+                msg.content
+              )}
+            </div>
+          )}
+
+          {/* Message Metadata & Delivery Ticks (Directly at right, zero trailing space) */}
+          <div className="message-meta inline-flex items-center ml-auto flex-shrink-0 select-none self-end">
+            {isPinned && (
+              <span className="material-icons text-[11px] text-violet-300 mr-1" title="Pinned message">
+                push_pin
               </span>
             )}
-          </span>
-        )}
-      </div>
+
+            {msg.isEdited && <span className="text-[10px] opacity-75 mr-1">(edited)</span>}
+            <span
+              className="cursor-default text-[11px] opacity-80 whitespace-nowrap"
+              title={msg.createdAt ? new Date(msg.createdAt).toLocaleString() : ""}
+            >
+              {formatMessageClock(msg.createdAt)}
+            </span>
+            {isSent && (
+              <span className="ml-1.5 flex items-center">
+                {renderDeliveryTicks(msg, isSent)}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

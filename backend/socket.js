@@ -1,6 +1,8 @@
 import { Server } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+import { User } from "./models/users.js";
 import { getRedisClient } from "./src/utils/redis.js";
 import logger from "./src/utils/logger.js";
 
@@ -152,12 +154,18 @@ export const initializeSocket = async (server) => {
     socket.on("typing", (data) => {
       if (data && data.chatId) {
         socket.to(data.chatId).emit("typing", data);
+        if (data.recipientId) {
+          socket.to(data.recipientId.toString()).emit("typing", data);
+        }
       }
     });
 
     socket.on("stop typing", (data) => {
       if (data && data.chatId) {
         socket.to(data.chatId).emit("stop typing", data);
+        if (data.recipientId) {
+          socket.to(data.recipientId.toString()).emit("stop typing", data);
+        }
       }
     });
 
@@ -232,9 +240,22 @@ export const initializeSocket = async (server) => {
       if (socket.userId) {
         const uid = socket.userId.toString();
         onlineUsers.delete(uid);
+        const lastSeen = new Date();
+
+        try {
+          if (mongoose.connection?.readyState === 1 && User && typeof User.findByIdAndUpdate === "function") {
+            User.findByIdAndUpdate(uid, { lastSeen }, { new: false }).catch((err) => {
+              logger.warn(`Failed to update lastSeen for user ${uid}: ${err.message}`);
+            });
+          }
+        } catch (err) {
+          // ignore error in tests or uninitialized mongo
+        }
+
         // Broadcast single lightweight delta event to remaining connected peers
         socket.broadcast.emit("user_disconnected", {
           userId: uid,
+          lastSeen,
         });
       }
     });

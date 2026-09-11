@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import EmojiPicker from "emoji-picker-react";
 import ReplyingBanner from "./ReplyingBanner";
 import EditingBanner from "./EditingBanner";
@@ -28,9 +28,32 @@ const ChatComposer = ({
   onStopAndSendAudio,
 }) => {
   const fileInputRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+  const emojiBtnRef = useRef(null);
+
+  // Close emoji picker on click outside
+  useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+
+    const handleClickOutside = (e) => {
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(e.target) &&
+        emojiBtnRef.current &&
+        !emojiBtnRef.current.contains(e.target)
+      ) {
+        setIsEmojiPickerOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isEmojiPickerOpen, setIsEmojiPickerOpen]);
 
   return (
-    <div className="chat-composer-container">
+    <div className="chat-composer-container relative">
       {/* Replying To Banner */}
       <ReplyingBanner replyingTo={replyingTo} onCancelReply={onCancelReply} />
 
@@ -40,23 +63,21 @@ const ChatComposer = ({
         onCancelEdit={onCancelEdit}
       />
 
-      {/* Pre-Send Attachment Preview Tray */}
+      {/* Attachment Previews Tray */}
       <AttachmentPreviewTray
-        previews={filePreviews}
+        filePreviews={filePreviews}
         onRemoveFile={onRemoveFile}
       />
 
-      {/* Voice Note Recording Tray or Main Text Input Bar */}
+      {/* Voice Note Recording Tray or Main Input Bar */}
       {isRecordingAudio ? (
         <VoiceNoteRecordingTray
-          isRecording={isRecordingAudio}
           recordingSeconds={recordingSeconds}
-          onCancel={onCancelRecordAudio}
+          onCancelRecord={onCancelRecordAudio}
           onStopAndSend={onStopAndSendAudio}
         />
       ) : (
-        <form onSubmit={onSendMessage} className="chat-composer">
-          {/* Attachment button */}
+        <form onSubmit={onSendMessage} className="chat-input-form relative">
           <input
             type="file"
             ref={fileInputRef}
@@ -76,6 +97,7 @@ const ChatComposer = ({
 
           {/* Emoji Picker Button */}
           <button
+            ref={emojiBtnRef}
             type="button"
             onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
             className="composer-icon-btn"
@@ -84,9 +106,9 @@ const ChatComposer = ({
             <span className="material-icons">sentiment_satisfied_alt</span>
           </button>
 
-          {/* Floating Emoji Picker Popover */}
+          {/* Floating Emoji Picker Popover - Hover Upwards */}
           {isEmojiPickerOpen && (
-            <div className="emoji-picker-container">
+            <div ref={emojiPickerRef} className="emoji-picker-container">
               <EmojiPicker
                 theme="dark"
                 onEmojiClick={(emojiData) => {
@@ -111,13 +133,10 @@ const ChatComposer = ({
           {newMessage.trim() || selectedFiles.length > 0 ? (
             <button
               type="submit"
-              disabled={isSending}
-              className="send-btn disabled:opacity-50"
+              className="send-btn"
               title="Send message"
             >
-              <span className="material-icons">
-                {isSending ? "hourglass_top" : "send"}
-              </span>
+              <span className="material-icons">send</span>
             </button>
           ) : (
             <button

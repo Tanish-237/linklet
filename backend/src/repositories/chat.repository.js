@@ -11,6 +11,7 @@ export const createChat = async (chatData) => {
   return Chat.findById(chat._id)
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .lean();
 };
 
@@ -21,6 +22,7 @@ export const findChatById = async (chatId) => {
   return Chat.findById(chatId)
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .populate({
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
@@ -54,8 +56,9 @@ export const findOneToOneChat = async (userId, targetUserId) => {
  */
 export const findChatsByUser = async (userId) => {
   return Chat.find({ participants: userId })
-    .populate("participants", "username fullName avatar")
+    .populate("participants", "username fullName avatar lastSeen")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .populate({
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
@@ -75,6 +78,7 @@ export const updateChat = async (chatId, updateData) => {
   return Chat.findByIdAndUpdate(chatId, updateData, { new: true })
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .lean();
 };
 
@@ -89,6 +93,7 @@ export const addParticipants = async (chatId, userIds) => {
   )
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .lean();
 };
 
@@ -98,11 +103,42 @@ export const addParticipants = async (chatId, userIds) => {
 export const removeParticipant = async (chatId, userId) => {
   return Chat.findByIdAndUpdate(
     chatId,
-    { $pull: { participants: userId } },
+    { $pull: { participants: userId, groupAdmins: userId } },
     { new: true }
   )
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
+    .lean();
+};
+
+/**
+ * Add a user to group admins list.
+ */
+export const addGroupAdmin = async (chatId, userId) => {
+  return Chat.findByIdAndUpdate(
+    chatId,
+    { $addToSet: { groupAdmins: userId } },
+    { new: true }
+  )
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
+    .lean();
+};
+
+/**
+ * Remove a user from group admins list.
+ */
+export const removeGroupAdmin = async (chatId, userId) => {
+  return Chat.findByIdAndUpdate(
+    chatId,
+    { $pull: { groupAdmins: userId } },
+    { new: true }
+  )
+    .populate("participants", "username fullName avatar")
+    .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .lean();
 };
 
@@ -120,21 +156,24 @@ export const deleteChat = async (chatId) => {
  * Create a new message and update the parent chat's lastMessage.
  */
 export const createMessage = async (messageData) => {
-  let message = await Message.create(messageData);
-  message = await message.populate("sender", "username fullName avatar");
-  message = await message.populate("chat");
-  message = await message.populate({
-    path: "replyTo",
-    populate: { path: "sender", select: "username fullName avatar" },
-  });
+  const message = await Message.create(messageData);
 
-  // Update the chat's lastMessage and bump updatedAt
-  await Chat.findByIdAndUpdate(messageData.chat, {
-    lastMessage: message._id,
-    updatedAt: Date.now(),
-  });
+  const [populatedMsg] = await Promise.all([
+    message.populate([
+      { path: "sender", select: "username fullName avatar" },
+      { path: "chat" },
+      {
+        path: "replyTo",
+        populate: { path: "sender", select: "username fullName avatar" },
+      },
+    ]),
+    Chat.findByIdAndUpdate(messageData.chat, {
+      lastMessage: message._id,
+      updatedAt: Date.now(),
+    }),
+  ]);
 
-  return message.toObject ? message.toObject() : message;
+  return populatedMsg.toObject ? populatedMsg.toObject() : populatedMsg;
 };
 
 /**
@@ -245,6 +284,7 @@ export const pinChatMessage = async (chatId, messageId) => {
   )
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .populate({
       path: "pinnedMessages",
       populate: { path: "sender", select: "username fullName avatar" },
@@ -263,6 +303,7 @@ export const unpinChatMessage = async (chatId, messageId) => {
   )
     .populate("participants", "username fullName avatar")
     .populate("groupAdmin", "username fullName avatar")
+    .populate("groupAdmins", "username fullName avatar")
     .populate({
       path: "pinnedMessages",
       populate: { path: "sender", select: "username fullName avatar" },

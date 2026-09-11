@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-export const RELEASE_VERSION = "v1.6.1";
+export const RELEASE_VERSION = "v1.6.2";
 export const STORAGE_KEY = "linklet_last_seen_version";
 
 export const isReleaseSeen = (version = RELEASE_VERSION) => {
@@ -85,7 +85,7 @@ export default function WhatsNewDropdown({
         >
           <span>What's New</span>
           <span className="text-[10px] font-mono text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
-            v1.6.1
+            v1.6.2
           </span>
         </button>
       )}
@@ -99,32 +99,35 @@ export default function WhatsNewDropdown({
         >
           {/* Header */}
           <div className="p-3.5 border-b border-gray-800/80 bg-gray-950/50 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6.1</h3>
+            <h3 className="font-semibold text-gray-100 text-sm">What's new in v1.6.2</h3>
             <span className="text-[10px] font-mono text-violet-300 bg-violet-950/70 border border-violet-800/50 px-1.5 py-0.5 rounded">
-              v1.6.1
+              v1.6.2
             </span>
           </div>
 
           {/* Clean, Human-Written Release Notes */}
           <ul className="p-4 space-y-3 text-xs text-gray-300 overflow-y-auto max-h-[50dvh] sm:max-h-none">
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Modular chat architecture:</span> Complete decomposition into clean, high-performance subcomponents with dedicated hooks for messages, voice audio, and search.
+              <span className="text-gray-100 font-medium">Faster, smoother chat switching:</span> Moving between direct and group conversations is now instantaneous without any visual hiccups.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">WhatsApp-grade voice notes:</span> In-chat voice recording tray with live pulsing timer, waveform audio player, and custom scrub controls.
+              <span className="text-gray-100 font-medium">Accurate unread counters:</span> Message badges now reliably track only incoming messages you haven't read yet, never your own sent messages.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">In-chat search & navigation:</span> Instant query highlighting with match indexing counter and Up/Down jump navigation.
+              <span className="text-gray-100 font-medium">Mark as unread:</span> Easily mark any conversation as unread from the options menu so you remember to follow up later.
             </li>
             <li className="leading-relaxed">
-              <span className="text-gray-100 font-medium">Hover actions & viewport menus:</span> WhatsApp-style external hover toolbar eliminating message text overlap, plus intelligent auto-flipping dropdowns.
+              <span className="text-gray-100 font-medium">Clean welcome screen:</span> Enjoy an uncluttered view when opening chats, with a dedicated prompt to search and connect with peers.
+            </li>
+            <li className="leading-relaxed">
+              <span className="text-gray-100 font-medium">Group admin management:</span> Promote members to group admins and manage group settings with streamlined controls.
             </li>
           </ul>
 
           {/* Footer */}
           <div className="p-3 border-t border-gray-800/80 bg-gray-950/50 flex items-center justify-between text-xs">
             <a
-              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.1"
+              href="https://github.com/Tanish-237/linklet/releases/tag/v1.6.2"
               target="_blank"
               rel="noopener noreferrer"
               className="text-gray-400 hover:text-violet-300 transition-colors flex items-center gap-1 font-medium"

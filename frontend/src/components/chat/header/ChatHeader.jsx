@@ -1,9 +1,11 @@
 import React from "react";
+import { formatLastSeen } from "../../../utlis/chatDateUtils";
 
 const ChatHeader = ({
   chat,
   currentUser,
   onlineUsers = [],
+  lastSeenMap = {},
   typingUsers = [],
   onToggleInfo,
   onBackToSidebar,
@@ -16,11 +18,14 @@ const ChatHeader = ({
         (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
       );
 
+  const otherUserId = (otherUser?._id || otherUser)?.toString();
   const isOnline =
-    otherUser &&
-    onlineUsers.some(
-      (id) => id.toString() === (otherUser._id || otherUser)?.toString()
-    );
+    otherUserId &&
+    onlineUsers.some((id) => id.toString() === otherUserId);
+
+  const userLastSeen = otherUserId
+    ? lastSeenMap[otherUserId] || otherUser?.lastSeen
+    : null;
 
   return (
     <div className="chat-header">
@@ -58,22 +63,24 @@ const ChatHeader = ({
             <div className="chat-header-name">
               {chat.isGroup ? chat.chatName : otherUser?.username}
             </div>
-            <div className="chat-header-status flex items-center gap-1">
+            <div className="chat-header-status flex items-center gap-1 text-xs">
               {typingUsers.length > 0 ? (
-                <span className="text-violet-400 font-medium italic flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-                  typing...
+                <span className="text-emerald-400 font-medium italic flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  {chat.isGroup
+                    ? `${typingUsers[0]} is typing...`
+                    : "typing..."}
                 </span>
               ) : chat.isGroup ? (
-                <span>{chat.participants?.length || 0} members</span>
+                <span className="text-gray-400">
+                  {chat.participants?.length || 0} members
+                </span>
               ) : isOnline ? (
-                <>
-                  <span className="status-dot online" /> Online
-                </>
+                <span className="text-emerald-400 font-medium">online</span>
               ) : (
-                <>
-                  <span className="status-dot offline" /> Offline
-                </>
+                <span className="text-gray-400">
+                  {formatLastSeen(userLastSeen)}
+                </span>
               )}
             </div>
           </div>
@@ -93,16 +100,6 @@ const ChatHeader = ({
           title="Search messages"
         >
           <span className="material-icons text-xl">search</span>
-        </button>
-
-        {/* Info Panel Toggle */}
-        <button
-          type="button"
-          onClick={onToggleInfo}
-          className="text-gray-400 hover:text-white p-2 rounded-full hover:bg-gray-800/50 transition-colors cursor-pointer"
-          title="Chat info"
-        >
-          <span className="material-icons text-xl">info_outline</span>
         </button>
       </div>
     </div>

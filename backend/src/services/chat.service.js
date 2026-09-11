@@ -50,6 +50,21 @@ export const accessOrCreateChat = async (userId, targetUserId) => {
 // ─── Group Chat ─────────────────────────────────────────────────────────────
 
 /**
+ * Helper to check if a user is an admin of the group.
+ */
+export const isUserGroupAdmin = (chat, userId) => {
+  if (!chat || !userId) return false;
+  const uid = (userId._id || userId).toString();
+  if (chat.groupAdmin && (chat.groupAdmin._id || chat.groupAdmin).toString() === uid) {
+    return true;
+  }
+  if (Array.isArray(chat.groupAdmins)) {
+    return chat.groupAdmins.some((a) => (a._id || a).toString() === uid);
+  }
+  return false;
+};
+
+/**
  * Create a new group chat.
  */
 export const createGroup = async (userId, { chatName, participants }) => {
@@ -68,6 +83,7 @@ export const createGroup = async (userId, { chatName, participants }) => {
     isGroup: true,
     participants: allParticipants,
     groupAdmin: userId,
+    groupAdmins: [userId],
   });
 
   await invalidateUserChatsCache(allParticipants);
@@ -82,11 +98,14 @@ export const renameGroup = async (chatId, userId, newName) => {
   const chat = await chatRepo.findChatById(chatId);
   if (!chat) throw new AppError("Chat not found", 404);
   if (!chat.isGroup) throw new AppError("Cannot rename a 1:1 chat", 400);
-  if (chat.groupAdmin._id.toString() !== userId.toString()) {
-    throw new AppError("Only the group admin can rename the group", 403);
+  if (!isUserGroupAdmin(chat, userId)) {
+    throw new AppError("Only group admins can rename the group", 403);
   }
   if (!newName || !newName.trim()) {
     throw new AppError("Group name is required", 400);
+  }
+  if (chat.chatName && chat.chatName.trim() === newName.trim()) {
+    throw new AppError("New group name cannot be the same as the current name", 400);
   }
 
   const updated = await chatRepo.updateChat(chatId, { chatName: newName.trim() });
@@ -101,8 +120,8 @@ export const addToGroup = async (chatId, userId, userIds) => {
   const chat = await chatRepo.findChatById(chatId);
   if (!chat) throw new AppError("Chat not found", 404);
   if (!chat.isGroup) throw new AppError("Cannot add members to a 1:1 chat", 400);
-  if (chat.groupAdmin._id.toString() !== userId.toString()) {
-    throw new AppError("Only the group admin can add members", 403);
+  if (!isUserGroupAdmin(chat, userId)) {
+    throw new AppError("Only group admins can add members", 403);
   }
   if (!userIds || userIds.length === 0) {
     throw new AppError("At least one user ID is required", 400);
@@ -121,8 +140,8 @@ export const removeFromGroup = async (chatId, adminId, targetUserId) => {
   const chat = await chatRepo.findChatById(chatId);
   if (!chat) throw new AppError("Chat not found", 404);
   if (!chat.isGroup) throw new AppError("Cannot remove members from a 1:1 chat", 400);
-  if (chat.groupAdmin._id.toString() !== adminId.toString()) {
-    throw new AppError("Only the group admin can remove members", 403);
+  if (!isUserGroupAdmin(chat, adminId)) {
+    throw new AppError("Only group admins can remove members", 403);
   }
   if (adminId.toString() === targetUserId.toString()) {
     throw new AppError("Admin cannot remove themselves. Use leave group instead.", 400);
@@ -131,6 +150,68 @@ export const removeFromGroup = async (chatId, adminId, targetUserId) => {
   const updated = await chatRepo.removeParticipant(chatId, targetUserId);
   await invalidateUserChatsCache([...chat.participants, targetUserId]);
   logger.info(`Removed user ${targetUserId} from group ${chatId}`);
+  return updated;
+};
+
+/**
+ * Promote a member to group admin.
+ */
+export const promoteToAdmin = async (chatId, requesterId, targetUserId) => {
+  const chat = await chatRepo.findChatById(chatId);
+  if (!chat) throw new AppError("Chat not found", 404);
+  if (!chat.isGroup) throw new AppError("Cannot promote in a 1:1 chat", 400);
+  if (!isUserGroupAdmin(chat, requesterId)) {
+    throw new AppError("Only group admins can promote members", 403);
+  }
+
+  const isMember = chat.participants.some(
+    (p) => (p._id || p).toString() === targetUserId.toString()
+  );
+  if (!isMember) {
+    throw new AppError("User is not a member of this group", 400);
+  }
+
+  if (isUserGroupAdmin(chat, targetUserId)) {
+    throw new AppError("User is already a group admin", 400);
+  }
+
+  const updated = await chatRepo.addGroupAdmin(chatId, targetUserId);
+  await invalidateUserChatsCache(chat.participants);
+  logger.info(`User ${targetUserId} promoted to admin in group ${chatId} by ${requesterId}`);
+  return updated;
+};
+
+/**
+ * Demote a group admin.
+ */
+export const demoteAdmin = async (chatId, requesterId, targetUserId) => {
+  const chat = await chatRepo.findChatById(chatId);
+  if (!chat) throw new AppError("Chat not found", 404);
+  if (!chat.isGroup) throw new AppError("Cannot demote in a 1:1 chat", 400);
+  if (!isUserGroupAdmin(chat, requesterId)) {
+    throw new AppError("Only group admins can demote other admins", 403);
+  }
+
+  if (!isUserGroupAdmin(chat, targetUserId)) {
+    throw new AppError("User is not a group admin", 400);
+  }
+
+  const allAdminIds = [
+    ...(chat.groupAdmins?.map((a) => (a._id || a).toString()) || []),
+    ...(chat.groupAdmin ? [(chat.groupAdmin._id || chat.groupAdmin).toString()] : []),
+  ];
+  const uniqueAdmins = [...new Set(allAdminIds)];
+  if (uniqueAdmins.length <= 1) {
+    throw new AppError("Cannot demote the only admin of the group", 400);
+  }
+
+  let updated = await chatRepo.removeGroupAdmin(chatId, targetUserId);
+  if (chat.groupAdmin && (chat.groupAdmin._id || chat.groupAdmin).toString() === targetUserId.toString()) {
+    updated = await chatRepo.updateChat(chatId, { groupAdmin: requesterId });
+  }
+
+  await invalidateUserChatsCache(chat.participants);
+  logger.info(`User ${targetUserId} demoted from admin in group ${chatId} by ${requesterId}`);
   return updated;
 };
 
@@ -151,19 +232,32 @@ export const leaveGroup = async (chatId, userId) => {
 
   await invalidateUserChatsCache(chat.participants);
 
-  // If the user is admin, transfer admin to the next participant
-  if (chat.groupAdmin._id.toString() === userId.toString()) {
-    const nextAdmin = chat.participants.find(
-      (p) => (p._id || p).toString() !== userId.toString()
-    );
-    if (nextAdmin) {
-      await chatRepo.updateChat(chatId, { groupAdmin: nextAdmin._id });
-      logger.info(`Admin transferred to ${nextAdmin._id} in group ${chatId}`);
+  // If user was an admin
+  const wasAdmin = isUserGroupAdmin(chat, userId);
+  if (wasAdmin) {
+    const remainingAdmins = (chat.groupAdmins || [])
+      .map((a) => (a._id || a).toString())
+      .filter((id) => id !== userId.toString());
+
+    if (remainingAdmins.length > 0) {
+      if (chat.groupAdmin && (chat.groupAdmin._id || chat.groupAdmin).toString() === userId.toString()) {
+        await chatRepo.updateChat(chatId, { groupAdmin: remainingAdmins[0] });
+      }
     } else {
-      // Last person leaving — delete the chat
-      await chatRepo.deleteChat(chatId);
-      logger.info(`Group ${chatId} deleted — last member left`);
-      return null;
+      const nextMember = chat.participants.find(
+        (p) => (p._id || p).toString() !== userId.toString()
+      );
+      if (nextMember) {
+        await chatRepo.updateChat(chatId, {
+          groupAdmin: nextMember._id,
+          groupAdmins: [nextMember._id],
+        });
+        logger.info(`Admin transferred to ${nextMember._id} in group ${chatId}`);
+      } else {
+        await chatRepo.deleteChat(chatId);
+        logger.info(`Group ${chatId} deleted — last member left`);
+        return null;
+      }
     }
   }
 
@@ -214,9 +308,6 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
     files = [filesParam];
   }
 
-  // Invalidate redis cache for all participants so their chat list shows the updated lastMessage
-  await invalidateUserChatsCache(chat.participants);
-
   // If no files, create a single text message
   if (files.length === 0) {
     if (!content || !content.trim()) {
@@ -229,8 +320,13 @@ export const sendMessage = async (userId, { chatId, content, replyTo }, filesPar
       readBy: [userId],
     };
     if (replyTo) messageData.replyTo = replyTo;
-    return chatRepo.createMessage(messageData);
+    const message = await chatRepo.createMessage(messageData);
+    invalidateUserChatsCache(chat.participants).catch(() => {});
+    return message;
   }
+
+  // Invalidate redis cache for all participants
+  await invalidateUserChatsCache(chat.participants);
 
   // If there are files, upload each file and create messages
   const createdMessages = [];
@@ -328,10 +424,11 @@ export const editMessage = async (userId, { chatId, messageId, content }) => {
 export const deleteMessage = async (userId, { chatId, messageId }) => {
   const message = await chatRepo.findMessageById(messageId);
   if (!message) throw new AppError("Message not found", 404);
-  if (message.sender._id.toString() !== userId.toString()) {
+  const senderId = message.sender?._id?.toString() || message.sender?.toString();
+  if (senderId !== userId.toString()) {
     throw new AppError("You can only delete your own messages", 403);
   }
-  if (message.chat?.toString() !== chatId && message.chat?._id?.toString() !== chatId) {
+  if (chatId && message.chat?.toString() !== chatId && message.chat?._id?.toString() !== chatId) {
     throw new AppError("Message does not belong to this chat", 400);
   }
 
@@ -502,11 +599,19 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
     throw new AppError("You are not a participant in the target chat", 403);
   }
 
-  const forwardedMessages = [];
+  const originalMessages = [];
   for (const msgId of messageIds) {
     const originalMsg = await chatRepo.findMessageById(msgId);
-    if (!originalMsg) continue;
+    if (originalMsg) originalMessages.push(originalMsg);
+  }
 
+  // Sort chronologically ascending based on original creation date
+  originalMessages.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+
+  const forwardedMessages = [];
+  for (const originalMsg of originalMessages) {
     const messageData = {
       sender: userId,
       chat: targetChatId,
@@ -525,7 +630,7 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
     forwardedMessages.push(forwardedMsg);
   }
 
-  await invalidateUserChatsCache(targetChat.participants);
+  invalidateUserChatsCache(targetChat.participants).catch(() => {});
   return forwardedMessages;
 };
 
@@ -533,16 +638,19 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
  * Bulk delete multiple messages.
  */
 export const deleteMultipleMessages = async (userId, { chatId, messageIds }) => {
-  if (!chatId || !messageIds || messageIds.length === 0) {
-    throw new AppError("Chat ID and message IDs are required", 400);
+  if (!messageIds || messageIds.length === 0) {
+    throw new AppError("Message IDs are required", 400);
   }
 
   const deletedIds = [];
   for (const msgId of messageIds) {
     const message = await chatRepo.findMessageById(msgId);
-    if (message && message.sender._id.toString() === userId.toString()) {
-      await chatRepo.deleteMessage(msgId);
-      deletedIds.push(msgId);
+    if (message) {
+      const senderId = message.sender?._id?.toString() || message.sender?.toString();
+      if (senderId === userId.toString()) {
+        await chatRepo.deleteMessage(msgId);
+        deletedIds.push(msgId);
+      }
     }
   }
 
