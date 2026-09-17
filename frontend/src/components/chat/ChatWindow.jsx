@@ -231,15 +231,11 @@ const ChatWindow = ({
   const scrollToBottom = useCallback((behavior = "smooth") => {
     const container = chatContainerRef.current;
     if (container) {
-      if (behavior === "auto") {
-        container.style.scrollBehavior = "auto";
-        container.scrollTop = container.scrollHeight;
+      container.style.scrollBehavior = "auto";
+      if (behavior === "smooth" && typeof container.scrollTo === "function") {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       } else {
-        container.style.scrollBehavior = "smooth";
         container.scrollTop = container.scrollHeight;
-        setTimeout(() => {
-          if (container) container.style.scrollBehavior = "auto";
-        }, 400);
       }
     } else {
       messagesEndRef.current?.scrollIntoView({ behavior });

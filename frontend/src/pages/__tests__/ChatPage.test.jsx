@@ -35,6 +35,9 @@ vi.mock("../../hooks/useSocket", () => ({
 describe("ChatPage Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    window.innerWidth = 1024;
+    window.dispatchEvent(new Event("resize"));
   });
 
   it("fetches user chats on mount and renders layout", async () => {
