@@ -28,6 +28,8 @@ const mockCreateManyMessages = jest.fn();
 const mockDeleteManyMessages = jest.fn();
 const mockIsParticipant = jest.fn();
 const mockChatExists = jest.fn();
+const mockGetBlockStatus = jest.fn();
+const mockFilterExistingUserIds = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   createChat: mockCreateChat,
@@ -56,6 +58,8 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   deleteManyMessages: mockDeleteManyMessages,
   isParticipant: mockIsParticipant,
   chatExists: mockChatExists,
+  getBlockStatus: mockGetBlockStatus,
+  filterExistingUserIds: mockFilterExistingUserIds,
 }));
 
 jest.unstable_mockModule('../src/utils/cloudinary.js', () => ({
@@ -69,6 +73,8 @@ describe('Chat Service Unit Tests', () => {
     jest.clearAllMocks();
     mockIsParticipant.mockResolvedValue(true);
     mockChatExists.mockResolvedValue(true);
+    mockGetBlockStatus.mockResolvedValue({ iBlockedThem: false, theyBlockedMe: false });
+    mockFilterExistingUserIds.mockImplementation(async (ids) => ids);
     mockCreateManyMessages.mockImplementation((arr) =>
       Promise.resolve(
         arr.map((item, idx) => ({
@@ -290,6 +296,91 @@ describe('Chat Service Unit Tests', () => {
         chatService.sendMessage('user1', { chatId: 'chat1', content: 'Hi' })
       ).rejects.toThrow(AppError);
     });
+
+    it('blocks sending a direct message if the sender has blocked the recipient', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - sender blocked recipient');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        isGroup: false,
+        participants: [{ _id: 'user1' }, { _id: 'user2' }],
+      });
+      mockGetBlockStatus.mockResolvedValue({ iBlockedThem: true, theyBlockedMe: false });
+
+      await expect(
+        chatService.sendMessage('user1', { chatId: 'chat1', content: 'Hi' })
+      ).rejects.toThrow('You have blocked this user');
+      expect(mockCreateMessage).not.toHaveBeenCalled();
+    });
+
+    it('blocks sending a direct message if the recipient has blocked the sender', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - recipient blocked sender');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        isGroup: false,
+        participants: [{ _id: 'user1' }, { _id: 'user2' }],
+      });
+      mockGetBlockStatus.mockResolvedValue({ iBlockedThem: false, theyBlockedMe: true });
+
+      await expect(
+        chatService.sendMessage('user1', { chatId: 'chat1', content: 'Hi' })
+      ).rejects.toThrow('You cannot send messages to this user');
+      expect(mockCreateMessage).not.toHaveBeenCalled();
+    });
+
+    it('does not enforce blocking in group chats', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - blocking exempt in groups');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        isGroup: true,
+        participants: [{ _id: 'user1' }, { _id: 'user2' }, { _id: 'user3' }],
+      });
+      const createdMsg = { _id: 'm1', content: 'Hello group', chat: 'chat1', sender: 'user1' };
+      mockCreateMessage.mockResolvedValue(createdMsg);
+
+      const result = await chatService.sendMessage('user1', { chatId: 'chat1', content: 'Hello group' });
+      expect(result).toBe(createdMsg);
+      expect(mockGetBlockStatus).not.toHaveBeenCalled();
+    });
+
+    it('allows replying to a message that belongs to the same chat', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - valid same-chat replyTo');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }, { _id: 'user2' }],
+      });
+      mockFindMessageById.mockResolvedValue({ _id: 'm0', chat: 'chat1' });
+      const createdMsg = { _id: 'm1', content: 'Hello', chat: 'chat1', sender: 'user1', replyTo: 'm0' };
+      mockCreateMessage.mockResolvedValue(createdMsg);
+
+      const result = await chatService.sendMessage('user1', {
+        chatId: 'chat1',
+        content: 'Hello',
+        replyTo: 'm0',
+      });
+
+      expect(result).toBe(createdMsg);
+      expect(mockCreateMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ replyTo: 'm0' })
+      );
+    });
+
+    it('rejects replying to a message from a different chat (would leak its content)', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - cross-chat replyTo blocked');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }, { _id: 'user2' }],
+      });
+      mockFindMessageById.mockResolvedValue({ _id: 'm0', chat: 'a-different-chat' });
+
+      await expect(
+        chatService.sendMessage('user1', {
+          chatId: 'chat1',
+          content: 'Hello',
+          replyTo: 'm0',
+        })
+      ).rejects.toThrow('Cannot reply to a message from a different chat');
+      expect(mockCreateMessage).not.toHaveBeenCalled();
+    });
   });
 
   describe('toggleMessageReaction', () => {
@@ -299,6 +390,7 @@ describe('Chat Service Unit Tests', () => {
         _id: 'chat1',
         participants: [{ _id: 'user1' }],
       });
+      mockFindMessageById.mockResolvedValue({ _id: 'm1', chat: 'chat1' });
       const updatedMsg = {
         _id: 'm1',
         reactions: [{ user: 'user1', emoji: '❤️' }],
@@ -315,6 +407,25 @@ describe('Chat Service Unit Tests', () => {
       expect(result).toBe(updatedMsg);
       expect(mockToggleReaction).toHaveBeenCalledWith('m1', 'user1', '❤️');
     });
+
+    it('rejects reacting to a message that belongs to a different chat', async () => {
+      console.log('TRACE [chat.test.js]: Testing toggleMessageReaction - cross-chat message rejected');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      // Message actually lives in a chat the caller has nothing to do with
+      mockFindMessageById.mockResolvedValue({ _id: 'm1', chat: 'someone-elses-chat' });
+
+      await expect(
+        chatService.toggleMessageReaction('user1', {
+          chatId: 'chat1',
+          messageId: 'm1',
+          emoji: '❤️',
+        })
+      ).rejects.toThrow('Message does not belong to this chat');
+      expect(mockToggleReaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('pinMessage & unpinMessage', () => {
@@ -324,6 +435,7 @@ describe('Chat Service Unit Tests', () => {
         _id: 'chat1',
         participants: [{ _id: 'user1' }],
       });
+      mockFindMessageById.mockResolvedValue({ _id: 'm1', chat: 'chat1' });
       const updatedChat = { _id: 'chat1', pinnedMessages: ['m1'] };
       mockPinChatMessage.mockResolvedValue(updatedChat);
 
@@ -343,6 +455,7 @@ describe('Chat Service Unit Tests', () => {
         _id: 'chat1',
         participants: [{ _id: 'user1' }],
       });
+      mockFindMessageById.mockResolvedValue({ _id: 'm1', chat: 'chat1' });
       const updatedChat = { _id: 'chat1', pinnedMessages: [] };
       mockUnpinChatMessage.mockResolvedValue(updatedChat);
 
@@ -354,6 +467,21 @@ describe('Chat Service Unit Tests', () => {
       console.log('TRACE [chat.test.js]: Message unpinned from chat:', result.pinnedMessages);
       expect(result).toBe(updatedChat);
       expect(mockUnpinChatMessage).toHaveBeenCalledWith('chat1', 'm1');
+    });
+
+    it('rejects pinning a message that belongs to a different chat', async () => {
+      console.log('TRACE [chat.test.js]: Testing pinMessage - cross-chat message rejected');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+        pinnedMessages: [],
+      });
+      mockFindMessageById.mockResolvedValue({ _id: 'm1', chat: 'someone-elses-chat' });
+
+      await expect(
+        chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'm1' })
+      ).rejects.toThrow('Message does not belong to this chat');
+      expect(mockPinChatMessage).not.toHaveBeenCalled();
     });
   });
 
@@ -445,6 +573,34 @@ describe('Chat Service Unit Tests', () => {
       expect(forwarded[1].content).toBe('Second message');
       expect(mockCreateManyMessages).toHaveBeenCalledTimes(1);
     });
+
+    it('rejects forwarding a message the caller is not a participant of in its source chat', async () => {
+      console.log('TRACE [chat.test.js]: Testing forwardMessages - blocks reading a message from a foreign chat');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat2',
+        participants: ['user1', 'user2'],
+      });
+
+      mockFindMessagesByIds.mockResolvedValue([
+        {
+          _id: 'secret1',
+          content: 'private message from a chat user1 is not in',
+          chat: 'chat_user1_is_not_in',
+          createdAt: new Date('2026-09-11T12:00:00Z'),
+        },
+      ]);
+
+      // The caller is not a member of the source chat this message actually lives in
+      mockIsParticipant.mockImplementation(async (chatId) => chatId !== 'chat_user1_is_not_in');
+
+      await expect(
+        chatService.forwardMessages('user1', {
+          targetChatId: 'chat2',
+          messageIds: ['secret1'],
+        })
+      ).rejects.toThrow('You are not authorized to forward one or more of these messages');
+      expect(mockCreateManyMessages).not.toHaveBeenCalled();
+    });
   });
 
   describe('pinMessage 3-pin limit', () => {
@@ -468,10 +624,49 @@ describe('Chat Service Unit Tests', () => {
         participants: ['user1'],
         pinnedMessages: ['p1'],
       });
+      mockFindMessageById.mockResolvedValue({ _id: 'p2', chat: 'chat1' });
       mockPinChatMessage.mockResolvedValue({ _id: 'chat1', pinnedMessages: ['p1', 'p2'] });
 
-      const res = await chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'p2' });
+      await chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'p2' });
       expect(mockPinChatMessage).toHaveBeenCalledWith('chat1', 'p2');
+    });
+  });
+
+  describe('addToGroup', () => {
+    it('only adds user IDs that correspond to a real account', async () => {
+      console.log('TRACE [chat.test.js]: Testing addToGroup - filters out bogus user IDs');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        isGroup: true,
+        participants: [{ _id: 'admin1' }],
+        groupAdmin: { _id: 'admin1' },
+        groupAdmins: [{ _id: 'admin1' }],
+      });
+      // "bogus-id" doesn't correspond to any real user
+      mockFilterExistingUserIds.mockResolvedValue(['real-user-1']);
+      mockAddParticipants.mockResolvedValue({ _id: 'chat1', participants: ['admin1', 'real-user-1'] });
+
+      await chatService.addToGroup('chat1', 'admin1', ['real-user-1', 'bogus-id']);
+
+      expect(mockFilterExistingUserIds).toHaveBeenCalledWith(['real-user-1', 'bogus-id']);
+      expect(mockAddParticipants).toHaveBeenCalledWith('chat1', ['real-user-1']);
+    });
+
+    it('rejects when none of the provided user IDs correspond to a real account', async () => {
+      console.log('TRACE [chat.test.js]: Testing addToGroup - all bogus IDs rejected');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        isGroup: true,
+        participants: [{ _id: 'admin1' }],
+        groupAdmin: { _id: 'admin1' },
+        groupAdmins: [{ _id: 'admin1' }],
+      });
+      mockFilterExistingUserIds.mockResolvedValue([]);
+
+      await expect(
+        chatService.addToGroup('chat1', 'admin1', ['bogus-1', 'bogus-2'])
+      ).rejects.toThrow('None of the provided user IDs correspond to a real account');
+      expect(mockAddParticipants).not.toHaveBeenCalled();
     });
   });
 

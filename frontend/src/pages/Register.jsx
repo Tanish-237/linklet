@@ -28,11 +28,6 @@ export default function Register() {
   const navigate = useNavigate();
   const { fetchUser } = useAuth();
 
-  const handleGoogleSignup = () => {
-    // TODO: Implement Google OAuth
-    toast.info("Google sign up will be available soon!");
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 

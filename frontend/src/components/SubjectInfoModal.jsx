@@ -40,7 +40,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
       } else {
         setCourses([]);
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to load subjects");
     } finally {
       setLoading(false);
@@ -140,7 +140,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
       toast.success(`Deleted ${name}`);
       await loadCourses();
       if (onSubjectsChanged) onSubjectsChanged();
-    } catch (err) {
+    } catch {
       toast.error("Failed to delete subject");
     }
   };

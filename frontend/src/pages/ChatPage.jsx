@@ -26,7 +26,6 @@ const ChatPage = () => {
   };
 
   const userChatsCacheKey = `linklet_cached_chats_${user?._id}`;
-  const blockedStorageKey = `linklet_blocked_users_${user?._id}`;
   const typingTimeoutsRef = useRef({});
   const unreadNotifCountRef = useRef({});
   const mutedChatIdsRef = useRef([]);
@@ -90,7 +89,7 @@ const ChatPage = () => {
           if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
             window.localStorage.setItem(userChatsCacheKey, JSON.stringify(res.data.data));
           }
-        } catch (e) {
+        } catch {
           // safe fallback
         }
         return res.data.data;
@@ -336,11 +335,39 @@ const ChatPage = () => {
     });
 
     socket.on("group updated", (updatedChat) => {
-      updateChats((prev) =>
-        prev.map((c) => (c._id === updatedChat._id ? updatedChat : c))
+      const stillAMember = (updatedChat.participants || []).some(
+        (p) => (p._id || p)?.toString() === user?._id?.toString()
       );
+
+      if (!stillAMember) {
+        // We were removed (or left) — drop it from the sidebar entirely.
+        updateChats((prev) => prev.filter((c) => c._id !== updatedChat._id));
+        if (activeChatRef.current?._id === updatedChat._id) {
+          setActiveChat(null);
+        }
+        return;
+      }
+
+      updateChats((prev) => {
+        const exists = prev.some((c) => c._id === updatedChat._id);
+        if (!exists) {
+          // Newly added to a group we didn't have in the sidebar yet — refetch
+          // to get it (and its lastMessage) rather than guessing its position.
+          fetchChatsRef.current();
+          return prev;
+        }
+        return prev.map((c) => (c._id === updatedChat._id ? updatedChat : c));
+      });
       if (activeChatRef.current?._id === updatedChat._id) {
         setActiveChat(updatedChat);
+      }
+    });
+
+    socket.on("removed from group", ({ chatId }) => {
+      if (!chatId) return;
+      updateChats((prev) => prev.filter((c) => c._id !== chatId));
+      if (activeChatRef.current?._id === chatId) {
+        setActiveChat(null);
       }
     });
 
@@ -352,6 +379,7 @@ const ChatPage = () => {
       socket.off("stop typing");
       socket.off("message received");
       socket.off("group updated");
+      socket.off("removed from group");
       Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
     };
   }, [socket, user?._id]);

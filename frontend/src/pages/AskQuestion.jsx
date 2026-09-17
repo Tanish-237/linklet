@@ -67,7 +67,6 @@ const AskQuestion = ({ onCancel, onSuccess }) => {
     setIsSubmitting(true);
 
     try {
-      console.log('[AskQuestion] Submitting question:', { title, category, tags });
       const question = await createQuestion({
         title: title.trim(),
         body: body.trim(),

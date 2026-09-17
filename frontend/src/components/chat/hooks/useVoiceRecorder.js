@@ -60,7 +60,7 @@ export const useVoiceRecorder = (onAudioReady) => {
       recordingTimerRef.current = setInterval(() => {
         setRecordingSeconds((prev) => prev + 1);
       }, 1000);
-    } catch (err) {
+    } catch {
       toast.error("Microphone access denied or unavailable");
     }
   }, []);

@@ -1,7 +1,9 @@
 import { getRedisClient } from "./redis.js";
 import logger from "./logger.js";
 
-const USER_CACHE_TTL = 300; // 5 minutes TTL in seconds
+import { USER_CACHE_TTL_SECONDS } from "../config/constants.js";
+
+const USER_CACHE_TTL = USER_CACHE_TTL_SECONDS;
 
 /**
  * Retrieve a cached user profile by user ID.

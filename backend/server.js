@@ -27,7 +27,13 @@ app.use(helmet());
 app.use(compression());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 500, // Limit each IP to 500 requests per windowMs
+  // A hostel/campus Wi-Fi network puts hundreds of students behind a handful of
+  // NAT IPs, so a low per-IP ceiling here risks rate-limiting the whole hostel
+  // together. This is a broad abuse backstop; the truly sensitive endpoints
+  // (OTP, login) have their own much tighter limiters in auth.routes.js.
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
   message: "Too many requests from this IP, please try again later"
 });
 app.use("/api", limiter); // Apply rate limiting to all /api routes
@@ -120,3 +126,35 @@ const bootServer = async () => {
 };
 
 bootServer();
+
+// Graceful shutdown: on a platform redeploy/restart (Render sends SIGTERM),
+// stop accepting new connections and let in-flight requests finish instead of
+// dropping them mid-response, then close the DB connection cleanly.
+let shuttingDown = false;
+const shutdown = (signal) => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info(`${signal} received. Shutting down gracefully...`);
+
+  server.close(async () => {
+    try {
+      const mongoose = (await import("mongoose")).default;
+      await mongoose.connection.close();
+      logger.info("MongoDB connection closed.");
+    } catch (err) {
+      logger.warn(`Error closing MongoDB connection: ${err.message}`);
+    }
+    logger.info("Shutdown complete.");
+    process.exit(0);
+  });
+
+  // Force-exit if connections don't close within a reasonable window (e.g. a
+  // long-lived socket.io connection refusing to drain).
+  setTimeout(() => {
+    logger.warn("Forced shutdown after timeout — some connections did not close cleanly.");
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

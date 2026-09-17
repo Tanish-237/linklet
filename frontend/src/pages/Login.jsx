@@ -17,11 +17,6 @@ export default function Login() {
   const navigate = useNavigate();
   const { fetchUser, setUser } = useAuth();
 
-  const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth
-    toast.info("Google sign in will be available soon!");
-  };
-
   const handleLogin = async (e) => {
     e.preventDefault();
     if (!email || !password) {

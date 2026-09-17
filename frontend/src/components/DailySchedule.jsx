@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
 import {
   fetchSchedule,
   createScheduleEvent,
@@ -184,7 +183,6 @@ function AttendanceBtn({ which, current, onClick }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, addEventTrigger, refreshTrigger }) {
-  const { user } = useAuth();
   const [selectedDate, setSelectedDate] = useState(getTodayDateStr);
   const [schedule, setSchedule] = useState([]);
   const [courses, setCourses] = useState([]); // Loaded from Attendance Guardian (Subject Info)
@@ -392,7 +390,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
             matchedCourse = created;
             setCourses((prevList) => [...prevList, created]);
           }
-        } catch (createErr) {
+        } catch {
           // If already exists on backend under duplicate-name, re-fetch and match
           try {
             const data = await fetchAttendance();

@@ -17,6 +17,7 @@ router.patch("/users/:userId/ban", adminController.setUserBanStatus);
 
 // Platform Content Moderation & Oversight
 router.get("/content-overview", adminController.getContentOverview);
+router.patch("/resources/:resourceId/verify", adminController.setResourceVerification);
 
 // Platform Security & Audit Trail
 router.get("/audit-logs", adminController.getAuditLogs);

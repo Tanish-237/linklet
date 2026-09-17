@@ -1,9 +1,18 @@
 import * as resourceRepository from "../repositories/resource.repository.js";
 import { AppError } from "../utils/error.js";
+import logger from "../utils/logger.js";
+import { deleteFromCloudinary } from "../utils/cloudinary.js";
 
 export const uploadResource = async (userId, resourceData) => {
   if (!resourceData.title || !resourceData.fileUrl) {
     throw new AppError("Title and file are required", 400);
+  }
+  // The Resource schema requires a non-empty description. The upload form
+  // enforces this client-side, but a direct API call bypassing the form used
+  // to fall through to `description: ""`, which Mongoose then rejected with a
+  // raw ValidationError (surfaced to the user as an unhelpful 500).
+  if (!resourceData.description || !resourceData.description.trim()) {
+    throw new AppError("Description is required", 400);
   }
 
   // Parse tags if it is a comma-separated string
@@ -66,6 +75,13 @@ export const deleteResource = async (resourceId, userId, userRole) => {
 
   const deleted = await resourceRepository.deleteResource(resourceId);
 
+  // Clean up the underlying Cloudinary file — otherwise every deleted upload
+  // (and its storage cost) lives on in cloud storage forever. Best-effort: a
+  // link-type resource has no publicId and deleteFromCloudinary no-ops for it.
+  if (resource.publicId) {
+    deleteFromCloudinary(resource.publicId).catch(() => {});
+  }
+
   // If deleted by an admin moderating another student's resource, log to audit trail & notify owner
   if (userRole === "admin" && resource.userId._id.toString() !== userId.toString()) {
     try {
@@ -90,7 +106,7 @@ export const deleteResource = async (resourceId, userId, userRole) => {
         entityType: "System",
       });
     } catch (e) {
-      console.error("[AUDIT/NOTIF ERROR]", e);
+      logger.warn(`[AUDIT/NOTIF ERROR] ${e.message}`);
     }
   }
 

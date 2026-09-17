@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 export const RELEASE_VERSION = "v1.6.4";
 export const STORAGE_KEY = "linklet_last_seen_version";

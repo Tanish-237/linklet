@@ -32,9 +32,27 @@ vi.mock("../../hooks/useSocket", () => ({
   useSocket: () => mockSocket,
 }));
 
+// jsdom in this project's test environment doesn't implement window.localStorage
+// (see Saved.test.jsx / WhatsNewDropdown.test.jsx for the same workaround) —
+// stub a minimal in-memory version so window.localStorage.clear() below resolves
+// instead of throwing.
+const fakeLocalStorage = (() => {
+  let store = {};
+  return {
+    getItem: (key) => store[key] || null,
+    setItem: (key, value) => { store[key] = value.toString(); },
+    removeItem: (key) => { delete store[key]; },
+    clear: () => { store = {}; },
+  };
+})();
+globalThis.localStorage = fakeLocalStorage;
+
 describe("ChatPage Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
+    window.innerWidth = 1024;
+    window.dispatchEvent(new Event("resize"));
   });
 
   it("fetches user chats on mount and renders layout", async () => {
@@ -348,8 +366,6 @@ describe("ChatPage Component", () => {
       expect(screen.getByText("alice")).toBeInTheDocument();
       expect(screen.getByText("bob")).toBeInTheDocument();
     });
-
-    const initialOffCalls = mockSocketOff.mock.calls.length;
 
     // Click on Chat A
     fireEvent.click(screen.getByText("alice"));

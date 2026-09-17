@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import * as auditLogRepository from "../repositories/auditLog.repository.js";
+import logger from "../utils/logger.js";
 
 export const logAdminAction = async ({ adminId, action, targetType, targetId = "", details = {} }) => {
   try {
@@ -23,7 +24,7 @@ export const logAdminAction = async ({ adminId, action, targetType, targetId = "
       details: { ...details, ...(safeAdminId !== adminId ? { originalAdminId: adminId } : {}) },
     });
   } catch (error) {
-    console.error("[AUDIT LOG ERROR] Failed to record admin audit log:", error?.message || error);
+    logger.warn(`[AUDIT LOG ERROR] Failed to record admin audit log: ${error?.message || error}`);
     return null;
   }
 };

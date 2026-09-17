@@ -1,0 +1,30 @@
+/**
+ * Shared, rarely-changing configuration values that were previously repeated
+ * as literal strings/numbers across several files. Centralizing them means a
+ * future rebrand, domain change, or tuning pass touches one place instead of
+ * hunting down every copy (and risking one getting missed).
+ */
+
+// Institutional email domain enforced on registration, login, password reset,
+// and Google OAuth. Previously duplicated as the literal "@mnnit.ac.in" in
+// auth.service.js (6 call sites) and models/users.js.
+export const ALLOWED_EMAIL_DOMAIN = "@mnnit.ac.in";
+
+export const isAllowedInstitutionalEmail = (email) =>
+  typeof email === "string" && email.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN);
+
+// Fallback sender/receiver used by email.service.js when the corresponding
+// environment variable isn't set. Previously duplicated as a literal in 3 places.
+export const DEFAULT_CONTACT_EMAIL = "founderslinklet@gmail.com";
+
+// OTP validity window (registration + password reset), in seconds.
+export const OTP_TTL_SECONDS = 600;
+
+// How long a user's profile stays cached in Redis after a read, in seconds.
+export const USER_CACHE_TTL_SECONDS = 300;
+
+// How long after sending a chat message it may still be edited, in ms.
+export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+
+// Maximum number of messages that can be pinned in a single chat at once.
+export const MAX_PINNED_MESSAGES_PER_CHAT = 3;

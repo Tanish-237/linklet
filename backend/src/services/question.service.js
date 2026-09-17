@@ -3,6 +3,7 @@ import * as answerRepository from "../repositories/answer.repository.js";
 import { Answer } from "../../models/answer.js";
 import { Question } from "../../models/question.js";
 import { AppError } from "../utils/error.js";
+import logger from "../utils/logger.js";
 import { QUESTION_CATEGORIES } from "../../models/question.js";
 import mongoose from "mongoose";
 
@@ -426,7 +427,7 @@ export const deleteQuestion = async (questionId, userId, userRole) => {
         entityType: "System",
       });
     } catch (e) {
-      console.error("[AUDIT/NOTIF ERROR]", e);
+      logger.warn(`[AUDIT/NOTIF ERROR] ${e.message}`);
     }
   }
 };
@@ -463,7 +464,7 @@ export const deleteAnswer = async (questionId, answerId, userId, userRole) => {
         details: { questionId, answerAuthorId: answer.userId._id },
       });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR]", e);
+      logger.warn(`[AUDIT LOG ERROR] ${e.message}`);
     }
   }
 };
@@ -501,7 +502,7 @@ export const deleteComment = async (questionId, answerId, commentId, userId, use
         details: { questionId, answerId, commentAuthorId },
       });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR]", e);
+      logger.warn(`[AUDIT LOG ERROR] ${e.message}`);
     }
   }
 

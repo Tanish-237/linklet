@@ -20,8 +20,6 @@ const ForwardMessageModal = ({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
-
   const getChatName = (c) => {
     if (c.isGroup) return c.chatName || "Group";
     return c.participants?.find((p) => p.username)?.fullName ||
@@ -34,12 +32,19 @@ const ForwardMessageModal = ({
     return c.participants?.find((p) => p.avatar)?.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png";
   };
 
+  // This hook must run on every render regardless of `isOpen` — React
+  // requires hooks to be called in the same order every time, so the
+  // `if (!isOpen) return null;` early return has to come AFTER every hook
+  // call, not before. It used to sit above this useMemo, which is the classic
+  // "conditional hook call" bug (harmless by luck most of the time, but can
+  // corrupt this component's hook state/crash under React's stricter modes).
   const filteredChats = useMemo(() => {
     if (!searchQuery.trim()) return chats;
     const q = searchQuery.toLowerCase();
     return chats.filter((c) => getChatName(c).toLowerCase().includes(q));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chats, searchQuery]);
+
+  if (!isOpen) return null;
 
   const toggleChatSelect = (chatId) => {
     setSelectedChatIds((prev) =>

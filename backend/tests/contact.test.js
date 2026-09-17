@@ -1,7 +1,6 @@
 import { jest } from '@jest/globals';
 import express from 'express';
 import supertest from 'supertest';
-import { AppError } from '../src/utils/error.js';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 const mockContactMessageCreate = jest.fn();

@@ -140,7 +140,7 @@ export default function NotificationDropdown({
   useEffect(() => {
     if (!socket || !user) return;
 
-    const handleNewNotification = ({ notification, unreadCount: count }) => {
+    const handleNewNotification = ({ unreadCount: count }) => {
       setPulse(true);
       setTimeout(() => setPulse(false), 2000);
 

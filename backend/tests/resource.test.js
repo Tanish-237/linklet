@@ -16,6 +16,12 @@ jest.unstable_mockModule('../src/repositories/resource.repository.js', () => ({
   deleteResource:       mockDeleteResource,
 }));
 
+const mockDeleteFromCloudinary = jest.fn().mockResolvedValue(true);
+jest.unstable_mockModule('../src/utils/cloudinary.js', () => ({
+  uploadOnCloudinary: jest.fn(),
+  deleteFromCloudinary: mockDeleteFromCloudinary,
+}));
+
 const resourceService = await import('../src/services/resource.service.js');
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -59,12 +65,13 @@ describe('Resource Service — Unit Tests', () => {
       const userId = 'user123';
       const data = {
         title: 'Array Tag Notes',
+        description: 'Array tag test description',
         fileUrl: 'https://cloudinary.com/array.pdf',
         tags: ['alpha', 'beta'],
       };
       mockCreateResource.mockResolvedValue({ ...data, _id: 'res2' });
 
-      const result = await resourceService.uploadResource(userId, data);
+      await resourceService.uploadResource(userId, data);
 
       console.log('[TEST] called createResource with tags:', mockCreateResource.mock.calls[0][0].resourcetags);
       expect(mockCreateResource).toHaveBeenCalledWith(
@@ -86,9 +93,20 @@ describe('Resource Service — Unit Tests', () => {
       ).rejects.toThrow(AppError);
     });
 
+    it('should throw a clean AppError (not a raw Mongoose validation error) when description is missing', async () => {
+      console.log('[TEST] uploadResource › missing description → clean 400 AppError');
+      await expect(
+        resourceService.uploadResource('user1', {
+          title: 'No description',
+          fileUrl: 'https://cloudinary.com/x.pdf',
+        })
+      ).rejects.toThrow('Description is required');
+      expect(mockCreateResource).not.toHaveBeenCalled();
+    });
+
     it('should default category to "notes" when not provided', async () => {
       console.log('[TEST] uploadResource › default category');
-      const data = { title: 'No Cat', fileUrl: 'https://x.com/f.pdf' };
+      const data = { title: 'No Cat', description: 'Some description', fileUrl: 'https://x.com/f.pdf' };
       mockCreateResource.mockResolvedValue({ ...data, _id: 'r3' });
       await resourceService.uploadResource('u1', data);
       expect(mockCreateResource).toHaveBeenCalledWith(
@@ -177,6 +195,37 @@ describe('Resource Service — Unit Tests', () => {
       const result = await resourceService.deleteResource(resourceId, ownerId, 'user');
       expect(mockDeleteResource).toHaveBeenCalledWith(resourceId);
       console.log('[TEST] deletion successful, id:', result._id);
+    });
+
+    it('should clean up the underlying Cloudinary file when the resource has a publicId', async () => {
+      console.log('[TEST] deleteResource › cleans up orphaned Cloudinary file');
+      mockFindResourceById.mockResolvedValue({
+        _id: resourceId,
+        publicId: 'linklet/resources/abc123',
+        userId: { _id: { toString: () => ownerId } },
+      });
+      mockDeleteResource.mockResolvedValue({ _id: resourceId });
+
+      await resourceService.deleteResource(resourceId, ownerId, 'user');
+      // Fire-and-forget cleanup — allow the microtask to run before asserting.
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(mockDeleteFromCloudinary).toHaveBeenCalledWith('linklet/resources/abc123');
+    });
+
+    it('should NOT attempt Cloudinary cleanup for a link-type resource (no publicId)', async () => {
+      console.log('[TEST] deleteResource › skips cleanup for link resources');
+      mockFindResourceById.mockResolvedValue({
+        _id: resourceId,
+        publicId: null,
+        userId: { _id: { toString: () => ownerId } },
+      });
+      mockDeleteResource.mockResolvedValue({ _id: resourceId });
+
+      await resourceService.deleteResource(resourceId, ownerId, 'user');
+      await new Promise((resolve) => setImmediate(resolve));
+
+      expect(mockDeleteFromCloudinary).not.toHaveBeenCalled();
     });
 
     it('should allow admin to delete any resource', async () => {

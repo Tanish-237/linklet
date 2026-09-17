@@ -112,6 +112,18 @@ export const assignRoleAndBranch = async (targetUserId, role, adminUserId = null
     throw new AppError("You cannot demote your own admin account", 400);
   }
 
+  // Platform-lockout prevention: demoting the LAST remaining admin would leave
+  // no one able to manage the platform (or even promote a new admin back).
+  if (role !== "admin") {
+    const targetUser = await userRepository.findUserById(targetUserId);
+    if (targetUser?.role === "admin") {
+      const adminCount = await userRepository.countUsers({ role: "admin" });
+      if (adminCount <= 1) {
+        throw new AppError("Cannot demote the only remaining administrator", 400);
+      }
+    }
+  }
+
   const updateData = { role };
 
   const updatedUser = await userRepository.updateUserById(targetUserId, updateData);
@@ -239,4 +251,53 @@ export const getRecentContentOverview = async (limit = 5) => {
     recentQuestions,
     recentPosts,
   };
+};
+
+/**
+ * Hide or re-approve a resource in the public library. Resources are visible
+ * immediately on upload; this is post-publish moderation, not a review queue.
+ */
+export const setResourceVerification = async (adminUserId, resourceId, isVerified) => {
+  const resource = await Resource.findByIdAndUpdate(
+    resourceId,
+    { $set: { isVerified: Boolean(isVerified) } },
+    { new: true }
+  )
+    .populate("userId", "username fullName avatar")
+    .lean();
+
+  if (!resource) {
+    throw new AppError("Resource not found", 404);
+  }
+
+  if (adminUserId) {
+    await logAdminAction({
+      adminId: adminUserId,
+      action: isVerified ? "APPROVE_RESOURCE" : "HIDE_RESOURCE",
+      targetType: "Resource",
+      targetId: resourceId,
+      details: { title: resource.title, ownerId: resource.userId?._id },
+    });
+
+    const ownerId = resource.userId?._id || resource.userId;
+    if (ownerId && !isVerified) {
+      try {
+        const { createAndPushNotification } = await import("./notification.service.js");
+        await createAndPushNotification({
+          recipient: ownerId,
+          sender: adminUserId,
+          type: "SYSTEM_ALERT",
+          title: "Content Moderated",
+          message: `Your study resource "${resource.title}" was hidden by an administrator for content moderation.`,
+          link: "/dashboard/global-search",
+          entityId: null,
+          entityType: "System",
+        });
+      } catch (e) {
+        logger.warn(`Failed to notify resource owner of moderation: ${e.message}`);
+      }
+    }
+  }
+
+  return resource;
 };

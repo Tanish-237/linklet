@@ -1,13 +1,13 @@
 import React from "react";
 import { render, screen, within } from "@testing-library/react";
-import { vi, describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import LandingPage from "../LandingPage";
 
 // Stub IntersectionObserver for jsdom
 beforeAll(() => {
-  global.IntersectionObserver = class {
+  globalThis.IntersectionObserver = class {
     constructor() {}
     observe() {}
     unobserve() {}

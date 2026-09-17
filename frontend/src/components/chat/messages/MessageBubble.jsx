@@ -56,7 +56,11 @@ const MessageBubble = ({
   isSent,
   isSelected,
   isPinned,
-  isStarred,
+  // isStarred is intentionally NOT rendered here — starring is a silent,
+  // private save action (no visible badge on the bubble), unlike pinning.
+  // Accepted as a prop for API consistency with MessageContextMenu, which
+  // does show the Star/Unstar toggle state.
+  isStarred: _isStarred,
   isRecipientOnline = false,
   searchQuery,
   audioState,

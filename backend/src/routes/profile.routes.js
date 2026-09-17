@@ -10,6 +10,7 @@ const router = express.Router();
 router.get("/me/bookmarks", isLoggedIn, profileController.getMyBookmarks);
 router.post("/bookmarks/:resourceId", isLoggedIn, profileController.toggleBookmark);
 router.post("/follow/:targetUserId", isLoggedIn, profileController.toggleFollowUser);
+router.post("/block/:targetUserId", isLoggedIn, profileController.toggleBlockUser);
 router.put("/edit", isLoggedIn, upload.single("avatar"), profileController.updateProfile);
 
 // Collection routes
@@ -19,10 +20,13 @@ router.get("/collections/:id", isLoggedIn, collectionController.getCollectionByI
 router.delete("/collections/:id", isLoggedIn, collectionController.deleteCollection);
 router.post("/collections/:id/resources/:resourceId", isLoggedIn, collectionController.toggleResourceInCollection);
 
-// Dynamic username routes SECOND
-router.get("/:username/followers", profileController.getFollowers);
-router.get("/:username/following", profileController.getFollowing);
-router.get("/:username/bookmarks", profileController.getUserBookmarks);
-router.get("/:username", profileController.getProfile);
+// Dynamic username routes SECOND — the whole student directory (including email,
+// phone number, and every profile's bookmarks) was previously readable by anyone
+// on the internet with no login at all. These now require being a signed-in,
+// verified @mnnit.ac.in account.
+router.get("/:username/followers", isLoggedIn, profileController.getFollowers);
+router.get("/:username/following", isLoggedIn, profileController.getFollowing);
+router.get("/:username/bookmarks", isLoggedIn, profileController.getUserBookmarks);
+router.get("/:username", isLoggedIn, profileController.getProfile);
 
 export default router;

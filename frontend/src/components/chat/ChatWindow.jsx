@@ -175,7 +175,9 @@ const ChatWindow = ({
           setMessages((prev) =>
             prev.map((m) => (m._id === optimisticId ? confirmed : m))
           );
-          socket?.emit("new message", confirmed);
+          // The server broadcasts "message received" to the chat room and every
+          // participant's personal room right after persisting the message — the
+          // client no longer relays this itself (see backend socket.js notifyNewMessage).
           if (onUpdateLastMessage) onUpdateLastMessage(chat._id, confirmed);
         }
       } catch (error) {
@@ -229,15 +231,11 @@ const ChatWindow = ({
   const scrollToBottom = useCallback((behavior = "smooth") => {
     const container = chatContainerRef.current;
     if (container) {
-      if (behavior === "auto") {
-        container.style.scrollBehavior = "auto";
-        container.scrollTop = container.scrollHeight;
+      container.style.scrollBehavior = "auto";
+      if (behavior === "smooth" && typeof container.scrollTo === "function") {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
       } else {
-        container.style.scrollBehavior = "smooth";
         container.scrollTop = container.scrollHeight;
-        setTimeout(() => {
-          if (container) container.style.scrollBehavior = "auto";
-        }, 400);
       }
     } else {
       messagesEndRef.current?.scrollIntoView({ behavior });
@@ -533,11 +531,11 @@ const ChatWindow = ({
           setMessages((prev) =>
             prev.map((m) => (m._id === editingMessage._id ? updated : m))
           );
-          socket?.emit("message updated", updated);
+          // Server broadcasts "message updated" after persisting the edit.
           setEditingMessage(null);
           setNewMessage("");
         }
-      } catch (error) {
+      } catch {
         toast.error("Failed to edit message");
       }
       return;
@@ -595,7 +593,7 @@ const ChatWindow = ({
             ...prev.filter((m) => m._id !== optimisticId),
             ...confirmed,
           ]);
-          confirmed.forEach((msg) => socket?.emit("new message", msg));
+          // Server broadcasts "message received" for each created message.
           if (onUpdateLastMessage && confirmed.length > 0) {
             onUpdateLastMessage(chat._id, confirmed[confirmed.length - 1]);
           }
@@ -603,7 +601,7 @@ const ChatWindow = ({
           setMessages((prev) =>
             prev.map((m) => (m._id === optimisticId ? confirmed : m))
           );
-          socket?.emit("new message", confirmed);
+          // Server broadcasts "message received" after persisting the message.
           if (onUpdateLastMessage) onUpdateLastMessage(chat._id, confirmed);
         }
       }
@@ -640,9 +638,7 @@ const ChatWindow = ({
         });
         if (res.data.success) {
           successCount++;
-          if (socket && res.data.data && Array.isArray(res.data.data)) {
-            res.data.data.forEach((fwdMsg) => socket.emit("new message", fwdMsg));
-          }
+          // Server broadcasts "message received" for each forwarded message.
         }
       }
       if (successCount > 0) {

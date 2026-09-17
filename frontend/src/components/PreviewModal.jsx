@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
+import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import "./PreviewModal.css";
 
 export const getFileIcon = (fileName, fileType) => {
@@ -18,7 +19,15 @@ export const getFileIcon = (fileName, fileType) => {
 
 export const getPreviewUrl = (resource) => {
   const ext = (resource.fileName?.split(".").pop() || resource.fileType || "").toLowerCase();
-  
+
+  // The backend now rejects non-http(s) fileUrl/linkUrl values at write time,
+  // but this guards against any legacy data — every branch below eventually
+  // renders `url` as an iframe/img/video src or an <a>/window.open target, any
+  // of which would execute a `javascript:` URL in the viewer's browser.
+  if (!isSafeHttpUrl(resource.fileUrl)) {
+    return { type: "invalid", url: "" };
+  }
+
   // ensure url doesn't force download
   let url = resource.fileUrl || "";
   if (url.includes("fl_attachment")) {
@@ -132,7 +141,7 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
             <div className="gs-preview-fallback">
               <span className="material-icons" style={{ color, fontSize: 64 }}>link</span>
               <p>This is an external link resource.</p>
-              <button className="gs-btn-primary" onClick={() => window.open(resource.fileUrl, "_blank")}>
+              <button className="gs-btn-primary" onClick={() => safeOpenUrl(resource.fileUrl)}>
                 <span className="material-icons">open_in_new</span> Visit Website
               </button>
             </div>
@@ -141,9 +150,15 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
             <div className="gs-preview-fallback">
               <span className="material-icons" style={{ color, fontSize: 64 }}>{icon}</span>
               <p>Preview not available for this file type.</p>
-              <button className="gs-btn-primary" onClick={() => window.open(resource.fileUrl, "_blank")}>
+              <button className="gs-btn-primary" onClick={() => safeOpenUrl(resource.fileUrl)}>
                 <span className="material-icons">open_in_new</span> Download File
               </button>
+            </div>
+          )}
+          {preview.type === "invalid" && (
+            <div className="gs-preview-fallback">
+              <span className="material-icons" style={{ color: "#f87171", fontSize: 64 }}>error_outline</span>
+              <p>This resource's link is invalid and cannot be opened.</p>
             </div>
           )}
         </div>

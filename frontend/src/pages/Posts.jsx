@@ -1,6 +1,6 @@
 // src/pages/Posts.jsx
-import React, { useEffect, useState, useRef, useCallback } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import React, { useEffect, useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "../api/apiClient";
 import { deletePost } from "../api/post.api";
 import { toast } from "react-toastify";
@@ -334,9 +334,7 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
 
 // ─── Main Posts Component ───────────────────────────────────────────────────
 const Posts = () => {
-  const queryClient = useQueryClient();
   const { user } = useAuth();
-  const navigate = useNavigate();
 
   // In-memory cached feed query with 5-minute freshness (0ms instant render on tab switch)
   const {

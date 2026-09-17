@@ -5,7 +5,6 @@ import { AppError } from '../src/utils/error.js';
 const mockFindOne        = jest.fn();
 const mockFindById       = jest.fn();
 const mockFindByIdAndUpdate = jest.fn();
-const mockFindResourceById  = jest.fn();
 const mockResourceFindById  = jest.fn();
 const mockResourceFind      = jest.fn();
 const mockPostFindById      = jest.fn();
@@ -38,6 +37,7 @@ const {
   getMyBookmarks,
   getUserBookmarks,
   toggleFollowUser,
+  toggleBlockUser,
   updateProfile,
   getFollowers,
   getFollowing,
@@ -293,6 +293,77 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({ success: true, isFollowing: true })
+      );
+    });
+  });
+
+  // ── toggleBlockUser ─────────────────────────────────────────────────────────
+  describe('toggleBlockUser', () => {
+    it('should prevent user from blocking themselves', async () => {
+      const req = makeReq({ user: { _id: 'user1' }, params: { targetUserId: 'user1' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      await toggleBlockUser(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      const err = next.mock.calls[0][0];
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.statusCode).toBe(400);
+    });
+
+    it('should return 404 if target user does not exist', async () => {
+      const req = makeReq({ user: { _id: 'user1' }, params: { targetUserId: 'ghost' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindById.mockResolvedValueOnce(null);
+
+      await toggleBlockUser(req, res, next);
+
+      const err = next.mock.calls[0][0];
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.statusCode).toBe(404);
+    });
+
+    it('should block a target user when not already blocked', async () => {
+      const req = makeReq({ user: { _id: 'user1' }, params: { targetUserId: 'target2' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindById
+        .mockResolvedValueOnce({ _id: 'target2' }) // targetUser existence check
+        .mockResolvedValueOnce({ _id: 'user1', blockedUsers: [] }); // currentUser blockedUsers
+
+      await toggleBlockUser(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({ $addToSet: { blockedUsers: 'target2' } })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, isBlocked: true })
+      );
+    });
+
+    it('should unblock a target user when already blocked', async () => {
+      const req = makeReq({ user: { _id: 'user1' }, params: { targetUserId: 'target2' } });
+      const res = makeRes();
+      const next = jest.fn();
+
+      mockFindById
+        .mockResolvedValueOnce({ _id: 'target2' })
+        .mockResolvedValueOnce({ _id: 'user1', blockedUsers: ['target2'] });
+
+      await toggleBlockUser(req, res, next);
+
+      expect(mockFindByIdAndUpdate).toHaveBeenCalledWith(
+        'user1',
+        expect.objectContaining({ $pull: { blockedUsers: 'target2' } })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ success: true, isBlocked: false })
       );
     });
   });

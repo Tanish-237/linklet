@@ -57,6 +57,26 @@ describe('CORS Origin Validator Unit Tests', () => {
     expect(isOriginAllowed('https://malicious-site.com')).toBe(false);
   });
 
+  test('rejects a Vercel deployment from an unrelated project (not just any *.vercel.app)', () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] isOriginAllowed › does not blanket-trust every vercel.app origin');
+    // Anyone can deploy to *.vercel.app on a free account — only THIS project's
+    // deployments (subdomain starting with "linklet") should be trusted with
+    // credentialed requests.
+    expect(isOriginAllowed('https://evil-phishing-site.vercel.app')).toBe(false);
+    expect(isOriginAllowed('https://attacker.vercel.app')).toBe(false);
+  });
+
+  test('rejects a "linklet"-prefixed project deployed under a different Vercel team (prefix alone is not ownership)', () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] isOriginAllowed › does not trust "linklet" prefix from an unrelated Vercel team');
+    // An attacker cannot claim the "linklet.vercel.app" alias or the "hextan"
+    // team slug, but they CAN name a project "linklet-phishing" under their own
+    // team — that must still be rejected.
+    expect(isOriginAllowed('https://linklet-phishing.vercel.app')).toBe(false);
+    expect(isOriginAllowed('https://linklet-74oo20r1u-attacker.vercel.app')).toBe(false);
+  });
+
   test('corsOriginHandler calls callback with true for allowed origins and error for unauthorized', () => {
     console.log('\n──────────────────────────────────────');
     console.log('[TEST] corsOriginHandler › executes callback correctly');

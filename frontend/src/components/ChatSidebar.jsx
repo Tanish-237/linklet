@@ -12,7 +12,6 @@ const ChatSidebar = ({
   onOpenCreateGroup,
   currentUser,
   onlineUsers = [],
-  lastSeenMap = {},
   typingMap = {},
   unreadCounts = {},
   onMarkAsUnread,
@@ -45,9 +44,22 @@ const ChatSidebar = ({
   const [archivedChatIds, setArchivedChatIds] = useState(() => {
     try { const s = localStorage.getItem(archivedStorageKey); return s ? JSON.parse(s) : []; } catch { return []; }
   });
+  // Blocking is enforced server-side (see backend chat.service.js), so the list of
+  // who this user has blocked is sourced from their own profile (currentUser),
+  // never purely from localStorage. localStorage is kept only as an instant-paint
+  // cache so the UI doesn't flash "unblocked" for a split second on reload.
   const [blockedUserIds, setBlockedUserIds] = useState(() => {
+    if (Array.isArray(currentUser?.blockedUsers)) {
+      return currentUser.blockedUsers.map((id) => (id._id || id)?.toString());
+    }
     try { const s = localStorage.getItem(blockedStorageKey); return s ? JSON.parse(s) : []; } catch { return []; }
   });
+
+  useEffect(() => {
+    if (Array.isArray(currentUser?.blockedUsers)) {
+      setBlockedUserIds(currentUser.blockedUsers.map((id) => (id._id || id)?.toString()));
+    }
+  }, [currentUser?.blockedUsers]);
 
   useEffect(() => {
     if (onMutedChatIdsChange) onMutedChatIdsChange(mutedChatIds);
@@ -216,17 +228,27 @@ const ChatSidebar = ({
     setMenuChat(null);
   };
 
-  const toggleBlockUser = (chat, e) => {
+  const toggleBlockUser = async (chat, e) => {
     e?.stopPropagation();
     const otherId = getOtherUserId(chat);
     if (!otherId) return;
-    setBlockedUserIds((prev) => {
-      const next = prev.includes(otherId) ? prev.filter((id) => id !== otherId) : [...prev, otherId];
-      try { localStorage.setItem(blockedStorageKey, JSON.stringify(next)); } catch {}
-      toast.info(next.includes(otherId) ? "User blocked" : "User unblocked");
-      return next;
-    });
     setMenuChat(null);
+    try {
+      const res = await apiClient.post(`/profile/block/${otherId}`);
+      if (res.data?.success) {
+        const nowBlocked = res.data.isBlocked;
+        setBlockedUserIds((prev) => {
+          const next = nowBlocked
+            ? [...new Set([...prev, otherId])]
+            : prev.filter((id) => id !== otherId);
+          try { localStorage.setItem(blockedStorageKey, JSON.stringify(next)); } catch {}
+          return next;
+        });
+        toast.info(nowBlocked ? "User blocked" : "User unblocked");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update block status");
+    }
   };
 
   const handleOpenContextMenu = (chat, e) => {

@@ -19,7 +19,18 @@ export const findResourceById = async (id) => {
  */
 export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
   const buildQuery = (useText = true) => {
-    const query = {};
+    // Resources default to visible on upload (isVerified: true) but an admin
+    // can hide one after the fact — hidden ones (isVerified: false) must never
+    // appear in the public library feed. `$ne: false` also matches legacy
+    // documents saved before this field existed (isVerified is undefined there).
+    const query = { isVerified: { $ne: false } };
+    // Each filter that itself needs an $or (search-by-regex, file type) is kept
+    // in its own clause and ANDed together via $and — otherwise two separate
+    // filters both writing to query.$or would collide into ONE $or array,
+    // silently turning "text match AND file type match" into "either" (a
+    // resource could match the file-type filter alone with no search term
+    // match at all, and vice versa).
+    const andConditions = [];
 
     if (filters.search) {
       if (useText) {
@@ -27,11 +38,13 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
       } else {
         // Regex fallback for partial / fuzzy match
         const escaped = filters.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        query.$or = [
-          { title: { $regex: escaped, $options: "i" } },
-          { description: { $regex: escaped, $options: "i" } },
-          { resourcetags: { $regex: escaped, $options: "i" } },
-        ];
+        andConditions.push({
+          $or: [
+            { title: { $regex: escaped, $options: "i" } },
+            { description: { $regex: escaped, $options: "i" } },
+            { resourcetags: { $regex: escaped, $options: "i" } },
+          ],
+        });
       }
     }
 
@@ -58,12 +71,17 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
       };
       const exts = typeMap[filters.fileType];
       if (exts) {
-        query.$or = [
-          ...(query.$or || []),
-          { fileType: { $in: exts.map((e) => new RegExp(e, "i")) } },
-          { fileName: { $regex: `\\.(${exts.join("|")})$`, $options: "i" } },
-        ];
+        andConditions.push({
+          $or: [
+            { fileType: { $in: exts.map((e) => new RegExp(e, "i")) } },
+            { fileName: { $regex: `\\.(${exts.join("|")})$`, $options: "i" } },
+          ],
+        });
       }
+    }
+
+    if (andConditions.length > 0) {
+      query.$and = andConditions;
     }
 
     return query;
@@ -96,13 +114,28 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
     },
     { $unwind: "$userId" },
     {
+      // Inclusion projection, not exclusion: the uploader card only ever needs
+      // username + avatar, so we explicitly whitelist that instead of trying to
+      // remember every sensitive User field (phoneNumber, googleId, followers,
+      // bookmarks, role, ban status, ...) to exclude as the schema grows.
       $project: {
-        "userId.password": 0,
-        "userId.refreshToken": 0,
-        "userId.branch": 0,
-        "userId.email": 0,
-        "userId.createdAt": 0,
-        "userId.updatedAt": 0,
+        title: 1,
+        description: 1,
+        resourcetags: 1,
+        category: 1,
+        fileUrl: 1,
+        fileType: 1,
+        fileName: 1,
+        branch: 1,
+        publicId: 1,
+        downloadsCount: 1,
+        createdAt: 1,
+        updatedAt: 1,
+        score: 1,
+        "userId._id": 1,
+        "userId.username": 1,
+        "userId.avatar": 1,
+        "userId.fullName": 1,
       },
     },
     { $sort: sortQuery },
@@ -133,7 +166,12 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
 
   // Category stats (independent of current search/filter for accurate counts)
   const statsAggregate = await Resource.aggregate([
-    { $match: filters.branchId ? { branch: new mongoose.Types.ObjectId(filters.branchId) } : {} },
+    {
+      $match: {
+        isVerified: { $ne: false },
+        ...(filters.branchId ? { branch: new mongoose.Types.ObjectId(filters.branchId) } : {}),
+      },
+    },
     {
       $group: {
         _id: "$category",
@@ -148,7 +186,7 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
   };
 
   statsAggregate.forEach((stat) => {
-    if (stat._id && stats.categories.hasOwnProperty(stat._id)) {
+    if (stat._id && Object.prototype.hasOwnProperty.call(stats.categories, stat._id)) {
       stats.categories[stat._id] = stat.count;
       stats.total += stat.count;
     }

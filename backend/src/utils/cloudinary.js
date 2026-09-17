@@ -42,4 +42,32 @@ const uploadOnCloudinary = async (filepath) => {
   }
 };
 
-export { uploadOnCloudinary };
+/**
+ * Delete an asset from Cloudinary by its public ID. Best-effort: a failure here
+ * (asset already gone, wrong resource_type guess, Cloudinary hiccup) must never
+ * block the caller from deleting the corresponding database record — it only
+ * means an orphaned file lingers in cloud storage, not a correctness bug.
+ */
+const deleteFromCloudinary = async (publicId, resourceType = "auto") => {
+  if (!publicId) return false;
+  try {
+    // "auto" isn't a valid resource_type for explicit destroy calls — try the
+    // most likely types in order rather than requiring every call site to know
+    // which one applies (images and raw documents are the two we ever store).
+    const typesToTry = resourceType === "auto" ? ["image", "raw", "video"] : [resourceType];
+    for (const type of typesToTry) {
+      const result = await cloudinary.uploader.destroy(publicId, { resource_type: type });
+      if (result?.result === "ok") {
+        logger.info(`Deleted Cloudinary asset ${publicId} (resource_type: ${type})`);
+        return true;
+      }
+    }
+    logger.warn(`Could not delete Cloudinary asset ${publicId} (not found under any resource_type)`);
+    return false;
+  } catch (err) {
+    logger.warn(`Failed to delete Cloudinary asset ${publicId}: ${err.message}`);
+    return false;
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };

@@ -1,5 +1,6 @@
 import * as branchRepository from "../repositories/branch.repository.js";
 import { AppError } from "../utils/error.js";
+import logger from "../utils/logger.js";
 
 export const createBranch = async (branchData) => {
   try {
@@ -57,7 +58,7 @@ export const seedDefaultBranches = async (adminId = null) => {
         details: { count: defaultBranches.length, names: defaultBranches.map((b) => b.name) },
       });
     } catch (e) {
-      console.error("[AUDIT LOG ERROR] Failed to log branch seeding:", e);
+      logger.warn(`[AUDIT LOG ERROR] Failed to log branch seeding: ${e.message}`);
     }
   }
 

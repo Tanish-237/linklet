@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+      trim: true,
+      // Normalizes on save AND on simple equality queries (Mongoose casts query
+      // values through the schema path), so "Foo@MNNIT.ac.in" and
+      // "foo@mnnit.ac.in" are always treated as the same account.
+      lowercase: true,
       validate: {
         validator: function(v) {
           return v.endsWith('@mnnit.ac.in');
@@ -101,6 +106,10 @@ const userSchema = new mongoose.Schema(
     banReason: { type: String, default: "" },
     branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
     bookmarks: [{ type: mongoose.Schema.Types.ObjectId, ref: "Resource" }],
+    // Users this account has blocked. Enforced server-side (chat.service.js
+    // refuses to deliver new direct messages in either direction once blocked) —
+    // this is NOT just a client-side display preference.
+    blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     refreshToken: {
       type: String,
     },

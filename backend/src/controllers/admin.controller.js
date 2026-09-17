@@ -86,6 +86,29 @@ export const setUserBanStatus = async (req, res, next) => {
   }
 };
 
+export const setResourceVerification = async (req, res, next) => {
+  try {
+    const { resourceId } = req.params;
+    const { isVerified } = req.body;
+
+    const resource = await adminService.setResourceVerification(
+      req.user._id,
+      resourceId,
+      isVerified
+    );
+
+    res.status(200).json({
+      success: true,
+      message: isVerified
+        ? "Resource re-approved and visible in the library again"
+        : "Resource hidden from the library",
+      data: resource,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getAuditLogs = async (req, res, next) => {
   try {
     const { page, limit } = req.query;

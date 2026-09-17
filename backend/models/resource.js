@@ -22,6 +22,11 @@ const resourceSchema = new mongoose.Schema({
   branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
   publicId: { type: String }, // Cloudinary public ID for deletion purposes
   downloadsCount: { type: Number, default: 0 },
+  // Auto-approved on upload (so the resource hub isn't gated on admin response
+  // time), but admins can hide/re-approve content after the fact — see
+  // admin.service.js setResourceVerification. Defaults to true so existing
+  // resources created before this field existed remain visible.
+  isVerified: { type: Boolean, default: true },
 }, {timestamps: true});
 
 // Text index for search functionality
@@ -34,6 +39,7 @@ resourceSchema.index(
 resourceSchema.index({ category: 1 });
 resourceSchema.index({ downloadsCount: -1 });
 resourceSchema.index({ branch: 1 });
+resourceSchema.index({ isVerified: 1 });
 
 resourceSchema.plugin(aggregatePaginate);
 

@@ -138,6 +138,8 @@ const ChatComposer = ({
               type="submit"
               className="send-btn"
               title="Send message"
+              disabled={isSending}
+              aria-busy={isSending}
             >
               <span className="material-icons">send</span>
             </button>

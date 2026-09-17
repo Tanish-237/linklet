@@ -8,8 +8,13 @@ import { invalidateUserCache } from "../utils/userCache.js";
 export const getProfile = async (req, res, next) => {
   try {
     const { username } = req.params;
+    // email/phoneNumber are intentionally shown — this is a campus directory for
+    // verified @mnnit.ac.in students (route now requires isLoggedIn). Fields with
+    // no legitimate reason to be visible to anyone but the account owner/admins
+    // (auth internals, moderation status, google linkage, raw bookmark IDs — a
+    // dedicated /:username/bookmarks endpoint already exists for that) are excluded.
     const user = await User.findOne({ username })
-      .select("-password -refreshToken")
+      .select("-password -refreshToken -googleId -isBanned -banReason -bookmarks")
       .populate("branch", "name");
 
     if (!user) throw new AppError("User not found", 404);
@@ -76,11 +81,27 @@ export const updateProfile = async (req, res, next) => {
     }
 
     if (username) {
-      const existingUser = await User.findOne({ username });
+      const trimmedUsername = String(username).trim();
+      // Keep usernames to a predictable, URL-safe charset (they're used directly
+      // in /profile/:username, /posts/user/:userId links, @mentions, etc.), and
+      // block words that collide with sibling routes registered on this same
+      // router (e.g. a user named "edit" would otherwise shadow GET /profile/edit).
+      const RESERVED_USERNAMES = ["me", "edit", "block", "follow", "bookmarks", "collections"];
+      if (!/^[a-zA-Z0-9_.]{3,30}$/.test(trimmedUsername)) {
+        throw new AppError(
+          "Username must be 3-30 characters and contain only letters, numbers, underscores, or periods",
+          400
+        );
+      }
+      if (RESERVED_USERNAMES.includes(trimmedUsername.toLowerCase())) {
+        throw new AppError("This username is reserved. Please choose another.", 400);
+      }
+
+      const existingUser = await User.findOne({ username: trimmedUsername });
       if (existingUser && existingUser._id.toString() !== userId.toString()) {
         throw new AppError("Username is already taken", 400);
       }
-      updates.username = username;
+      updates.username = trimmedUsername;
     }
 
     if (req.file) {
@@ -258,10 +279,52 @@ export const toggleFollowUser = async (req, res, next) => {
         .catch(() => {});
     }
 
+    await Promise.all([
+      invalidateUserCache(currentUserId),
+      invalidateUserCache(targetUserId),
+    ]);
+
     res.status(200).json({
       success: true,
       isFollowing: !isFollowing,
       message: isFollowing ? "Unfollowed user" : "Following user",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Toggle block/unblock a user. Blocking is enforced server-side: once blocked
+ *  (in either direction), chat.service.sendMessage refuses to deliver new direct
+ *  messages between the two users — this is not just a UI-level hide. */
+export const toggleBlockUser = async (req, res, next) => {
+  try {
+    const currentUserId = req.user._id;
+    const { targetUserId } = req.params;
+
+    if (currentUserId.toString() === targetUserId.toString()) {
+      throw new AppError("You cannot block yourself", 400);
+    }
+
+    const targetUser = await User.findById(targetUserId);
+    if (!targetUser) throw new AppError("User not found", 404);
+
+    const currentUser = await User.findById(currentUserId);
+    const isBlocked = (currentUser.blockedUsers || []).some(
+      (id) => id.toString() === targetUserId.toString()
+    );
+
+    const update = isBlocked
+      ? { $pull: { blockedUsers: targetUserId } }
+      : { $addToSet: { blockedUsers: targetUserId } };
+
+    await User.findByIdAndUpdate(currentUserId, update);
+    await invalidateUserCache(currentUserId);
+
+    res.status(200).json({
+      success: true,
+      isBlocked: !isBlocked,
+      message: isBlocked ? "User unblocked" : "User blocked",
     });
   } catch (error) {
     next(error);

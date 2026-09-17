@@ -2,6 +2,17 @@ import * as authService from "../services/auth.service.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 
+/**
+ * Reject non-string values before they reach a Mongoose query. Mongoose only
+ * casts a bare value assigned to a schema path — an object like
+ * `{ "$gt": "" }` submitted as req.body.email is passed straight through as a
+ * MongoDB query operator (`User.findOne({ email: { $gt: "" } })`), letting an
+ * attacker match an arbitrary user instead of the one they claim to be.
+ * Every field that can end up as part of a User query must be validated as a
+ * plain string first.
+ */
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+
 export const cookieOptions = {
   httpOnly: true,
   secure: isProduction,
@@ -11,7 +22,7 @@ export const cookieOptions = {
 export const sendOtp = async (req, res, next) => {
   try {
     const { email } = req.body;
-    if (!email) {
+    if (!isNonEmptyString(email)) {
       return res.status(400).json({ success: false, message: "Email is required" });
     }
     const result = await authService.generateAndSendOtp(email);
@@ -23,6 +34,14 @@ export const sendOtp = async (req, res, next) => {
 
 export const registerUser = async (req, res, next) => {
   try {
+    const { email, password, fullName, department, otp } = req.body || {};
+    if (![email, password, fullName, department, otp].every(isNonEmptyString)) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, password, full name, department, and OTP are required",
+      });
+    }
+
     const result = await authService.register(req.body);
 
     res.cookie("accesstoken", result.accessToken, cookieOptions);
@@ -43,11 +62,11 @@ export const registerUser = async (req, res, next) => {
 export const loginUser = async (req, res, next) => {
   try {
     const { email, password, username } = req.body;
-    
+
     // Allow login by email or username
     const identifier = email || username;
 
-    if (!identifier || !password) {
+    if (!isNonEmptyString(identifier) || !isNonEmptyString(password)) {
       return res.status(400).json({ success: false, message: "Username/Email and password are required" });
     }
 
@@ -129,7 +148,7 @@ export const checkAuth = async (req, res, next) => {
 export const changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) {
+    if (!isNonEmptyString(currentPassword) || !isNonEmptyString(newPassword)) {
       return res.status(400).json({
         success: false,
         message: "Current password and new password are required",
@@ -156,7 +175,7 @@ export const changePassword = async (req, res, next) => {
 export const sendForgotPasswordOtp = async (req, res, next) => {
   try {
     const { email } = req.body;
-    if (!email) {
+    if (!isNonEmptyString(email)) {
       return res.status(400).json({ success: false, message: "Email is required" });
     }
     const result = await authService.forgotPasswordSendOtp(email);
@@ -169,7 +188,7 @@ export const sendForgotPasswordOtp = async (req, res, next) => {
 export const resetPassword = async (req, res, next) => {
   try {
     const { email, otp, newPassword } = req.body;
-    if (!email || !otp || !newPassword) {
+    if (![email, otp, newPassword].every(isNonEmptyString)) {
       return res.status(400).json({
         success: false,
         message: "Email, OTP code, and new password are required",
