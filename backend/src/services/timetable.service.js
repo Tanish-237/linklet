@@ -5,6 +5,12 @@ import { Schedule } from "../models/schedule.model.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 
+// Single source of truth for the Gemini model used to parse timetables — the
+// comment on parseTimetablePdf below used to say "Gemini 2.5 Flash" while this
+// literal actually said "gemini-3.6-flash", which would mislead anyone
+// updating one without the other.
+const GEMINI_MODEL = "gemini-3.6-flash";
+
 const DAY_NAME_TO_INDEX = {
   Sunday: 0,
   Monday: 1,
@@ -174,7 +180,7 @@ export const detectMimeType = (buffer, defaultMime = "application/pdf") => {
 };
 
 /**
- * Parses an official MNNIT Timetable (PDF or Image) using Gemini 2.5 Flash Vision API.
+ * Parses an official MNNIT Timetable (PDF or Image) using the Gemini Vision API (see GEMINI_MODEL above for the exact model).
  * This function REQUIRES a valid GEMINI_API_KEY — it will NOT return fake/sample data.
  */
 export const parseTimetablePdf = async (fileBuffer, userProfile = {}, providedMimeType = null) => {
@@ -260,7 +266,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+        model: GEMINI_MODEL,
         contents: [
           {
             role: "user",
@@ -389,6 +395,9 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
  * Confirm and save parsed timetable to database, and auto-register subjects in Attendance Guardian.
  */
 export const confirmAndSaveTimetable = async (userId, timetableData) => {
+  // Wiping by default is a deliberate product choice (a fresh timetable upload
+  // replaces the old schedule/attendance) — both real UI flows always pass this
+  // explicitly either way, so the default only matters for direct API callers.
   const { branch, semester, section, subSection, classes, wipeExisting = true } = timetableData;
 
   if (!userId) {

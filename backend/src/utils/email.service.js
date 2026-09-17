@@ -1,6 +1,22 @@
 import nodemailer from "nodemailer";
 import { AppError } from "./error.js";
 import logger from "./logger.js";
+import { DEFAULT_CONTACT_EMAIL } from "../config/constants.js";
+
+/**
+ * Escape HTML special characters before interpolating untrusted input (a
+ * contact-form submission from anyone, logged in or not) into an HTML email
+ * body. Without this, a message like `<a href="https://evil.example">click
+ * here</a>` renders as a real clickable link/markup in the founders' inbox —
+ * classic HTML injection turning a support form into a phishing vector.
+ */
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 
 const getTransporter = () => {
   const user = (process.env.EMAIL_USER || "").trim().replace(/^["']|["']$/g, "");
@@ -39,12 +55,12 @@ export const sendEmail = async (to, subject, text) => {
     ""
   ).trim().replace(/^["']|["']$/g, "");
 
-  console.log(`[EMAIL DISPATCH] Dispatching to ${to}. Brevo Key detected: ${!!brevoApiKey}`);
+  logger.info(`[EMAIL DISPATCH] Dispatching to ${to}. Brevo Key detected: ${!!brevoApiKey}`);
 
   // 1. Primary: Use Brevo HTTPS API (port 443 - never blocked by Render)
   if (brevoApiKey) {
     try {
-      const senderEmail = (process.env.EMAIL_USER || "founderslinklet@gmail.com").trim().replace(/^["']|["']$/g, "");
+      const senderEmail = (process.env.EMAIL_USER || DEFAULT_CONTACT_EMAIL).trim().replace(/^["']|["']$/g, "");
       const otpCode = text.match(/\d{6}/)?.[0] || "";
 
       const res = await fetch("https://api.brevo.com/v3/smtp/email", {
@@ -80,22 +96,19 @@ export const sendEmail = async (to, subject, text) => {
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        console.error(`[BREVO API ERROR] HTTP ${res.status}:`, JSON.stringify(data));
-        logger.error(`Brevo API error (${res.status}):`, data);
+        logger.error(`[BREVO API ERROR] HTTP ${res.status}: ${JSON.stringify(data)}`);
         throw new Error(data.message || `Brevo API returned status ${res.status}`);
       }
 
-      console.log(`[BREVO SUCCESS] Email successfully sent to ${to} (MessageId: ${data.messageId})`);
-      logger.info(`Email successfully sent to ${to} via Brevo (MessageId: ${data.messageId})`);
+      logger.info(`[BREVO SUCCESS] Email successfully sent to ${to} via Brevo (MessageId: ${data.messageId})`);
       return data;
     } catch (err) {
-      console.error("[EMAIL FAILED VIA BREVO]:", err.message);
-      logger.error("Failed to send email via Brevo API:", err);
+      logger.error(`[EMAIL FAILED VIA BREVO]: ${err.message}`);
       throw new AppError("Failed to send verification email. Please try again later.", 500);
     }
   }
 
-  console.log("[EMAIL FALLBACK] No BREVO_API_KEY found, attempting Nodemailer SMTP fallback...");
+  logger.info("[EMAIL FALLBACK] No BREVO_API_KEY found, attempting Nodemailer SMTP fallback...");
 
   // 2. Secondary / Local fallback: Nodemailer SMTP
   try {
@@ -127,7 +140,7 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
   const receiverEmail = (
     process.env.CONTACT_RECEIVER_EMAIL ||
     process.env.FOUNDER_EMAIL ||
-    "founderslinklet@gmail.com"
+    DEFAULT_CONTACT_EMAIL
   ).trim().replace(/^["']|["']$/g, "");
 
   const brevoApiKey = (
@@ -139,10 +152,19 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
 
   const senderEmail = (
     process.env.EMAIL_USER ||
-    "founderslinklet@gmail.com"
+    DEFAULT_CONTACT_EMAIL
   ).trim().replace(/^["']|["']$/g, "");
 
   const emailSubject = `[Linklet Contact] [${category || "General Inquiry"}] ${subject || "New Message from " + name}`;
+
+  // Every user-supplied value below is escaped — this HTML is built from an
+  // unauthenticated public contact form.
+  const safeName = escapeHtml(name);
+  const safeEmail = escapeHtml(email);
+  const safeCategory = escapeHtml(category || "General Inquiry");
+  const safeSubject = escapeHtml(subject || "");
+  const safeMessage = escapeHtml(message);
+  const safeEmailSubjectHtml = escapeHtml(emailSubject);
 
   const htmlContent = `
     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e4e4e7; border-radius: 14px; background: #ffffff; color: #18181b;">
@@ -150,7 +172,7 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
         <span style="display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; background: #ede9fe; color: #6d28d9; padding: 4px 10px; border-radius: 6px; margin-bottom: 8px;">
           New Contact Submission
         </span>
-        <h2 style="color: #18181b; margin: 8px 0 4px 0; font-size: 22px; font-weight: 700;">${emailSubject}</h2>
+        <h2 style="color: #18181b; margin: 8px 0 4px 0; font-size: 22px; font-weight: 700;">${safeEmailSubjectHtml}</h2>
         <p style="color: #71717a; font-size: 13px; margin: 0;">Received via Linklet Campus Platform</p>
       </div>
 
@@ -158,19 +180,19 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
           <tr>
             <td style="padding: 6px 0; color: #71717a; width: 110px; font-weight: 600;">From:</td>
-            <td style="padding: 6px 0; color: #18181b; font-weight: 600;">${name}</td>
+            <td style="padding: 6px 0; color: #18181b; font-weight: 600;">${safeName}</td>
           </tr>
           <tr>
             <td style="padding: 6px 0; color: #71717a; font-weight: 600;">Sender Email:</td>
             <td style="padding: 6px 0; color: #7c3aed;">
-              <a href="mailto:${email}" style="color: #7c3aed; text-decoration: none; font-weight: 600;">${email}</a>
+              <a href="mailto:${safeEmail}" style="color: #7c3aed; text-decoration: none; font-weight: 600;">${safeEmail}</a>
             </td>
           </tr>
           <tr>
             <td style="padding: 6px 0; color: #71717a; font-weight: 600;">Category:</td>
             <td style="padding: 6px 0;">
               <span style="display: inline-block; background: #e0e7ff; color: #3730a3; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600;">
-                ${category || "General Inquiry"}
+                ${safeCategory}
               </span>
             </td>
           </tr>
@@ -178,7 +200,7 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
             subject
               ? `<tr>
                   <td style="padding: 6px 0; color: #71717a; font-weight: 600;">Subject:</td>
-                  <td style="padding: 6px 0; color: #18181b;">${subject}</td>
+                  <td style="padding: 6px 0; color: #18181b;">${safeSubject}</td>
                 </tr>`
               : ""
           }
@@ -187,18 +209,18 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
 
       <div style="margin-bottom: 24px;">
         <h4 style="font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #71717a; margin: 0 0 10px 0;">Message Content</h4>
-        <div style="background: #fafafa; border: 1px solid #e4e4e7; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 18px; font-size: 14px; line-height: 1.6; color: #27272a; white-space: pre-wrap;">${message}</div>
+        <div style="background: #fafafa; border: 1px solid #e4e4e7; border-left: 4px solid #7c3aed; border-radius: 8px; padding: 18px; font-size: 14px; line-height: 1.6; color: #27272a; white-space: pre-wrap;">${safeMessage}</div>
       </div>
 
       <div style="border-top: 1px solid #e4e4e7; padding-top: 18px; font-size: 12px; color: #71717a; text-align: center; line-height: 1.5;">
-        💡 <strong>Quick Reply:</strong> Simply hit <strong>Reply</strong> in Gmail to answer <strong>${name}</strong> (<a href="mailto:${email}" style="color: #7c3aed; text-decoration: none;">${email}</a>) directly.
+        💡 <strong>Quick Reply:</strong> Simply hit <strong>Reply</strong> in Gmail to answer <strong>${safeName}</strong> (<a href="mailto:${safeEmail}" style="color: #7c3aed; text-decoration: none;">${safeEmail}</a>) directly.
       </div>
     </div>
   `;
 
   const textContent = `New Contact Form Submission on Linklet\n\nFrom: ${name} (${email})\nCategory: ${category}\nSubject: ${subject || "N/A"}\n\nMessage:\n${message}\n\n--\nHit Reply to respond to ${email}`;
 
-  console.log(`[CONTACT EMAIL DISPATCH] Dispatching contact form notification to ${receiverEmail} (Reply-To: ${email}). Brevo Key: ${!!brevoApiKey}`);
+  logger.info(`[CONTACT EMAIL DISPATCH] Dispatching contact form notification to ${receiverEmail} (Reply-To: ${email}). Brevo Key: ${!!brevoApiKey}`);
 
   // 1. Primary: Brevo HTTPS API
   if (brevoApiKey) {
@@ -228,17 +250,14 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        console.error(`[BREVO CONTACT EMAIL ERROR] HTTP ${res.status}:`, JSON.stringify(data));
-        logger.error(`Brevo contact email error (${res.status}):`, data);
+        logger.error(`[BREVO CONTACT EMAIL ERROR] HTTP ${res.status}: ${JSON.stringify(data)}`);
         throw new Error(data.message || `Brevo API returned status ${res.status}`);
       }
 
-      console.log(`[BREVO CONTACT SUCCESS] Notification delivered to ${receiverEmail} (MessageId: ${data.messageId})`);
-      logger.info(`Contact email sent to ${receiverEmail} via Brevo (MessageId: ${data.messageId})`);
+      logger.info(`[BREVO CONTACT SUCCESS] Notification delivered to ${receiverEmail} via Brevo (MessageId: ${data.messageId})`);
       return { success: true, messageId: data.messageId, provider: "brevo" };
     } catch (err) {
-      console.error("[BREVO CONTACT EMAIL FAILED]:", err.message);
-      logger.error("Failed to send contact email via Brevo API:", err);
+      logger.error(`[BREVO CONTACT EMAIL FAILED]: ${err.message}`);
       // Let it fall through to SMTP fallback or rethrow if desired
     }
   }

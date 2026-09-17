@@ -1,5 +1,6 @@
 import * as postRepository from "../repositories/post.repository.js";
 import { AppError } from "../utils/error.js";
+import logger from "../utils/logger.js";
 
 export const createPost = async (userId, postData) => {
   if (!postData.caption && !postData.image) {
@@ -14,7 +15,10 @@ export const createPost = async (userId, postData) => {
 };
 
 export const getGlobalFeed = async (cursor, limit) => {
-  const posts = await postRepository.getPostsFeed(cursor, parseInt(limit) || 10);
+  // Clamp so `?limit=999999` can't force the feed query (which populates
+  // comments, replies, and their authors on every post) to load everything.
+  const safeLimit = Math.min(50, Math.max(1, parseInt(limit) || 10));
+  const posts = await postRepository.getPostsFeed(cursor, safeLimit);
 
   // Calculate next cursor
   const nextCursor = posts.length > 0 ? posts[posts.length - 1].createdAt : null;
@@ -78,7 +82,7 @@ export const deletePost = async (postId, userId, userRole) => {
         entityType: "System",
       });
     } catch (e) {
-      console.error("[AUDIT/NOTIF ERROR]", e);
+      logger.warn(`[AUDIT/NOTIF ERROR] ${e.message}`);
     }
   }
 
@@ -131,7 +135,7 @@ export const deleteComment = async (postId, commentId, userId, userRole) => {
         entityType: "System",
       });
     } catch (e) {
-      console.error("[AUDIT/NOTIF ERROR]", e);
+      logger.warn(`[AUDIT/NOTIF ERROR] ${e.message}`);
     }
   }
 

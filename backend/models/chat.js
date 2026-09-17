@@ -70,7 +70,12 @@ messageSchema.pre("validate", function (next) {
 // Compound index for efficient message queries per chat and read tracking
 messageSchema.index({ chat: 1, createdAt: -1 });
 messageSchema.index({ chat: 1, readBy: 1, sender: 1 });
-messageSchema.index({ content: "text" });
+// Compound text index scoped by chat: a plain `{ content: "text" }` index
+// means searching within ONE chat still ranks/matches against every message
+// in every chat before the `chat` filter is applied. Prefixing the text index
+// with `chat` lets Mongo use it to satisfy both the equality filter and the
+// text search in one pass — search stays scoped to just that conversation.
+messageSchema.index({ chat: 1, content: "text" });
 
 // ─── Chat Model ─────────────────────────────────────────────────────────────
 const chatSchema = new mongoose.Schema(
