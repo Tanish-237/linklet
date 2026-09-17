@@ -125,7 +125,7 @@ const Profile = () => {
         } finally {
           setPostsLoading(false);
         }
-      } catch (error) {
+      } catch {
         toast.error("Profile not found");
         navigate("/dashboard");
       } finally {
@@ -211,7 +211,7 @@ const Profile = () => {
       if (res.data.success) {
         navigate("/dashboard/chat", { state: { selectedChat: res.data.data } });
       }
-    } catch (err) {
+    } catch {
       toast.error("Failed to open conversation");
     }
   };
@@ -1143,6 +1143,7 @@ const Profile = () => {
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-white truncate hover:text-violet-300 transition-colors">
                               {u.fullName || u.username}
+                              {isCurrent && <span className="ml-1.5 text-xs font-normal text-violet-400">(You)</span>}
                             </p>
                             <p className="text-xs text-gray-400 truncate">@{u.username}</p>
                           </div>

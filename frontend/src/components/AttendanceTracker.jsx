@@ -58,7 +58,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
           setSelectedCourseId(null);
         }
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to load attendance records');
     } finally {
       if (showLoadingSpinner) setLoading(false);

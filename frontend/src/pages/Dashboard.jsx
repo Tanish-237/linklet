@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import AttendanceTracker from "../components/AttendanceTracker";
 import DailySchedule from "../components/DailySchedule";
 import TimetableUploadModal from "../components/TimetableUploadModal";
@@ -13,18 +13,15 @@ import QuestionDetail from "./QuestionDetail";
 import { useAuth } from "../context/AuthContext";
 import { fetchDashboardStats } from "../api/dashboard.api";
 import { fetchTimetable } from "../api/timetable.api";
-import { toast } from "react-toastify";
 
 export default function Dashboard() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const queryClient = useQueryClient();
 
   // In-memory cached dashboard stats & timetable status (0ms instant tab switching)
   const {
     data: dashboardData,
-    isLoading: isStatsLoading,
     refetch: refetchStats,
   } = useQuery({
     queryKey: ["dashboard", "stats", user?._id || user?.username || "me"],
@@ -45,10 +42,9 @@ export default function Dashboard() {
 
   const stats = dashboardData?.stats || null;
   const hasTimetable = dashboardData?.hasTimetable ?? null;
-  const loading = isStatsLoading && !stats;
 
   // Triggers for child components & modals
-  const [addEventTrigger, setAddEventTrigger] = useState(0);
+  const [addEventTrigger] = useState(0);
   const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0);
   const [attendanceRefreshTrigger, setAttendanceRefreshTrigger] = useState(0);
 

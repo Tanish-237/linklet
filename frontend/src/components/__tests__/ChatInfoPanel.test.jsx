@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import ChatInfoPanel from "../ChatInfoPanel";
 import { apiClient } from "../../api/apiClient";
 

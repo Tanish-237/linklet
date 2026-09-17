@@ -4,7 +4,6 @@ import { vi, describe, beforeEach, it, expect } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import CreatePost from "../CreatePost";
 import { useAuth } from "../../context/AuthContext";
-import { apiClient } from "../../api/apiClient";
 
 vi.mock("../../context/AuthContext", () => ({
   useAuth: vi.fn(),

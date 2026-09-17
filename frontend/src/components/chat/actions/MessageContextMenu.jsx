@@ -9,7 +9,6 @@ const MessageContextMenu = ({
   isSent,
   isStarred,
   onReply,
-  onReact,
   onTogglePin,
   onToggleStar,
   onForward,

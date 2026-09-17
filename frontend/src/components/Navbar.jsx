@@ -6,7 +6,6 @@ import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useEffect } from "react";
 import styled from "styled-components";
-import { useSocket } from "../hooks/useSocket";
 import linkletLogo from "../assets/linklet-logo.png";
 
 const Nav = styled.nav`
@@ -236,7 +235,6 @@ const DropdownMenu = styled.div`
 export const Navbar = () => {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
-  const socket = useSocket();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const profileContainerRef = React.useRef(null);
 
@@ -260,7 +258,7 @@ export const Navbar = () => {
       toast.success("Logged out successfully");
       setUser(null);
       navigate("/");
-    } catch (error) {
+    } catch {
       toast.error("Failed to logout");
     }
   };

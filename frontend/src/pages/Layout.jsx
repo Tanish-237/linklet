@@ -77,7 +77,7 @@ export default function Layout({ children }) {
             }
           );
         }
-      } catch (err) {
+      } catch {
         // Safe fallback
       }
     };
@@ -129,7 +129,7 @@ export default function Layout({ children }) {
       setUser(null);
       toast.success("Logged out successfully");
       navigate("/");
-    } catch (error) {
+    } catch {
       toast.error("Logout failed");
     }
   };

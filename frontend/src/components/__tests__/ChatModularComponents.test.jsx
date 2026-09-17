@@ -7,7 +7,7 @@ import ChatSelectionBar from "../chat/header/ChatSelectionBar";
 import PinnedMessageBanner from "../chat/header/PinnedMessageBanner";
 import AttachmentPreviewTray from "../chat/composer/AttachmentPreviewTray";
 import VoiceNoteRecordingTray from "../chat/composer/VoiceNoteRecordingTray";
-import MessageBubble, { formatMessageClock, renderDeliveryTicks } from "../chat/messages/MessageBubble";
+import MessageBubble, { formatMessageClock } from "../chat/messages/MessageBubble";
 import DateSeparator, { formatMessageDate } from "../chat/messages/DateSeparator";
 import ChatMessagesList from "../chat/messages/ChatMessagesList";
 import AudioMessagePlayer from "../chat/messages/AudioMessagePlayer";
@@ -16,7 +16,7 @@ import ReactionPickerBar, { QUICK_REACTIONS } from "../chat/actions/ReactionPick
 import MessageActionsToolbar from "../chat/actions/MessageActionsToolbar";
 
 // Hooks
-import { useAudioPlayback, formatAudioTime } from "../chat/hooks/useAudioPlayback";
+import { formatAudioTime } from "../chat/hooks/useAudioPlayback";
 import { useInChatSearch } from "../chat/hooks/useInChatSearch";
 
 describe("Modular Chat Subcomponents & Hooks Tests", () => {

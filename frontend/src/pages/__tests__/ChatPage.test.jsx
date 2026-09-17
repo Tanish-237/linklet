@@ -349,8 +349,6 @@ describe("ChatPage Component", () => {
       expect(screen.getByText("bob")).toBeInTheDocument();
     });
 
-    const initialOffCalls = mockSocketOff.mock.calls.length;
-
     // Click on Chat A
     fireEvent.click(screen.getByText("alice"));
     await waitFor(() => {

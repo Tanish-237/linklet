@@ -104,6 +104,11 @@ export default function Minesweeper() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
       <h1 className="text-3xl font-bold mb-4">Minesweeper</h1>
+      {gameOver && (
+        <p className={`mb-2 font-semibold ${win ? "text-green-600" : "text-red-600"}`}>
+          {win ? "🎉 You Win!" : "💥 Game Over"}
+        </p>
+      )}
       <div
         className="grid gap-1"
         style={{

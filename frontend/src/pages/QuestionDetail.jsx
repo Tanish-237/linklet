@@ -501,7 +501,6 @@ const QuestionDetail = ({ basePath = '' }) => {
   const fetchQuestion = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     try {
-      console.log('[QuestionDetail] Fetching question:', questionId);
       const data = await getQuestion(questionId);
       setQuestion(data);
 
@@ -579,7 +578,6 @@ const QuestionDetail = ({ basePath = '' }) => {
       return;
     }
 
-    console.log('[QuestionDetail] Posting answer...');
     setSubmittingAnswer(true);
     try {
       const newAnswer = await apiPostAnswer(questionId, answerBody.trim());
@@ -672,7 +670,6 @@ const QuestionDetail = ({ basePath = '' }) => {
 
   const handleAddComment = async (qId, answerId, text, parentId = null) => {
     try {
-      console.log('[QuestionDetail] Adding comment to answer:', answerId, 'parentId:', parentId);
       const updatedAnswer = await apiAddComment(qId, answerId, text, parentId);
       setAnswers((prev) =>
         prev.map((a) => (a._id === answerId ? { ...a, comments: updatedAnswer.comments } : a))

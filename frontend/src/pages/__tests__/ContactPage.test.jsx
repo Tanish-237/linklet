@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
-import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
+import { vi, describe, it, expect, beforeEach } from "vitest";
 import ContactPage from "../static/ContactPage";
 import { toast } from "react-toastify";
 

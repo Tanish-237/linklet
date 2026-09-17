@@ -8,7 +8,6 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
   const navigate = useNavigate();
   const setUser = useAuthStore((state) => state.setUser);
   const buttonContainerRef = useRef(null);
-  const [isGsiLoaded, setIsGsiLoaded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const clientId = (
@@ -89,8 +88,6 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
             logo_alignment: "left",
             width: buttonContainerRef.current.offsetWidth || 380,
           });
-
-          setIsGsiLoaded(true);
         } catch (err) {
           console.warn("Error rendering Google Sign-In button:", err);
         }
