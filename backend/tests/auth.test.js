@@ -1,5 +1,4 @@
 import { jest } from '@jest/globals';
-import { AppError } from '../src/utils/error.js';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 const mockFindUserByEmail = jest.fn();

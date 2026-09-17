@@ -627,7 +627,7 @@ describe('Chat Service Unit Tests', () => {
       mockFindMessageById.mockResolvedValue({ _id: 'p2', chat: 'chat1' });
       mockPinChatMessage.mockResolvedValue({ _id: 'chat1', pinnedMessages: ['p1', 'p2'] });
 
-      const res = await chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'p2' });
+      await chatService.pinMessage('user1', { chatId: 'chat1', messageId: 'p2' });
       expect(mockPinChatMessage).toHaveBeenCalledWith('chat1', 'p2');
     });
   });

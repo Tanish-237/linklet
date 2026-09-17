@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Chat, Message } from "../../models/chat.js";
 import { User } from "../../models/users.js";
 import { escapeRegex } from "../utils/search.utils.js";
@@ -27,7 +28,12 @@ export const chatExists = async (chatId) => {
  */
 export const filterExistingUserIds = async (userIds) => {
   if (!Array.isArray(userIds) || userIds.length === 0) return [];
-  const found = await User.find({ _id: { $in: userIds } }).select("_id").lean();
+  // A malformed/bogus ID here would make Mongoose throw a CastError while
+  // building the $in query, turning one bad ID into a 500 for the whole
+  // request — so drop anything that isn't a valid ObjectId before querying.
+  const validIds = userIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+  if (validIds.length === 0) return [];
+  const found = await User.find({ _id: { $in: validIds } }).select("_id").lean();
   return found.map((u) => u._id.toString());
 };
 

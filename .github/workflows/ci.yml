@@ -29,12 +29,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 
       - name: Audit for known-vulnerable dependencies
         run: npm audit --audit-level=high
-        continue-on-error: true
 
   frontend:
     name: Frontend (lint, test, build)
@@ -67,4 +69,3 @@ jobs:
 
       - name: Audit for known-vulnerable dependencies
         run: npm audit --audit-level=high
-        continue-on-error: true

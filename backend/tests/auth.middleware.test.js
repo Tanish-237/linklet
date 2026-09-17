@@ -1,6 +1,5 @@
 import { jest } from "@jest/globals";
 import jwt from "jsonwebtoken";
-import { AppError } from "../src/utils/error.js";
 
 // Mock redis
 const mockRedisGet = jest.fn();
@@ -35,7 +34,7 @@ jest.unstable_mockModule("../models/users.js", () => ({
 
 // Import modules under test
 const { isLoggedIn, optionalAuth } = await import("../src/middlewares/auth.middleware.js");
-const { getCachedUser, setCachedUser, invalidateUserCache } = await import("../src/utils/userCache.js");
+const { invalidateUserCache } = await import("../src/utils/userCache.js");
 
 describe("Auth Middleware & Redis User Cache Tests", () => {
   const originalEnv = process.env;

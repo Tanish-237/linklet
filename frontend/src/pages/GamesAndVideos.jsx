@@ -61,10 +61,18 @@ const GamesAndVideos = () => {
     // The backend now requires every socket connection to present a valid
     // access token at handshake time (see backend/socket.js) — without this,
     // the connection is rejected outright and none of the room/game events
-    // below would ever fire.
+    // below would ever fire. /games is a public route, so signed-out visitors
+    // land here with no token: skip connecting rather than opening a socket
+    // we know the server will reject, which used to surface a misleading
+    // "check if the server is running" alert on page load. They can still
+    // play the single-player games below; multiplayer prompts them to log in.
     const token = typeof window !== "undefined" && window.localStorage
       ? localStorage.getItem("accessToken")
       : null;
+
+    if (!token) {
+      return;
+    }
 
     const newSocket = io(socketUrl, {
       auth: { token },
@@ -154,8 +162,14 @@ const GamesAndVideos = () => {
   const createRoom = async () => {
 
     if (!socket) {
-      console.error("Socket is null");
-      alert("Socket not initialized. Please refresh the page.");
+      const loggedIn = typeof window !== "undefined" && window.localStorage
+        ? localStorage.getItem("accessToken")
+        : null;
+      alert(
+        loggedIn
+          ? "Not connected to server. Please refresh the page."
+          : "Please log in to play multiplayer games."
+      );
       return;
     }
 
@@ -213,8 +227,9 @@ const GamesAndVideos = () => {
   };
 
   const joinRoom = () => {
-    if (!socket || !joinRoomId) {
-      console.error("Socket or roomId not available");
+    if (!joinRoomId) return;
+    if (!socket) {
+      alert("Please log in to play multiplayer games.");
       return;
     }
     socket.emit("join-room", joinRoomId);

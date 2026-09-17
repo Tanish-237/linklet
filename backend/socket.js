@@ -82,7 +82,13 @@ export const initializeSocket = async (server) => {
         return next(new Error("Invalid or expired token"));
       }
 
-      const blacklisted = await isTokenBlacklisted(token).catch(() => false);
+      // isTokenBlacklisted() fails open (returns false) both when Redis is
+      // unreachable and when it's simply not configured — same trade-off the
+      // REST `isLoggedIn`/`optionalAuth` middlewares already make. This means
+      // a logged-out token can still open a socket during a Redis outage; we
+      // accept that here for consistency with the REST API rather than making
+      // sockets fail closed while REST endpoints stay available.
+      const blacklisted = await isTokenBlacklisted(token);
       if (blacklisted) {
         return next(new Error("Session expired"));
       }

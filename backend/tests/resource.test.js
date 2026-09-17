@@ -71,7 +71,7 @@ describe('Resource Service — Unit Tests', () => {
       };
       mockCreateResource.mockResolvedValue({ ...data, _id: 'res2' });
 
-      const result = await resourceService.uploadResource(userId, data);
+      await resourceService.uploadResource(userId, data);
 
       console.log('[TEST] called createResource with tags:', mockCreateResource.mock.calls[0][0].resourcetags);
       expect(mockCreateResource).toHaveBeenCalledWith(

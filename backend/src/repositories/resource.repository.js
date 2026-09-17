@@ -186,7 +186,7 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
   };
 
   statsAggregate.forEach((stat) => {
-    if (stat._id && stats.categories.hasOwnProperty(stat._id)) {
+    if (stat._id && Object.prototype.hasOwnProperty.call(stats.categories, stat._id)) {
       stats.categories[stat._id] = stat.count;
       stats.total += stat.count;
     }

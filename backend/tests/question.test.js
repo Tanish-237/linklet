@@ -512,7 +512,7 @@ describe('Question Service — Unit Tests', () => {
       });
       mockDeleteCommentFromAnswer.mockResolvedValue({ _id: 'a1', comments: [] });
 
-      const result = await questionService.deleteComment('q1', 'a1', 'c1', commentAuthor, 'user');
+      await questionService.deleteComment('q1', 'a1', 'c1', commentAuthor, 'user');
       expect(mockDeleteCommentFromAnswer).toHaveBeenCalledWith('a1', 'c1');
     });
 

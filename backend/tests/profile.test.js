@@ -5,7 +5,6 @@ import { AppError } from '../src/utils/error.js';
 const mockFindOne        = jest.fn();
 const mockFindById       = jest.fn();
 const mockFindByIdAndUpdate = jest.fn();
-const mockFindResourceById  = jest.fn();
 const mockResourceFindById  = jest.fn();
 const mockResourceFind      = jest.fn();
 const mockPostFindById      = jest.fn();
