@@ -1,18 +1,38 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import * as authController from "../controllers/auth.controller.js";
 import { isLoggedIn, optionalAuth } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
-router.post("/send-otp", authController.sendOtp);
-router.post("/register", authController.registerUser);
-router.post("/login", authController.loginUser);
+// A 6-digit OTP (1 in a million) is brute-forceable without a strict per-IP cap —
+// the global /api limiter (500 req / 15 min) is far too loose to protect it.
+// Scoped tightly to the handful of truly sensitive auth actions.
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many attempts. Please try again in a few minutes." },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many login attempts. Please try again in a few minutes." },
+});
+
+router.post("/send-otp", otpLimiter, authController.sendOtp);
+router.post("/register", otpLimiter, authController.registerUser);
+router.post("/login", loginLimiter, authController.loginUser);
 router.post("/logout", isLoggedIn, authController.logoutUser);
 router.post("/refresh", authController.refreshAccessToken);
 router.post("/change-password", isLoggedIn, authController.changePassword);
-router.post("/forgot-password-otp", authController.sendForgotPasswordOtp);
-router.post("/reset-password", authController.resetPassword);
-router.post("/google", authController.googleAuth);
+router.post("/forgot-password-otp", otpLimiter, authController.sendForgotPasswordOtp);
+router.post("/reset-password", otpLimiter, authController.resetPassword);
+router.post("/google", loginLimiter, authController.googleAuth);
 router.get("/check", optionalAuth, authController.checkAuth);
 
 export default router;

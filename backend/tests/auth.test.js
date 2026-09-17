@@ -495,24 +495,27 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       ).rejects.toThrow(/Only @mnnit.ac.in email addresses are allowed/i);
     });
 
-    test('forgotPasswordSendOtp › throws AppError 404 if email not registered', async () => {
+    test('forgotPasswordSendOtp › returns a generic response for an unregistered email (no account enumeration)', async () => {
       console.log('\n──────────────────────────────────────');
-      console.log('[TEST] forgotPasswordSendOtp › unregistered email');
+      console.log('[TEST] forgotPasswordSendOtp › unregistered email does not reveal account existence');
       mockFindUserByEmail.mockResolvedValueOnce(null);
 
-      await expect(
-        forgotPasswordSendOtp('nonexistent@mnnit.ac.in')
-      ).rejects.toThrow('No account found with this email address');
+      const result = await forgotPasswordSendOtp('nonexistent@mnnit.ac.in');
+
+      expect(result.message).toMatch(/if an account exists/i);
+      // No OTP should be generated/stored/emailed for an account that doesn't exist
+      expect(mockRedisSetEx).not.toHaveBeenCalled();
+      expect(mockSendEmail).not.toHaveBeenCalled();
     });
 
-    test('forgotPasswordSendOtp › sends OTP and saves to Redis for valid user', async () => {
+    test('forgotPasswordSendOtp › sends OTP and saves to Redis for valid user, with the same generic message', async () => {
       console.log('\n──────────────────────────────────────');
       console.log('[TEST] forgotPasswordSendOtp › successful OTP send');
       mockFindUserByEmail.mockResolvedValueOnce({ _id: 'u1', email: 'registered@mnnit.ac.in' });
       mockRedisSetEx.mockResolvedValueOnce('OK');
 
       const result = await forgotPasswordSendOtp('registered@mnnit.ac.in');
-      expect(result.message).toMatch(/OTP sent/i);
+      expect(result.message).toMatch(/if an account exists/i);
       expect(mockRedisSetEx).toHaveBeenCalledWith(
         'otp:reset:registered@mnnit.ac.in',
         600,

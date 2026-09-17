@@ -20,8 +20,14 @@ export const isOriginAllowed = (origin) => {
     });
 
   if (allowed.includes(cleanOrigin)) return true;
-  // Automatically allow any Vercel deployment preview or production domain
-  if (cleanOrigin.endsWith('.vercel.app')) return true;
+
+  // Automatically allow THIS project's Vercel preview/production deployments.
+  // Deliberately scoped to origins whose subdomain starts with "linklet" —
+  // allowing every "*.vercel.app" origin (with credentials: true) would let
+  // anyone with a free Vercel account stand up a page that makes authenticated
+  // requests using a visiting user's cookies.
+  if (/^https:\/\/linklet(-[a-z0-9-]+)*\.vercel\.app$/i.test(cleanOrigin)) return true;
+
   return false;
 };
 

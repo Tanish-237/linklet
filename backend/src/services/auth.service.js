@@ -9,10 +9,11 @@ import { calculateAcademicYear } from "../utils/academicYear.js";
 import { invalidateUserCache } from "../utils/userCache.js";
 import logger from "../utils/logger.js";
 import { OAuth2Client } from "google-auth-library";
+import { isAllowedInstitutionalEmail, OTP_TTL_SECONDS } from "../config/constants.js";
 
 export const generateAndSendOtp = async (email) => {
   // Enforce @mnnit.ac.in domain restriction
-  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+  if (!isAllowedInstitutionalEmail(email)) {
     throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
   }
 
@@ -32,13 +33,11 @@ export const generateAndSendOtp = async (email) => {
   } catch (err) {
     throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
   }
-  await redisClient.setEx(`otp:${email}`, 600, otp);
+  await redisClient.setEx(`otp:${email}`, OTP_TTL_SECONDS, otp);
 
-  // Log OTP in server console for development & deployment monitoring
-  console.log(`========================================================`);
-  console.log(`[REGISTRATION OTP] Code for ${email}: ${otp}`);
-  console.log(`========================================================`);
-  logger.info(`[REGISTRATION OTP] Code for ${email}: ${otp}`);
+  // Never log the OTP itself — anyone with log access (Render dashboard, a
+  // teammate, a misconfigured log drain) could otherwise reset any account.
+  logger.info(`[REGISTRATION OTP] Generated OTP for ${email}`);
 
   // Send Email via Brevo HTTPS API or fallback SMTP
   const text = `Hello,\n\nYour OTP for registering on Linklet is: ${otp}\nThis OTP is valid for 10 minutes.\n\nWelcome to the community!`;
@@ -50,7 +49,7 @@ export const generateAndSendOtp = async (email) => {
 export const register = async (userData) => {
   const { email, password, fullName, otp, department, section, subSection, semester } = userData;
 
-  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+  if (!isAllowedInstitutionalEmail(email)) {
     throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
   }
 
@@ -236,19 +235,28 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
   }
 
   user.password = newPassword;
+  // Revoke the refresh token: a device that already had a session (and any
+  // attacker who had stolen one) is signed out everywhere the moment the
+  // password changes, not just on this device.
+  user.refreshToken = null;
   await user.save();
   await invalidateUserCache(userId);
   return true;
 };
 
 export const forgotPasswordSendOtp = async (email) => {
-  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+  if (!isAllowedInstitutionalEmail(email)) {
     throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
   }
 
   const user = await userRepository.findUserByEmail(email);
+
+  // Deliberately generic response whether or not the account exists — this is
+  // the standard fix for password-reset user enumeration. We simply skip
+  // generating/sending an OTP when there's no account to reset.
+  const genericResult = { message: "If an account exists for this email, a password reset code has been sent." };
   if (!user) {
-    throw new AppError("No account found with this email address", 404);
+    return genericResult;
   }
 
   const otp = crypto.randomInt(100000, 1000000).toString();
@@ -259,21 +267,19 @@ export const forgotPasswordSendOtp = async (email) => {
   } catch (err) {
     throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
   }
-  await redisClient.setEx(`otp:reset:${email}`, 600, otp);
+  await redisClient.setEx(`otp:reset:${email}`, OTP_TTL_SECONDS, otp);
 
-  console.log(`========================================================`);
-  console.log(`[PASSWORD RESET OTP] Code for ${email}: ${otp}`);
-  console.log(`========================================================`);
-  logger.info(`[PASSWORD RESET OTP] Code for ${email}: ${otp}`);
+  // Never log the OTP itself — see generateAndSendOtp for why.
+  logger.info(`[PASSWORD RESET OTP] Generated OTP for ${email}`);
 
   const text = `Hello,\n\nYour OTP for resetting your Linklet password is: ${otp}\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.`;
   await sendEmail(email, "Linklet Password Reset Code", text);
 
-  return { message: "Password reset OTP sent to your email" };
+  return genericResult;
 };
 
 export const resetPassword = async (email, otp, newPassword) => {
-  if (!email || !email.toLowerCase().endsWith("@mnnit.ac.in")) {
+  if (!isAllowedInstitutionalEmail(email)) {
     throw new AppError("Only @mnnit.ac.in email addresses are allowed.", 400);
   }
 
@@ -303,9 +309,11 @@ export const resetPassword = async (email, otp, newPassword) => {
   }
 
   user.password = newPassword;
+  user.refreshToken = null; // sign out every existing session on reset
   await user.save();
 
   await redisClient.del(`otp:reset:${email}`);
+  await invalidateUserCache(user._id);
 
   return { message: "Password has been successfully reset" };
 };
@@ -349,7 +357,7 @@ export const authenticateWithGoogle = async (credential) => {
   const email = payload.email.toLowerCase().trim();
 
   // Enforce institutional domain restriction
-  if (!email.endsWith("@mnnit.ac.in")) {
+  if (!isAllowedInstitutionalEmail(email)) {
     throw new AppError(
       "Only official @mnnit.ac.in institutional accounts are allowed. Please sign in using your college email ID.",
       403

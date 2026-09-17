@@ -57,6 +57,16 @@ describe('CORS Origin Validator Unit Tests', () => {
     expect(isOriginAllowed('https://malicious-site.com')).toBe(false);
   });
 
+  test('rejects a Vercel deployment from an unrelated project (not just any *.vercel.app)', () => {
+    console.log('\n──────────────────────────────────────');
+    console.log('[TEST] isOriginAllowed › does not blanket-trust every vercel.app origin');
+    // Anyone can deploy to *.vercel.app on a free account — only THIS project's
+    // deployments (subdomain starting with "linklet") should be trusted with
+    // credentialed requests.
+    expect(isOriginAllowed('https://evil-phishing-site.vercel.app')).toBe(false);
+    expect(isOriginAllowed('https://attacker.vercel.app')).toBe(false);
+  });
+
   test('corsOriginHandler calls callback with true for allowed origins and error for unauthorized', () => {
     console.log('\n──────────────────────────────────────');
     console.log('[TEST] corsOriginHandler › executes callback correctly');
