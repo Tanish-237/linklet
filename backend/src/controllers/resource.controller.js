@@ -2,6 +2,7 @@ import * as resourceService from "../services/resource.service.js";
 import logger from "../utils/logger.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { AppError } from "../utils/error.js";
+import { isSafeHttpUrl } from "../utils/url.utils.js";
 
 export const createResource = async (req, res, next) => {
   try {
@@ -9,6 +10,13 @@ export const createResource = async (req, res, next) => {
 
     if (!req.file && !linkUrl) {
       throw new AppError("Please provide a file or a link", 400);
+    }
+
+    // A link resource is stored as-is and later opened directly by other
+    // students (window.open / <a href>) — without this check a
+    // `javascript:` URL saved here would execute in whoever's browser opens it.
+    if (!req.file && linkUrl && !isSafeHttpUrl(linkUrl)) {
+      throw new AppError("Link must be a valid http(s) URL", 400);
     }
 
     let fileUrl = "";
@@ -49,7 +57,10 @@ export const createResource = async (req, res, next) => {
     logger.info(`Resource submitted successfully: ${resource._id}`);
     res.status(201).json({
       success: true,
-      message: "Resource submitted for verification",
+      // Resources are visible immediately (auto-approved) — moderators can hide
+      // one after the fact via admin.service.js setResourceVerification, but
+      // there is no pre-publish review queue, so we don't claim there is one.
+      message: "Resource uploaded successfully",
       data: resource,
     });
   } catch (error) {

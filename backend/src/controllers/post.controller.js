@@ -1,5 +1,7 @@
 import * as postService from "../services/post.service.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { isSafeHttpUrl } from "../utils/url.utils.js";
+import { AppError } from "../utils/error.js";
 
 export const createPost = async (req, res, next) => {
   try {
@@ -9,6 +11,8 @@ export const createPost = async (req, res, next) => {
       if (uploadResult) {
         imageUrl = uploadResult.secure_url;
       }
+    } else if (imageUrl && !isSafeHttpUrl(imageUrl)) {
+      throw new AppError("Image must be a valid http(s) URL", 400);
     }
     const postData = {
       caption: req.body.caption || "",

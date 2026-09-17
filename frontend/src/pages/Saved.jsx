@@ -7,6 +7,7 @@ import { getCollections, deleteCollection, toggleResourceInCollection, createCol
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import PostDetailModal from "../components/PostDetailModal";
+import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import { useAuth } from "../context/AuthContext";
 import "./Saved.css";
 import "./Profile.css";
@@ -222,12 +223,16 @@ export default function Saved({ username }) {
   };
 
   const handleDownload = async (resource) => {
+    if (!isSafeHttpUrl(resource.fileUrl)) {
+      toast.error("This resource's link is invalid and cannot be opened.");
+      return;
+    }
     try {
       await apiClient.patch(`/resources/${resource._id}/download`);
       let url = resource.fileUrl;
       if (url.includes("cloudinary.com") && !url.includes("fl_attachment"))
         url = url.replace("/upload/", "/upload/fl_attachment/");
-      
+
       const res = await fetch(url);
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
@@ -240,7 +245,7 @@ export default function Saved({ username }) {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(blobUrl);
     } catch {
-      window.open(resource.fileUrl, "_blank");
+      safeOpenUrl(resource.fileUrl);
     }
   };
 
@@ -644,8 +649,6 @@ export default function Saved({ username }) {
 function ChatMediaCard({ item, onUnstar, onPreview, onDownload, onJumpToMessage }) {
   const isImage = item.mediaType === "image";
   const isVideo = item.mediaType === "video";
-  const isAudio = item.mediaType === "audio";
-  const isDoc = item.mediaType === "document";
 
   const iconMap = {
     video: { icon: "videocam", color: "#6366f1", label: "Video" },

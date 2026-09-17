@@ -6,6 +6,7 @@ import { apiClient } from "../api/apiClient";
 import useAuthStore from "../store/useAuthStore";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
+import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import "./Resource.css";
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -607,6 +608,10 @@ export default function GlobalSearch() {
   }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedFileType, selectedSort, selectedTags, showMyResourcesOnly]);
 
   const handleResourceAction = async (resource, actionType) => {
+    if (!isSafeHttpUrl(resource.fileUrl)) {
+      toast.error("This resource's link is invalid and cannot be opened.");
+      return;
+    }
     try {
       setResources((prev) =>
         prev.map((r) => r._id === resource._id ? { ...r, downloadsCount: (r.downloadsCount || 0) + 1 } : r)
@@ -620,10 +625,10 @@ export default function GlobalSearch() {
         a.href = url; a.download = resource.title || resource.fileName || "download"; a.target = "_blank";
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       } else {
-        window.open(url, "_blank");
+        safeOpenUrl(url);
       }
     } catch {
-      window.open(resource.fileUrl, "_blank");
+      safeOpenUrl(resource.fileUrl);
     }
   };
 
