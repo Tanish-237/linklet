@@ -1,12 +1,21 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { io } from "socket.io-client";
 import GamesAndVideos from "../GamesAndVideos";
+import * as refreshTokenModule from "../../api/refreshToken";
 
 vi.mock("socket.io-client", () => ({
   io: vi.fn(),
 }));
+
+vi.mock("../../api/refreshToken", async () => {
+  const actual = await vi.importActual("../../api/refreshToken");
+  return {
+    ...actual,
+    refreshAccessToken: vi.fn(),
+  };
+});
 
 // jsdom in this project's test environment doesn't implement window.localStorage
 // (see Saved.test.jsx / WhatsNewDropdown.test.jsx for the same workaround) —
@@ -70,7 +79,7 @@ describe("GamesAndVideos Component Tests", () => {
     console.log("[TEST] Verified: login-prompt alert, not a false 'server down' message");
   });
 
-  it("connects the socket with the stored access token when a user is signed in", () => {
+  it("connects the socket with a fresh access token read on each (re)connection attempt", () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] GamesAndVideos › authenticated visitor establishes a socket with their token");
     localStorage.setItem("accessToken", "real-jwt-token");
@@ -78,10 +87,42 @@ describe("GamesAndVideos Component Tests", () => {
     render(<GamesAndVideos />);
 
     expect(io).toHaveBeenCalledTimes(1);
-    expect(io).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ auth: { token: "real-jwt-token" } })
-    );
-    console.log("[TEST] Verified socket created with the signed-in user's access token");
+    const authOption = io.mock.calls[0][1].auth;
+    // `auth` must be a function, not a static object, so a reconnect after a
+    // token refresh picks up the NEW token instead of replaying the stale one.
+    expect(typeof authOption).toBe("function");
+    const cb = vi.fn();
+    authOption(cb);
+    expect(cb).toHaveBeenCalledWith({ token: "real-jwt-token" });
+    console.log("[TEST] Verified auth is a function that reads the current token from storage");
+  });
+
+  it("recovers from an expired-token handshake rejection by refreshing and reconnecting, without alerting", async () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] GamesAndVideos › connect_error with expired token triggers silent refresh + reconnect");
+    localStorage.setItem("accessToken", "stale-jwt-token");
+    refreshTokenModule.refreshAccessToken.mockResolvedValue("fresh-jwt-token");
+
+    const connectMock = vi.fn();
+    const handlers = {};
+    const eventSocket = {
+      on: vi.fn((event, cb) => { handlers[event] = cb; }),
+      once: vi.fn(),
+      emit: vi.fn(),
+      close: vi.fn(),
+      removeAllListeners: vi.fn(),
+      connect: connectMock,
+      connected: true,
+    };
+    io.mockReturnValue(eventSocket);
+
+    render(<GamesAndVideos />);
+
+    await handlers["connect_error"]({ message: "Invalid or expired token" });
+
+    expect(refreshTokenModule.refreshAccessToken).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(connectMock).toHaveBeenCalledTimes(1));
+    expect(window.alert).not.toHaveBeenCalled();
+    console.log("[TEST] Verified: no 'server down' alert, refresh + reconnect happened instead");
   });
 });

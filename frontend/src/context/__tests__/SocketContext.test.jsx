@@ -1,9 +1,10 @@
 import React, { useContext } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, act } from "@testing-library/react";
+import { render, screen, act, waitFor } from "@testing-library/react";
 import { SocketContext, SocketProvider } from "../SocketContext";
 import { io } from "socket.io-client";
 import { useAuth } from "../AuthContext";
+import * as refreshTokenModule from "../../api/refreshToken";
 
 vi.mock("socket.io-client", () => ({
   io: vi.fn(),
@@ -12,6 +13,14 @@ vi.mock("socket.io-client", () => ({
 vi.mock("../AuthContext", () => ({
   useAuth: vi.fn(),
 }));
+
+vi.mock("../../api/refreshToken", async () => {
+  const actual = await vi.importActual("../../api/refreshToken");
+  return {
+    ...actual,
+    refreshAccessToken: vi.fn(),
+  };
+});
 
 const TestConsumer = () => {
   const socket = useContext(SocketContext);
@@ -160,5 +169,59 @@ describe("SocketProvider Component Tests", () => {
     });
     expect(emitSpy).toHaveBeenCalledTimes(2);
     console.log("[TEST] Verified setup was emitted on both connect and reconnect events");
+  });
+
+  it("reads the token fresh on every connection attempt via an auth function, not a static object", () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] SocketProvider › auth option is a function so a refreshed token is picked up on reconnect");
+
+    useAuth.mockReturnValue({
+      user: { _id: "user-123", username: "tester" },
+    });
+
+    render(
+      <SocketProvider>
+        <TestConsumer />
+      </SocketProvider>
+    );
+
+    const authOption = io.mock.calls[0][1].auth;
+    expect(typeof authOption).toBe("function");
+    console.log("[TEST] Verified auth is a callback, avoiding the stale-token-after-refresh bug");
+  });
+
+  it("recovers from an expired-token handshake rejection by refreshing and forcing a reconnect", async () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] SocketProvider › connect_error with expired token triggers refresh + reconnect");
+
+    refreshTokenModule.refreshAccessToken.mockResolvedValue("fresh-jwt-token");
+
+    const connectMock = vi.fn();
+    const handlers = {};
+    const eventSocket = {
+      disconnect: vi.fn(),
+      connect: connectMock,
+      on: vi.fn((event, cb) => { handlers[event] = cb; }),
+      emit: vi.fn(),
+    };
+    io.mockReturnValue(eventSocket);
+
+    useAuth.mockReturnValue({
+      user: { _id: "user-expired-token", username: "tester" },
+    });
+
+    render(
+      <SocketProvider>
+        <TestConsumer />
+      </SocketProvider>
+    );
+
+    await act(async () => {
+      await handlers["connect_error"]({ message: "Session expired" });
+    });
+
+    expect(refreshTokenModule.refreshAccessToken).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(connectMock).toHaveBeenCalledTimes(1));
+    console.log("[TEST] Verified: expired-token handshake rejection triggers a silent refresh + reconnect");
   });
 });

@@ -45,6 +45,8 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 // Lazy Loaded Static Pages
 const AboutPage = lazy(() => import("./pages/static/AboutPage"));
 const ContactPage = lazy(() => import("./pages/static/ContactPage"));
+const PrivacyPolicyPage = lazy(() => import("./pages/static/PrivacyPolicyPage"));
+const TermsOfServicePage = lazy(() => import("./pages/static/TermsOfServicePage"));
 
 const ProfileRedirect = () => {
   const { username } = useParams();
@@ -362,6 +364,24 @@ function App() {
                 <>
                   <Navbar />
                   <ContactPage />
+                </>
+              }
+            />
+            <Route
+              path="/privacy"
+              element={
+                <>
+                  <Navbar />
+                  <PrivacyPolicyPage />
+                </>
+              }
+            />
+            <Route
+              path="/terms"
+              element={
+                <>
+                  <Navbar />
+                  <TermsOfServicePage />
                 </>
               }
             />

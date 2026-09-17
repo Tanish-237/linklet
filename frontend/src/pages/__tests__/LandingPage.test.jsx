@@ -112,14 +112,14 @@ describe("LandingPage", () => {
     expect(footerLogo.tagName).toBe("IMG");
   });
 
-  it("renders only About, Contact, and Location in the footer and excludes security, privacy, FAQ, features, feed, get started", () => {
-    console.log("[TEST] Verifying footer contains ONLY About, Contact, and Location without any unnecessary links");
+  it("renders About, Contact, Privacy Policy, Terms of Service, and Location in the footer and excludes security, FAQ, features, feed, get started", () => {
+    console.log("[TEST] Verifying footer contains the intended link set without unrelated marketing links");
     renderLandingPage();
 
     const footer = document.getElementById("landing-footer");
     expect(footer).toBeInTheDocument();
 
-    // Required Links: About, Contact, Location
+    // Required Links: About, Contact, Privacy Policy, Terms of Service, Location
     const aboutLink = footer.querySelector('a[href="/about"]');
     expect(aboutLink).toBeInTheDocument();
     expect(aboutLink.textContent.trim()).toBe("About");
@@ -128,19 +128,29 @@ describe("LandingPage", () => {
     expect(contactLink).toBeInTheDocument();
     expect(contactLink.textContent.trim()).toBe("Contact");
 
+    // Every shared link ends up read by someone eventually — DPDP Act
+    // notice/consent and Google OAuth verification both require these to be
+    // real, reachable pages, not a "coming soon" placeholder.
+    const privacyLink = footer.querySelector('a[href="/privacy"]');
+    expect(privacyLink).toBeInTheDocument();
+    expect(privacyLink.textContent.trim()).toBe("Privacy Policy");
+
+    const termsLink = footer.querySelector('a[href="/terms"]');
+    expect(termsLink).toBeInTheDocument();
+    expect(termsLink.textContent.trim()).toBe("Terms of Service");
+
     const locationLink = within(footer).getByRole("link", { name: /location/i });
     expect(locationLink).toBeInTheDocument();
     expect(locationLink).toHaveAttribute("href", expect.stringContaining("MNNIT"));
 
-    // Excluded Links: security, privacy, FAQ, features, campus feed, get started
+    // Excluded Links: security, FAQ, features, campus feed, get started
     expect(within(footer).queryByText(/security/i)).not.toBeInTheDocument();
-    expect(within(footer).queryByText(/privacy/i)).not.toBeInTheDocument();
     expect(within(footer).queryByText(/faq/i)).not.toBeInTheDocument();
     expect(footer.querySelector('a[href="#landing-features"]')).not.toBeInTheDocument();
     expect(footer.querySelector('a[href="/posts"]')).not.toBeInTheDocument();
     expect(within(footer).queryByText(/get started/i)).not.toBeInTheDocument();
 
-    console.log("[TEST] Verified footer links section has strictly About, Contact, and Location");
+    console.log("[TEST] Verified footer links section has the intended real-page link set");
   });
 
   it("does NOT render its own navigation bar", () => {

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config.js';
+import { refreshAccessToken } from './refreshToken.js';
 
 // Create an Axios instance with base configuration
 export const apiClient = axios.create({
@@ -50,26 +51,15 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Attempt to refresh the token
-        const refreshResponse = await axios.post(
-          `${API_BASE_URL}/api/v1/auth/refresh`,
-          {},
-          { withCredentials: true } // Must send refresh cookie
-        );
-
-        if (refreshResponse.data?.accessToken) {
-          localStorage.setItem('accessToken', refreshResponse.data.accessToken);
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${refreshResponse.data.accessToken}`;
-          }
+        // Shared with the socket handshake recovery so two concurrent 401s
+        // (e.g. an API call and a socket reconnect) don't each rotate the
+        // refresh token and invalidate one another.
+        const newToken = await refreshAccessToken();
+        if (newToken && originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
         }
-
-        // If successful, the new token is automatically set in cookies by the backend.
-        // Retry the original request
         return apiClient(originalRequest);
       } catch (refreshError) {
-        localStorage.removeItem('accessToken');
-        window.dispatchEvent(new Event('auth-expired'));
         return Promise.reject(refreshError);
       }
     }

@@ -299,6 +299,18 @@ export default function Register() {
                   </div>
                 )}
 
+                <p className="text-xs text-gray-400 text-center">
+                  By continuing, you agree to Linklet's{" "}
+                  <Link to="/terms" target="_blank" className="text-violet-400 hover:text-violet-300 underline">
+                    Terms of Service
+                  </Link>{" "}
+                  and{" "}
+                  <Link to="/privacy" target="_blank" className="text-violet-400 hover:text-violet-300 underline">
+                    Privacy Policy
+                  </Link>
+                  .
+                </p>
+
                 <button
                   type="submit"
                   disabled={loading}

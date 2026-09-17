@@ -228,6 +228,16 @@ export default function LandingPage() {
                   </Link>
                 </li>
                 <li>
+                  <Link to="/privacy" className="landing-footer__link">
+                    Privacy Policy
+                  </Link>
+                </li>
+                <li>
+                  <Link to="/terms" className="landing-footer__link">
+                    Terms of Service
+                  </Link>
+                </li>
+                <li>
                   <a
                     href="https://maps.google.com/?q=MNNIT+Allahabad+Prayagraj"
                     target="_blank"

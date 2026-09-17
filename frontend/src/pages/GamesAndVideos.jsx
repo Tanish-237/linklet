@@ -5,6 +5,7 @@ import SimonSays from "../games/SimonSays";
 import "./GamesAndVideos.css";
 import { io } from "socket.io-client";
 import { API_BASE_URL } from "../config";
+import { readAccessToken, refreshAccessToken, isAuthHandshakeError } from "../api/refreshToken";
 
 const GamesAndVideos = () => {
   const [activeTab, setActiveTab] = useState("games");
@@ -66,16 +67,16 @@ const GamesAndVideos = () => {
     // we know the server will reject, which used to surface a misleading
     // "check if the server is running" alert on page load. They can still
     // play the single-player games below; multiplayer prompts them to log in.
-    const token = typeof window !== "undefined" && window.localStorage
-      ? localStorage.getItem("accessToken")
-      : null;
-
-    if (!token) {
+    if (!readAccessToken()) {
       return;
     }
 
+    // `auth` as a function is re-invoked by socket.io-client on every
+    // (re)connection attempt, so a token refreshed elsewhere in the app
+    // mid-session is picked up automatically instead of this socket being
+    // stuck retrying with the token it had when the effect first ran.
     const newSocket = io(socketUrl, {
-      auth: { token },
+      auth: (cb) => cb({ token: readAccessToken() }),
       withCredentials: true,
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
@@ -84,10 +85,26 @@ const GamesAndVideos = () => {
       forceNew: true,
     });
 
+    let retriedAuthRefresh = false;
+
     newSocket.on("connect", () => {
+      retriedAuthRefresh = false;
     });
 
-    newSocket.on("connect_error", (error) => {
+    newSocket.on("connect_error", async (error) => {
+      // A rejected handshake because the token expired is recoverable —
+      // refresh once and reconnect immediately instead of surfacing a
+      // "check if the server is running" alert for a perfectly healthy server.
+      if (!retriedAuthRefresh && isAuthHandshakeError(error)) {
+        retriedAuthRefresh = true;
+        try {
+          await refreshAccessToken();
+          newSocket.connect();
+          return;
+        } catch {
+          // Refresh failed (session truly expired) — fall through to alert.
+        }
+      }
       console.error("Socket connection error:", error);
       setIsCreatingRoom(false);
       alert(
