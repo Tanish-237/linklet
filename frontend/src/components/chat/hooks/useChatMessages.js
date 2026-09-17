@@ -87,7 +87,7 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
           setHasMore(res.data.data.hasMore);
           setNextCursor(res.data.data.nextCursor);
         }
-      } catch (error) {
+      } catch {
         toast.error("Failed to load messages");
       } finally {
         setLoadingInitial(false);
@@ -257,7 +257,7 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
           }
         });
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to load older messages");
     } finally {
       setLoadingOlder(false);
@@ -356,13 +356,6 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
             ];
           }
 
-          // Optimistically emit to room peers
-          socket?.emit("message reaction", {
-            chatId: chat?._id,
-            messageId,
-            reactions: nextReactions,
-          });
-
           return { ...m, reactions: nextReactions };
         })
       );
@@ -380,24 +373,16 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
           setMessages((prev) =>
             prev.map((m) => (m._id === messageId ? updatedMsg : m))
           );
-          socket?.emit("message reaction", {
-            chatId: chat?._id,
-            messageId,
-            reactions: updatedMsg.reactions,
-          });
+          // Server broadcasts "message reaction" to the rest of the chat after
+          // persisting it — no client-side relay needed.
         }
-      } catch (error) {
+      } catch {
         // Rollback on failure
         setMessages((prev) =>
           prev.map((m) =>
             m._id === messageId ? { ...m, reactions: previousReactions } : m
           )
         );
-        socket?.emit("message reaction", {
-          chatId: chat?._id,
-          messageId,
-          reactions: previousReactions,
-        });
         toast.error("Failed to add reaction");
       }
     },
@@ -416,13 +401,10 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       if (res.data.success) {
         const updatedChat = res.data.data;
         toast.success(isAlreadyPinned ? "Message unpinned" : "Message pinned");
-        socket?.emit(isAlreadyPinned ? "message unpinned" : "message pinned", {
-          chatId: chat._id,
-          pinnedMessages: updatedChat.pinnedMessages,
-        });
+        // Server broadcasts "message pinned"/"message unpinned" to the chat room.
         return updatedChat;
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to update pinned status");
     }
     return null;
@@ -437,13 +419,10 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       });
       if (res.data.success) {
         setMessages((prev) => prev.filter((m) => m._id !== messageId));
-        socket?.emit("message deleted", {
-          chatId: chat._id,
-          messageId,
-        });
+        // Server broadcasts "message deleted" to the chat room.
         toast.success("Message deleted");
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete message");
     }
   }, [chat?._id, socket]);
@@ -459,13 +438,10 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       });
       if (res.data.success) {
         setMessages((prev) => prev.filter((m) => !messageIds.includes(m._id)));
-        socket?.emit("messages_bulk_deleted", {
-          chatId: chat._id,
-          messageIds,
-        });
+        // Server broadcasts "messages_bulk_deleted" to the chat room.
         toast.success(`${messageIds.length} messages deleted`);
       }
-    } catch (error) {
+    } catch {
       toast.error("Failed to delete messages");
     }
   }, [chat?._id, socket]);

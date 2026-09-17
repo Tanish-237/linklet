@@ -75,11 +75,10 @@ describe("useChatMessages Optimistic Reactions Tests", () => {
     expect(result.current.messages[0].reactions).toHaveLength(1);
     expect(result.current.messages[0].reactions[0].emoji).toBe("👍");
     expect(result.current.messages[0].reactions[0].user).toEqual(currentUser);
-    expect(mockSocket.emit).toHaveBeenCalledWith("message reaction", expect.objectContaining({
-      chatId: "chat-react-1",
-      messageId: "msg-101",
-      reactions: expect.any(Array),
-    }));
+    // The reaction is now broadcast by the SERVER (after it persists the
+    // toggle), not relayed by the client — see backend socket.js notifyReaction.
+    // The client's own optimistic UI update above is what makes this feel instant.
+    expect(mockSocket.emit).not.toHaveBeenCalledWith("message reaction", expect.anything());
 
     // Now resolve the server response
     await act(async () => {

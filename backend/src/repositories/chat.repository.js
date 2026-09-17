@@ -1,5 +1,6 @@
 import { Chat, Message } from "../../models/chat.js";
 import { User } from "../../models/users.js";
+import { escapeRegex } from "../utils/search.utils.js";
 
 /**
  * Check if a user is a participant of a chat using a lightweight indexed query.
@@ -17,6 +18,34 @@ export const chatExists = async (chatId) => {
   if (!chatId) return false;
   const exists = await Chat.exists({ _id: chatId });
   return !!exists;
+};
+
+/**
+ * Filter a list of user IDs down to the ones that actually exist as real User
+ * documents — used before adding "members" to a group so a typo'd or bogus ID
+ * doesn't silently sit in chat.participants forever.
+ */
+export const filterExistingUserIds = async (userIds) => {
+  if (!Array.isArray(userIds) || userIds.length === 0) return [];
+  const found = await User.find({ _id: { $in: userIds } }).select("_id").lean();
+  return found.map((u) => u._id.toString());
+};
+
+/**
+ * Check whether either user has blocked the other, for direct-message enforcement.
+ */
+export const getBlockStatus = async (userId, otherUserId) => {
+  const [me, other] = await Promise.all([
+    User.findById(userId).select("blockedUsers").lean(),
+    User.findById(otherUserId).select("blockedUsers").lean(),
+  ]);
+  const iBlockedThem = (me?.blockedUsers || []).some(
+    (id) => id.toString() === otherUserId.toString()
+  );
+  const theyBlockedMe = (other?.blockedUsers || []).some(
+    (id) => id.toString() === userId.toString()
+  );
+  return { iBlockedThem, theyBlockedMe };
 };
 
 // ─── Chat Repository ────────────────────────────────────────────────────────
@@ -366,11 +395,12 @@ export const markMessagesAsRead = async (chatId, userId) => {
  * Search users by username or fullName (for starting new chats).
  */
 export const searchUsers = async (query, currentUserId) => {
+  const safeQuery = escapeRegex(query);
   return User.find({
     _id: { $ne: currentUserId },
     $or: [
-      { username: { $regex: query, $options: "i" } },
-      { fullName: { $regex: query, $options: "i" } },
+      { username: { $regex: safeQuery, $options: "i" } },
+      { fullName: { $regex: safeQuery, $options: "i" } },
     ],
   })
     .select("username fullName avatar")
@@ -447,7 +477,7 @@ export const searchMessagesInChat = async (chatId, query) => {
     // Fallback if text index is missing or unsupported in test mock
     return Message.find({
       chat: chatId,
-      content: { $regex: query, $options: "i" },
+      content: { $regex: escapeRegex(query), $options: "i" },
     })
       .populate("sender", "username fullName avatar")
       .sort({ createdAt: -1 })

@@ -54,14 +54,21 @@ const GamesAndVideos = () => {
   };
 
   useEffect(() => {
-    console.log("Game state updated:", gameState);
   }, [gameState]);
 
   useEffect(() => {
     const socketUrl = API_BASE_URL;
-    console.log("Connecting to socket server at:", socketUrl);
+    // The backend now requires every socket connection to present a valid
+    // access token at handshake time (see backend/socket.js) — without this,
+    // the connection is rejected outright and none of the room/game events
+    // below would ever fire.
+    const token = typeof window !== "undefined" && window.localStorage
+      ? localStorage.getItem("accessToken")
+      : null;
 
     const newSocket = io(socketUrl, {
+      auth: { token },
+      withCredentials: true,
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
       timeout: 5000,
@@ -70,7 +77,6 @@ const GamesAndVideos = () => {
     });
 
     newSocket.on("connect", () => {
-      console.log("Successfully connected to socket server");
     });
 
     newSocket.on("connect_error", (error) => {
@@ -86,14 +92,12 @@ const GamesAndVideos = () => {
       setIsCreatingRoom(false);
     });
 
-    newSocket.on("disconnect", (reason) => {
-      console.log("Socket disconnected:", reason);
+    newSocket.on("disconnect", () => {
       setIsCreatingRoom(false);
     });
 
     // Room-related event listeners
     newSocket.on("room-created", (room) => {
-      console.log("Room created event received:", room);
       setRoomId(room);
       setIsHost(true);
       setIsCreatingRoom(false);
@@ -101,24 +105,22 @@ const GamesAndVideos = () => {
     });
 
     newSocket.on("player-joined", (players) => {
-      console.log("Player joined event received:", players);
       setPlayers(players);
     });
 
     newSocket.on("game-state-update", (state) => {
-      console.log("Game state update received:", state);
       setGameState(state);
     });
 
     newSocket.on("video-url-change", (url) => {
-      console.log("Video URL change received:", url);
       setVideoUrl(url);
       setEmbedUrl(convertToEmbedUrl(url));
     });
 
-    newSocket.on("game-move", ({ roomId, move }) => {
-      console.log("Game move received for room:", roomId, "move:", move);
-      // Handle game move logic here
+    // A peer's move, relayed by the server — update shared game state so
+    // this player's board reflects it (see backend socket.js "game-move").
+    newSocket.on("game-move", ({ move }) => {
+      setGameState(move);
     });
 
     setSocket(newSocket);
@@ -150,7 +152,6 @@ const GamesAndVideos = () => {
   };
 
   const createRoom = async () => {
-    console.log("createRoom function called");
 
     if (!socket) {
       console.error("Socket is null");
@@ -167,7 +168,6 @@ const GamesAndVideos = () => {
       return;
     }
 
-    console.log("Socket is connected, attempting to create room...");
     setIsCreatingRoom(true);
 
     try {
@@ -178,7 +178,6 @@ const GamesAndVideos = () => {
 
       const roomCreatedPromise = new Promise((resolve, reject) => {
         socket.once("room-created", (roomId) => {
-          console.log("Received room-created event with roomId:", roomId);
           resolve(roomId);
         });
 
@@ -188,13 +187,11 @@ const GamesAndVideos = () => {
         });
       });
 
-      console.log("Emitting create-room event");
       socket.emit("create-room");
 
       // Race between room creation and timeout
       const roomId = await Promise.race([roomCreatedPromise, timeoutPromise]);
 
-      console.log("Room created successfully:", roomId);
       setRoomId(roomId);
       setIsHost(true);
     } catch (error) {
@@ -206,7 +203,6 @@ const GamesAndVideos = () => {
   };
 
   const handleGameMove = (move) => {
-    console.log("Handling game move:", move);
     if (!socket || !roomId) {
       console.error("Socket or roomId not available");
       return;
@@ -214,7 +210,6 @@ const GamesAndVideos = () => {
 
     // Emit the move to the server
     socket.emit("game-move", { roomId, move });
-    console.log("Game move emitted to server");
   };
 
   const joinRoom = () => {
@@ -222,7 +217,6 @@ const GamesAndVideos = () => {
       console.error("Socket or roomId not available");
       return;
     }
-    console.log("Joining room:", joinRoomId);
     socket.emit("join-room", joinRoomId);
   };
 
@@ -233,7 +227,6 @@ const GamesAndVideos = () => {
       return;
     }
 
-    console.log("Submitting video URL:", videoUrl);
     socket.emit("video-url-change", { roomId, url: videoUrl });
   };
 

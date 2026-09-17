@@ -1,7 +1,29 @@
 import * as chatService from "../services/chat.service.js";
 import * as chatRepo from "../repositories/chat.repository.js";
 import { MessageReport } from "../models/messageReport.model.js";
-import { getIo } from "../../socket.js";
+import {
+  getIo,
+  notifyNewMessage,
+  notifyMessageUpdated,
+  notifyMessagesDeleted,
+  notifyReaction,
+  notifyPinChange,
+  notifyGroupUpdated,
+  notifyRemovedFromGroup,
+} from "../../socket.js";
+
+// Every real-time chat event is emitted from here — AFTER chatService has already
+// validated and persisted the mutation — never by relaying a client-supplied socket
+// event. This is what stops a malicious client from forging messages, deletions,
+// reactions, pins, or group changes for a chat it doesn't actually have access to.
+const safeNotify = async (fn, ...args) => {
+  try {
+    await fn(...args);
+  } catch (err) {
+    // Socket.io may not be initialized in test/CLI contexts — never fail the
+    // HTTP request because a best-effort real-time notification couldn't be sent.
+  }
+};
 
 // ─── 1:1 & Group Chat Operations ──────────────────────────────────────────────
 
@@ -31,6 +53,7 @@ export const createGroup = async (req, res, next) => {
       chatName,
       participants,
     });
+    await safeNotify(notifyGroupUpdated, chat);
     res.status(201).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -41,6 +64,7 @@ export const renameGroup = async (req, res, next) => {
   try {
     const { chatId, chatName } = req.body;
     const chat = await chatService.renameGroup(chatId, req.user._id, chatName);
+    await safeNotify(notifyGroupUpdated, chat);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -51,6 +75,7 @@ export const addToGroup = async (req, res, next) => {
   try {
     const { chatId, userIds } = req.body;
     const chat = await chatService.addToGroup(chatId, req.user._id, userIds);
+    await safeNotify(notifyGroupUpdated, chat);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -61,6 +86,8 @@ export const removeFromGroup = async (req, res, next) => {
   try {
     const { chatId, userId } = req.body;
     const chat = await chatService.removeFromGroup(chatId, req.user._id, userId);
+    await safeNotify(notifyGroupUpdated, chat);
+    await safeNotify(notifyRemovedFromGroup, userId, chatId);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -71,6 +98,10 @@ export const leaveGroup = async (req, res, next) => {
   try {
     const { chatId } = req.body;
     const result = await chatService.leaveGroup(chatId, req.user._id);
+    if (result) {
+      await safeNotify(notifyGroupUpdated, result);
+    }
+    await safeNotify(notifyRemovedFromGroup, req.user._id, chatId);
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -84,6 +115,7 @@ export const updateGroupImage = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "No image file provided" });
     }
     const chat = await chatService.updateGroupImage(chatId, req.user._id, req.file.path);
+    await safeNotify(notifyGroupUpdated, chat);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -94,6 +126,7 @@ export const promoteToAdmin = async (req, res, next) => {
   try {
     const { chatId, userId } = req.body;
     const chat = await chatService.promoteToAdmin(chatId, req.user._id, userId);
+    await safeNotify(notifyGroupUpdated, chat);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -104,6 +137,7 @@ export const demoteAdmin = async (req, res, next) => {
   try {
     const { chatId, userId } = req.body;
     const chat = await chatService.demoteAdmin(chatId, req.user._id, userId);
+    await safeNotify(notifyGroupUpdated, chat);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -128,6 +162,10 @@ export const sendMessage = async (req, res, next) => {
       { chatId, content, replyTo, mediaType },
       files
     );
+    const createdMessages = Array.isArray(result) ? result : [result];
+    for (const msg of createdMessages) {
+      await safeNotify(notifyNewMessage, msg);
+    }
     res.status(201).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -152,6 +190,7 @@ export const editMessage = async (req, res, next) => {
       messageId,
       content,
     });
+    await safeNotify(notifyMessageUpdated, message);
     res.status(200).json({ success: true, data: message });
   } catch (error) {
     next(error);
@@ -167,16 +206,8 @@ export const deleteMessage = async (req, res, next) => {
       messageId,
     });
 
-    try {
-      const io = getIo();
-      if (io && result?.chatId && result?.messageId) {
-        io.to(result.chatId).emit("message deleted", {
-          chatId: result.chatId,
-          messageId: result.messageId.toString(),
-        });
-      }
-    } catch (err) {
-      // Gracefully ignore if socket not initialized in test context
+    if (result?.chatId && result?.messageId) {
+      await safeNotify(notifyMessagesDeleted, result.chatId, result.messageId);
     }
 
     res.status(200).json({ success: true, data: result });
@@ -238,6 +269,10 @@ export const forwardMessages = async (req, res, next) => {
       targetChatId,
       messageIds,
     });
+    const forwarded = Array.isArray(result) ? result : [result];
+    for (const msg of forwarded) {
+      await safeNotify(notifyNewMessage, msg);
+    }
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
@@ -252,16 +287,8 @@ export const deleteMultipleMessages = async (req, res, next) => {
       messageIds,
     });
 
-    try {
-      const io = getIo();
-      if (io && chatId && result?.deletedIds?.length) {
-        io.to(chatId).emit("messages_bulk_deleted", {
-          chatId,
-          messageIds: result.deletedIds.map((id) => id.toString()),
-        });
-      }
-    } catch (err) {
-      // Gracefully ignore if socket not initialized in test context
+    if (chatId && result?.deletedIds?.length) {
+      await safeNotify(notifyMessagesDeleted, chatId, result.deletedIds);
     }
 
     res.status(200).json({ success: true, data: result });
@@ -280,6 +307,7 @@ export const toggleReaction = async (req, res, next) => {
       messageId,
       emoji,
     });
+    await safeNotify(notifyReaction, chatId, messageId, message?.reactions);
     res.status(200).json({ success: true, data: message });
   } catch (error) {
     next(error);
@@ -290,6 +318,7 @@ export const pinMessage = async (req, res, next) => {
   try {
     const { chatId, messageId } = req.body;
     const chat = await chatService.pinMessage(req.user._id, { chatId, messageId });
+    await safeNotify(notifyPinChange, chatId, chat?.pinnedMessages, true);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -300,6 +329,7 @@ export const unpinMessage = async (req, res, next) => {
   try {
     const { chatId, messageId } = req.body;
     const chat = await chatService.unpinMessage(req.user._id, { chatId, messageId });
+    await safeNotify(notifyPinChange, chatId, chat?.pinnedMessages, false);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);

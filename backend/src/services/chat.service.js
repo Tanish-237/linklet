@@ -1,8 +1,49 @@
 import * as chatRepo from "../repositories/chat.repository.js";
+import { MESSAGE_EDIT_WINDOW_MS, MAX_PINNED_MESSAGES_PER_CHAT } from "../config/constants.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { getRedisClient } from "../utils/redis.js";
 import logger from "../utils/logger.js";
+
+/**
+ * In a 1:1 chat, refuse to deliver a new message if either user has blocked the
+ * other. Group chats are intentionally exempt (blocking is a direct-message
+ * concept here — muting/leaving covers the group case).
+ */
+const assertNotBlocked = async (chat, userId) => {
+  if (chat.isGroup) return;
+  const otherParticipant = chat.participants.find(
+    (p) => (p._id || p).toString() !== userId.toString()
+  );
+  if (!otherParticipant) return;
+  const otherId = (otherParticipant._id || otherParticipant).toString();
+
+  const { iBlockedThem, theyBlockedMe } = await chatRepo.getBlockStatus(userId, otherId);
+
+  if (iBlockedThem) {
+    throw new AppError("You have blocked this user. Unblock them to send messages.", 403);
+  }
+  if (theyBlockedMe) {
+    throw new AppError("You cannot send messages to this user.", 403);
+  }
+};
+
+/**
+ * Verify a message exists and belongs to the given chat. Used to stop a chat
+ * participant from reacting to, pinning, or otherwise referencing a message that
+ * actually lives in a different chat (which would leak its content/existence).
+ */
+const assertMessageBelongsToChat = async (messageId, chatId) => {
+  const message = await chatRepo.findMessageById(messageId);
+  if (!message) {
+    throw new AppError("Message not found", 404);
+  }
+  const messageChatId = (message.chat?._id || message.chat)?.toString();
+  if (messageChatId !== chatId.toString()) {
+    throw new AppError("Message does not belong to this chat", 400);
+  }
+  return message;
+};
 
 // Helper for invalidating user chats cache
 const invalidateUserChatsCache = async (participantIds) => {
@@ -127,9 +168,17 @@ export const addToGroup = async (chatId, userId, userIds) => {
     throw new AppError("At least one user ID is required", 400);
   }
 
-  const updated = await chatRepo.addParticipants(chatId, userIds);
-  await invalidateUserChatsCache([...chat.participants, ...userIds]);
-  logger.info(`Added ${userIds.length} member(s) to group ${chatId}`);
+  // Only add IDs that correspond to a real account — otherwise a bogus or
+  // typo'd ID sits permanently in chat.participants (breaking every future
+  // membership check that iterates participants expecting real users).
+  const validUserIds = await chatRepo.filterExistingUserIds(userIds);
+  if (validUserIds.length === 0) {
+    throw new AppError("None of the provided user IDs correspond to a real account", 400);
+  }
+
+  const updated = await chatRepo.addParticipants(chatId, validUserIds);
+  await invalidateUserChatsCache([...chat.participants, ...validUserIds]);
+  logger.info(`Added ${validUserIds.length} member(s) to group ${chatId}`);
   return updated;
 };
 
@@ -302,12 +351,30 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
     throw new AppError("You are not a participant in this chat", 403);
   }
 
+  await assertNotBlocked(chat, userId);
+
   // Normalize filesParam to an array
   let files = [];
   if (Array.isArray(filesParam)) {
     files = filesParam;
   } else if (filesParam) {
     files = [filesParam];
+  }
+
+  // If replying, the message being replied to must belong to THIS chat — otherwise
+  // a participant could reference (and thereby leak the content of) a message from
+  // a chat they aren't part of via the populated replyTo preview.
+  let verifiedReplyTo = null;
+  if (replyTo) {
+    const replyMessage = await chatRepo.findMessageById(replyTo);
+    if (!replyMessage) {
+      throw new AppError("Message being replied to was not found", 404);
+    }
+    const replyChatId = (replyMessage.chat?._id || replyMessage.chat)?.toString();
+    if (replyChatId !== chatId.toString()) {
+      throw new AppError("Cannot reply to a message from a different chat", 400);
+    }
+    verifiedReplyTo = replyTo;
   }
 
   // If no files, create a single text message
@@ -321,7 +388,7 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
       content: content.trim(),
       readBy: [userId],
     };
-    if (replyTo) messageData.replyTo = replyTo;
+    if (verifiedReplyTo) messageData.replyTo = verifiedReplyTo;
     const message = await chatRepo.createMessage(messageData);
     invalidateUserChatsCache(chat.participants).catch(() => {});
     return message;
@@ -347,8 +414,8 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
       messageData.content = content.trim();
     }
 
-    if (i === 0 && replyTo) {
-      messageData.replyTo = replyTo;
+    if (i === 0 && verifiedReplyTo) {
+      messageData.replyTo = verifiedReplyTo;
     }
 
     // Determine media type (including audio support for voice notes!)
@@ -387,7 +454,9 @@ export const getMessages = async (chatId, userId, query = {}) => {
 
   return chatRepo.getMessages(chatId, {
     cursor: query.cursor,
-    limit: parseInt(query.limit) || 25,
+    // Clamp so `?limit=999999` can't force one query to load an entire chat's
+    // history (and its populated sender/reactions/replyTo) into memory at once.
+    limit: Math.min(100, Math.max(1, parseInt(query.limit) || 25)),
   });
 };
 
@@ -409,8 +478,7 @@ export const editMessage = async (userId, { chatId, messageId, content }) => {
   }
 
   // Enforce 15-minute edit limit
-  const EDIT_LIMIT_MS = 15 * 60 * 1000;
-  if (Date.now() - new Date(message.createdAt).getTime() > EDIT_LIMIT_MS) {
+  if (Date.now() - new Date(message.createdAt).getTime() > MESSAGE_EDIT_WINDOW_MS) {
     throw new AppError(
       "Messages can only be edited within 15 minutes of sending",
       400
@@ -473,6 +541,8 @@ export const toggleMessageReaction = async (userId, { chatId, messageId, emoji }
     throw new AppError("You are not a participant in this chat", 403);
   }
 
+  await assertMessageBelongsToChat(messageId, chatId);
+
   return chatRepo.toggleReaction(messageId, userId, emoji);
 };
 
@@ -501,9 +571,11 @@ export const pinMessage = async (userId, { chatId, messageId }) => {
   const isAlreadyPinned = (chat.pinnedMessages || []).some(
     (m) => (m._id || m).toString() === messageId.toString()
   );
-  if (!isAlreadyPinned && (chat.pinnedMessages || []).length >= 3) {
-    throw new AppError("Maximum of 3 pinned messages allowed per chat", 400);
+  if (!isAlreadyPinned && (chat.pinnedMessages || []).length >= MAX_PINNED_MESSAGES_PER_CHAT) {
+    throw new AppError(`Maximum of ${MAX_PINNED_MESSAGES_PER_CHAT} pinned messages allowed per chat`, 400);
   }
+
+  await assertMessageBelongsToChat(messageId, chatId);
 
   return chatRepo.pinChatMessage(chatId, messageId);
 };
@@ -525,6 +597,8 @@ export const unpinMessage = async (userId, { chatId, messageId }) => {
   if (!isParticipant) {
     throw new AppError("You are not a participant in this chat", 403);
   }
+
+  await assertMessageBelongsToChat(messageId, chatId);
 
   return chatRepo.unpinChatMessage(chatId, messageId);
 };
@@ -614,6 +688,28 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
   }
 
   const originalMessages = await chatRepo.findMessagesByIds(messageIds);
+
+  // The caller must actually be a participant of EVERY source chat these messages
+  // come from — otherwise anyone could read a message from a chat they were never
+  // part of simply by forwarding its ID into a chat they do control.
+  const sourceChatIds = [
+    ...new Set(
+      originalMessages
+        .map((m) => (m.chat?._id || m.chat)?.toString())
+        .filter(Boolean)
+    ),
+  ];
+  if (sourceChatIds.length > 0) {
+    const membershipChecks = await Promise.all(
+      sourceChatIds.map((id) => chatRepo.isParticipant(id, userId))
+    );
+    if (membershipChecks.some((isMember) => !isMember)) {
+      throw new AppError(
+        "You are not authorized to forward one or more of these messages",
+        403
+      );
+    }
+  }
 
   // Sort chronologically ascending based on original creation date
   originalMessages.sort(
