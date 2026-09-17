@@ -1,5 +1,6 @@
 import { getRedisClient } from './redis.js';
 import jwt from 'jsonwebtoken';
+import logger from './logger.js';
 
 export const blacklistToken = async (token) => {
   try {
@@ -15,7 +16,7 @@ export const blacklistToken = async (token) => {
       await redis.setEx(`bl_${token}`, expirationInSeconds, 'true');
     }
   } catch (error) {
-    console.error('Error blacklisting token:', error);
+    logger.warn(`Error blacklisting token: ${error.message}`);
   }
 };
 
@@ -27,7 +28,7 @@ export const isTokenBlacklisted = async (token) => {
     const result = await redis.get(`bl_${token}`);
     return result === 'true';
   } catch (error) {
-    console.error('Error checking token blacklist:', error);
+    logger.warn(`Error checking token blacklist: ${error.message}`);
     return false;
   }
 };
