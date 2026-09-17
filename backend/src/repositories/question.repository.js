@@ -1,7 +1,7 @@
 import { Question } from "../../models/question.js";
 import { User } from "../../models/users.js";
 import mongoose from "mongoose";
-import { buildFuzzySearchQuery, scoreSearchRelevance } from "../utils/search.utils.js";
+import { buildFuzzySearchQuery, scoreSearchRelevance, escapeRegex } from "../utils/search.utils.js";
 
 /**
  * Create a new question document.
@@ -129,7 +129,7 @@ export const getQuestionsFeed = async ({
     try {
       if (cleanSearchTerm) {
         const matchedUsers = await User.find({
-          username: { $regex: cleanSearchTerm, $options: "i" },
+          username: { $regex: escapeRegex(cleanSearchTerm), $options: "i" },
         })
           .select("_id")
           .limit(20)

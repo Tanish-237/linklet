@@ -1,4 +1,14 @@
 /**
+ * Escape special regex characters in raw user input before it's interpolated
+ * into a `new RegExp(...)` / `$regex` query. Without this, a search term like
+ * `.*` or `(a+)+$` is passed straight to MongoDB as a regex — at best matching
+ * far more than intended, at worst a catastrophic-backtracking pattern that
+ * can hang the query (ReDoS).
+ */
+export const escapeRegex = (value = "") =>
+  String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
  * Utility for building fuzzy regex search queries across multiple document fields and matched author User IDs.
  * Escapes special regex characters and splits search text into individual tokens.
  *
