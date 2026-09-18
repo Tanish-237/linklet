@@ -1,5 +1,10 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
+import { Helmet } from "react-helmet-async";
+import { SITE_URL, DEFAULT_OG_IMAGE } from "../../config";
+
+const ABOUT_DESCRIPTION =
+  "Linklet is the campus platform built by MNNIT Allahabad students to organize schedules, share academic resources, and connect with classmates.";
 
 const AboutPage = () => {
   useEffect(() => {
@@ -13,6 +18,19 @@ const AboutPage = () => {
 
   return (
     <div className="about-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+      <Helmet>
+        <title>About Linklet | MNNIT Allahabad Campus Platform</title>
+        <meta name="description" content={ABOUT_DESCRIPTION} />
+        <meta property="og:title" content="About Linklet" />
+        <meta property="og:description" content={ABOUT_DESCRIPTION} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={`${SITE_URL}/about`} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="About Linklet" />
+        <meta name="twitter:description" content={ABOUT_DESCRIPTION} />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
+      </Helmet>
       <div className="max-w-4xl mx-auto">
         {/* Header Badge & Title */}
         <div className="mb-12 border-b border-zinc-800/80 pb-8">

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { describe, it, expect } from "vitest";
@@ -38,5 +38,26 @@ describe("PrivacyPolicyPage Component", () => {
     expect(pageRoot).toBeInTheDocument();
     expect(pageRoot.className).toContain("no-scrollbar");
     console.log("[TEST] Verified PrivacyPolicyPage content and cross-link to Terms of Service");
+  });
+
+  it("sets an absolute-URL og:image so shared links preview with Linklet branding", async () => {
+    console.log("[TEST] PrivacyPolicyPage › og:image is an absolute URL");
+    const { unmount } = render(
+      <HelmetProvider>
+        <MemoryRouter>
+          <PrivacyPolicyPage />
+        </MemoryRouter>
+      </HelmetProvider>
+    );
+
+    // See AboutPage.test.jsx: react-helmet-async commits to document.head
+    // asynchronously, so the assertion must be inside waitFor.
+    await waitFor(() => {
+      expect(
+        document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")
+      ).toBe("https://linklet.org/linklet-logo.png");
+    });
+
+    unmount();
   });
 });

@@ -1,8 +1,11 @@
 import React from "react";
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, waitFor } from "@testing-library/react";
+import { HelmetProvider } from "react-helmet-async";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import ContactPage from "../static/ContactPage";
 import { toast } from "react-toastify";
+
+const renderContactPage = () => render(<ContactPage />, { wrapper: HelmetProvider });
 
 vi.mock("react-toastify", () => ({
   toast: {
@@ -26,7 +29,7 @@ describe("ContactPage Component", () => {
 
   it("renders contact form with clean Send Message button and form inputs without scrollbar", () => {
     console.log("TRACE [ContactPage.test.jsx]: Verifying form fields, submit button, and scrollbar suppression");
-    const { container } = render(<ContactPage />);
+    const { container } = renderContactPage();
 
     expect(screen.getByText(/How can we help you today\?/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Your Name/i)).toBeInTheDocument();
@@ -63,7 +66,7 @@ describe("ContactPage Component", () => {
       },
     });
 
-    render(<ContactPage />);
+    renderContactPage();
 
     fireEvent.change(screen.getByLabelText(/Your Name/i), {
       target: { value: "Alex Scholar" },
@@ -112,7 +115,7 @@ describe("ContactPage Component", () => {
       },
     });
 
-    render(<ContactPage />);
+    renderContactPage();
 
     fireEvent.change(screen.getByLabelText(/Your Name/i), {
       target: { value: "Alex Scholar" },
@@ -134,5 +137,27 @@ describe("ContactPage Component", () => {
     );
     expect(screen.queryByText(/Thank you!/i)).not.toBeInTheDocument();
     console.log("TRACE [ContactPage.test.jsx]: API error handled properly with toast notification");
+  });
+
+  it("sets a page-specific title and absolute-URL Open Graph tags for link previews", async () => {
+    console.log("TRACE [ContactPage.test.jsx]: Verifying Helmet injects OG meta so shared links preview correctly");
+    const { unmount } = renderContactPage();
+
+    // See AboutPage.test.jsx: the whole assertion block must be inside
+    // waitFor since react-helmet-async commits to document.head asynchronously.
+    await waitFor(() => {
+      expect(document.title).toContain("Contact Linklet");
+      expect(
+        document.head.querySelector('meta[property="og:url"]')?.getAttribute("content")
+      ).toBe("https://linklet.org/contact");
+      expect(
+        document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")
+      ).toBe("https://linklet.org/linklet-logo.png");
+    });
+    console.log("TRACE [ContactPage.test.jsx]: Confirmed og:url/og:image are present with absolute URLs");
+
+    // Unmount so Helmet's cleanup removes these tags before another test
+    // file's document.head assertions run.
+    unmount();
   });
 });

@@ -1,6 +1,10 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { SITE_URL, DEFAULT_OG_IMAGE } from "../../config";
+
+const PRIVACY_DESCRIPTION =
+  "How Linklet collects, uses, and protects the personal data of MNNIT Allahabad students who use the platform.";
 
 const Section = ({ number, title, children }) => (
   <section className="mb-10">
@@ -27,10 +31,16 @@ const PrivacyPolicyPage = () => {
     <div className="privacy-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
       <Helmet>
         <title>Privacy Policy | Linklet</title>
-        <meta
-          name="description"
-          content="How Linklet collects, uses, and protects the personal data of MNNIT Allahabad students who use the platform."
-        />
+        <meta name="description" content={PRIVACY_DESCRIPTION} />
+        <meta property="og:title" content="Privacy Policy | Linklet" />
+        <meta property="og:description" content={PRIVACY_DESCRIPTION} />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content={`${SITE_URL}/privacy`} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Privacy Policy | Linklet" />
+        <meta name="twitter:description" content={PRIVACY_DESCRIPTION} />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
       </Helmet>
       <div className="max-w-4xl mx-auto">
         <div className="mb-12 border-b border-zinc-800/80 pb-8">

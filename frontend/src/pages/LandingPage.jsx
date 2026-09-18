@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import logo from "../assets/linklet-logo.png";
+import { SITE_URL, DEFAULT_OG_IMAGE } from "../config";
 import "./LandingPage.css";
 
 // Inline SVG icons — no CDN dependency
@@ -141,6 +142,15 @@ export default function LandingPage() {
           content="Everything your campus needs. One platform."
         />
         <meta property="og:type" content="website" />
+        <meta property="og:url" content={SITE_URL} />
+        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="Linklet — Your campus, organized" />
+        <meta
+          name="twitter:description"
+          content="Everything your campus needs. One platform."
+        />
+        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
         <meta name="theme-color" content="#0a0a0a" />
       </Helmet>
 
