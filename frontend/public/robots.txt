@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /chat
+Disallow: /settings
+Disallow: /create-post
+Disallow: /ask-question
+
+Sitemap: https://linklet.org/sitemap.xml
