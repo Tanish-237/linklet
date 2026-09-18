@@ -125,4 +125,16 @@ describe("GamesAndVideos Component Tests", () => {
     expect(window.alert).not.toHaveBeenCalled();
     console.log("[TEST] Verified: no 'server down' alert, refresh + reconnect happened instead");
   });
+
+  it("labels every game card as Single Player, not Multiplayer Support (none of the three games actually read the room/socket props they're passed)", () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] GamesAndVideos › game cards no longer falsely advertise multiplayer support");
+    localStorage.removeItem("accessToken");
+
+    render(<GamesAndVideos />);
+
+    expect(screen.queryByText(/Multiplayer Support/i)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Single Player")).toHaveLength(3);
+    console.log("[TEST] Verified: game cards read 'Single Player' instead of the inaccurate multiplayer claim");
+  });
 });

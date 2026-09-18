@@ -326,7 +326,7 @@ const GamesAndVideos = () => {
                 onClick={() => setSelectedGame(game)}
               >
                 <h3>{game.name}</h3>
-                <p>Multiplayer Support: Yes</p>
+                <p>Single Player</p>
               </div>
             ))}
           </div>
