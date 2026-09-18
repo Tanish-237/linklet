@@ -57,7 +57,6 @@ export default function Minesweeper() {
 
     if (updated[idx].value === "M") {
       setGameOver(true);
-      alert("💣 Game Over!");
     } else if (updated[idx].value === 0) {
       revealAdjacent(idx, updated);
     }
@@ -91,7 +90,6 @@ export default function Minesweeper() {
     if (unrevealed.length === totalMines) {
       setWin(true);
       setGameOver(true);
-      alert("🎉 You Win!");
     }
   };
 
@@ -102,29 +100,29 @@ export default function Minesweeper() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
-      <h1 className="text-3xl font-bold mb-4">Minesweeper</h1>
+    <div className="flex flex-col items-center justify-center p-4">
+      <h1 className="text-3xl font-bold mb-4 text-zinc-100">Minesweeper</h1>
       {gameOver && (
-        <p className={`mb-2 font-semibold ${win ? "text-green-600" : "text-red-600"}`}>
+        <p className={`mb-2 font-semibold ${win ? "text-emerald-400" : "text-red-400"}`}>
           {win ? "🎉 You Win!" : "💥 Game Over"}
         </p>
       )}
       <div
         className="grid gap-1"
         style={{
-          gridTemplateColumns: `repeat(${size}, 40px)`
+          gridTemplateColumns: `repeat(${size}, minmax(28px, 40px))`
         }}
       >
         {board.map((cell, idx) => (
           <button
             key={idx}
             onClick={() => revealCell(idx)}
-            className={`w-10 h-10 text-center font-bold border rounded ${
+            className={`w-full aspect-square text-center font-bold border border-zinc-700 rounded ${
               cell.revealed
                 ? cell.value === "M"
                   ? "bg-red-500 text-white"
-                  : "bg-white text-gray-800"
-                : "bg-gray-400 hover:bg-gray-500"
+                  : "bg-zinc-800 text-zinc-100"
+                : "bg-zinc-600 hover:bg-zinc-500"
             }`}
           >
             {cell.revealed && cell.value !== 0 ? cell.value : ""}
@@ -133,7 +131,7 @@ export default function Minesweeper() {
       </div>
       <button
         onClick={restart}
-        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        className="mt-4 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-500"
       >
         Restart
       </button>

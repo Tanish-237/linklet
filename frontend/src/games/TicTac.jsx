@@ -46,23 +46,23 @@ export default function TicTacToe() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4">
-      <h1 className="text-3xl font-bold mb-4">Tic Tac Toe</h1>
+    <div className="flex flex-col items-center justify-center p-4">
+      <h1 className="text-3xl font-bold mb-4 text-zinc-100">Tic Tac Toe</h1>
       <div className="grid grid-cols-3 gap-2">
         {board.map((cell, index) => (
           <div
             key={index}
             onClick={() => handleClick(index)}
-            className="w-24 h-24 flex items-center justify-center text-3xl font-bold border border-gray-700 bg-white hover:bg-gray-200 cursor-pointer"
+            className="w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center text-3xl font-bold border border-zinc-700 bg-zinc-800 text-zinc-100 hover:bg-zinc-700 cursor-pointer rounded"
           >
             {cell}
           </div>
         ))}
       </div>
-      <p className="mt-4 text-lg font-medium">{status}</p>
+      <p className="mt-4 text-lg font-medium text-zinc-300">{status}</p>
       <button
         onClick={restartGame}
-        className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+        className="mt-4 px-4 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-500"
       >
         Restart
       </button>

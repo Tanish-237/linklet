@@ -4,9 +4,9 @@
   align-items: center;
   justify-content: center;
   padding: 2rem;
-  background-color: #f8f9fa;
+  background-color: #18181b;
+  border: 1px solid #27272a;
   border-radius: 12px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   min-height: 500px;
   width: 100%;
 }
@@ -15,13 +15,13 @@
   font-size: 2rem;
   font-weight: bold;
   margin-bottom: 1rem;
-  color: #333;
+  color: #f4f4f5;
 }
 
 .level-text {
   font-size: 1.25rem;
   margin-bottom: 1.5rem;
-  color: #666;
+  color: #a1a1aa;
 }
 
 .simon-grid {
@@ -84,7 +84,7 @@
 
 .start-button {
   padding: 0.75rem 1.5rem;
-  background-color: #007bff;
+  background-color: #7c3aed;
   color: white;
   border: none;
   border-radius: 8px;
@@ -97,13 +97,14 @@
 }
 
 .start-button:disabled {
-  background-color: #6c757d;
+  background-color: #3f3f46;
+  color: #71717a;
   opacity: 0.7;
   cursor: not-allowed;
 }
 
 .start-button:hover:not(:disabled) {
-  background-color: #0056b3;
+  background-color: #6d28d9;
   transform: translateY(-2px);
 }
 
@@ -112,6 +113,22 @@
   font-size: 1.2rem;
   font-weight: 500;
   text-align: center;
-  color: #333;
+  color: #d4d4d8;
   min-height: 1.5rem;
+}
+
+@media (max-width: 480px) {
+  .simon-says-container {
+    padding: 1.25rem;
+    min-height: 420px;
+  }
+
+  .simon-button {
+    width: 90px;
+    height: 90px;
+  }
+
+  .game-title {
+    font-size: 1.5rem;
+  }
 }
