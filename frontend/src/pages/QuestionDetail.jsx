@@ -18,6 +18,12 @@ import {
 } from '../api/question.api';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 
+// Each nesting level adds its own margin-left + padding-left (see .qd-nested
+// in HelpForum.css) — with no cap, a long reply chain pushes content further
+// right every level, eating most of a phone's width by 4-5 levels deep.
+// Beyond this depth, replies still nest logically but stop indenting further.
+const MAX_INDENT_DEPTH = 4;
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const timeAgo = (dateStr) => {
@@ -62,7 +68,7 @@ const renderTextWithLinks = (text) => {
 
 // ─── Reddit-Style Threaded Comment Single Node ─────────────────────────────────
 
-const ThreadedCommentItem = ({
+export const ThreadedCommentItem = ({
   comment,
   allComments,
   answerId,
@@ -114,8 +120,11 @@ const ThreadedCommentItem = ({
     }
   };
 
+  const indentClass =
+    depth === 0 ? '' : depth <= MAX_INDENT_DEPTH ? 'qd-nested' : 'qd-nested-flat';
+
   return (
-    <div className={`qd-threaded-node ${depth > 0 ? 'qd-nested' : ''}`}>
+    <div className={`qd-threaded-node ${indentClass}`}>
       {/* Vertical Thread Line */}
       <div className="qd-comment-card">
         {/* Header */}

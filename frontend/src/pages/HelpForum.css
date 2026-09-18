@@ -1383,6 +1383,16 @@
   border-left-color: rgba(167, 139, 250, 0.55);
 }
 
+/* Beyond MAX_INDENT_DEPTH (see QuestionDetail.jsx), replies still nest
+   logically but stop compounding margin/padding — otherwise a long reply
+   chain keeps pushing content right forever, eating the whole width on
+   a phone by the 4th-5th level. */
+.qd-threaded-node.qd-nested-flat {
+  margin-left: 0;
+  padding-left: 0;
+  border-left: none;
+}
+
 .qd-comment-card {
   background: rgba(15, 23, 42, 0.45);
   border: 1px solid rgba(139, 92, 246, 0.12);
@@ -1687,6 +1697,46 @@
     padding: 0.4rem 0.9rem;
     font-size: 0.82rem;
   }
+
+  /* ─── Question Detail Page (mobile) ─────────────────────────────────── */
+  .qd-root {
+    padding: 1rem 0.85rem;
+  }
+
+  .qd-question-card {
+    padding: 1.25rem 1.1rem;
+    border-radius: 14px;
+  }
+
+  .qd-question-title {
+    font-size: 1.4rem;
+  }
+
+  .qd-question-body {
+    font-size: 0.95rem;
+  }
+
+  .qd-answer-card {
+    padding: 1.1rem 1rem;
+    border-radius: 14px;
+  }
+
+  .qd-answers-title {
+    font-size: 1rem;
+  }
+
+  .qd-nested {
+    margin-left: 0.65rem;
+    padding-left: 0.5rem;
+  }
+
+  .qd-comment-card {
+    padding: 0.65rem 0.75rem;
+  }
+
+  .qd-answer-form-card {
+    padding: 1.1rem 1rem;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1743,5 +1793,36 @@
 
   .hf-card-title {
     font-size: 0.98rem;
+  }
+
+  /* ─── Question Detail Page (small phones) ───────────────────────────── */
+  .qd-root {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .qd-question-card {
+    padding: 1rem 0.85rem;
+  }
+
+  .qd-question-title {
+    font-size: 1.2rem;
+  }
+
+  .qd-answer-card {
+    padding: 0.85rem 0.75rem;
+  }
+
+  .qd-nested {
+    margin-left: 0.45rem;
+    padding-left: 0.4rem;
+  }
+
+  .qd-comment-header {
+    flex-wrap: wrap;
+  }
+
+  .qd-comment-footer {
+    flex-wrap: wrap;
+    gap: 0.5rem;
   }
 }
