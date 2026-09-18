@@ -5,6 +5,41 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-09-18
+
+### Security
+- **Server-authoritative chat sockets**: Socket.IO handshakes now require a valid, non-blacklisted access token, and chat mutations (send, edit, delete, react, pin, group changes) are broadcast by the server after the REST controller succeeds, instead of relaying client-emitted events. Unauthenticated socket connections are now rejected (behavioral change for any non-official client).
+- Fixed NoSQL operator injection on auth endpoints, regex injection/ReDoS in search, stored XSS via `javascript:` resource/post URLs, and HTML injection in contact-form emails.
+- Narrowed CORS to the production domains and this project's own Vercel deployments (previously any `*.vercel.app`).
+- Stopped logging OTP values, fixed password-reset user enumeration, and invalidate sessions on password change/reset.
+- Enforced a password policy (8+ characters with a letter and a number) on registration, change, and reset; registration previously accepted any password. Existing passwords are unaffected until changed.
+- Upgraded `multer` to 2.x and removed unused `bcrypt`/`npm` dependencies, closing all open Dependabot alerts (142 to 0).
+- Added a per-user rate limit (20/hour) on the paid Gemini timetable-upload endpoint, and stricter limits on OTP/login routes.
+- Added security and cache headers via `vercel.json`.
+
+### Added
+- **Privacy Policy and Terms of Service pages** (`/privacy`, `/terms`), linked from the landing footer and the registration flow.
+- **Build-time prerendering** of `/`, `/about`, `/contact`, `/privacy`, and `/terms` (plain React SSR, no headless browser), with complete Open Graph/Twitter meta so shared links preview correctly. Added `robots.txt` and `sitemap.xml`.
+- User blocking (`/profile/block/:targetUserId`) enforced on direct messages, and admin resource verification endpoint.
+- GitHub Actions CI (lint, test, build, `npm audit`), backend ESLint config, `.env.example` files, and repo docs: `LICENSE` (MIT), `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, issue and PR templates.
+
+### Changed
+- Socket auth recovers from token refresh: sockets re-read the access token on every reconnect and refresh once on an expired-token handshake rejection, via a shared single-flight refresh used by the axios interceptor as well.
+- Production logging is console-only (Render's disk is ephemeral); file transports remain in development.
+- Question detail pages cap populated answers at 300 per question, and reply-thread indentation stops compounding after 4 levels.
+- Games page and mini-games restyled to the site's dark theme with mobile breakpoints; QuestionDetail is now mobile-responsive.
+- Game cards now say "Single Player" instead of falsely advertising multiplayer.
+- Resource list queries fixed for filter collisions and verification status; post votes use atomic updates; graceful shutdown on SIGTERM/SIGINT; DB connection failure now exits non-zero.
+
+### Fixed
+- Chat and presence no longer die after the access token refreshes mid-session.
+- Anonymous visitors to `/games` no longer get a misleading "check if the server is running" alert.
+- Conditional hook call in `ForwardMessageModal`, chat send button double-submit, and all ESLint errors in the frontend.
+- Invalid user IDs in group member adds no longer cause a 500.
+
+### Removed
+- Dead files and code (`dummy.txt`, `test_cloudinary.js`, `original_posts.txt`, `dashboard.jsx`, an unused answers query) and the unused `socket.io` server package from the frontend.
+
 ## [1.6.4] - 2026-09-11
 
 ### Added
