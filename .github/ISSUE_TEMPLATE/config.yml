@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Tanish-237/linklet/security/advisories/new
+    about: Please report security vulnerabilities privately — see SECURITY.md, not a public issue.
+  - name: General question / contact
+    url: https://linklet.org/contact
+    about: For questions that aren't a bug or feature request.
