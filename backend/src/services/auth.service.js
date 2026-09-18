@@ -10,6 +10,7 @@ import { invalidateUserCache } from "../utils/userCache.js";
 import logger from "../utils/logger.js";
 import { OAuth2Client } from "google-auth-library";
 import { isAllowedInstitutionalEmail, OTP_TTL_SECONDS } from "../config/constants.js";
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from "../utils/password.utils.js";
 
 export const generateAndSendOtp = async (email) => {
   // Enforce @mnnit.ac.in domain restriction
@@ -61,8 +62,8 @@ export const register = async (userData) => {
     throw new AppError("Department is required", 400);
   }
 
-  if (!password) {
-    throw new AppError("Password is required", 400);
+  if (!isStrongPassword(password)) {
+    throw new AppError(PASSWORD_POLICY_MESSAGE, 400);
   }
 
   if (!otp) {
@@ -287,8 +288,8 @@ export const resetPassword = async (email, otp, newPassword) => {
     throw new AppError("OTP is required", 400);
   }
 
-  if (!newPassword || newPassword.length < 6) {
-    throw new AppError("New password must be at least 6 characters long", 400);
+  if (!isStrongPassword(newPassword)) {
+    throw new AppError(PASSWORD_POLICY_MESSAGE, 400);
   }
 
   let redisClient;

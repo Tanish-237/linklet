@@ -8,6 +8,7 @@ import { Helmet } from "react-helmet-async";
 import linkletLogo from "../assets/linklet-logo.png";
 import { apiClient } from "../api/apiClient";
 import GoogleAuthButton from "../components/GoogleAuthButton";
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
@@ -55,6 +56,11 @@ export default function Register() {
           setStep(2);
         }
       } else {
+        if (!isStrongPassword(password)) {
+          toast.error(PASSWORD_POLICY_MESSAGE);
+          setLoading(false);
+          return;
+        }
         const payload = {
           email,
           password,
@@ -192,6 +198,8 @@ export default function Register() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
+                      minLength={8}
+                      placeholder={PASSWORD_POLICY_HINT}
                       disabled={step === 2}
                       className="w-full px-4 py-3 pr-12 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
                     />

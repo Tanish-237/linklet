@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import { Helmet } from "react-helmet-async";
 import { useSocket } from "../hooks/useSocket";
 import packageInfo from "../../package.json";
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
 import "./Settings.css";
 
 export default function Settings() {
@@ -106,8 +107,8 @@ export default function Settings() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters long");
+    if (!isStrongPassword(newPassword)) {
+      toast.error(PASSWORD_POLICY_MESSAGE);
       return;
     }
 
@@ -264,9 +265,9 @@ export default function Settings() {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
-                  minLength={6}
+                  minLength={8}
                   className="settings-input"
-                  placeholder="Min 6 characters"
+                  placeholder={PASSWORD_POLICY_HINT}
                 />
               </div>
 

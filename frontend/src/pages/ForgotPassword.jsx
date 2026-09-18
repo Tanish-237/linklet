@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 import { Helmet } from "react-helmet-async";
 import linkletLogo from "../assets/linklet-logo.png";
 import { apiClient } from "../api/apiClient";
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -44,8 +45,8 @@ export default function ForgotPassword() {
       return;
     }
 
-    if (newPassword.length < 6) {
-      toast.error("New password must be at least 6 characters long");
+    if (!isStrongPassword(newPassword)) {
+      toast.error(PASSWORD_POLICY_MESSAGE);
       return;
     }
 
@@ -170,11 +171,11 @@ export default function ForgotPassword() {
                     <input
                       id="reset-new-password"
                       type={showPassword ? "text" : "password"}
-                      minLength={6}
+                      minLength={8}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       required
-                      placeholder="Min 6 characters"
+                      placeholder={PASSWORD_POLICY_HINT}
                       className="w-full px-4 py-3 bg-gray-900/60 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-xl outline-none text-white transition-all text-sm pr-10"
                     />
                     <button

@@ -208,6 +208,30 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       console.log('[TEST] Correctly required department.');
     });
 
+    test('rejects registration if password fails the strength policy (too short, or missing a letter/number)', async () => {
+      console.log('[TEST] register › rejects weak passwords');
+      await expect(
+        register({
+          email: 'valid.user@mnnit.ac.in',
+          fullName: 'Valid User',
+          department: 'Computer Science and Engineering',
+          password: 'short1',
+          otp: '123456',
+        })
+      ).rejects.toThrow(/at least 8 characters/i);
+
+      await expect(
+        register({
+          email: 'valid.user@mnnit.ac.in',
+          fullName: 'Valid User',
+          department: 'Computer Science and Engineering',
+          password: 'alllettersnodigits',
+          otp: '123456',
+        })
+      ).rejects.toThrow(/at least 8 characters/i);
+      console.log('[TEST] Correctly rejected weak passwords at registration.');
+    });
+
     test('rejects registration if OTP is invalid or expired', async () => {
       console.log('[TEST] register › rejects invalid OTP');
       mockRedisGet.mockResolvedValueOnce('654321');
@@ -432,9 +456,9 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       );
     });
 
-    test('changePassword controller › returns 400 when newPassword is less than 6 characters', async () => {
+    test('changePassword controller › returns 400 when newPassword fails the strength policy', async () => {
       console.log('\n──────────────────────────────────────');
-      console.log('[TEST] changePassword controller › short password validation');
+      console.log('[TEST] changePassword controller › weak password validation');
       const req = {
         user: { _id: 'user123' },
         body: { currentPassword: 'OldPassword123', newPassword: '123' },
@@ -450,7 +474,7 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           success: false,
-          message: 'New password must be at least 6 characters long',
+          message: expect.stringMatching(/at least 8 characters/i),
         })
       );
     });
@@ -533,13 +557,13 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       ).rejects.toThrow('Invalid or expired OTP');
     });
 
-    test('resetPassword › throws AppError 400 if new password is too short', async () => {
+    test('resetPassword › throws AppError 400 if new password fails the strength policy', async () => {
       console.log('\n──────────────────────────────────────');
-      console.log('[TEST] resetPassword › short password');
+      console.log('[TEST] resetPassword › weak password');
 
       await expect(
         resetPassword('student@mnnit.ac.in', '654321', '123')
-      ).rejects.toThrow(/at least 6 characters/i);
+      ).rejects.toThrow(/at least 8 characters/i);
     });
 
     test('resetPassword › updates password and deletes OTP on success', async () => {

@@ -15,6 +15,14 @@ export const createQuestion = async (questionData) => {
  * Find a question by ID, populating author and all answers (with their authors).
  * Also atomically increments the view count.
  */
+// A pathological/viral question could accumulate an unbounded number of
+// answers (each with its own populated comments); without a ceiling, loading
+// that single question detail page would fetch and serialize every one of
+// them in a single response. This is a safety valve, not real pagination —
+// it's set far above any realistic help-forum thread so normal questions are
+// never affected.
+const MAX_POPULATED_ANSWERS_PER_QUESTION = 300;
+
 export const findQuestionByIdAndIncrementViews = async (id) => {
   if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
   return await Question.findByIdAndUpdate(
@@ -30,7 +38,7 @@ export const findQuestionByIdAndIncrementViews = async (id) => {
         { path: "userId", select: "username avatar" },
         { path: "comments.userId", select: "username avatar" },
       ],
-      options: { sort: { isAccepted: -1, createdAt: 1 } },
+      options: { sort: { isAccepted: -1, createdAt: 1 }, perDocumentLimit: MAX_POPULATED_ANSWERS_PER_QUESTION },
     });
 };
 
@@ -48,6 +56,7 @@ export const findQuestionById = async (id) => {
         { path: "userId", select: "username avatar" },
         { path: "comments.userId", select: "username avatar" },
       ],
+      options: { perDocumentLimit: MAX_POPULATED_ANSWERS_PER_QUESTION },
     });
 };
 

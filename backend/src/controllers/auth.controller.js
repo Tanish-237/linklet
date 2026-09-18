@@ -1,4 +1,5 @@
 import * as authService from "../services/auth.service.js";
+import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from "../utils/password.utils.js";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -40,6 +41,9 @@ export const registerUser = async (req, res, next) => {
         success: false,
         message: "Email, password, full name, department, and OTP are required",
       });
+    }
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({ success: false, message: PASSWORD_POLICY_MESSAGE });
     }
 
     const result = await authService.register(req.body);
@@ -154,11 +158,8 @@ export const changePassword = async (req, res, next) => {
         message: "Current password and new password are required",
       });
     }
-    if (typeof newPassword !== "string" || newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: "New password must be at least 6 characters long",
-      });
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ success: false, message: PASSWORD_POLICY_MESSAGE });
     }
 
     await authService.changePassword(req.user._id, currentPassword, newPassword);
@@ -193,6 +194,9 @@ export const resetPassword = async (req, res, next) => {
         success: false,
         message: "Email, OTP code, and new password are required",
       });
+    }
+    if (!isStrongPassword(newPassword)) {
+      return res.status(400).json({ success: false, message: PASSWORD_POLICY_MESSAGE });
     }
     const result = await authService.resetPassword(email, otp, newPassword);
     res.status(200).json({ success: true, message: result.message });

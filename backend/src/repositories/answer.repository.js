@@ -167,22 +167,3 @@ export const deleteCommentFromAnswer = async (answerId, commentId) => {
 export const deleteAnswer = async (answerId) => {
   return await Answer.findByIdAndDelete(answerId);
 };
-
-/**
- * Find all answers for a question, sorted accepted-first then by votes.
- */
-export const getAnswersByQuestion = async (questionId) => {
-  const answers = await Answer.find({ questionId })
-    .populate("userId", "username avatar")
-    .populate("comments.userId", "username avatar")
-    .lean();
-
-  // Sort: accepted first, then by net votes descending, then by date
-  return answers.sort((a, b) => {
-    if (a.isAccepted !== b.isAccepted) return b.isAccepted ? 1 : -1;
-    const aNet = (a.upvotes?.length || 0) - (a.downvotes?.length || 0);
-    const bNet = (b.upvotes?.length || 0) - (b.downvotes?.length || 0);
-    if (aNet !== bNet) return bNet - aNet;
-    return new Date(a.createdAt) - new Date(b.createdAt);
-  });
-};
