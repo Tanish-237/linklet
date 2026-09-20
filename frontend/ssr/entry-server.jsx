@@ -8,6 +8,7 @@ import AboutPage from "../src/pages/static/AboutPage";
 import ContactPage from "../src/pages/static/ContactPage";
 import PrivacyPolicyPage from "../src/pages/static/PrivacyPolicyPage";
 import TermsOfServicePage from "../src/pages/static/TermsOfServicePage";
+import PostsSeoShell from "../src/pages/static/PostsSeoShell";
 
 // Only genuinely static, public marketing/legal pages go here — no
 // AuthContext/SocketContext/React Query needed, since none of these read
@@ -19,6 +20,8 @@ const PAGES = {
   "/contact": ContactPage,
   "/privacy": PrivacyPolicyPage,
   "/terms": TermsOfServicePage,
+  // Title/description/canonical only — the feed itself is client-rendered.
+  "/posts": PostsSeoShell,
 };
 
 export const STATIC_ROUTES = Object.keys(PAGES);

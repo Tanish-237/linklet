@@ -1,5 +1,7 @@
 import React from "react";
 import { formatLastSeen } from "../../../utlis/chatDateUtils";
+import defaultAvatar from "../../../assets/default-avatar.webp";
+import defaultGroupAvatar from "../../../assets/default-group.svg";
 
 const ChatHeader = ({
   chat,
@@ -52,9 +54,9 @@ const ChatHeader = ({
             src={
               chat.isGroup
                 ? chat.groupImage ||
-                  "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
+                  defaultGroupAvatar
                 : otherUser?.avatar ||
-                  "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+                  defaultAvatar
             }
             alt="Avatar"
             className="w-10 h-10 rounded-full border border-violet-500/30 object-cover"

@@ -1,5 +1,6 @@
 import React from "react";
 import { formatAudioTime } from "../hooks/useAudioPlayback";
+import defaultAvatar from "../../../assets/default-avatar.webp";
 
 const WAVEFORM_BARS = [
   5, 7, 10, 14, 18, 22, 24, 20, 16, 13, 15, 17, 18, 17, 16, 18,
@@ -24,7 +25,7 @@ const AudioMessagePlayer = ({
 
   const senderAvatar =
     msg?.sender?.avatar ||
-    "https://cdn-icons-png.flaticon.com/512/1326/1326382.png";
+    defaultAvatar;
 
   return (
     <div className="audio-player-widget flex items-center gap-3 py-1 px-1 min-w-[270px] max-w-[340px]">

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
+import defaultAvatar from "../assets/default-avatar.webp";
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
   const [groupName, setGroupName] = useState("");
@@ -168,8 +170,8 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
                   onClick={() => addMember(user)}
                   className="chat-user-result-item px-2.5 py-1.5 hover:bg-violet-600/15 cursor-pointer flex items-center gap-2.5 transition-colors"
                 >
-                  <img
-                    src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+                  <img loading="lazy" decoding="async"
+                    src={optimizeAvatar(user.avatar, 40) || defaultAvatar}
                     alt={user.username}
                     className="w-7 h-7 rounded-full border border-violet-500/30 object-cover"
                   />

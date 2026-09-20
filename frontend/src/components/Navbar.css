@@ -1,0 +1,232 @@
+/* Navbar styles. These used to live in styled-components template literals, which
+   shipped a whole second CSS-in-JS runtime just for this one component while the
+   rest of the app uses Tailwind + plain CSS. Rules are unchanged, only flattened. */
+
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background-color: rgba(17, 17, 17, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.app-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.app-nav-links > a:not(.nav-auth-btn),
+.app-nav-links > button:not(.nav-auth-btn) {
+  color: #f5f5f5;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+}
+
+.app-nav-links > a:not(.nav-auth-btn):hover,
+.app-nav-links > button:not(.nav-auth-btn):hover {
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.app-nav-auth-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 1.15rem;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: transparent;
+  outline: none;
+}
+
+.app-nav-auth-link:hover {
+  border-color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.1);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.app-nav-auth-link:active {
+  transform: translateY(0);
+}
+
+.app-nav-auth-link:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+.app-nav-profile {
+  position: relative;
+}
+
+.app-nav-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+  cursor: pointer;
+  border-radius: 9999px;
+  transition: all 0.3s ease;
+}
+
+.app-nav-profile-btn:hover {
+  background: rgba(139, 92, 246, 0.15);
+}
+
+.app-nav-profile-btn img {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 9999px;
+  border: 2px solid #8b5cf6;
+  object-fit: cover;
+}
+
+.app-nav-profile-btn .nav-arrow-icon {
+  color: #9ca3af;
+  font-size: 1.25rem;
+  transition: transform 0.3s ease, color 0.3s ease;
+}
+
+.app-nav-profile-btn:hover .nav-arrow-icon {
+  color: #8b5cf6;
+  transform: translateY(1px);
+}
+
+.app-nav-profile-btn.open .nav-arrow-icon {
+  transform: rotate(180deg);
+  color: #8b5cf6;
+}
+
+.app-nav-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: rgba(17, 24, 39, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  min-width: 15rem;
+  max-width: calc(100vw - 1.5rem);
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  z-index: 50;
+}
+
+.app-nav-dropdown .dropdown-header {
+  padding: 1rem 1rem 0.75rem 1rem;
+  border-bottom: 1px solid #1f2937;
+}
+
+.app-nav-dropdown .dropdown-header .dropdown-username {
+  color: #a78bfa;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-nav-dropdown .dropdown-header .dropdown-email {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.125rem;
+}
+
+.app-nav-dropdown ul {
+  list-style: none;
+  padding: 0.5rem 0;
+  margin: 0;
+}
+
+.app-nav-dropdown button {
+  width: 100%;
+  text-align: left;
+  padding: 0.625rem 1rem;
+  color: #e5e7eb;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  transition: all 0.2s ease;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.app-nav-dropdown button .material-icons {
+  color: #a78bfa;
+  font-size: 1.25rem;
+  transition: color 0.2s ease;
+}
+
+.app-nav-dropdown button:hover {
+  background: rgba(139, 92, 246, 0.2);
+  color: #ffffff;
+}
+
+.app-nav-dropdown button.logout-btn {
+  color: #f87171;
+}
+
+.app-nav-dropdown button.logout-btn .material-icons {
+  color: #f87171;
+}
+
+.app-nav-dropdown button.logout-btn:hover {
+  background: rgba(139, 92, 246, 0.2);
+  color: #fca5a5;
+}
+
+.app-nav-dropdown .logout-wrapper {
+  border-top: 1px solid #1f2937;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .app-nav {
+    padding: 0.75rem 1rem;
+  }
+
+  .app-nav-links {
+    gap: 0.5rem;
+  }
+
+  .app-nav-links > a:not(.nav-auth-btn),
+  .app-nav-links > button:not(.nav-auth-btn) {
+    font-size: 0.875rem;
+    padding: 0.35rem 0.5rem;
+  }
+
+  .app-nav-auth-link {
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+  }
+}

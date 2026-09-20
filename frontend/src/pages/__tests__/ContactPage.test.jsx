@@ -152,7 +152,7 @@ describe("ContactPage Component", () => {
       ).toBe("https://linklet.org/contact");
       expect(
         document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")
-      ).toBe("https://linklet.org/linklet-logo.png");
+      ).toBe("https://linklet.org/og-image.jpg");
     });
     console.log("TRACE [ContactPage.test.jsx]: Confirmed og:url/og:image are present with absolute URLs");
 

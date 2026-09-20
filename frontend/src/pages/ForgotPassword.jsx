@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "react-toastify";
-import { Helmet } from "react-helmet-async";
-import linkletLogo from "../assets/linklet-logo.png";
+import linkletLogo from "../assets/linklet-logo.webp";
 import { apiClient } from "../api/apiClient";
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
+import SEO from "../components/SEO";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -76,9 +76,8 @@ export default function ForgotPassword() {
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-y-auto bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
-      <Helmet>
-        <title>Reset Password | Linklet</title>
-      </Helmet>
+      {/* Sign-in screens have no search value; noindex keeps them out of results. */}
+      <SEO title="Reset your password | Linklet" description="Reset your Linklet password using your MNNIT email address." path="/forgot-password" noindex />
 
       {/* Navigation */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md shadow-lg">

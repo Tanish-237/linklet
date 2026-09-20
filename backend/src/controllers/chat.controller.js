@@ -10,6 +10,7 @@ import {
   notifyPinChange,
   notifyGroupUpdated,
   notifyRemovedFromGroup,
+  refreshPresence,
 } from "../../socket.js";
 
 // Every real-time chat event is emitted from here — AFTER chatService has already
@@ -31,6 +32,8 @@ export const accessOrCreateChat = async (req, res, next) => {
   try {
     const { userId } = req.body;
     const chat = await chatService.accessOrCreateChat(req.user._id, userId);
+    // Fire-and-forget: the two people can now see each other's presence.
+    safeNotify(refreshPresence, [req.user._id, userId]);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -54,6 +57,7 @@ export const createGroup = async (req, res, next) => {
       participants,
     });
     await safeNotify(notifyGroupUpdated, chat);
+    safeNotify(refreshPresence, chat.participants);
     res.status(201).json({ success: true, data: chat });
   } catch (error) {
     next(error);
@@ -76,6 +80,7 @@ export const addToGroup = async (req, res, next) => {
     const { chatId, userIds } = req.body;
     const chat = await chatService.addToGroup(chatId, req.user._id, userIds);
     await safeNotify(notifyGroupUpdated, chat);
+    safeNotify(refreshPresence, chat.participants);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {
     next(error);

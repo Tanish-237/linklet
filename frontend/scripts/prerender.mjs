@@ -44,6 +44,8 @@ const run = async () => {
     const merged = mergeIntoShell(shellHtml, {
       titleTag: helmet.title.toString(),
       metaTags: helmet.meta.toString(),
+      linkTags: helmet.link.toString(),
+      scriptTags: helmet.script.toString(),
       bodyHtml: html,
     });
 

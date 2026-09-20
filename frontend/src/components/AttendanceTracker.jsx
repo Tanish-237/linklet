@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Doughnut } from 'react-chartjs-2';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+import DonutChart from './DonutChart';
 import { toast } from 'react-toastify';
 import { fetchAttendance } from '../api/dashboard.api';
-
-ChartJS.register(ArcElement, Tooltip, Legend);
 
 const getAttendanceColor = (percentage) => {
   if (percentage >= 75) return 'bg-emerald-500/20 border-emerald-500 text-emerald-400';
@@ -124,45 +121,6 @@ export default function AttendanceTracker({ refreshTrigger }) {
   }, [activeStats.percentage]);
 
   // Chart configuration
-  const chartData = {
-    labels: ['Present', 'Absent'],
-    datasets: [
-      {
-        data:
-          activeStats.total > 0
-            ? [activeStats.present, activeStats.absent]
-            : [1, 0], // placeholder ring when 0
-        backgroundColor:
-          activeStats.total > 0
-            ? ['#10b981', '#f43f5e'] // Emerald & Rose
-            : ['#374151', '#1f2937'], // Neutral dark ring
-        borderWidth: 0,
-        cutout: '76%',
-      },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        enabled: activeStats.total > 0,
-        callbacks: {
-          label: function (context) {
-            const label = context.label;
-            const value = context.formattedValue;
-            const total = activeStats.total;
-            const percentage = total > 0 ? Math.round((context.parsed / total) * 100) : 0;
-            const unit = activeTrack === 'lab' ? 'labs' : 'classes';
-            return `${label}: ${value} ${unit} (${percentage}%)`;
-          },
-        },
-      },
-    },
-  };
-
   return (
     <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-gray-800 shadow-2xl relative">
       {/* Header */}
@@ -367,7 +325,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
           <div className="flex flex-col items-center justify-center space-y-6">
             {/* Doughnut Chart Centered */}
             <div className="relative h-60 w-60 md:h-64 md:w-64">
-              <Doughnut data={chartData} options={chartOptions} />
+              <DonutChart present={activeStats.present} absent={activeStats.absent} unit={activeTrack === 'lab' ? 'labs' : 'classes'} />
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <div
                   className={`text-4xl font-extrabold font-mono ${

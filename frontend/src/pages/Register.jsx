@@ -5,10 +5,11 @@ import { useAuth } from "../context/AuthContext";
 import { handleApiError } from "../utlis/ErrorHandler";
 import { Helmet } from "react-helmet-async";
 
-import linkletLogo from "../assets/linklet-logo.png";
+import linkletLogo from "../assets/linklet-logo.webp";
 import { apiClient } from "../api/apiClient";
 import GoogleAuthButton from "../components/GoogleAuthButton";
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
+import SEO from "../components/SEO";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
@@ -87,18 +88,9 @@ export default function Register() {
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-y-auto bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
+      {/* Sign-in screens have no search value; noindex keeps them out of results. */}
+      <SEO title="Create your account | Linklet" description="Join Linklet with your official MNNIT email to connect with classmates, share resources and organise your campus life." path="/register" noindex />
       <Helmet>
-        <title>Register | Linklet - Your Complete Learning Journey</title>
-        <meta
-          name="description"
-          content="Join Linklet to start your learning journey. Connect with peers, access resources, and excel in your studies."
-        />
-        <meta property="og:title" content="Register | Linklet" />
-        <meta
-          property="og:description"
-          content="Join Linklet to start your learning journey."
-        />
-        <meta property="og:type" content="website" />
         <meta name="theme-color" content="#6D28D9" />
       </Helmet>
 

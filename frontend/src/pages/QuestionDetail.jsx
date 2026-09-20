@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import useAuthStore from '../store/useAuthStore';
-import defaultAvatar from '../assets/default-avatar.png';
+import defaultAvatar from '../assets/default-avatar.webp';
 import './HelpForum.css';
 import {
   getQuestion,
@@ -17,6 +17,7 @@ import {
   deleteComment as apiDeleteComment,
 } from '../api/question.api';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 // Each nesting level adds its own margin-left + padding-left (see .qd-nested
 // in HelpForum.css) — with no cap, a long reply chain pushes content further
@@ -141,8 +142,8 @@ export const ThreadedCommentItem = ({
             to={`/dashboard/profile/${comment.userId?.username}`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
           >
-            <img
-              src={comment.userId?.avatar || defaultAvatar}
+            <img loading="lazy" decoding="async"
+              src={optimizeAvatar(comment.userId?.avatar, 40) || defaultAvatar}
               alt={comment.userId?.username || 'user'}
               className="qd-comment-avatar"
             />
@@ -433,8 +434,8 @@ const AnswerCard = ({
                 to={`/dashboard/profile/${answer.userId?.username}`}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
               >
-                <img
-                  src={answer.userId?.avatar || defaultAvatar}
+                <img loading="lazy" decoding="async"
+                  src={optimizeAvatar(answer.userId?.avatar, 40) || defaultAvatar}
                   alt={answer.userId?.username || 'user'}
                   className="hf-author-avatar"
                 />
@@ -507,10 +508,16 @@ const QuestionDetail = ({ basePath = '' }) => {
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
 
+  // Latest-request-wins, so opening question B while question A is still loading
+  // can't paint A's content over B's page.
+  const fetchRequestRef = useRef(0);
+
   const fetchQuestion = useCallback(async (showLoading = true) => {
+    const stamp = ++fetchRequestRef.current;
     if (showLoading) setLoading(true);
     try {
       const data = await getQuestion(questionId);
+      if (stamp !== fetchRequestRef.current) return;
       setQuestion(data);
 
       // Sort answers: accepted first, then by votes, then by date
@@ -523,10 +530,11 @@ const QuestionDetail = ({ basePath = '' }) => {
       });
       setAnswers(sorted);
     } catch (err) {
+      if (stamp !== fetchRequestRef.current) return;
       console.error('[QuestionDetail] Fetch failed:', err);
       toast.error('Failed to load question');
     } finally {
-      if (showLoading) setLoading(false);
+      if (showLoading && stamp === fetchRequestRef.current) setLoading(false);
     }
   }, [questionId]);
 
@@ -867,8 +875,8 @@ const QuestionDetail = ({ basePath = '' }) => {
             to={`/dashboard/profile/${question.userId?.username}`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
           >
-            <img
-              src={question.userId?.avatar || defaultAvatar}
+            <img loading="lazy" decoding="async"
+              src={optimizeAvatar(question.userId?.avatar, 40) || defaultAvatar}
               alt={question.userId?.username}
               className="hf-author-avatar"
             />

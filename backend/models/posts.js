@@ -4,8 +4,6 @@ import aggregatePaginate from "mongoose-aggregate-paginate-v2";
 //Helps paginate complex queries
 //Pagination means splitting a large list of data into smaller chunks (pages) so that users don’t have to load everything at once.
 
-import { commentSchema } from "./comment.js";
-
 const postSchema = new mongoose.Schema(
   {
     userId: {
@@ -35,7 +33,13 @@ const postSchema = new mongoose.Schema(
       },
     ],
 
-    comments: [commentSchema],
+    // Comments live in the PostComment collection (models/postComment.js).
+    // Only the count is kept here so feeds can show it without touching comments.
+    commentsCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   { timestamps: true }
 );

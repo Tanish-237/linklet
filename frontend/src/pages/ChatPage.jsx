@@ -8,7 +8,7 @@ import { toast } from "react-toastify";
 import ChatSidebar from "../components/ChatSidebar";
 import ChatWindow from "../components/ChatWindow";
 import ChatInfoPanel from "../components/ChatInfoPanel";
-import linkletLogo from "../assets/linklet-logo.png";
+import linkletLogo from "../assets/linklet-logo.webp";
 import "./ChatPage.css";
 
 const ChatPage = () => {

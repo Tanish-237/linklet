@@ -4,6 +4,20 @@ import { Post } from "../../models/posts.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { invalidateUserCache } from "../utils/userCache.js";
+import { cached, cacheDel } from "../utils/cache.js";
+
+// Profile pages are read far more often than they change. Cached per username
+// for a short TTL, and dropped immediately on the writes that alter them
+// (profile edit, follow/unfollow) so the person who just acted never sees stale data.
+const PROFILE_CACHE_TTL = 60; // seconds
+const MAX_LISTED_FOLLOWS = 500; // a huge follower list must not be loaded in one query
+const profileKeys = (username) => [
+  `profile:data:${username}`,
+  `profile:followers:${username}`,
+  `profile:following:${username}`,
+];
+const invalidateProfileCaches = (...usernames) =>
+  cacheDel(usernames.filter(Boolean).flatMap(profileKeys));
 
 export const getProfile = async (req, res, next) => {
   try {
@@ -13,9 +27,11 @@ export const getProfile = async (req, res, next) => {
     // no legitimate reason to be visible to anyone but the account owner/admins
     // (auth internals, moderation status, google linkage, raw bookmark IDs — a
     // dedicated /:username/bookmarks endpoint already exists for that) are excluded.
-    const user = await User.findOne({ username })
-      .select("-password -refreshToken -googleId -isBanned -banReason -bookmarks")
-      .populate("branch", "name");
+    const user = await cached(`profile:data:${username}`, PROFILE_CACHE_TTL, () =>
+      User.findOne({ username })
+        .select("-password -refreshToken -googleId -isBanned -banReason -bookmarks")
+        .populate("branch", "name")
+    );
 
     if (!user) throw new AppError("User not found", 404);
 
@@ -125,6 +141,7 @@ export const updateProfile = async (req, res, next) => {
     }).select("-password -refreshToken");
 
     await invalidateUserCache(userId);
+    await invalidateProfileCaches(req.user.username, updatedUser?.username);
 
     res.status(200).json({ success: true, data: updatedUser });
   } catch (error) {
@@ -164,6 +181,23 @@ export const toggleBookmark = async (req, res, next) => {
   }
 };
 
+/**
+ * Lightweight variant of getMyBookmarks: just the bookmarked ids. Feed and post
+ * pages only need to know which items show a filled bookmark icon — fetching
+ * every saved resource/post fully populated for that was wasteful.
+ */
+export const getMyBookmarkIds = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id).select("bookmarks").lean();
+    res.status(200).json({
+      success: true,
+      data: (user?.bookmarks || []).map((id) => id.toString()),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /** Return the current user's bookmarked resources & posts, fully populated */
 export const getMyBookmarks = async (req, res, next) => {
   try {
@@ -172,10 +206,10 @@ export const getMyBookmarks = async (req, res, next) => {
 
     const [resources, posts] = await Promise.all([
       Resource.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
+      // Comments are a separate collection now; bookmark cards only need `commentsCount`.
       Post.find({ _id: { $in: bookmarkIds } })
+        .select("-comments")
         .populate("userId", "username avatar")
-        .populate("comments.userId", "username avatar")
-        .populate("comments.replies.userId", "username avatar")
         .lean(),
     ]);
 
@@ -211,7 +245,7 @@ export const getUserBookmarks = async (req, res, next) => {
 
     const [resources, posts] = await Promise.all([
       Resource.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
-      Post.find({ _id: { $in: bookmarkIds } }).populate("userId", "username avatar").lean(),
+      Post.find({ _id: { $in: bookmarkIds } }).select("-comments").populate("userId", "username avatar").lean(),
     ]);
 
     const formattedPosts = posts.map((p) => ({
@@ -282,6 +316,7 @@ export const toggleFollowUser = async (req, res, next) => {
     await Promise.all([
       invalidateUserCache(currentUserId),
       invalidateUserCache(targetUserId),
+      invalidateProfileCaches(currentUser.username, targetUser.username),
     ]);
 
     res.status(200).json({
@@ -335,17 +370,21 @@ export const toggleBlockUser = async (req, res, next) => {
 export const getFollowers = async (req, res, next) => {
   try {
     const { username } = req.params;
-    const user = await User.findOne({ username })
-      .select("followers")
-      .populate("followers", "username fullName avatar department year semester")
-      .lean();
-
-    if (!user) throw new AppError("User not found", 404);
-
-    res.status(200).json({
-      success: true,
-      data: user.followers || [],
+    const followers = await cached(`profile:followers:${username}`, PROFILE_CACHE_TTL, async () => {
+      const user = await User.findOne({ username })
+        .select("followers")
+        .populate({
+          path: "followers",
+          select: "username fullName avatar department year semester",
+          options: { limit: MAX_LISTED_FOLLOWS },
+        })
+        .lean();
+      return user ? user.followers || [] : null;
     });
+
+    if (!followers) throw new AppError("User not found", 404);
+
+    res.status(200).json({ success: true, data: followers });
   } catch (error) {
     next(error);
   }
@@ -355,17 +394,21 @@ export const getFollowers = async (req, res, next) => {
 export const getFollowing = async (req, res, next) => {
   try {
     const { username } = req.params;
-    const user = await User.findOne({ username })
-      .select("following")
-      .populate("following", "username fullName avatar department year semester")
-      .lean();
-
-    if (!user) throw new AppError("User not found", 404);
-
-    res.status(200).json({
-      success: true,
-      data: user.following || [],
+    const following = await cached(`profile:following:${username}`, PROFILE_CACHE_TTL, async () => {
+      const user = await User.findOne({ username })
+        .select("following")
+        .populate({
+          path: "following",
+          select: "username fullName avatar department year semester",
+          options: { limit: MAX_LISTED_FOLLOWS },
+        })
+        .lean();
+      return user ? user.following || [] : null;
     });
+
+    if (!following) throw new AppError("User not found", 404);
+
+    res.status(200).json({ success: true, data: following });
   } catch (error) {
     next(error);
   }

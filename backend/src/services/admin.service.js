@@ -10,6 +10,7 @@ import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 import { invalidateUserCache } from "../utils/userCache.js";
 import { logAdminAction, getAuditLogs } from "./auditLog.service.js";
+import { invalidateResourceCache } from "./resource.service.js";
 
 const STATS_CACHE_KEY = "admin:stats:cache";
 const STATS_CACHE_TTL = 60; // 60 seconds
@@ -239,7 +240,7 @@ export const getRecentContentOverview = async (limit = 5) => {
       .limit(parsedLimit)
       .lean(),
     Post.find()
-      .select("caption image upvotes comments createdAt")
+      .select("caption image upvotes commentsCount createdAt")
       .populate("userId", "username fullName avatar")
       .sort({ createdAt: -1 })
       .limit(parsedLimit)
@@ -269,6 +270,9 @@ export const setResourceVerification = async (adminUserId, resourceId, isVerifie
   if (!resource) {
     throw new AppError("Resource not found", 404);
   }
+
+  // Hidden resources drop out of the library's category counts.
+  await invalidateResourceCache();
 
   if (adminUserId) {
     await logAdminAction({

@@ -2,7 +2,7 @@ import React, { useState, useRef } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import defaultAvatar from "../assets/default-avatar.png";
+import defaultAvatar from "../assets/default-avatar.webp";
 import { apiClient } from "../api/apiClient";
 
 const CreatePost = () => {

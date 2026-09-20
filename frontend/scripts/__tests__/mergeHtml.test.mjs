@@ -81,4 +81,33 @@ describe("mergeIntoShell", () => {
       mergeIntoShell(brokenShell, { titleTag: "<title>X</title>", metaTags: "", bodyHtml: "<div/>" })
     ).toThrow(/root/i);
   });
+
+  it("injects canonical <link> and JSON-LD <script> tags into <head>", () => {
+    console.log("[TEST] mergeIntoShell › link + script tags land in head");
+    const merged = mergeIntoShell(SHELL, {
+      titleTag: "<title>Home</title>",
+      metaTags: "",
+      linkTags: '<link rel="canonical" href="https://linklet.org/"/>',
+      scriptTags: '<script type="application/ld+json">{"@type":"Organization"}</script>',
+      bodyHtml: "<div>home</div>",
+    });
+
+    const head = merged.slice(0, merged.indexOf("</head>"));
+    expect(head).toContain('rel="canonical"');
+    expect(head).toContain("application/ld+json");
+    expect(merged.match(/rel="canonical"/g)).toHaveLength(1);
+  });
+
+  it("treats `$` sequences in page content literally (no String.replace substitution patterns)", () => {
+    console.log("[TEST] mergeIntoShell › $& / $1 in body or JSON-LD are not interpreted");
+    const merged = mergeIntoShell(SHELL, {
+      titleTag: "<title>Price</title>",
+      metaTags: "",
+      scriptTags: '<script type="application/ld+json">{"price":"$&$1$$"}</script>',
+      bodyHtml: "<p>Costs $& and $1 and $$ and $`</p>",
+    });
+
+    expect(merged).toContain('{"price":"$&$1$$"}');
+    expect(merged).toContain("<p>Costs $& and $1 and $$ and $`</p>");
+  });
 });

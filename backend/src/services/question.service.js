@@ -6,6 +6,16 @@ import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 import { QUESTION_CATEGORIES } from "../../models/question.js";
 import mongoose from "mongoose";
+import crypto from "crypto";
+import { cached, getCacheVersion, bumpCacheVersion } from "../utils/cache.js";
+import { parseFeedCursor, paginateList } from "../utils/feedCursor.js";
+
+// One counter versions every cached forum read (search results, tag cloud,
+// category stats). Anything that changes what those show bumps it.
+const FORUM_VERSION_KEY = "forum";
+const SEARCH_CACHE_TTL = 45; // seconds — so "Load more" doesn't re-run the regex scan
+const METADATA_CACHE_TTL = 300; // seconds — tag cloud & category stats change slowly
+const invalidateForumCache = () => bumpCacheVersion(FORUM_VERSION_KEY);
 
 /**
  * Create a new question.
@@ -33,13 +43,15 @@ export const createQuestion = async (userId, questionData) => {
   // Limit to 10 tags, max 30 chars each
   parsedTags = parsedTags.slice(0, 10).map((t) => t.slice(0, 30));
 
-  return await questionRepository.createQuestion({
+  const question = await questionRepository.createQuestion({
     userId,
     title: title.trim(),
     body: body ? body.trim() : "",
     category: resolvedCategory,
     tags: parsedTags,
   });
+  await invalidateForumCache();
+  return question;
 };
 
 /**
@@ -56,22 +68,42 @@ export const getQuestionsFeed = async (queryParams) => {
     userId: authorId,
   } = queryParams;
 
-  const questions = await questionRepository.getQuestionsFeed({
-    cursor: cursor || null,
-    limit: Math.min(parseInt(limit) || 15, 50),
-    search: search || "",
+  // Clamp BEFORE using it for hasMore too — the old code compared the result
+  // count against the unclamped limit, so `?limit=100` silently broke paging.
+  const pageSize = Math.min(Math.max(parseInt(limit) || 15, 1), 50);
+  const params = {
     filter: filter || "all",
     category: category || "",
     tag: tag || "",
     userId: authorId || null,
+  };
+
+  const searchText = typeof search === "string" ? search.trim() : "";
+
+  if (searchText) {
+    // Search results are ranked by relevance, so pages are slices of ONE ranked
+    // candidate list (offset cursor) — cached briefly so paging doesn't re-run
+    // the expensive regex/text scan for every "Load more".
+    const { offset } = parseFeedCursor(cursor);
+    const version = await getCacheVersion(FORUM_VERSION_KEY);
+    const hash = crypto
+      .createHash("sha1")
+      .update(JSON.stringify({ ...params, search: searchText.toLowerCase() }))
+      .digest("hex");
+
+    const candidates = await cached(`forum:search:v${version}:${hash}`, SEARCH_CACHE_TTL, () =>
+      questionRepository.findSearchCandidates({ ...params, search: searchText })
+    );
+
+    const { items, hasMore, nextCursor } = paginateList(candidates, offset, pageSize);
+    return { questions: items, nextCursor, hasMore };
+  }
+
+  return questionRepository.getQuestionsFeed({
+    ...params,
+    cursor: cursor || null,
+    limit: pageSize,
   });
-
-  const nextCursor =
-    questions.length > 0
-      ? questions[questions.length - 1].createdAt
-      : null;
-
-  return { questions, nextCursor, hasMore: questions.length === (parseInt(limit) || 15) };
 };
 
 /**
@@ -158,6 +190,7 @@ export const postAnswer = async (questionId, userId, body) => {
   });
 
   await questionRepository.addAnswerToQuestion(questionId, answer._id);
+  await invalidateForumCache(); // "unanswered" counts in the forum stats changed
 
   // Trigger notification to question author
   const questionAuthorId = (question.userId?._id || question.userId)?.toString();
@@ -402,6 +435,7 @@ export const deleteQuestion = async (questionId, userId, userRole) => {
   // Delete all associated answers
   await Answer.deleteMany({ questionId });
   await questionRepository.deleteQuestion(questionId);
+  await invalidateForumCache();
 
   if (isAdmin && !isOwner) {
     try {
@@ -452,6 +486,7 @@ export const deleteAnswer = async (questionId, answerId, userId, userRole) => {
   await Question.findByIdAndUpdate(questionId, {
     $pull: { answers: answer._id },
   });
+  await invalidateForumCache();
 
   if (isAdmin && !isOwner) {
     try {
@@ -513,12 +548,14 @@ export const deleteComment = async (questionId, answerId, commentId, userId, use
  * Get tag cloud — all distinct tags used across questions.
  */
 export const getTagCloud = async () => {
-  return await questionRepository.getAllTags();
+  const version = await getCacheVersion(FORUM_VERSION_KEY);
+  return cached(`forum:tags:v${version}`, METADATA_CACHE_TTL, () => questionRepository.getAllTags());
 };
 
 /**
  * Get forum stats grouped by category.
  */
 export const getForumStats = async () => {
-  return await questionRepository.getQuestionStats();
+  const version = await getCacheVersion(FORUM_VERSION_KEY);
+  return cached(`forum:stats:v${version}`, METADATA_CACHE_TTL, () => questionRepository.getQuestionStats());
 };

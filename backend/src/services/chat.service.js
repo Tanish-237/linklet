@@ -615,8 +615,13 @@ export const searchUsers = async (query, currentUserId) => {
   return chatRepo.searchUsers(query, currentUserId);
 };
 
+// The cached list embeds each participant's `lastSeen`, so a long TTL would show
+// stale "last seen" times in the sidebar. Structural changes (new message, new
+// group, membership edits) invalidate explicitly; this only bounds the drift.
+const CHAT_LIST_CACHE_TTL = 120; // seconds
+
 /**
- * Get all chats for the current user with Redis caching (120s TTL) & graceful fallback.
+ * Get all chats for the current user with Redis caching (CHAT_LIST_CACHE_TTL) & graceful fallback.
  */
 export const getUserChats = async (userId) => {
   let redisClient = null;
@@ -642,7 +647,7 @@ export const getUserChats = async (userId) => {
 
   if (redisClient && chats) {
     try {
-      await redisClient.setEx(cacheKey, 300, JSON.stringify(chats));
+      await redisClient.setEx(cacheKey, CHAT_LIST_CACHE_TTL, JSON.stringify(chats));
     } catch (err) {
       logger.warn(`Redis set error for ${cacheKey}: ${err.message}`);
     }

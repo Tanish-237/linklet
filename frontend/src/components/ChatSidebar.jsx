@@ -4,6 +4,9 @@ import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { formatChatListTime } from "../utlis/chatDateUtils";
 import CreateGroupModal from "./CreateGroupModal";
+import defaultAvatar from "../assets/default-avatar.webp";
+import defaultGroupAvatar from "../assets/default-group.svg";
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 const ChatSidebar = ({
   chats = [],
@@ -163,11 +166,11 @@ const ChatSidebar = ({
   };
 
   const getChatDisplayAvatar = (chat) => {
-    if (chat.isGroup) return chat.groupImage || "https://cdn-icons-png.flaticon.com/512/3177/3177440.png";
+    if (chat.isGroup) return chat.groupImage || defaultGroupAvatar;
     const other = chat.participants?.find(
       (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
     );
-    return other?.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png";
+    return other?.avatar || defaultAvatar;
   };
 
   const getOtherUserId = (chat) => {
@@ -456,7 +459,7 @@ const ChatSidebar = ({
           <div className="chat-user-search-results">
             {userSearchResults.map((user) => (
               <div key={user._id} onClick={() => startDirectChat(user._id)} className="chat-user-result-item">
-                <img src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"} alt={user.username} className="w-9 h-9 rounded-full border border-violet-500/30 object-cover" />
+                <img loading="lazy" decoding="async" src={optimizeAvatar(user.avatar, 48) || defaultAvatar} alt={user.username} className="w-9 h-9 rounded-full border border-violet-500/30 object-cover" />
                 <div>
                   <div className="text-sm font-semibold text-emerald-300">{user.username}</div>
                   <div className="text-xs text-gray-400">{user.fullName}</div>
@@ -515,7 +518,7 @@ const ChatSidebar = ({
                 className={`chat-item group ${isActive ? "active" : ""}`}
               >
                 <div className="chat-avatar-container">
-                  <img src={getChatDisplayAvatar(chat)} alt={getChatDisplayName(chat)} className="chat-avatar" />
+                  <img loading="lazy" decoding="async" src={getChatDisplayAvatar(chat)} alt={getChatDisplayName(chat)} className="chat-avatar" />
                   {online && !isBlocked && <div className="online-dot" />}
                 </div>
 

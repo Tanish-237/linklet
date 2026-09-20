@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { toast } from "react-toastify";
@@ -110,7 +110,12 @@ export default function Saved({ username }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [username, user?._id]);
 
+  // Latest-request-wins: switching between users' saved pages quickly must not let
+  // a slow earlier response replace the list for the page now showing.
+  const loadRequestRef = useRef(0);
+
   const loadData = async () => {
+    const stamp = ++loadRequestRef.current;
     try {
       setLoading(true);
       if (isOwnProfile) {
@@ -119,17 +124,20 @@ export default function Saved({ username }) {
           apiClient.get(url),
           getCollections(),
         ]);
+        if (stamp !== loadRequestRef.current) return;
         setSavedResources(bookmarksRes.data.data || []);
         setCollections(cols || []);
       } else {
         const url = `/profile/${username}/bookmarks`;
         const res = await apiClient.get(url);
+        if (stamp !== loadRequestRef.current) return;
         setSavedResources(res.data.data || []);
       }
     } catch {
+      if (stamp !== loadRequestRef.current) return;
       toast.error("Failed to load saved items");
     } finally {
-      setLoading(false);
+      if (stamp === loadRequestRef.current) setLoading(false);
     }
   };
 
@@ -482,7 +490,7 @@ export default function Saved({ username }) {
                   </span>
                   <span className="profile-post-stat">
                     <span className="material-icons">chat_bubble_outline</span>
-                    {post.comments?.length || 0}
+                    {post.commentsCount || 0}
                   </span>
                 </div>
                 {post.caption && (
@@ -570,7 +578,7 @@ export default function Saved({ username }) {
             {/* Media Content */}
             <div className="w-full flex items-center justify-center max-h-[60vh] overflow-auto rounded-xl bg-black/40 p-2">
               {previewChatMedia.mediaType === "image" ? (
-                <img
+                <img loading="lazy" decoding="async"
                   src={previewChatMedia.media}
                   alt="Starred media"
                   className="max-h-[55vh] max-w-full object-contain rounded-lg shadow-lg"

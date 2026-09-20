@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import useAuthStore from '../store/useAuthStore';
-import defaultAvatar from '../assets/default-avatar.png';
+import defaultAvatar from '../assets/default-avatar.webp';
 import './HelpForum.css';
 import {
   getQuestions,
@@ -14,6 +14,7 @@ import {
   deleteQuestion as apiDeleteQuestion,
 } from '../api/question.api';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -335,8 +336,8 @@ const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, o
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <img
-                src={question.userId?.avatar || defaultAvatar}
+              <img loading="lazy" decoding="async"
+                src={optimizeAvatar(question.userId?.avatar, 40) || defaultAvatar}
                 alt={question.userId?.username || 'User'}
                 className="hf-author-avatar"
               />
@@ -483,8 +484,14 @@ const HelpForum = () => {
 
   // ─── Fetch Questions ─────────────────────────────────────────────────────────
 
+  // Stamp every request; a response that is no longer the latest (the user changed
+  // the filter/search/category while it was in flight) is dropped instead of being
+  // appended to — or replacing — the list for the *new* view.
+  const questionsRequestRef = useRef(0);
+
   const fetchQuestions = useCallback(
     async (cursor = null) => {
+      const stamp = ++questionsRequestRef.current;
       if (cursor) setLoadingMore(true);
       else setLoading(true);
 
@@ -500,6 +507,7 @@ const HelpForum = () => {
         if (filter === 'mine' && user?._id) params.userId = user._id;
 
         const res = await getQuestions(params);
+        if (stamp !== questionsRequestRef.current) return;
         const newQuestions = res.data || [];
 
         if (cursor) {
@@ -510,11 +518,14 @@ const HelpForum = () => {
         setNextCursor(res.nextCursor || null);
         setHasMore(res.hasMore || false);
       } catch (err) {
+        if (stamp !== questionsRequestRef.current) return;
         console.error('[HelpForum] Failed to load questions:', err);
         toast.error('Failed to load questions. Please try again.');
       } finally {
-        setLoading(false);
-        setLoadingMore(false);
+        if (stamp === questionsRequestRef.current) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     },
     [debouncedSearch, filter, selectedCategory, selectedTag, user?._id]

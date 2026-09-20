@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { HelmetProvider } from "react-helmet-async";
 import { BrowserRouter } from "react-router-dom";
 import NotFound from "../NotFound";
 
@@ -19,9 +20,11 @@ describe("NotFound 404 Component Tests", () => {
     console.log("[TEST] NotFound › renders 404 header and description");
 
     render(
-      <BrowserRouter>
-        <NotFound />
-      </BrowserRouter>
+      <HelmetProvider>
+        <BrowserRouter>
+          <NotFound />
+        </BrowserRouter>
+      </HelmetProvider>
     );
 
     expect(screen.getByRole("heading", { name: "404" })).toBeInTheDocument();
@@ -38,9 +41,11 @@ describe("NotFound 404 Component Tests", () => {
     console.log("[TEST] NotFound › handles 'Go Back' navigation");
 
     render(
-      <BrowserRouter>
-        <NotFound />
-      </BrowserRouter>
+      <HelmetProvider>
+        <BrowserRouter>
+          <NotFound />
+        </BrowserRouter>
+      </HelmetProvider>
     );
 
     const goBackButton = screen.getByRole("button", { name: /Go Back/i });
@@ -55,9 +60,11 @@ describe("NotFound 404 Component Tests", () => {
     console.log("[TEST] NotFound › handles 'Return to Feed' navigation");
 
     render(
-      <BrowserRouter>
-        <NotFound />
-      </BrowserRouter>
+      <HelmetProvider>
+        <BrowserRouter>
+          <NotFound />
+        </BrowserRouter>
+      </HelmetProvider>
     );
 
     const feedButton = screen.getByRole("button", { name: /Return to Feed/i });
@@ -65,5 +72,21 @@ describe("NotFound 404 Component Tests", () => {
 
     expect(mockedNavigate).toHaveBeenCalledWith("/home");
     console.log("[TEST] Successfully verified navigate('/home') triggered");
+  });
+
+  it("tells crawlers not to index it (the SPA host answers unknown URLs with HTTP 200)", async () => {
+    console.log("[TEST] NotFound › robots noindex");
+    const { unmount } = render(
+      <HelmetProvider>
+        <BrowserRouter>
+          <NotFound />
+        </BrowserRouter>
+      </HelmetProvider>
+    );
+    await waitFor(() => {
+      expect(document.head.querySelector('meta[name="robots"]')?.getAttribute("content")).toBe("noindex, nofollow");
+      expect(document.title).toMatch(/not found/i);
+    });
+    unmount();
   });
 });

@@ -1,10 +1,19 @@
 import * as branchRepository from "../repositories/branch.repository.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
+import { cached, cacheDel } from "../utils/cache.js";
+
+// Reference data that changes a few times a year at most, yet is fetched by
+// every dropdown in the app (register, profile, upload, filters).
+const BRANCHES_CACHE_KEY = "branches:all";
+const BRANCHES_CACHE_TTL = 600; // seconds
+const invalidateBranchesCache = () => cacheDel(BRANCHES_CACHE_KEY);
 
 export const createBranch = async (branchData) => {
   try {
-    return await branchRepository.createBranch(branchData);
+    const created = await branchRepository.createBranch(branchData);
+    await invalidateBranchesCache();
+    return created;
   } catch (error) {
     if (error.code === 11000) {
       throw new AppError("Branch with this name already exists", 400);
@@ -14,7 +23,7 @@ export const createBranch = async (branchData) => {
 };
 
 export const getAllBranches = async () => {
-  return await branchRepository.findAllBranches();
+  return cached(BRANCHES_CACHE_KEY, BRANCHES_CACHE_TTL, () => branchRepository.findAllBranches());
 };
 
 export const updateBranch = async (id, updateData) => {
@@ -22,6 +31,7 @@ export const updateBranch = async (id, updateData) => {
   if (!branch) {
     throw new AppError("Branch not found", 404);
   }
+  await invalidateBranchesCache();
   return branch;
 };
 
@@ -30,6 +40,7 @@ export const deleteBranch = async (id, adminId = null) => {
   if (!branch) {
     throw new AppError("Branch not found", 404);
   }
+  await invalidateBranchesCache();
   return branch;
 };
 
@@ -47,6 +58,7 @@ export const seedDefaultBranches = async (adminId = null) => {
   ];
 
   const branches = await branchRepository.seedDefaultBranches(defaultBranches);
+  await invalidateBranchesCache();
 
   if (adminId) {
     try {

@@ -122,6 +122,32 @@ export const findChatsByUser = async (userId, limit = 50) => {
 };
 
 /**
+ * Distinct ids of everyone the user shares a chat with (direct + group), used to
+ * scope presence ("online"/"last seen") events to the people who can actually
+ * see this user, instead of broadcasting to the whole campus.
+ * Looks at the user's most recently active chats and caps the result so one
+ * enormous group can't turn a single connect into thousands of emits.
+ */
+export const findContactIds = async (userId, { maxChats = 200, maxContacts = 2000 } = {}) => {
+  const chats = await Chat.find({ participants: userId })
+    .select("participants")
+    .sort({ updatedAt: -1 })
+    .limit(maxChats)
+    .lean();
+
+  const self = userId.toString();
+  const contacts = new Set();
+  for (const chat of chats) {
+    for (const participant of chat.participants || []) {
+      const id = participant.toString();
+      if (id !== self) contacts.add(id);
+      if (contacts.size >= maxContacts) return [...contacts];
+    }
+  }
+  return [...contacts];
+};
+
+/**
  * Update a chat document (rename, image, etc.).
  */
 export const updateChat = async (chatId, updateData) => {

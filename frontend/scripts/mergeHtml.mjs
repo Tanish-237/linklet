@@ -16,7 +16,10 @@ const ROOT_DIV_RE = /<div id="root"><\/div>/;
  * react-helmet-async's `helmet.title.toString()` / `helmet.meta.toString()`
  * return for that page.
  */
-export const mergeIntoShell = (shellHtml, { titleTag, metaTags, bodyHtml }) => {
+export const mergeIntoShell = (
+  shellHtml,
+  { titleTag, metaTags, linkTags = "", scriptTags = "", bodyHtml }
+) => {
   if (!shellHtml.includes('<div id="root"></div>')) {
     throw new Error('Shell HTML is missing the expected <div id="root"></div> mount point');
   }
@@ -25,8 +28,12 @@ export const mergeIntoShell = (shellHtml, { titleTag, metaTags, bodyHtml }) => {
     .replace(TITLE_RE, '')
     .replace(REPLACEABLE_META_RE, '');
 
-  merged = merged.replace('</head>', `${titleTag}\n${metaTags}\n</head>`);
-  merged = merged.replace(ROOT_DIV_RE, `<div id="root">${bodyHtml}</div>`);
+  // `linkTags` carries <link rel="canonical">, `scriptTags` the JSON-LD blocks.
+  merged = merged.replace(
+    '</head>',
+    () => [titleTag, metaTags, linkTags, scriptTags].filter(Boolean).join('\n') + '\n</head>'
+  );
+  merged = merged.replace(ROOT_DIV_RE, () => `<div id="root">${bodyHtml}</div>`);
 
   return merged;
 };

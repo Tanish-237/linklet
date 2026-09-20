@@ -104,5 +104,11 @@ export const scoreSearchRelevance = (docs = [], searchTerm = "") => {
 
       return { ...doc, relevanceScore: score };
     })
-    .sort((a, b) => b.relevanceScore - a.relevanceScore);
+    // Equal scores fall back to newest-first so the order is fully deterministic
+    // (pages of one search must never reshuffle between requests).
+    .sort(
+      (a, b) =>
+        b.relevanceScore - a.relevanceScore ||
+        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+    );
 };

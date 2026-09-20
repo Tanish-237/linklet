@@ -20,8 +20,9 @@ import {
   getReportedMessages,
   updateReportStatus,
 } from '../api/admin.api';
-import defaultAvatar from '../assets/default-avatar.png';
+import defaultAvatar from '../assets/default-avatar.webp';
 import './AdminDashboard.css';
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
@@ -686,8 +687,8 @@ export default function AdminDashboard() {
                         <tr key={targetUser._id} className="hover:bg-gray-800/30 transition-colors">
                           <td>
                             <div className="flex items-center gap-3">
-                              <img
-                                src={targetUser.avatar || defaultAvatar}
+                              <img loading="lazy" decoding="async"
+                                src={optimizeAvatar(targetUser.avatar, 40) || defaultAvatar}
                                 alt={targetUser.username}
                                 className="w-9 h-9 rounded-full border border-gray-700 object-cover"
                               />
@@ -1213,8 +1214,8 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <div className="flex items-center gap-2">
-                              <img
-                                src={admin.avatar || defaultAvatar}
+                              <img loading="lazy" decoding="async"
+                                src={optimizeAvatar(admin.avatar, 40) || defaultAvatar}
                                 alt=""
                                 className="w-6 h-6 rounded-full object-cover border border-gray-700"
                               />
@@ -1363,8 +1364,8 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <div className="flex items-center gap-2">
-                              <img
-                                src={reporter.avatar || defaultAvatar}
+                              <img loading="lazy" decoding="async"
+                                src={optimizeAvatar(reporter.avatar, 40) || defaultAvatar}
                                 alt=""
                                 className="w-6 h-6 rounded-full object-cover border border-gray-700"
                               />
@@ -1375,8 +1376,8 @@ export default function AdminDashboard() {
                           </td>
                           <td>
                             <div className="flex items-center gap-2">
-                              <img
-                                src={sender.avatar || defaultAvatar}
+                              <img loading="lazy" decoding="async"
+                                src={optimizeAvatar(sender.avatar, 40) || defaultAvatar}
                                 alt=""
                                 className="w-6 h-6 rounded-full object-cover border border-gray-700"
                               />

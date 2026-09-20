@@ -32,6 +32,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # The *.db.test.js suites run against a real in-memory MongoDB. The mongod
+      # binary is downloaded once and cached, instead of on every CI run.
+      - name: Cache mongod binary (mongodb-memory-server)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongod-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
+
       - name: Run tests
         run: npm test
 
@@ -60,7 +68,7 @@ jobs:
         run: npm run lint
 
       - name: Run tests
-        run: npx vitest run
+        run: npm test
 
       - name: Build
         run: npm run build

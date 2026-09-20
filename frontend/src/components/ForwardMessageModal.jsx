@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { toast } from "react-toastify";
+import defaultAvatar from "../assets/default-avatar.webp";
+import defaultGroupAvatar from "../assets/default-group.svg";
 
 const ForwardMessageModal = ({
   isOpen,
@@ -28,8 +30,8 @@ const ForwardMessageModal = ({
   };
 
   const getChatAvatar = (c) => {
-    if (c.isGroup) return c.groupImage || "https://cdn-icons-png.flaticon.com/512/3177/3177440.png";
-    return c.participants?.find((p) => p.avatar)?.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png";
+    if (c.isGroup) return c.groupImage || defaultGroupAvatar;
+    return c.participants?.find((p) => p.avatar)?.avatar || defaultAvatar;
   };
 
   // This hook must run on every render regardless of `isOpen` — React
@@ -139,7 +141,7 @@ const ForwardMessageModal = ({
                   }`}
                 >
                   <div className="relative flex-shrink-0">
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={getChatAvatar(c)}
                       alt={getChatName(c)}
                       className="w-11 h-11 rounded-full object-cover border border-violet-500/20"

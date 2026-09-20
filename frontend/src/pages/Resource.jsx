@@ -277,7 +277,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
             )}
             <div className="gs-list-meta">
               {resource.userId?.avatar
-                ? <img src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
+                ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
                 : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
               }
               <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
@@ -378,7 +378,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
       <div className="gs-card-user-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "8px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           {resource.userId?.avatar
-            ? <img src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
+            ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
             : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
           }
           <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
@@ -558,7 +558,13 @@ export default function GlobalSearch() {
     }
   };
 
+  // Latest-request-wins: typing in search or switching filters fires overlapping
+  // requests, and a slow older response must not overwrite (or be appended to) the
+  // list for the newer view.
+  const resourcesRequestRef = useRef(0);
+
   const fetchResources = async (page = 1, append = false) => {
+    const stamp = ++resourcesRequestRef.current;
     if (append) setLoadingMore(true); else setLoading(true);
     try {
       const res = await apiClient.get("/resources/library", {
@@ -573,16 +579,20 @@ export default function GlobalSearch() {
           onlyMe: showMyResourcesOnly || undefined,
         },
       });
+      if (stamp !== resourcesRequestRef.current) return;
       const data = res.data.data || [];
       setResources((prev) => append ? [...prev, ...data] : data);
       setStats(res.data.stats || stats);
       setPagination(res.data.pagination || { page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false });
     } catch (err) {
+      if (stamp !== resourcesRequestRef.current) return;
       if (err.response?.status === 401) toast.error("Please log in to view resources");
       else toast.error("Failed to load resources.");
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (stamp === resourcesRequestRef.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   };
 

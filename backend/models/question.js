@@ -106,6 +106,8 @@ questionSchema.index({ createdAt: -1 });
 // Compound indexes for tag filtering and user questions list
 questionSchema.index({ tags: 1, createdAt: -1 });
 questionSchema.index({ userId: 1, createdAt: -1 });
+// "Most viewed" tab
+questionSchema.index({ views: -1, createdAt: -1 });
 
 questionSchema.plugin(aggregatePaginate);
 

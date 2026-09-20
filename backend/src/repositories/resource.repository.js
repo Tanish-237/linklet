@@ -101,9 +101,16 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
     }
   };
 
-  const buildPipeline = (query, sortQuery, useText) => [
+  // Sort, skip and limit run BEFORE the user $lookup, so only the (at most
+  // `limit`) resources on the requested page are joined to their uploader.
+  // Joining first meant every matching resource in the library was joined to a
+  // user document just to throw all but 12 of them away.
+  const buildPagePipeline = (query, sortQuery, useText) => [
     { $match: query },
     ...(filters.search && useText ? [{ $addFields: { score: { $meta: "textScore" } } }] : []),
+    { $sort: { ...sortQuery, _id: 1 } }, // _id tiebreak → stable pages
+    { $skip: (page - 1) * limit },
+    { $limit: limit },
     {
       $lookup: {
         from: "users",
@@ -138,46 +145,53 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
         "userId.fullName": 1,
       },
     },
-    { $sort: sortQuery },
   ];
 
-  const options = { page, limit };
+  const runQuery = async (useText) => {
+    const query = buildQuery(useText);
+    const [docs, countRows] = await Promise.all([
+      Resource.aggregate(buildPagePipeline(query, buildSort(useText), useText)),
+      // Counting needs no join and no sort — just the match.
+      Resource.aggregate([{ $match: query }, { $count: "total" }]),
+    ]);
+    return { docs, totalDocs: countRows[0]?.total || 0 };
+  };
 
   // First attempt with full-text search
-  let query = buildQuery(true);
-  let sortQuery = buildSort(true);
-  let pipeline = buildPipeline(query, sortQuery, true);
-
-  let paginatedResults = await Resource.aggregatePaginate(
-    Resource.aggregate(pipeline),
-    options
-  );
+  let { docs, totalDocs } = await runQuery(true);
 
   // If text search returned nothing and a search term was provided, retry with regex
-  if (filters.search && paginatedResults.totalDocs === 0) {
-    query = buildQuery(false);
-    sortQuery = buildSort(false);
-    pipeline = buildPipeline(query, sortQuery, false);
-    paginatedResults = await Resource.aggregatePaginate(
-      Resource.aggregate(pipeline),
-      options
-    );
+  if (filters.search && totalDocs === 0) {
+    ({ docs, totalDocs } = await runQuery(false));
   }
 
-  // Category stats (independent of current search/filter for accurate counts)
+  const totalPages = Math.max(1, Math.ceil(totalDocs / limit));
+
+  return {
+    resources: docs,
+    totalPages,
+    totalDocs,
+    page,
+    hasNextPage: page < totalPages,
+  };
+};
+
+/**
+ * Per-category counts for the library header. Deliberately independent of the
+ * current search/filter (so the numbers stay stable while browsing) — which
+ * also makes it ideal to cache: it depends only on the branch.
+ */
+export const getCategoryStats = async (branchId) => {
   const statsAggregate = await Resource.aggregate([
     {
       $match: {
         isVerified: { $ne: false },
-        ...(filters.branchId ? { branch: new mongoose.Types.ObjectId(filters.branchId) } : {}),
+        ...(branchId && mongoose.Types.ObjectId.isValid(branchId)
+          ? { branch: new mongoose.Types.ObjectId(branchId) }
+          : {}),
       },
     },
-    {
-      $group: {
-        _id: "$category",
-        count: { $sum: 1 },
-      },
-    },
+    { $group: { _id: "$category", count: { $sum: 1 } } },
   ]);
 
   const stats = {
@@ -193,14 +207,7 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
   });
   stats.categories.all = stats.total;
 
-  return {
-    resources: paginatedResults.docs,
-    stats,
-    totalPages: paginatedResults.totalPages,
-    totalDocs: paginatedResults.totalDocs,
-    page: paginatedResults.page,
-    hasNextPage: paginatedResults.hasNextPage,
-  };
+  return stats;
 };
 
 export const deleteResource = async (id) => {

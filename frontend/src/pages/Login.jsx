@@ -5,9 +5,10 @@ import { handleApiError } from "../utlis/ErrorHandler";
 import { useAuth } from "../context/AuthContext";
 import { Helmet } from 'react-helmet-async';
 
-import linkletLogo from '../assets/linklet-logo.png';
+import linkletLogo from '../assets/linklet-logo.webp';
 import { apiClient } from "../api/apiClient";
 import GoogleAuthButton from "../components/GoogleAuthButton";
+import SEO from "../components/SEO";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -54,12 +55,9 @@ export default function Login() {
 
   return (
     <div className="fixed inset-0 w-full h-full overflow-y-auto bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
+      {/* Sign-in screens have no search value; noindex keeps them out of results. */}
+      <SEO title="Log in | Linklet" description="Log in to Linklet with your MNNIT account to access your campus feed, schedule, resources and chats." path="/login" noindex />
       <Helmet>
-        <title>Login | Linklet - Your Complete Learning Journey</title>
-        <meta name="description" content="Log in to Linklet to continue your learning journey. Access your resources and connect with peers." />
-        <meta property="og:title" content="Login | Linklet" />
-        <meta property="og:description" content="Log in to continue your learning journey with Linklet." />
-        <meta property="og:type" content="website" />
         <meta name="theme-color" content="#6D28D9" />
       </Helmet>
 

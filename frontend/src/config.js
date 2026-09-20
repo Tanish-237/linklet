@@ -4,4 +4,5 @@ export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localho
 // Social crawlers (WhatsApp, LinkedIn, iMessage) require an absolute URL for
 // og:image; a relative path resolves against their own domain, not ours.
 export const SITE_URL = "https://linklet.org";
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/linklet-logo.png`;
+// 1200x630 JPEG (public/og-image.jpg) — the size social platforms render as a large card.
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`;

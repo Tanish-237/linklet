@@ -12,8 +12,12 @@ import dashboardRoutes from "./dashboard.routes.js";
 import timetableRoutes from "./timetable.routes.js";
 import contactRoutes from "./contact.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import { apiDefaultCacheControl } from "../middlewares/cacheControl.js";
 
 const router = express.Router();
+
+// Safe default for every API read; individual routes opt in to longer caching.
+router.use(apiDefaultCacheControl);
 
 router.use("/auth", authRoutes);
 router.use("/admin", adminRoutes);

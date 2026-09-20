@@ -1,12 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import linkletLogo from "../assets/linklet-logo.png";
+import linkletLogo from "../assets/linklet-logo.webp";
+import SEO from "../components/SEO";
 
 const NotFound = () => {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      {/* The SPA host answers unknown URLs with 200, so this tag is what tells crawlers not to index them. */}
+      <SEO title="Page not found | Linklet" description="The page you are looking for does not exist on Linklet." path="/404" noindex />
       {/* Background ambient glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
 

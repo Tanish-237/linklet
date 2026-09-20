@@ -8,6 +8,8 @@ const router = express.Router();
 router.get("/feed", postController.getFeed);
 router.get("/user/:userId", postController.getUserPosts);
 router.get("/:postId", postController.getPost);
+router.get("/:postId/comments", postController.getComments);
+router.get("/:postId/comments/:commentId/replies", postController.getReplies);
 
 router.post("/", isLoggedIn, upload.single("image"), postController.createPost);
 router.delete("/:postId", isLoggedIn, postController.deletePost);

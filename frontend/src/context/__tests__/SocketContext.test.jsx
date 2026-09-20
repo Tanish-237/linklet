@@ -43,7 +43,7 @@ describe("SocketProvider Component Tests", () => {
     io.mockReturnValue(mockSocket);
   });
 
-  it("initializes socket connection with credentials and token when user is logged in", () => {
+  it("initializes socket connection with credentials and token when user is logged in", async () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] SocketProvider › connects socket for authenticated user");
 
@@ -57,6 +57,7 @@ describe("SocketProvider Component Tests", () => {
       </SocketProvider>
     );
 
+    await waitFor(() => expect(screen.getByTestId("socket-status").textContent).toBe("connected"));
     expect(io).toHaveBeenCalledTimes(1);
     expect(io).toHaveBeenCalledWith(
       expect.any(String),
@@ -64,11 +65,10 @@ describe("SocketProvider Component Tests", () => {
         withCredentials: true,
       })
     );
-    expect(screen.getByTestId("socket-status").textContent).toBe("connected");
     console.log("[TEST] Verified socket created with withCredentials: true");
   });
 
-  it("disconnects socket and clears instance when user becomes null (logged out)", () => {
+  it("disconnects socket and clears instance when user becomes null (logged out)", async () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] SocketProvider › disconnects socket when user logs out");
 
@@ -81,7 +81,7 @@ describe("SocketProvider Component Tests", () => {
       </SocketProvider>
     );
 
-    expect(screen.getByTestId("socket-status").textContent).toBe("connected");
+    await waitFor(() => expect(screen.getByTestId("socket-status").textContent).toBe("connected"));
 
     // Simulate logout
     act(() => {
@@ -98,7 +98,7 @@ describe("SocketProvider Component Tests", () => {
     console.log("[TEST] Verified socket disconnect was called on logout");
   });
 
-  it("does not reconnect or recreate socket when user profile changes with same _id", () => {
+  it("does not reconnect or recreate socket when user profile changes with same _id", async () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] SocketProvider › preserves connection on user object ref change with same _id");
 
@@ -111,7 +111,7 @@ describe("SocketProvider Component Tests", () => {
       </SocketProvider>
     );
 
-    expect(io).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(io).toHaveBeenCalledTimes(1));
 
     // Simulate profile update (new object reference, same _id)
     act(() => {
@@ -129,7 +129,7 @@ describe("SocketProvider Component Tests", () => {
     console.log("[TEST] Verified socket remains connected without reconnection on profile update");
   });
 
-  it("re-emits setup on both connect and reconnect socket events", () => {
+  it("re-emits setup on both connect and reconnect socket events", async () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] SocketProvider › handles connect and reconnect events to emit setup");
 
@@ -154,7 +154,7 @@ describe("SocketProvider Component Tests", () => {
       </SocketProvider>
     );
 
-    expect(events["connect"]).toBeDefined();
+    await waitFor(() => expect(events["connect"]).toBeDefined());
     expect(events["reconnect"]).toBeDefined();
 
     // Trigger connect
@@ -171,7 +171,7 @@ describe("SocketProvider Component Tests", () => {
     console.log("[TEST] Verified setup was emitted on both connect and reconnect events");
   });
 
-  it("reads the token fresh on every connection attempt via an auth function, not a static object", () => {
+  it("reads the token fresh on every connection attempt via an auth function, not a static object", async () => {
     console.log("\n──────────────────────────────────────────────");
     console.log("[TEST] SocketProvider › auth option is a function so a refreshed token is picked up on reconnect");
 
@@ -185,6 +185,7 @@ describe("SocketProvider Component Tests", () => {
       </SocketProvider>
     );
 
+    await waitFor(() => expect(io).toHaveBeenCalled());
     const authOption = io.mock.calls[0][1].auth;
     expect(typeof authOption).toBe("function");
     console.log("[TEST] Verified auth is a callback, avoiding the stale-token-after-refresh bug");
@@ -216,6 +217,7 @@ describe("SocketProvider Component Tests", () => {
       </SocketProvider>
     );
 
+    await waitFor(() => expect(handlers["connect_error"]).toBeDefined());
     await act(async () => {
       await handlers["connect_error"]({ message: "Session expired" });
     });
@@ -223,5 +225,37 @@ describe("SocketProvider Component Tests", () => {
     expect(refreshTokenModule.refreshAccessToken).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(connectMock).toHaveBeenCalledTimes(1));
     console.log("[TEST] Verified: expired-token handshake rejection triggers a silent refresh + reconnect");
+  });
+
+  it("never opens a socket (or loads the client library) for a logged-out visitor", async () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] SocketProvider › logged-out visitors get no socket");
+    useAuth.mockReturnValue({ user: null });
+
+    render(
+      <SocketProvider>
+        <TestConsumer />
+      </SocketProvider>
+    );
+
+    await act(async () => { await Promise.resolve(); });
+    expect(io).not.toHaveBeenCalled();
+    expect(screen.getByTestId("socket-status").textContent).toBe("disconnected");
+  });
+
+  it("does not open a socket if the user logs out / provider unmounts before the client library finished loading", async () => {
+    console.log("\n──────────────────────────────────────────────");
+    console.log("[TEST] SocketProvider › unmount during chunk load → no orphan connection");
+    useAuth.mockReturnValue({ user: { _id: "user-123", username: "tester" } });
+
+    const { unmount } = render(
+      <SocketProvider>
+        <TestConsumer />
+      </SocketProvider>
+    );
+    unmount(); // effect cleanup runs synchronously, before the dynamic import resolves
+
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    expect(io).not.toHaveBeenCalled();
   });
 });

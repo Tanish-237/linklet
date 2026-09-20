@@ -35,6 +35,7 @@ jest.unstable_mockModule('../models/posts.js', () => ({
 const {
   toggleBookmark,
   getMyBookmarks,
+  getMyBookmarkIds,
   getUserBookmarks,
   toggleFollowUser,
   toggleBlockUser,
@@ -135,6 +136,44 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
     });
   });
 
+  // ── getMyBookmarkIds ────────────────────────────────────────────────────────
+  describe('getMyBookmarkIds', () => {
+    it('returns just the bookmarked ids as strings, without populating any resource/post', async () => {
+      console.log('[TEST] getMyBookmarkIds › lightweight id list');
+      const req = makeReq();
+      const res = makeRes();
+      const next = jest.fn();
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnValue({
+          lean: jest.fn().mockResolvedValue({ bookmarks: [{ toString: () => 'r1' }, 'p7'] }),
+        }),
+      });
+
+      await getMyBookmarkIds(req, res, next);
+
+      console.log('[TEST RESULT] payload:', JSON.stringify(res.json.mock.calls[0][0]));
+      expect(res.json).toHaveBeenCalledWith({ success: true, data: ['r1', 'p7'] });
+      expect(mockResourceFind).not.toHaveBeenCalled();
+      expect(mockPostFind).not.toHaveBeenCalled();
+    });
+
+    it('returns an empty list for a user with no bookmarks', async () => {
+      const res = makeRes();
+      mockFindById.mockReturnValue({
+        select: jest.fn().mockReturnValue({ lean: jest.fn().mockResolvedValue(null) }),
+      });
+      await getMyBookmarkIds(makeReq(), res, jest.fn());
+      expect(res.json).toHaveBeenCalledWith({ success: true, data: [] });
+    });
+
+    it('forwards database errors to next()', async () => {
+      const next = jest.fn();
+      mockFindById.mockImplementation(() => { throw new Error('db down'); });
+      await getMyBookmarkIds(makeReq(), makeRes(), next);
+      expect(next).toHaveBeenCalledWith(expect.any(Error));
+    });
+  });
+
   // ── getMyBookmarks ──────────────────────────────────────────────────────────
   describe('getMyBookmarks', () => {
     it('should return the current user\'s populated bookmarks', async () => {
@@ -156,12 +195,12 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
           lean: jest.fn().mockResolvedValue(mockBookmarks),
         }),
       });
+      // Post bookmarks: .select("-comments").populate("userId").lean() — comments are
+      // a separate collection now, only commentsCount rides along.
       mockPostFind.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
           populate: jest.fn().mockReturnValue({
-            populate: jest.fn().mockReturnValue({
-              lean: jest.fn().mockResolvedValue([]),
-            }),
+            lean: jest.fn().mockResolvedValue([]),
           }),
         }),
       });
@@ -190,12 +229,12 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
           lean: jest.fn().mockResolvedValue([]),
         }),
       });
+      // Post bookmarks: .select("-comments").populate("userId").lean() — comments are
+      // a separate collection now, only commentsCount rides along.
       mockPostFind.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
+        select: jest.fn().mockReturnValue({
           populate: jest.fn().mockReturnValue({
-            populate: jest.fn().mockReturnValue({
-              lean: jest.fn().mockResolvedValue([]),
-            }),
+            lean: jest.fn().mockResolvedValue([]),
           }),
         }),
       });
@@ -226,9 +265,13 @@ describe('Profile Controller — Bookmark Unit Tests', () => {
           lean: jest.fn().mockResolvedValue(mockBookmarks),
         }),
       });
+      // Post bookmarks: .select("-comments").populate("userId").lean() — comments are
+      // a separate collection now, only commentsCount rides along.
       mockPostFind.mockReturnValue({
-        populate: jest.fn().mockReturnValue({
-          lean: jest.fn().mockResolvedValue([]),
+        select: jest.fn().mockReturnValue({
+          populate: jest.fn().mockReturnValue({
+            lean: jest.fn().mockResolvedValue([]),
+          }),
         }),
       });
 

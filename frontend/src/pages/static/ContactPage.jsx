@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
-import { Helmet } from "react-helmet-async";
 import { apiClient } from "../../api/apiClient.js";
-import { SITE_URL, DEFAULT_OG_IMAGE } from "../../config";
+import SEO from "../../components/SEO";
 
 const CONTACT_DESCRIPTION =
   "Reach the Linklet team for support, feedback, or to contribute to the campus platform built for MNNIT Allahabad students.";
@@ -64,19 +63,7 @@ const ContactPage = () => {
 
   return (
     <div className="contact-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
-      <Helmet>
-        <title>Contact Linklet | Support & Feedback</title>
-        <meta name="description" content={CONTACT_DESCRIPTION} />
-        <meta property="og:title" content="Contact Linklet" />
-        <meta property="og:description" content={CONTACT_DESCRIPTION} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={`${SITE_URL}/contact`} />
-        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Contact Linklet" />
-        <meta name="twitter:description" content={CONTACT_DESCRIPTION} />
-        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
-      </Helmet>
+      <SEO title="Contact Linklet | Support & Feedback" ogTitle="Contact Linklet" description={CONTACT_DESCRIPTION} path="/contact" />
       <div className="max-w-5xl mx-auto">
         {/* Header Hero Section */}
         <div className="mb-12 border-b border-zinc-800/80 pb-8">

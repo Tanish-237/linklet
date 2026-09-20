@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { apiClient } from "../api/apiClient";
 import useAuthStore from "../store/useAuthStore";
+import { loadGoogleIdentity } from "../utlis/loadGoogleIdentity";
 
 const GoogleAuthButton = ({ mode = "signin" }) => {
   const navigate = useNavigate();
@@ -94,23 +95,30 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
       }
     };
 
+    let cancelled = false;
+
     if (window.google?.accounts?.id) {
       setupGsi();
     } else {
-      const timer = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          clearInterval(timer);
-          setupGsi();
-        }
-      }, 150);
-      return () => clearInterval(timer);
+      // Fetch Google's script only now that a Google button is actually on screen.
+      loadGoogleIdentity()
+        .then(() => {
+          if (!cancelled) setupGsi();
+        })
+        .catch((err) => console.warn("Google Sign-In unavailable:", err.message));
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [clientId, mode]);
 
   const handleManualPrompt = () => {
     if (window.google?.accounts?.id) {
       window.google.accounts.id.prompt();
     } else {
+      // Not loaded yet (or blocked) — kick off / retry the load and ask the user to try again.
+      loadGoogleIdentity().catch(() => {});
       toast.info("Connecting to Google Services... please click again in a moment.");
     }
   };

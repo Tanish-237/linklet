@@ -1,15 +1,18 @@
 import express from "express";
 import * as questionController from "../controllers/question.controller.js";
 import { isLoggedIn } from "../middlewares/auth.middleware.js";
+import { browserCache } from "../middlewares/cacheControl.js";
 
 const router = express.Router();
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Public metadata (no auth required)
 // ──────────────────────────────────────────────────────────────────────────────
-router.get("/metadata", questionController.getMetadata);
-router.get("/tags", questionController.getTagCloud);
-router.get("/stats", questionController.getForumStats);
+// Categories/suggested tags are compile-time constants; the tag cloud and stats
+// change only when someone posts, so a short browser cache is invisible.
+router.get("/metadata", browserCache(3600), questionController.getMetadata);
+router.get("/tags", browserCache(30), questionController.getTagCloud);
+router.get("/stats", browserCache(30), questionController.getForumStats);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // All routes below require authentication

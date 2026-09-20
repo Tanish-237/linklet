@@ -9,11 +9,9 @@ import logger from "./src/utils/logger.js";
 
 import { corsOriginHandler } from "./src/utils/cors.js";
 import * as chatRepo from "./src/repositories/chat.repository.js";
+import { getContactIds, filterOnlineUsers, countUserSockets } from "./src/utils/presence.js";
 
 export let io;
-
-// Track online users in memory (and Redis if available)
-const onlineUsers = new Map(); // userId -> socketId
 
 /**
  * Extract the JWT access token from a socket handshake (auth payload, Authorization
@@ -100,6 +98,10 @@ export const initializeSocket = async (server) => {
 
       socket.user = decoded;
       socket.userId = uid;
+      // `socket.data` is what fetchSockets() exposes for remote (other-instance)
+      // sockets, so presence lookups can map a socket back to its user.
+      socket.data = socket.data || {};
+      socket.data.userId = uid;
       socket.authenticated = true;
       return next();
     } catch (err) {
@@ -128,7 +130,7 @@ export const initializeSocket = async (server) => {
     // handshake middleware rejects unauthenticated connections), so the identity
     // used to join rooms and populate presence always comes from the verified JWT,
     // never from client-supplied data.
-    socket.on("setup", (userData) => {
+    socket.on("setup", async (userData) => {
       const requestedId = userData?._id?.toString();
       if (requestedId && requestedId !== socket.userId) {
         logger.warn(`Security alert: Socket ${socket.id} (user ${socket.userId}) attempted unauthorized registration as ${requestedId}`);
@@ -137,17 +139,28 @@ export const initializeSocket = async (server) => {
 
       const uid = socket.userId;
       socket.join(uid);
-      onlineUsers.set(uid, socket.id);
+      socket.data = socket.data || {};
+      socket.data.presenceRegistered = true;
 
-      // 1. Send full online presence list ONLY to connecting socket
-      socket.emit("user online status", {
-        onlineUsers: Array.from(onlineUsers.keys()),
-      });
+      // Presence is scoped to the people who share a chat with this user — not
+      // the whole campus. (Broadcasting every connect/disconnect to every
+      // connected socket meant N users generating N² emits.)
+      const contactIds = await getContactIds(uid);
 
-      // 2. Broadcast single lightweight delta event to all other connected peers
-      socket.broadcast.emit("user_connected", {
-        userId: uid,
-      });
+      // 1. Tell ONLY the connecting socket which of its contacts are online.
+      //    (The list includes the user themself, as it always has.)
+      const onlineContacts = await filterOnlineUsers(io, contactIds);
+      socket.emit("user online status", { onlineUsers: [...onlineContacts, uid] });
+
+      // 2. Announce "came online" to contacts — but only for this user's FIRST
+      //    live socket. A second tab/device (or another server instance) must
+      //    not re-announce someone who is already online.
+      const liveSockets = await countUserSockets(io, uid);
+      const isFirstSocket = liveSockets === null || liveSockets <= 1;
+      if (isFirstSocket && contactIds.length > 0) {
+        // Guard on length: an emit with an empty room list would reach EVERYONE.
+        socket.to(contactIds).emit("user_connected", { userId: uid });
+      }
 
       logger.info(`User ${uid} registered on socket ${socket.id}`);
     });
@@ -295,29 +308,57 @@ export const initializeSocket = async (server) => {
 
     socket.on("disconnect", async () => {
       logger.info(`Client disconnected: ${socket.id}`);
-      if (socket.userId) {
-        const uid = socket.userId.toString();
-        onlineUsers.delete(uid);
-        const lastSeen = new Date();
+      if (!socket.userId || !socket.data?.presenceRegistered) return;
 
-        try {
-          if (mongoose.connection?.readyState === 1 && User && typeof User.findByIdAndUpdate === "function") {
-            User.findByIdAndUpdate(uid, { lastSeen }, { new: false }).catch((err) => {
-              logger.warn(`Failed to update lastSeen for user ${uid}: ${err.message}`);
-            });
-          }
-        } catch (err) {
-          // ignore error in tests or uninitialized mongo
+      const uid = socket.userId.toString();
+
+      // Closing ONE tab must not mark the user offline while another tab, device
+      // or server instance still has a live socket for them. By the time this
+      // handler runs, this socket has already left its rooms, so any socket
+      // still in the user's room belongs to a different connection.
+      const remaining = await countUserSockets(io, uid);
+      if (remaining !== null && remaining > 0) return;
+
+      const lastSeen = new Date();
+
+      try {
+        if (mongoose.connection?.readyState === 1 && User && typeof User.findByIdAndUpdate === "function") {
+          User.findByIdAndUpdate(uid, { lastSeen }, { new: false }).catch((err) => {
+            logger.warn(`Failed to update lastSeen for user ${uid}: ${err.message}`);
+          });
         }
+      } catch (err) {
+        // ignore error in tests or uninitialized mongo
+      }
 
-        // Broadcast single lightweight delta event to remaining connected peers
-        socket.broadcast.emit("user_disconnected", {
-          userId: uid,
-          lastSeen,
-        });
+      const contactIds = await getContactIds(uid);
+      if (contactIds.length > 0) {
+        io.to(contactIds).emit("user_disconnected", { userId: uid, lastSeen });
       }
     });
   });
+};
+
+/**
+ * Re-send the full "who's online" list to the given users, computed against their
+ * CURRENT contacts. Presence is scoped to people you share a chat with, so when a
+ * new direct chat or group appears, its participants would otherwise not learn
+ * each other's status until someone's next connect/disconnect event.
+ * Best-effort and bounded: it runs only when chats are created or extended.
+ */
+export const refreshPresence = async (userIds) => {
+  if (!io || !Array.isArray(userIds)) return;
+  const unique = [
+    ...new Set(userIds.map((id) => (id?._id || id)?.toString()).filter(Boolean)),
+  ].slice(0, 50);
+
+  await Promise.all(
+    unique.map(async (uid) => {
+      const contactIds = await getContactIds(uid);
+      const online = await filterOnlineUsers(io, contactIds);
+      io.to(uid).emit("user online status", { onlineUsers: [...online, uid] });
+    })
+  );
 };
 
 export const getIo = () => {
@@ -326,8 +367,6 @@ export const getIo = () => {
   }
   return io;
 };
-
-export const isUserOnline = (userId) => onlineUsers.has(userId?.toString());
 
 /**
  * Server-authoritative chat event broadcasters.
@@ -356,15 +395,19 @@ export const notifyNewMessage = async (message) => {
     }
 
     const senderId = (message.sender?._id || message.sender)?.toString();
-    let deliveredToAny = false;
+    const recipientIds = [];
 
     participants.forEach((p) => {
       const pId = (p._id || p)?.toString();
       if (pId && pId !== senderId) {
         io.to(pId).emit("message received", message);
-        if (onlineUsers.has(pId)) deliveredToAny = true;
+        recipientIds.push(pId);
       }
     });
+
+    // "Delivered" means at least one recipient has a live socket — on ANY server
+    // instance (a per-process map would report users on another instance offline).
+    const deliveredToAny = (await filterOnlineUsers(io, recipientIds)).length > 0;
 
     if (deliveredToAny && senderId) {
       io.to(senderId).emit("message delivered", {

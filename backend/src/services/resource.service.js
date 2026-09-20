@@ -2,6 +2,13 @@ import * as resourceRepository from "../repositories/resource.repository.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.js";
+import { cached, getCacheVersion, bumpCacheVersion } from "../utils/cache.js";
+
+const RESOURCE_VERSION_KEY = "resources";
+const STATS_CACHE_TTL = 120; // seconds
+
+/** Uploads, deletions and admin hide/approve all change the category counts. */
+export const invalidateResourceCache = () => bumpCacheVersion(RESOURCE_VERSION_KEY);
 
 export const uploadResource = async (userId, resourceData) => {
   if (!resourceData.title || !resourceData.fileUrl) {
@@ -26,7 +33,7 @@ export const uploadResource = async (userId, resourceData) => {
     tagsArray = resourceData.tags;
   }
 
-  return await resourceRepository.createResource({
+  const created = await resourceRepository.createResource({
     userId,
     title: resourceData.title,
     description: resourceData.description || "",
@@ -38,15 +45,27 @@ export const uploadResource = async (userId, resourceData) => {
     publicId: resourceData.publicId,
     branch: resourceData.branch,
   });
+  await invalidateResourceCache();
+  return created;
 };
 
 export const getVerifiedResourcesFeed = async (filters, page, limit) => {
-  const result = await resourceRepository.getVerifiedResources(
-    filters,
-    parseInt(page) || 1,
-    parseInt(limit) || 12
-  );
-  return result;
+  const safePage = Math.max(1, parseInt(page) || 1);
+  const safeLimit = Math.min(50, Math.max(1, parseInt(limit) || 12));
+
+  const branchKey = filters?.branchId ? String(filters.branchId) : "all";
+  const version = await getCacheVersion(RESOURCE_VERSION_KEY);
+
+  // The page of resources depends on the search/filters; the category counts
+  // only depend on the branch, so they're shared (and cached) across all of them.
+  const [result, stats] = await Promise.all([
+    resourceRepository.getVerifiedResources(filters, safePage, safeLimit),
+    cached(`resources:stats:v${version}:${branchKey}`, STATS_CACHE_TTL, () =>
+      resourceRepository.getCategoryStats(filters?.branchId)
+    ),
+  ]);
+
+  return { ...result, stats };
 };
 
 export const getResourceById = async (id) => {
@@ -74,6 +93,7 @@ export const deleteResource = async (resourceId, userId, userRole) => {
   }
 
   const deleted = await resourceRepository.deleteResource(resourceId);
+  await invalidateResourceCache();
 
   // Clean up the underlying Cloudinary file — otherwise every deleted upload
   // (and its storage cost) lives on in cloud storage forever. Best-effort: a

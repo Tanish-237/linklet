@@ -1,5 +1,5 @@
 import React, { Component } from "react";
-import linkletLogo from "../assets/linklet-logo.png";
+import linkletLogo from "../assets/linklet-logo.webp";
 
 class ErrorBoundary extends Component {
   constructor(props) {

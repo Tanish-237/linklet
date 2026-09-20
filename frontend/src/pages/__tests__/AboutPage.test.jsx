@@ -58,7 +58,7 @@ describe("AboutPage Component", () => {
       expect(document.title).toContain("About Linklet");
       expect(
         document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")
-      ).toBe("https://linklet.org/linklet-logo.png");
+      ).toBe("https://linklet.org/og-image.jpg");
       expect(
         document.head.querySelector('meta[property="og:url"]')?.getAttribute("content")
       ).toBe("https://linklet.org/about");

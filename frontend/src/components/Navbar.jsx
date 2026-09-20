@@ -5,232 +5,9 @@ import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
 import { useEffect } from "react";
-import styled from "styled-components";
-import linkletLogo from "../assets/linklet-logo.png";
-
-const Nav = styled.nav`
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background-color: rgba(17, 17, 17, 0.9);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 1rem 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-
-  @media (max-width: 640px) {
-    padding: 0.75rem 1rem;
-  }
-`;
-
-const NavLinks = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-
-  @media (max-width: 640px) {
-    gap: 0.5rem;
-  }
-
-  > a:not(.nav-auth-btn),
-  > button:not(.nav-auth-btn) {
-    color: #f5f5f5;
-    font-size: 1rem;
-    transition: all 0.3s ease;
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 0.5rem;
-    border-radius: 0.375rem;
-
-    @media (max-width: 640px) {
-      font-size: 0.875rem;
-      padding: 0.35rem 0.5rem;
-    }
-
-    &:hover {
-      color: #8b5cf6;
-      background: rgba(139, 92, 246, 0.1);
-    }
-  }
-`;
-
-const NavAuthLink = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.45rem 1.15rem;
-  border-radius: 0.5rem;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  text-decoration: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: #e5e7eb;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: transparent;
-  outline: none;
-
-  @media (max-width: 640px) {
-    padding: 0.35rem 0.75rem;
-    font-size: 0.85rem;
-  }
-
-  &:hover {
-    border-color: #8b5cf6;
-    background: rgba(139, 92, 246, 0.1);
-    color: #ffffff;
-    transform: translateY(-1px);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  &:focus-visible {
-    outline: 2px solid #8b5cf6;
-    outline-offset: 2px;
-  }
-`;
-
-const ProfileContainer = styled.div`
-  position: relative;
-`;
-
-const ProfileButton = styled.button`
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  background: none;
-  border: none;
-  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
-  cursor: pointer;
-  border-radius: 9999px;
-  transition: all 0.3s ease;
-
-  &:hover {
-    background: rgba(139, 92, 246, 0.15);
-  }
-
-  img {
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 9999px;
-    border: 2px solid #8b5cf6;
-    object-fit: cover;
-  }
-
-  .nav-arrow-icon {
-    color: #9ca3af;
-    font-size: 1.25rem;
-    transition: transform 0.3s ease, color 0.3s ease;
-  }
-
-  &:hover .nav-arrow-icon {
-    color: #8b5cf6;
-    transform: translateY(1px);
-  }
-
-  &.open .nav-arrow-icon {
-    transform: rotate(180deg);
-    color: #8b5cf6;
-  }
-`;
-
-const DropdownMenu = styled.div`
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: 0.5rem;
-  background: rgba(17, 24, 39, 0.95);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 1rem;
-  min-width: 15rem;
-  max-width: calc(100vw - 1.5rem);
-  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
-  z-index: 50;
-
-  .dropdown-header {
-    padding: 1rem 1rem 0.75rem 1rem;
-    border-bottom: 1px solid #1f2937;
-
-    .dropdown-username {
-      color: #a78bfa;
-      font-size: 0.9375rem;
-      font-weight: 600;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .dropdown-email {
-      color: #9ca3af;
-      font-size: 0.875rem;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      margin-top: 0.125rem;
-    }
-  }
-
-  ul {
-    list-style: none;
-    padding: 0.5rem 0;
-    margin: 0;
-  }
-
-  button {
-    width: 100%;
-    text-align: left;
-    padding: 0.625rem 1rem;
-    color: #e5e7eb;
-    display: flex;
-    align-items: center;
-    gap: 0.875rem;
-    transition: all 0.2s ease;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    background: none;
-    border: none;
-    cursor: pointer;
-
-    .material-icons {
-      color: #a78bfa;
-      font-size: 1.25rem;
-      transition: color 0.2s ease;
-    }
-
-    &:hover {
-      background: rgba(139, 92, 246, 0.2);
-      color: #ffffff;
-    }
-
-    &.logout-btn {
-      color: #f87171;
-
-      .material-icons {
-        color: #f87171;
-      }
-
-      &:hover {
-        background: rgba(139, 92, 246, 0.2);
-        color: #fca5a5;
-      }
-    }
-  }
-
-  .logout-wrapper {
-    border-top: 1px solid #1f2937;
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-  }
-`;
+import "./Navbar.css";
+import linkletLogo from "../assets/linklet-logo.webp";
+import defaultAvatar from "../assets/default-avatar.webp";
 
 export const Navbar = () => {
   const { user, setUser } = useAuth();
@@ -264,7 +41,7 @@ export const Navbar = () => {
   };
 
   return (
-    <Nav id="app-navbar">
+    <nav id="app-navbar" className="app-nav">
       <Link
         to={user ? "/home" : "/"}
         style={{
@@ -291,15 +68,15 @@ export const Navbar = () => {
         </h2>
       </Link>
 
-      <NavLinks>
+      <div className="app-nav-links">
         {user ? (
           <>
             <Link to="/posts">Feed</Link>
             <Link to="/dashboard">Dashboard</Link>
-            <ProfileContainer ref={profileContainerRef}>
-              <ProfileButton
+            <div className="app-nav-profile" ref={profileContainerRef}>
+              <button
                 id="navbar-avatar-dropdown-btn"
-                className={isDropdownOpen ? "open" : ""}
+                className={`app-nav-profile-btn${isDropdownOpen ? " open" : ""}`}
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 aria-expanded={isDropdownOpen}
                 aria-label="User navigation menu"
@@ -307,17 +84,17 @@ export const Navbar = () => {
                 <img
                   src={
                     user.avatar ||
-                    "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+                    defaultAvatar
                   }
                   alt={user.username}
                 />
                 <span className="material-icons nav-arrow-icon">
                   expand_more
                 </span>
-              </ProfileButton>
+              </button>
 
               {isDropdownOpen && (
-                <DropdownMenu>
+                <div className="app-nav-dropdown">
                   <div className="dropdown-header">
                     <div className="dropdown-username">
                       {user?.username || "User"}
@@ -365,29 +142,29 @@ export const Navbar = () => {
                       </button>
                     </li>
                   </ul>
-                </DropdownMenu>
+                </div>
               )}
-            </ProfileContainer>
+            </div>
           </>
         ) : (
           <>
-            <NavAuthLink
+            <Link
               to="/login"
-              className="nav-auth-btn nav-btn-login"
+              className="app-nav-auth-link nav-auth-btn nav-btn-login"
               id="navbar-login-btn"
             >
               Login
-            </NavAuthLink>
-            <NavAuthLink
+            </Link>
+            <Link
               to="/register"
-              className="nav-auth-btn nav-btn-signup"
+              className="app-nav-auth-link nav-auth-btn nav-btn-signup"
               id="navbar-signup-btn"
             >
               Sign Up
-            </NavAuthLink>
+            </Link>
           </>
         )}
-      </NavLinks>
-    </Nav>
+      </div>
+    </nav>
   );
 };

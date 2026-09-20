@@ -8,6 +8,7 @@ const router = express.Router();
 
 // Specific routes FIRST (before dynamic /:username parameter routes)
 router.get("/me/bookmarks", isLoggedIn, profileController.getMyBookmarks);
+router.get("/me/bookmark-ids", isLoggedIn, profileController.getMyBookmarkIds);
 router.post("/bookmarks/:resourceId", isLoggedIn, profileController.toggleBookmark);
 router.post("/follow/:targetUserId", isLoggedIn, profileController.toggleFollowUser);
 router.post("/block/:targetUserId", isLoggedIn, profileController.toggleBlockUser);

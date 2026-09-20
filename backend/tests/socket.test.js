@@ -32,9 +32,11 @@ jest.unstable_mockModule('@socket.io/redis-adapter', () => ({
 // Mock chat repository
 const mockIsParticipant = jest.fn();
 const mockFindChatById = jest.fn();
+const mockFindContactIds = jest.fn().mockResolvedValue([]);
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   isParticipant: mockIsParticipant,
   findChatById: mockFindChatById,
+  findContactIds: mockFindContactIds,
 }));
 
 // Mock socket.io Server
@@ -43,13 +45,21 @@ const mockOn = jest.fn();
 const mockUse = jest.fn();
 let capturedOptions = null;
 
+// fetchSockets() answers presence lookups: an ARRAY of rooms is the "which of my
+// contacts are online" query, a single room string is "how many sockets does this
+// user have". Tests override these to simulate other tabs / other instances.
+const mockRoomQuery = jest.fn();
+const mockIoEmit = jest.fn();
+const mockIoTo = jest.fn(() => ({ emit: mockIoEmit }));
+
 class MockServer {
   constructor(server, options) {
     capturedOptions = options;
     this.adapter = mockAdapter;
     this.on = mockOn;
     this.use = mockUse;
-    this.to = jest.fn(() => ({ emit: jest.fn() }));
+    this.to = mockIoTo;
+    this.in = jest.fn((rooms) => ({ fetchSockets: () => mockRoomQuery(rooms) }));
   }
 }
 
@@ -62,6 +72,8 @@ describe('Socket Initialization Unit Tests', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockFindContactIds.mockResolvedValue([]);
+    mockRoomQuery.mockResolvedValue([]);
     mockIsTokenBlacklisted.mockResolvedValue(false);
     process.env = { ...originalEnv };
     capturedOptions = null;
@@ -212,59 +224,113 @@ describe('Socket Initialization Unit Tests', () => {
     expect(mockSocket.userId).toBe('verified-user-789');
   });
 
-  test('setup and disconnect emit targeted presence and broadcast delta events (no broadcast storm)', async () => {
+  const connectSocket = async () => {
     mockGetRedisClient.mockReturnValue(null);
-
     const { initializeSocket } = await import('../socket.js');
-    const mockHttpServer = http.createServer();
+    await initializeSocket(http.createServer());
 
-    await initializeSocket(mockHttpServer);
-
-    const connectionCall = mockOn.mock.calls.find((call) => call[0] === 'connection');
-    expect(connectionCall).toBeDefined();
-    const connectionHandler = connectionCall[1];
-
+    const connectionHandler = mockOn.mock.calls.find((call) => call[0] === 'connection')[1];
     const registeredHandlers = {};
+    const toEmit = jest.fn();
     const mockSocket = {
       id: 'socket-123',
       userId: 'user-456', // set by the (already-passed) handshake middleware
+      data: { userId: 'user-456' },
       authenticated: true,
       join: jest.fn(),
       emit: jest.fn(),
-      broadcast: {
-        emit: jest.fn(),
-      },
+      to: jest.fn(() => ({ emit: toEmit })),
+      broadcast: { emit: jest.fn() },
       on: jest.fn((event, handler) => {
         registeredHandlers[event] = handler;
       }),
     };
-
-    // Simulate connection
     connectionHandler(mockSocket);
+    return { mockSocket, registeredHandlers, toEmit };
+  };
 
-    expect(registeredHandlers['setup']).toBeDefined();
-    expect(registeredHandlers['disconnect']).toBeDefined();
-
-    // Trigger setup
-    registeredHandlers['setup']({ _id: 'user-456' });
-
-    // Targeted emit to self only
-    expect(mockSocket.emit).toHaveBeenCalledWith(
-      'user online status',
-      expect.objectContaining({ onlineUsers: expect.arrayContaining(['user-456']) })
+  test('setup tells the connecting socket which CONTACTS are online and announces arrival only to contacts', async () => {
+    console.log('[TEST] presence setup › scoped to contacts, never socket.broadcast');
+    mockFindContactIds.mockResolvedValue(['friend-1', 'friend-2']);
+    mockRoomQuery.mockImplementation(async (rooms) =>
+      Array.isArray(rooms) ? [{ data: { userId: 'friend-2' } }] : [{ id: 'socket-123' }]
     );
+    const { mockSocket, registeredHandlers, toEmit } = await connectSocket();
 
-    // Delta broadcast to others
-    expect(mockSocket.broadcast.emit).toHaveBeenCalledWith('user_connected', {
-      userId: 'user-456',
+    await registeredHandlers['setup']({ _id: 'user-456' });
+
+    expect(mockSocket.join).toHaveBeenCalledWith('user-456');
+    expect(mockSocket.emit).toHaveBeenCalledWith('user online status', {
+      onlineUsers: ['friend-2', 'user-456'],
     });
+    expect(mockSocket.to).toHaveBeenCalledWith(['friend-1', 'friend-2']);
+    expect(toEmit).toHaveBeenCalledWith('user_connected', { userId: 'user-456' });
+    expect(mockSocket.broadcast.emit).not.toHaveBeenCalled();
+  });
 
-    // Trigger disconnect
-    registeredHandlers['disconnect']();
-    expect(mockSocket.broadcast.emit).toHaveBeenCalledWith('user_disconnected', {
+  test('a user with no contacts announces nothing (an empty room list would reach everyone)', async () => {
+    console.log('[TEST] presence setup › empty contacts → no emit at all');
+    mockFindContactIds.mockResolvedValue([]);
+    const { mockSocket, registeredHandlers, toEmit } = await connectSocket();
+
+    await registeredHandlers['setup']({ _id: 'user-456' });
+
+    expect(mockSocket.to).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalled();
+    expect(mockSocket.broadcast.emit).not.toHaveBeenCalled();
+  });
+
+  test('a second tab (another live socket) does not re-announce the user', async () => {
+    console.log('[TEST] presence setup › already online elsewhere → no duplicate user_connected');
+    mockFindContactIds.mockResolvedValue(['friend-1']);
+    mockRoomQuery.mockImplementation(async (rooms) =>
+      Array.isArray(rooms) ? [] : [{ id: 'socket-123' }, { id: 'other-tab' }]
+    );
+    const { registeredHandlers, toEmit } = await connectSocket();
+
+    await registeredHandlers['setup']({ _id: 'user-456' });
+
+    expect(toEmit).not.toHaveBeenCalled();
+  });
+
+  test('disconnect announces offline + lastSeen to contacts only when NO other socket remains', async () => {
+    console.log('[TEST] presence disconnect › last socket closes → user_disconnected to contacts');
+    mockFindContactIds.mockResolvedValue(['friend-1']);
+    mockRoomQuery.mockResolvedValue([]); // nobody left in the user's room
+    const { registeredHandlers } = await connectSocket();
+    await registeredHandlers['setup']({ _id: 'user-456' });
+
+    await registeredHandlers['disconnect']();
+
+    expect(mockIoTo).toHaveBeenCalledWith(['friend-1']);
+    expect(mockIoEmit).toHaveBeenCalledWith('user_disconnected', {
       userId: 'user-456',
       lastSeen: expect.any(Date),
     });
+  });
+
+  test('disconnect of one tab is silent while another tab/instance is still connected', async () => {
+    console.log('[TEST] presence disconnect › another live socket → stay online');
+    mockFindContactIds.mockResolvedValue(['friend-1']);
+    const { registeredHandlers } = await connectSocket();
+    await registeredHandlers['setup']({ _id: 'user-456' });
+
+    mockRoomQuery.mockResolvedValue([{ id: 'other-tab-on-another-instance' }]);
+    await registeredHandlers['disconnect']();
+
+    expect(mockIoEmit).not.toHaveBeenCalled();
+  });
+
+  test('a peer-instance timeout while counting sockets falls back safely instead of crashing', async () => {
+    console.log('[TEST] presence › fetchSockets failure is handled');
+    mockFindContactIds.mockResolvedValue(['friend-1']);
+    mockRoomQuery.mockRejectedValue(new Error('timeout reached while waiting for fetchSockets response'));
+    const { mockSocket, registeredHandlers, toEmit } = await connectSocket();
+
+    await expect(registeredHandlers['setup']({ _id: 'user-456' })).resolves.not.toThrow();
+
+    expect(mockSocket.emit).toHaveBeenCalledWith('user online status', { onlineUsers: ['user-456'] });
+    expect(toEmit).toHaveBeenCalledWith('user_connected', { userId: 'user-456' });
   });
 
   test('setup event rejects registration when client tries to spoof a different user ID', async () => {

@@ -5,6 +5,44 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-09-20
+
+### Breaking
+- **Post comments moved out of the Post document into their own `postcomments` collection.** The API changed with it: `POST /posts/:id/comment`, `.../reply`, `.../upvote` and `DELETE .../comments/:id` now return the affected comment/reply (plus `commentsCount` / `repliesCount`) instead of the whole post; post payloads carry `commentsCount` instead of a `comments` array; comment votes/deletes return `{ _id, upvotes }` / `{ deletedIds, commentsCount }`. Comments are read through the new paginated `GET /posts/:postId/comments` and `GET /posts/:postId/comments/:commentId/replies`. Backend and frontend must be deployed together.
+- **Data migration required.** Run `npm run migrate:comments` (backend) once per database after deploying; use `-- --dry-run` first and take a backup. It is idempotent, preserves original comment IDs and timestamps, and only removes a post's embedded comments after verifying the copy. Until it has run, existing comments are not shown (the server logs `[MIGRATION REQUIRED]` at startup). `-- --recount` repairs the denormalized counters.
+
+### Added
+- Paginated comment threads: 20 comments per page with the first 3 replies inline and "View N more replies" on demand; replies can now be deleted by their author or an admin.
+- Infinite-scroll campus feed (15 posts per page). The feed previously stopped at 50 posts with no way to reach older ones.
+- Lightweight `GET /profile/me/bookmark-ids` endpoint for feed/post bookmark state.
+- Reusable `SEO` component (canonical URL, robots directive, Open Graph/Twitter with image dimensions, JSON-LD); `Organization`/`WebSite` structured data on the landing page; prerendered `/posts` shell with its own title, description and canonical; `noindex` on the 404 and sign-in screens; 1200x630 social preview image, 64px favicon and Apple touch icon.
+- Redis read-through cache helper (single-flight, versioned invalidation, graceful fallback when Redis is unavailable) used by the posts feed, forum tags/stats/search, resource category stats, user timetable, branches, profiles and follower lists.
+- Gemini timetable parses are cached by file hash (14 days) with concurrent identical uploads sharing one call, so the paid vision call runs once per distinct timetable instead of once per student.
+- API `Cache-Control` policy: `private, no-cache` (ETag revalidation) for GETs, short private caching for branches, forum metadata, tag cloud and stats.
+- Cloudinary delivery helpers (`f_auto,q_auto`, width caps, `srcset`) applied to feed, post and avatar images; local group avatar asset.
+- Real-database test harness (`mongodb-memory-server`) plus real-socket presence tests; frontend `npm test` script; CI caches the `mongod` binary.
+
+### Changed
+- **Presence** is now correct with multiple tabs and multiple server instances: closing one tab no longer marks a user offline, "came online"/"went offline" events go only to people who share a chat with the user (previously broadcast to every connected user), and presence is refreshed when a new chat or group is created.
+- Forum feed pagination rewritten: exact `hasMore`, opaque cursors (date for time-ordered views, offset for popular/most-viewed/search), search ranked over a capped candidate set so pages no longer duplicate or skip results, and "Popular" now sorts by upvote count. `?limit` above 50 no longer breaks paging. Answered/unanswered/solved filters are index-friendly.
+- Resource library sorts and paginates before joining uploaders; category counts are computed separately and cached.
+- Chat list cache TTL is now 120s (docstring said 120, code used 300).
+- Attendance donut is a small SVG component; Navbar styles are plain CSS.
+- Emoji picker loads only when opened; Google Sign-In script loads only on screens with a Google button; `socket.io-client` loads only after sign-in; vendor libraries split into separately cached chunks.
+- Default avatar, logo and banner converted from 3.7 MB of PNG to about 140 KB of WebP; third-party icon hotlinks replaced with local assets.
+- Profile, followers/following and bookmark queries no longer load comment bodies; follower/following lists are capped at 500.
+
+### Fixed
+- Posts feed render loop while bookmarks were loading (a `= []` default recreated every render re-triggered an effect).
+- Stale responses can no longer overwrite newer state on HelpForum, Resource, Profile, Saved, QuestionDetail and PostDetail.
+- Comment models are registered before author population (previously relied on other modules importing `User` first).
+- `WeeklyTimetableModal` test failed on Sundays (unanchored day-tab query also matched "Add Class to Sunday").
+- `post.integration.test.js` mocked a `getFeed` export the service never had, hiding the feed route from tests.
+- Prerender no longer interprets `$&`-style sequences in page content or JSON-LD.
+
+### Removed
+- `chart.js`, `react-chartjs-2` and `styled-components` dependencies (about 200 KB of JavaScript); the embedded comment schema (`backend/models/comment.js`); the mock-only `post.repository.test.js` (superseded by real-database tests).
+
 ## [1.7.0] - 2026-09-18
 
 ### Security

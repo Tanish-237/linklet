@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/apiClient";
 import { toast } from "react-toastify";
+import defaultAvatar from "../assets/default-avatar.webp";
+import defaultGroupAvatar from "../assets/default-group.svg";
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 const getBranchAbbr = (b) => {
   if (!b) return "CSE";
@@ -289,11 +292,11 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
           {/* Avatar + Title Area */}
           <div className="flex flex-col items-center py-5 text-center border-b border-gray-800/80">
             <div className="relative group mb-3">
-              <img
+              <img loading="lazy" decoding="async"
                 src={
                   chat.isGroup
-                    ? chat.groupImage || "https://cdn-icons-png.flaticon.com/512/3177/3177440.png"
-                    : otherUser?.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"
+                    ? chat.groupImage || defaultGroupAvatar
+                    : otherUser?.avatar || defaultAvatar
                 }
                 alt="Avatar"
                 className="w-20 h-20 rounded-full border-2 border-violet-500/30 object-cover shadow-lg"
@@ -444,8 +447,8 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                           className="chat-user-result-item flex items-center justify-between hover:bg-violet-600/20 px-3 py-2 cursor-pointer transition-colors"
                         >
                           <div className="flex items-center gap-2">
-                            <img
-                              src={user.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+                            <img loading="lazy" decoding="async"
+                              src={optimizeAvatar(user.avatar, 48) || defaultAvatar}
                               alt={user.username}
                               className="w-7 h-7 rounded-full object-cover border border-violet-500/30"
                             />
@@ -478,8 +481,8 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                       className="flex items-center justify-between p-2 rounded-xl bg-slate-900/60 border border-violet-500/10 hover:border-violet-500/20 transition-all relative"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 flex-1 mr-2">
-                        <img
-                          src={p.avatar || "https://cdn-icons-png.flaticon.com/512/1326/1326382.png"}
+                        <img loading="lazy" decoding="async"
+                          src={optimizeAvatar(p.avatar, 48) || defaultAvatar}
                           alt={p.username}
                           className="w-8 h-8 rounded-full border border-violet-500/20 object-cover flex-shrink-0"
                         />
@@ -640,7 +643,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                       onClick={() => setLightboxSrc(m.media)}
                       className="aspect-square overflow-hidden group relative cursor-pointer"
                     >
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={m.media}
                         alt="media"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
@@ -706,7 +709,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
           className="fixed inset-0 bg-black/90 z-[300] flex items-center justify-center p-4"
           onClick={() => setLightboxSrc(null)}
         >
-          <img
+          <img loading="lazy" decoding="async"
             src={lightboxSrc}
             alt="media"
             className="max-w-full max-h-full rounded-xl object-contain"

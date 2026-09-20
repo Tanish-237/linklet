@@ -1,32 +1,61 @@
 import * as postRepository from "../repositories/post.repository.js";
+import * as commentRepository from "../repositories/postComment.repository.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
+import { cached, getCacheVersion, bumpCacheVersion } from "../utils/cache.js";
+
+const FEED_CACHE_TTL = 60; // seconds — a backstop; every feed-visible write bumps the version
+const FEED_VERSION_KEY = "posts-feed";
+const MAX_COMMENT_LENGTH = 2000;
+
+/**
+ * Any change a feed card can show (new/deleted post, votes, comment count)
+ * invalidates every cached feed page with a single INCR.
+ */
+const invalidateFeedCache = () => bumpCacheVersion(FEED_VERSION_KEY);
+
+const notifyAsync = (payload) => {
+  import("./notification.service.js")
+    .then(({ createAndPushNotification }) => createAndPushNotification(payload))
+    .catch(() => {});
+};
 
 export const createPost = async (userId, postData) => {
   if (!postData.caption && !postData.image) {
     throw new AppError("Please provide a caption or image", 400);
   }
 
-  return await postRepository.createPost({
+  const post = await postRepository.createPost({
     userId,
     caption: postData.caption || "",
     image: postData.image || "",
   });
+  await invalidateFeedCache();
+  return post;
 };
 
 export const getGlobalFeed = async (cursor, limit) => {
-  // Clamp so `?limit=999999` can't force the feed query (which populates
-  // comments, replies, and their authors on every post) to load everything.
+  // Clamp so `?limit=999999` can't force an oversized page.
   const safeLimit = Math.min(50, Math.max(1, parseInt(limit) || 10));
-  const posts = await postRepository.getPostsFeed(cursor, safeLimit);
 
-  // Calculate next cursor
-  const nextCursor = posts.length > 0 ? posts[posts.length - 1].createdAt : null;
-
-  return {
-    posts,
-    nextCursor
+  const load = async () => {
+    // Fetch one extra row so `hasMore` is exact instead of guessed.
+    const rows = await postRepository.getPostsFeed(cursor, safeLimit + 1);
+    const hasMore = rows.length > safeLimit;
+    const posts = hasMore ? rows.slice(0, safeLimit) : rows;
+    return {
+      posts,
+      hasMore,
+      nextCursor: hasMore ? posts[posts.length - 1].createdAt : null,
+    };
   };
+
+  // Only the first page is cached: it's what every student opens, while deeper
+  // pages are visited rarely and by few people.
+  if (cursor) return load();
+
+  const version = await getCacheVersion(FEED_VERSION_KEY);
+  return cached(`posts:feed:v${version}:first:${safeLimit}`, FEED_CACHE_TTL, load);
 };
 
 export const getPost = async (postId) => {
@@ -40,8 +69,6 @@ export const getPost = async (postId) => {
 export const getUserPosts = async (userId) => {
   return await postRepository.getPostsByUserId(userId);
 };
-
-
 
 export const deletePost = async (postId, userId, userRole) => {
   const post = await postRepository.findPostById(postId);
@@ -57,6 +84,7 @@ export const deletePost = async (postId, userId, userRole) => {
   }
 
   const deleted = await postRepository.deletePost(postId);
+  await invalidateFeedCache();
 
   // If deleted by an admin moderating another user's post, log to audit trail & notify author
   if (userRole === "admin" && postAuthorId !== userId.toString()) {
@@ -89,27 +117,166 @@ export const deletePost = async (postId, userId, userRole) => {
   return deleted;
 };
 
-export const deleteComment = async (postId, commentId, userId, userRole) => {
-  const post = await postRepository.findPostById(postId);
-  if (!post) {
+export const toggleUpvote = async (postId, userId) => {
+  const updatedPost = await postRepository.toggleUpvote(postId, userId);
+  if (!updatedPost) {
     throw new AppError("Post not found", 404);
   }
+  await invalidateFeedCache();
 
-  const comment = post.comments.find(
-    (c) => (c._id || c.id)?.toString() === commentId?.toString()
+  // Trigger notification if newly upvoted
+  const isUpvoted = updatedPost.upvotes?.some(
+    (id) => (id._id || id).toString() === userId.toString()
   );
+  if (isUpvoted) {
+    const postAuthorId = (updatedPost.userId?._id || updatedPost.userId)?.toString();
+    if (postAuthorId && postAuthorId !== userId.toString()) {
+      notifyAsync({
+        recipient: postAuthorId,
+        sender: userId,
+        type: "POST_LIKE",
+        title: "New Upvote on Post",
+        message: "Someone upvoted your post",
+        link: `/posts/${postId}`,
+        entityId: postId,
+        entityType: "Post",
+      });
+    }
+  }
+
+  return updatedPost;
+};
+
+export const toggleDownvote = async (postId, userId) => {
+  const updatedPost = await postRepository.toggleDownvote(postId, userId);
+  if (!updatedPost) {
+    throw new AppError("Post not found", 404);
+  }
+  await invalidateFeedCache();
+  return updatedPost;
+};
+
+// ─── Comments ────────────────────────────────────────────────────────────────
+
+const normalizeCommentText = (text, label) => {
+  if (typeof text !== "string" || text.trim() === "") {
+    throw new AppError(`${label} text is required`, 400);
+  }
+  const trimmed = text.trim();
+  if (trimmed.length > MAX_COMMENT_LENGTH) {
+    throw new AppError(`${label} must be ${MAX_COMMENT_LENGTH} characters or fewer`, 400);
+  }
+  return trimmed;
+};
+
+const parsePageSize = (limit, fallback) => Math.min(50, Math.max(1, parseInt(limit) || fallback));
+
+export const getComments = async (postId, cursor, limit) => {
+  const post = await postRepository.findPostById(postId);
+  if (!post) throw new AppError("Post not found", 404);
+
+  return commentRepository.getPostComments(postId, {
+    cursor,
+    limit: parsePageSize(limit, commentRepository.COMMENTS_PAGE_SIZE),
+  });
+};
+
+export const getReplies = async (postId, commentId, cursor, limit) => {
+  const comment = await commentRepository.findComment(postId, commentId);
+  if (!comment || comment.parentId) throw new AppError("Comment not found", 404);
+
+  return commentRepository.getCommentReplies(postId, commentId, {
+    cursor,
+    limit: parsePageSize(limit, commentRepository.REPLIES_PAGE_SIZE),
+  });
+};
+
+export const addComment = async (postId, userId, text) => {
+  const cleanText = normalizeCommentText(text, "Comment");
+
+  const result = await commentRepository.createComment({ postId, userId, text: cleanText });
+  if (!result) {
+    throw new AppError("Post not found", 404);
+  }
+  await invalidateFeedCache();
+
+  // Trigger notification to post author
+  const postAuthorId = result.postAuthorId?.toString();
+  if (postAuthorId && postAuthorId !== userId.toString()) {
+    notifyAsync({
+      recipient: postAuthorId,
+      sender: userId,
+      type: "POST_COMMENT",
+      title: "New Comment on Your Post",
+      message: `Someone commented: "${cleanText.slice(0, 80)}"`,
+      link: `/posts/${postId}`,
+      entityId: postId,
+      entityType: "Post",
+    });
+  }
+
+  return { comment: result.comment, commentsCount: result.commentsCount };
+};
+
+export const addReply = async (postId, commentId, userId, text, replyToUsername) => {
+  const cleanText = normalizeCommentText(text, "Reply");
+
+  const result = await commentRepository.createReply({
+    postId,
+    parentId: commentId,
+    userId,
+    text: cleanText,
+    replyToUsername,
+  });
+  if (!result) {
+    throw new AppError("Post or comment not found", 404);
+  }
+
+  // Trigger notification to comment author
+  const commentAuthorId = result.parentAuthorId?.toString();
+  if (commentAuthorId && commentAuthorId !== userId.toString()) {
+    notifyAsync({
+      recipient: commentAuthorId,
+      sender: userId,
+      type: "POST_REPLY",
+      title: "Reply to Your Comment",
+      message: `Someone replied: "${cleanText.slice(0, 80)}"`,
+      link: `/posts/${postId}`,
+      entityId: postId,
+      entityType: "Post",
+    });
+  }
+
+  return {
+    reply: result.reply,
+    repliesCount: result.repliesCount,
+    commentsCount: result.commentsCount,
+  };
+};
+
+export const toggleCommentUpvote = async (postId, commentId, userId) => {
+  const comment = await commentRepository.toggleCommentUpvote(postId, commentId, userId);
+  if (!comment) {
+    throw new AppError("Post or comment not found", 404);
+  }
+  return comment;
+};
+
+export const deleteComment = async (postId, commentId, userId, userRole) => {
+  const comment = await commentRepository.findComment(postId, commentId);
   if (!comment) {
     throw new AppError("Comment not found", 404);
   }
 
-  const commentAuthorId = (comment.userId?._id || comment.userId)?.toString();
+  const commentAuthorId = comment.userId?.toString();
 
   // Only the comment author or an admin can delete
   if (commentAuthorId !== userId.toString() && userRole !== "admin") {
     throw new AppError("You do not have permission to delete this comment", 403);
   }
 
-  const updatedPost = await postRepository.deleteComment(postId, commentId);
+  const result = await commentRepository.deleteComment(comment);
+  await invalidateFeedCache();
 
   // If deleted by an admin moderating another user's comment, log to audit trail & notify author
   if (userRole === "admin" && commentAuthorId !== userId.toString()) {
@@ -139,133 +306,5 @@ export const deleteComment = async (postId, commentId, userId, userRole) => {
     }
   }
 
-  return updatedPost;
-};
-
-
-export const toggleUpvote = async (postId, userId) => {
-  const updatedPost = await postRepository.toggleUpvote(postId, userId);
-  if (!updatedPost) {
-    throw new AppError("Post not found", 404);
-  }
-
-  // Trigger notification if newly upvoted
-  const isUpvoted = updatedPost.upvotes?.some(
-    (id) => (id._id || id).toString() === userId.toString()
-  );
-  if (isUpvoted) {
-    const postAuthorId = (updatedPost.userId?._id || updatedPost.userId)?.toString();
-    if (postAuthorId && postAuthorId !== userId.toString()) {
-      import("./notification.service.js")
-        .then(({ createAndPushNotification }) => {
-          createAndPushNotification({
-            recipient: postAuthorId,
-            sender: userId,
-            type: "POST_LIKE",
-            title: "New Upvote on Post",
-            message: "Someone upvoted your post",
-            link: `/posts/${postId}`,
-            entityId: postId,
-            entityType: "Post",
-          });
-        })
-        .catch(() => {});
-    }
-  }
-
-  return updatedPost;
-};
-
-export const toggleDownvote = async (postId, userId) => {
-  const updatedPost = await postRepository.toggleDownvote(postId, userId);
-  if (!updatedPost) {
-    throw new AppError("Post not found", 404);
-  }
-  return updatedPost;
-};
-
-export const addComment = async (postId, userId, text) => {
-  if (!text || text.trim() === "") {
-    throw new AppError("Comment text is required", 400);
-  }
-
-  const commentData = {
-    userId: userId, // Fixed: use userId matching schema
-    text: text.trim(),
-  };
-
-  const updatedPost = await postRepository.addComment(postId, commentData);
-  if (!updatedPost) {
-    throw new AppError("Post not found", 404);
-  }
-
-  // Trigger notification to post author
-  const postAuthorId = (updatedPost.userId?._id || updatedPost.userId)?.toString();
-  if (postAuthorId && postAuthorId !== userId.toString()) {
-    import("./notification.service.js")
-      .then(({ createAndPushNotification }) => {
-        createAndPushNotification({
-          recipient: postAuthorId,
-          sender: userId,
-          type: "POST_COMMENT",
-          title: "New Comment on Your Post",
-          message: `Someone commented: "${text.trim().slice(0, 80)}"`,
-          link: `/posts/${postId}`,
-          entityId: postId,
-          entityType: "Post",
-        });
-      })
-      .catch(() => {});
-  }
-
-  return updatedPost;
-};
-
-export const addReply = async (postId, commentId, userId, text, replyToUsername) => {
-  if (!text || text.trim() === "") {
-    throw new AppError("Reply text is required", 400);
-  }
-
-  const replyData = {
-    userId: userId,
-    text: text.trim(),
-    replyToUsername: replyToUsername || null,
-  };
-
-  const updatedPost = await postRepository.addReply(postId, commentId, replyData);
-  if (!updatedPost) {
-    throw new AppError("Post or comment not found", 404);
-  }
-
-  // Trigger notification to comment author
-  const targetComment = updatedPost.comments?.find(
-    (c) => (c._id || c.id)?.toString() === commentId?.toString()
-  );
-  const commentAuthorId = (targetComment?.userId?._id || targetComment?.userId)?.toString();
-  if (commentAuthorId && commentAuthorId !== userId.toString()) {
-    import("./notification.service.js")
-      .then(({ createAndPushNotification }) => {
-        createAndPushNotification({
-          recipient: commentAuthorId,
-          sender: userId,
-          type: "POST_REPLY",
-          title: "Reply to Your Comment",
-          message: `Someone replied: "${text.trim().slice(0, 80)}"`,
-          link: `/posts/${postId}`,
-          entityId: postId,
-          entityType: "Post",
-        });
-      })
-      .catch(() => {});
-  }
-
-  return updatedPost;
-};
-
-export const toggleCommentUpvote = async (postId, commentId, userId) => {
-  const updatedPost = await postRepository.toggleCommentUpvote(postId, commentId, userId);
-  if (!updatedPost) {
-    throw new AppError("Post or comment not found", 404);
-  }
-  return updatedPost;
+  return result;
 };

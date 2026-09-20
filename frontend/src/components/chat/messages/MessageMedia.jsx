@@ -18,7 +18,7 @@ const MessageMedia = ({
     const hasCaption = Boolean(msg.content);
     return (
       <div className={`relative ${hasCaption ? "rounded-t-xl rounded-b-sm overflow-hidden" : "rounded-xl overflow-hidden"}`}>
-        <img
+        <img loading="lazy" decoding="async"
           src={msg.media}
           alt="Attachment"
           className="message-media-img cursor-pointer hover:opacity-95 transition-opacity block w-full object-cover"

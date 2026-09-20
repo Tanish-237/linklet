@@ -2,6 +2,16 @@ import { Question } from "../../models/question.js";
 import { User } from "../../models/users.js";
 import mongoose from "mongoose";
 import { buildFuzzySearchQuery, scoreSearchRelevance, escapeRegex } from "../utils/search.utils.js";
+import { parseFeedCursor, makeOffsetCursor } from "../utils/feedCursor.js";
+
+// Upper bound on how many search matches are ranked per query. Ranking happens
+// in memory over this fixed candidate set, so page 1, 2, 3... of one search are
+// slices of the SAME ordered list (stable, no duplicates or gaps).
+export const SEARCH_CANDIDATE_CAP = 200;
+// Unanchored regex scans can be slow on a big collection; never let one run away.
+const SEARCH_MAX_TIME_MS = 4000;
+
+const AUTHOR_FIELDS = "username avatar";
 
 /**
  * Create a new question document.
@@ -61,140 +71,173 @@ export const findQuestionById = async (id) => {
 };
 
 /**
- * Paginated questions feed with optional Elastic Fuzzy text & username search, category filter, and tag filter.
- * Supports cursor-based pagination using createdAt.
+ * Conditions shared by every feed mode (everything except search text and sort).
+ * Written to be index-friendly: `"answers.0": { $exists }` is an ordinary
+ * indexable path check, unlike the old `$expr: { $size }` which forced a full
+ * collection scan for the "answered"/"unanswered" tabs.
+ */
+const buildBaseQuery = ({ category, tag, userId, filter }) => {
+  const base = {};
+
+  if (category && category !== "All") base.category = category;
+  if (tag) base.tags = { $in: [tag.toLowerCase()] };
+  if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    base.userId = new mongoose.Types.ObjectId(userId);
+  }
+
+  if (filter === "unanswered") base["answers.0"] = { $exists: false };
+  else if (filter === "answered") base["answers.0"] = { $exists: true };
+  else if (filter === "solved") base["acceptedAnswers.0"] = { $exists: true };
+
+  return base;
+};
+
+/**
+ * Paginated questions feed for every NON-search view.
  *
- * @param {object} options
- * @param {string|null} options.cursor     - ISO date string for cursor-based pagination
- * @param {number}      options.limit      - page size
- * @param {string}      options.search     - full-text / fuzzy search string
- * @param {string}      options.filter     - "all" | "unanswered" | "answered" | "popular"
- * @param {string}      options.category   - category name to filter by
- * @param {string}      options.tag        - single tag to filter by
- * @param {string|null} options.userId     - if provided, filters to questions by this user
+ *  - all / unanswered / answered / solved / oldest → ordered by createdAt, keyset
+ *    cursor on createdAt (exact, uses the createdAt index).
+ *  - views / popular → ordered by a different key, so they use an OFFSET cursor
+ *    (see utils/feedCursor.js for why a date cursor is wrong here).
+ *
+ * `hasMore` is exact: one extra row is fetched and dropped.
+ *
+ * @returns {Promise<{ questions: object[], hasMore: boolean, nextCursor: string|null }>}
  */
 export const getQuestionsFeed = async ({
   cursor = null,
   limit = 15,
-  search = "",
   filter = "all",
   category = "",
   tag = "",
   userId = null,
 } = {}) => {
-  const baseQuery = {};
+  const base = buildBaseQuery({ category, tag, userId, filter });
+  const { offset, date } = parseFeedCursor(cursor);
 
-  // Category filter
-  if (category && category !== "All") {
-    baseQuery.category = category;
-  }
-
-  // Tag filter
-  if (tag) {
-    baseQuery.tags = { $in: [tag.toLowerCase()] };
-  }
-
-  // Author filter (my questions)
-  if (userId) {
-    baseQuery.userId = new mongoose.Types.ObjectId(userId);
-  }
-
-  // Filter logic
-  if (filter === "unanswered") {
-    baseQuery.$expr = { $eq: [{ $size: "$answers" }, 0] };
-  } else if (filter === "answered") {
-    baseQuery.$expr = { $gt: [{ $size: "$answers" }, 0] };
-  } else if (filter === "solved") {
-    baseQuery.acceptedAnswers = { $exists: true, $not: { $size: 0 } };
-  }
-
-  // Cursor pagination
-  if (cursor) {
-    if (filter === "oldest") {
-      baseQuery.createdAt = { $gt: new Date(cursor) };
+  // ── Ordered by something other than time: offset paging ───────────────────
+  if (filter === "views" || filter === "popular") {
+    let rows;
+    if (filter === "views") {
+      rows = await Question.find(base)
+        .sort({ views: -1, createdAt: -1, _id: -1 })
+        .skip(offset)
+        .limit(limit + 1)
+        .populate("userId", AUTHOR_FIELDS)
+        .lean();
     } else {
-      baseQuery.createdAt = { $lt: new Date(cursor) };
+      // "Popular" = most upvotes. Sorting on the `upvotes` ARRAY (as before)
+      // orders by its largest ObjectId, i.e. by who voted — not by how many.
+      rows = await Question.aggregate([
+        { $match: base },
+        { $addFields: { upvoteCount: { $size: { $ifNull: ["$upvotes", []] } } } },
+        { $sort: { upvoteCount: -1, createdAt: -1, _id: -1 } },
+        { $skip: offset },
+        { $limit: limit + 1 },
+        { $unset: "upvoteCount" },
+      ]);
+      await Question.populate(rows, { path: "userId", select: AUTHOR_FIELDS });
     }
+
+    const hasMore = rows.length > limit;
+    return {
+      questions: hasMore ? rows.slice(0, limit) : rows,
+      hasMore,
+      nextCursor: hasMore ? makeOffsetCursor(offset + limit) : null,
+    };
   }
 
-  let sortOrder = { createdAt: -1 };
-  if (filter === "oldest") {
-    sortOrder = { createdAt: 1 };
-  } else if (filter === "popular") {
-    sortOrder = { upvotes: -1, createdAt: -1 };
-  } else if (filter === "views") {
-    sortOrder = { views: -1, createdAt: -1 };
+  // ── Ordered by createdAt: keyset paging ───────────────────────────────────
+  const oldestFirst = filter === "oldest";
+  const query = { ...base };
+  if (date) query.createdAt = oldestFirst ? { $gt: date } : { $lt: date };
+
+  const rows = await Question.find(query)
+    .sort({ createdAt: oldestFirst ? 1 : -1 })
+    .limit(limit + 1)
+    .populate("userId", AUTHOR_FIELDS)
+    .lean();
+
+  const hasMore = rows.length > limit;
+  const questions = hasMore ? rows.slice(0, limit) : rows;
+  return {
+    questions,
+    hasMore,
+    nextCursor: hasMore ? new Date(questions[questions.length - 1].createdAt).toISOString() : null,
+  };
+};
+
+/**
+ * Every question matching a search, ranked by relevance (best first), capped at
+ * SEARCH_CANDIDATE_CAP. The caller pages through this list with an offset cursor
+ * (and may cache it), so all pages come from one consistent ordering.
+ *
+ * Strategy: an indexed $text query first; if it finds nothing (typos, partial
+ * words) or the user searched an @username, fall back to a fuzzy regex/username
+ * query and merge the two.
+ */
+export const findSearchCandidates = async ({
+  search,
+  filter = "all",
+  category = "",
+  tag = "",
+  userId = null,
+}) => {
+  const base = buildBaseQuery({ category, tag, userId, filter });
+  const rawSearch = String(search).trim();
+  const cleanSearchTerm = rawSearch.replace(/^@/, "");
+
+  // 1. Indexed lookup for matching author usernames (max 20)
+  let matchedUserIds = [];
+  try {
+    if (cleanSearchTerm) {
+      const matchedUsers = await User.find({
+        username: { $regex: escapeRegex(cleanSearchTerm), $options: "i" },
+      })
+        .select("_id")
+        .limit(20)
+        .lean();
+      matchedUserIds = matchedUsers.map((u) => u._id);
+    }
+  } catch {
+    matchedUserIds = [];
   }
 
-  const hasSearch = search && search.trim();
+  // 2. Full-text search index
   let questions = [];
-
-  if (hasSearch) {
-    const rawSearch = search.trim();
-    const cleanSearchTerm = rawSearch.replace(/^@/, "");
-
-    // 1. Indexed lookup for matching author usernames (max 20)
-    let matchedUserIds = [];
-    try {
-      if (cleanSearchTerm) {
-        const matchedUsers = await User.find({
-          username: { $regex: escapeRegex(cleanSearchTerm), $options: "i" },
-        })
-          .select("_id")
-          .limit(20)
-          .lean();
-        matchedUserIds = matchedUsers.map((u) => u._id);
-      }
-    } catch {
-      matchedUserIds = [];
-    }
-
-    // Attempt 1: Full-Text search index
-    try {
-      const textQuery = { ...baseQuery, $text: { $search: rawSearch } };
-      questions = await Question.find(textQuery)
-        .sort(sortOrder)
-        .limit(limit)
-        .populate("userId", "username avatar")
-        .lean();
-    } catch {
-      questions = [];
-    }
-
-    // Attempt 2: Elastic Fuzzy + Username search fallback if $text yielded 0 results or for username searches
-    if (!questions || questions.length === 0 || matchedUserIds.length > 0) {
-      const fuzzyCondition = buildFuzzySearchQuery(
-        rawSearch,
-        ["title", "body", "tags", "category"],
-        matchedUserIds
-      );
-      const fuzzyQuery = fuzzyCondition ? { ...baseQuery, ...fuzzyCondition } : baseQuery;
-      const fuzzyQuestions = await Question.find(fuzzyQuery)
-        .sort(sortOrder)
-        .limit(limit)
-        .populate("userId", "username avatar")
-        .lean();
-
-      // Deduplicate questions from Attempt 1 & Attempt 2
-      const existingIds = new Set(questions.map((q) => q._id.toString()));
-      fuzzyQuestions.forEach((q) => {
-        if (!existingIds.has(q._id.toString())) {
-          questions.push(q);
-        }
-      });
-    }
-
-    // Relevance scoring & ranking across title, tags, category, and username
-    questions = scoreSearchRelevance(questions, rawSearch);
-  } else {
-    questions = await Question.find(baseQuery)
-      .sort(sortOrder)
-      .limit(limit)
-      .populate("userId", "username avatar")
+  try {
+    questions = await Question.find({ ...base, $text: { $search: rawSearch } })
+      .select({ score: { $meta: "textScore" } })
+      .sort({ score: { $meta: "textScore" } })
+      .limit(SEARCH_CANDIDATE_CAP)
+      .populate("userId", AUTHOR_FIELDS)
       .lean();
+  } catch {
+    questions = [];
   }
 
-  return questions;
+  // 3. Fuzzy + username fallback when $text found nothing, or for @username searches
+  if (questions.length === 0 || matchedUserIds.length > 0) {
+    const fuzzyCondition = buildFuzzySearchQuery(rawSearch, ["title", "body", "tags", "category"], matchedUserIds);
+    const fuzzyQuery = fuzzyCondition ? { ...base, ...fuzzyCondition } : base;
+    const fuzzyQuestions = await Question.find(fuzzyQuery)
+      .sort({ createdAt: -1 })
+      .limit(SEARCH_CANDIDATE_CAP)
+      .maxTimeMS(SEARCH_MAX_TIME_MS)
+      .populate("userId", AUTHOR_FIELDS)
+      .lean();
+
+    const existingIds = new Set(questions.map((q) => q._id.toString()));
+    fuzzyQuestions.forEach((q) => {
+      if (!existingIds.has(q._id.toString())) questions.push(q);
+    });
+  }
+
+  // Relevance across title, tags, category and username (ties → newest first).
+  // (`score` is Mongo's internal text score; it isn't part of the API shape.)
+  return scoreSearchRelevance(questions, rawSearch)
+    .slice(0, SEARCH_CANDIDATE_CAP)
+    .map(({ score: _textScore, ...question }) => question);
 };
 
 /**

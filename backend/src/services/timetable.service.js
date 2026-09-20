@@ -4,6 +4,8 @@ import { AttendanceCourse } from "../models/attendance.model.js";
 import { Schedule } from "../models/schedule.model.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
+import crypto from "crypto";
+import { cached, cacheDel } from "../utils/cache.js";
 
 // Single source of truth for the Gemini model used to parse timetables — the
 // comment on parseTimetablePdf below used to say "Gemini 2.5 Flash" while this
@@ -179,38 +181,7 @@ export const detectMimeType = (buffer, defaultMime = "application/pdf") => {
   return defaultMime;
 };
 
-/**
- * Parses an official MNNIT Timetable (PDF or Image) using the Gemini Vision API (see GEMINI_MODEL above for the exact model).
- * This function REQUIRES a valid GEMINI_API_KEY — it will NOT return fake/sample data.
- */
-export const parseTimetablePdf = async (fileBuffer, userProfile = {}, providedMimeType = null) => {
-  if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
-    throw new AppError("A valid PDF or image timetable file is required", 400);
-  }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new AppError(
-      "GEMINI_API_KEY is not configured. Please add it to your .env file to enable timetable scanning.",
-      500
-    );
-  }
-
-  const allowedMimes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"];
-  let effectiveMimeType = (providedMimeType && allowedMimes.includes(providedMimeType.toLowerCase()))
-    ? (providedMimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : providedMimeType.toLowerCase())
-    : detectMimeType(fileBuffer);
-
-  let rawExtractedClasses = [];
-  let detectedMetadata = {
-    branch: userProfile.department || "Computer Science & Engineering",
-    semester: userProfile.semester || 4,
-  };
-
-  const ai = new GoogleGenAI({ apiKey });
-  const MAX_RETRIES = 3;
-
-  const prompt = `You are an expert academic schedule parser for Motilal Nehru National Institute of Technology Allahabad (MNNIT).
+const TIMETABLE_PROMPT = `You are an expert academic schedule parser for Motilal Nehru National Institute of Technology Allahabad (MNNIT).
 
 Analyze the provided official MNNIT Timetable document (PDF or image) carefully and precisely.
 
@@ -263,6 +234,22 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
   ]
 }`;
 
+const MAX_RETRIES = 3;
+const USER_TIMETABLE_TTL = 300; // seconds
+const userTimetableKey = (userId) => `timetable:user:${userId}`;
+export const invalidateUserTimetableCache = (userId) => cacheDel(userTimetableKey(userId));
+const PARSE_CACHE_TTL = 14 * 24 * 60 * 60; // 14 days — a semester's timetable barely changes
+
+/**
+ * Ask Gemini to extract EVERY class from the timetable document (all sections).
+ * The result depends only on the file's bytes — nothing about the student who
+ * uploaded it — which is what makes it safe to cache and share.
+ */
+const runGeminiExtraction = async (ai, fileBuffer, effectiveMimeType) => {
+  let classes = [];
+  let branch = null;
+  let semester = null;
+
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await ai.models.generateContent({
@@ -278,7 +265,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
                 },
               },
               {
-                text: prompt,
+                text: TIMETABLE_PROMPT,
               },
             ],
           },
@@ -294,11 +281,11 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
       }
 
       const parsed = JSON.parse(responseText);
-      rawExtractedClasses = parsed.classes || [];
-      if (parsed.branch) detectedMetadata.branch = parsed.branch;
-      if (parsed.semester) detectedMetadata.semester = parsed.semester;
+      classes = parsed.classes || [];
+      branch = parsed.branch || null;
+      semester = parsed.semester || null;
 
-      if (rawExtractedClasses.length === 0) {
+      if (classes.length === 0) {
         throw new AppError(
           "Gemini could not extract any classes from this timetable. Make sure you uploaded the official MNNIT timetable (PDF or clear image).",
           400
@@ -306,7 +293,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
       }
 
       logger.info(
-        `Gemini extracted ${rawExtractedClasses.length} total class entries from timetable (${effectiveMimeType}) for ${detectedMetadata.branch} Sem ${detectedMetadata.semester}`
+        `Gemini extracted ${classes.length} total class entries from timetable (${effectiveMimeType}) for ${branch} Sem ${semester}`
       );
       break; // Success — exit retry loop
     } catch (err) {
@@ -334,6 +321,70 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
       throw new AppError(`Failed to parse timetable file: ${message}`, 500);
     }
   }
+
+
+  return { classes, branch, semester };
+};
+
+/**
+ * Cache Gemini's extraction by a hash of the file. The official timetable is one
+ * PDF per branch/semester that hundreds of students upload; without this every
+ * upload paid for a vision call and, at semester start, they all arrived at once
+ * and hit Gemini's rate limits together. With it there is one call per DISTINCT
+ * file, and concurrent uploads of the same file share that single call.
+ * Failures throw and are therefore never cached.
+ */
+const getCachedExtraction = async (ai, fileBuffer, effectiveMimeType) => {
+  const fingerprint = crypto
+    .createHash("sha256")
+    .update(GEMINI_MODEL)
+    .update(TIMETABLE_PROMPT) // editing the prompt automatically invalidates old entries
+    .update(effectiveMimeType)
+    .update(fileBuffer)
+    .digest("hex");
+
+  return cached(`timetable:parse:${fingerprint}`, PARSE_CACHE_TTL, () => {
+    logger.info(`Timetable parse cache miss (${fingerprint.slice(0, 12)}…) — calling Gemini`);
+    return runGeminiExtraction(ai, fileBuffer, effectiveMimeType);
+  });
+};
+
+/**
+ * Parses an official MNNIT Timetable (PDF or Image) using the Gemini Vision API (see GEMINI_MODEL above for the exact model).
+ * This function REQUIRES a valid GEMINI_API_KEY — it will NOT return fake/sample data.
+ */
+export const parseTimetablePdf = async (fileBuffer, userProfile = {}, providedMimeType = null) => {
+  if (!fileBuffer || !Buffer.isBuffer(fileBuffer)) {
+    throw new AppError("A valid PDF or image timetable file is required", 400);
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new AppError(
+      "GEMINI_API_KEY is not configured. Please add it to your .env file to enable timetable scanning.",
+      500
+    );
+  }
+
+  const allowedMimes = ["application/pdf", "image/png", "image/jpeg", "image/jpg", "image/webp"];
+  let effectiveMimeType = (providedMimeType && allowedMimes.includes(providedMimeType.toLowerCase()))
+    ? (providedMimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : providedMimeType.toLowerCase())
+    : detectMimeType(fileBuffer);
+
+  let rawExtractedClasses = [];
+  let detectedMetadata = {
+    branch: userProfile.department || "Computer Science & Engineering",
+    semester: userProfile.semester || 4,
+  };
+
+  const ai = new GoogleGenAI({ apiKey });
+
+
+
+  const extraction = await getCachedExtraction(ai, fileBuffer, effectiveMimeType);
+  rawExtractedClasses = extraction.classes;
+  if (extraction.branch) detectedMetadata.branch = extraction.branch;
+  if (extraction.semester) detectedMetadata.semester = extraction.semester;
 
   // Format and filter classes for the student's active section and optional sub-section
   const userSection = userProfile.section || "";
@@ -499,6 +550,8 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
     }
   }
 
+  await invalidateUserTimetableCache(userId);
+
   return {
     timetable: savedTimetable,
     attendanceCoursesAddedCount: attendanceCoursesCreated.length,
@@ -509,7 +562,12 @@ export const confirmAndSaveTimetable = async (userId, timetableData) => {
  * Get active user timetable.
  */
 export const getUserTimetable = async (userId) => {
-  return await Timetable.findOne({ userId }).lean();
+  // The most-read, least-changed data in the app: a student opens it many times
+  // a day but changes it once a semester. Cached per user; invalidated on
+  // confirm/abandon below. A user with no timetable is not cached (null).
+  return cached(userTimetableKey(userId), USER_TIMETABLE_TTL, () =>
+    Timetable.findOne({ userId }).lean()
+  );
 };
 
 /**
@@ -521,6 +579,7 @@ export const abandonTimetable = async (userId) => {
   if (!deleted) {
     throw new AppError("No active timetable found to remove", 404);
   }
+  await invalidateUserTimetableCache(userId);
   return { message: "Timetable removed successfully" };
 };
 

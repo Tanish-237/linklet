@@ -1,7 +1,6 @@
 import React, { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
-import { SITE_URL, DEFAULT_OG_IMAGE } from "../../config";
+import SEO from "../../components/SEO";
 
 const PRIVACY_DESCRIPTION =
   "How Linklet collects, uses, and protects the personal data of MNNIT Allahabad students who use the platform.";
@@ -29,19 +28,7 @@ const PrivacyPolicyPage = () => {
 
   return (
     <div className="privacy-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
-      <Helmet>
-        <title>Privacy Policy | Linklet</title>
-        <meta name="description" content={PRIVACY_DESCRIPTION} />
-        <meta property="og:title" content="Privacy Policy | Linklet" />
-        <meta property="og:description" content={PRIVACY_DESCRIPTION} />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={`${SITE_URL}/privacy`} />
-        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Privacy Policy | Linklet" />
-        <meta name="twitter:description" content={PRIVACY_DESCRIPTION} />
-        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
-      </Helmet>
+      <SEO title="Privacy Policy | Linklet" description={PRIVACY_DESCRIPTION} path="/privacy" />
       <div className="max-w-4xl mx-auto">
         <div className="mb-12 border-b border-zinc-800/80 pb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-md text-xs font-mono tracking-wider uppercase bg-zinc-900 border border-zinc-800 text-zinc-400 mb-5">

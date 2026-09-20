@@ -33,7 +33,8 @@ export const getFeed = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: feedData.posts,
-      nextCursor: feedData.nextCursor
+      nextCursor: feedData.nextCursor,
+      hasMore: feedData.hasMore,
     });
   } catch (error) {
     next(error);
@@ -86,10 +87,45 @@ export const toggleDownvote = async (req, res, next) => {
   }
 };
 
+export const getComments = async (req, res, next) => {
+  try {
+    const { cursor, limit } = req.query;
+    const result = await postService.getComments(req.params.postId, cursor, limit);
+    res.status(200).json({
+      success: true,
+      data: result.comments,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getReplies = async (req, res, next) => {
+  try {
+    const { postId, commentId } = req.params;
+    const { cursor, limit } = req.query;
+    const result = await postService.getReplies(postId, commentId, cursor, limit);
+    res.status(200).json({
+      success: true,
+      data: result.replies,
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const addComment = async (req, res, next) => {
   try {
-    const post = await postService.addComment(req.params.postId, req.user._id, req.body.text);
-    res.status(201).json({ success: true, data: post });
+    const { comment, commentsCount } = await postService.addComment(
+      req.params.postId,
+      req.user._id,
+      req.body.text
+    );
+    res.status(201).json({ success: true, data: comment, commentsCount });
   } catch (error) {
     next(error);
   }
@@ -99,8 +135,14 @@ export const addReply = async (req, res, next) => {
   try {
     const { postId, commentId } = req.params;
     const { text, replyToUsername } = req.body;
-    const post = await postService.addReply(postId, commentId, req.user._id, text, replyToUsername);
-    res.status(201).json({ success: true, data: post });
+    const { reply, repliesCount, commentsCount } = await postService.addReply(
+      postId,
+      commentId,
+      req.user._id,
+      text,
+      replyToUsername
+    );
+    res.status(201).json({ success: true, data: reply, repliesCount, commentsCount });
   } catch (error) {
     next(error);
   }
@@ -109,8 +151,8 @@ export const addReply = async (req, res, next) => {
 export const toggleCommentUpvote = async (req, res, next) => {
   try {
     const { postId, commentId } = req.params;
-    const post = await postService.toggleCommentUpvote(postId, commentId, req.user._id);
-    res.status(200).json({ success: true, data: post });
+    const comment = await postService.toggleCommentUpvote(postId, commentId, req.user._id);
+    res.status(200).json({ success: true, data: comment });
   } catch (error) {
     next(error);
   }
@@ -119,7 +161,7 @@ export const toggleCommentUpvote = async (req, res, next) => {
 export const deleteComment = async (req, res, next) => {
   try {
     const { postId, commentId } = req.params;
-    const post = await postService.deleteComment(
+    const { deletedIds, commentsCount } = await postService.deleteComment(
       postId,
       commentId,
       req.user._id,
@@ -128,10 +170,9 @@ export const deleteComment = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Comment deleted successfully",
-      data: post,
+      data: { deletedIds, commentsCount },
     });
   } catch (error) {
     next(error);
   }
 };
-

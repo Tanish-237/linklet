@@ -12,6 +12,7 @@ import compression from "compression";
 // Architecture Imports
 import { connectDb } from "./src/utils/db.js";
 import { connectRedis } from "./src/utils/redis.js";
+import { hasUnmigratedPostComments } from "./src/migrations/postComments.migration.js";
 import logger from "./src/utils/logger.js";
 import apiRoutes from "./src/routes/index.js";
 import { initializeSocket } from "./socket.js";
@@ -108,6 +109,20 @@ const bootServer = async () => {
     // 1. Connect MongoDB
     await connectDb();
     logger.info("MongoDB connected successfully");
+
+    // Post comments moved out of the Post document into their own collection.
+    // Until `npm run migrate:comments` has run, old comments are invisible —
+    // make that impossible to miss in the logs instead of a silent data gap.
+    try {
+      const mongoose = (await import("mongoose")).default;
+      if (await hasUnmigratedPostComments(mongoose.connection.db)) {
+        logger.warn(
+          "[MIGRATION REQUIRED] Some posts still have embedded comments. Run `npm run migrate:comments` (see CHANGELOG) — until then those comments will not appear."
+        );
+      }
+    } catch (err) {
+      logger.warn(`Could not check for un-migrated post comments: ${err.message}`);
+    }
 
     // 2. Connect Redis
     await connectRedis();

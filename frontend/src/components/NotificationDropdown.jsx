@@ -354,7 +354,7 @@ export default function NotificationDropdown({
                   >
                     {/* Avatar with type badge */}
                     <div className="relative shrink-0">
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={senderAvatar}
                         alt={notif.sender?.fullName || "User"}
                         className="w-10 h-10 rounded-full object-cover border border-gray-700/60 bg-gray-800"

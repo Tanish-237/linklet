@@ -99,7 +99,7 @@ describe("WeeklyTimetableModal Component Tests", () => {
     expect(screen.queryByText(/Remove Timetable/i)).toBeNull();
 
     // Verify Sunday can be selected and shows its class
-    const sundayTab = screen.getByRole("button", { name: /Sunday/i });
+    const sundayTab = screen.getByRole("button", { name: /^Sunday/i }) /* tab only — anchored so "Add Class to Sunday" never matches */;
     fireEvent.click(sundayTab);
 
     await waitFor(() => {
@@ -130,7 +130,7 @@ describe("WeeklyTimetableModal Component Tests", () => {
     });
 
     // Switch to Sunday
-    fireEvent.click(screen.getByRole("button", { name: /Sunday/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^Sunday/i }) /* tab only — anchored so "Add Class to Sunday" never matches */);
 
     // Click "Add Class to Sunday"
     fireEvent.click(screen.getByRole("button", { name: /Add Class to Sunday/i }));

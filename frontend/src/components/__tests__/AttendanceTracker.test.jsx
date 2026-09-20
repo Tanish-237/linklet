@@ -4,10 +4,6 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 import AttendanceTracker from "../AttendanceTracker";
 import * as dashboardApi from "../../api/dashboard.api";
 
-// Mock react-chartjs-2
-vi.mock("react-chartjs-2", () => ({
-  Doughnut: () => <div data-testid="mock-doughnut">Doughnut Chart</div>,
-}));
 
 // Mock dashboard API methods
 vi.mock("../../api/dashboard.api", () => ({
@@ -152,7 +148,7 @@ describe("AttendanceTracker Component Tests", () => {
     render(<AttendanceTracker />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("mock-doughnut")).toBeInTheDocument();
+      expect(screen.getByTestId("attendance-donut")).toBeInTheDocument();
     });
 
     expect(screen.getByText("Total")).toBeInTheDocument();

@@ -55,7 +55,7 @@ describe("PrivacyPolicyPage Component", () => {
     await waitFor(() => {
       expect(
         document.head.querySelector('meta[property="og:image"]')?.getAttribute("content")
-      ).toBe("https://linklet.org/linklet-logo.png");
+      ).toBe("https://linklet.org/og-image.jpg");
     });
 
     unmount();

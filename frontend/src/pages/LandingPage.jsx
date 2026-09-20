@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
-import logo from "../assets/linklet-logo.png";
-import { SITE_URL, DEFAULT_OG_IMAGE } from "../config";
+import logo from "../assets/linklet-logo.webp";
+import SEO from "../components/SEO";
+import { SITE_URL } from "../config";
 import "./LandingPage.css";
 
 // Inline SVG icons — no CDN dependency
@@ -101,6 +101,29 @@ const FEATURES = [
   },
 ];
 
+const LANDING_DESCRIPTION =
+  "Linklet is a platform for college students to manage schedules, track attendance, share posts, and chat with classmates.";
+
+// Structured data so search engines can show Linklet as a named site with a logo.
+const LANDING_JSON_LD = [
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Linklet",
+    url: SITE_URL,
+    logo: `${SITE_URL}/linklet-logo.png`,
+    description: LANDING_DESCRIPTION,
+  },
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Linklet",
+    url: SITE_URL,
+    description: LANDING_DESCRIPTION,
+    inLanguage: "en-IN",
+  },
+];
+
 export default function LandingPage() {
   const featuresRef = useRef(null);
 
@@ -130,29 +153,7 @@ export default function LandingPage() {
 
   return (
     <div className="landing-page" id="landing-page">
-      <Helmet>
-        <title>Linklet — Your campus, organized</title>
-        <meta
-          name="description"
-          content="Linklet is a platform for college students to manage schedules, track attendance, share posts, and chat with classmates."
-        />
-        <meta property="og:title" content="Linklet — Your campus, organized" />
-        <meta
-          property="og:description"
-          content="Everything your campus needs. One platform."
-        />
-        <meta property="og:type" content="website" />
-        <meta property="og:url" content={SITE_URL} />
-        <meta property="og:image" content={DEFAULT_OG_IMAGE} />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Linklet — Your campus, organized" />
-        <meta
-          name="twitter:description"
-          content="Everything your campus needs. One platform."
-        />
-        <meta name="twitter:image" content={DEFAULT_OG_IMAGE} />
-        <meta name="theme-color" content="#0a0a0a" />
-      </Helmet>
+      <SEO title="Linklet — Your campus, organized" description={LANDING_DESCRIPTION} path="/" jsonLd={LANDING_JSON_LD} />
 
       {/* Hero */}
       <section className="landing-hero" id="landing-hero">

@@ -3,14 +3,15 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "react-toastify";
 import { apiClient } from "../api/apiClient";
-import defaultAvatar from "../assets/default-avatar.png";
-import defaultBanner from "../assets/mnnit-banner.png";
+import defaultAvatar from "../assets/default-avatar.webp";
+import defaultBanner from "../assets/mnnit-banner.webp";
 import { Helmet } from "react-helmet-async";
 import Saved from "./Saved";
 import { calculateAcademicYear } from "../utlis/academicYear";
 import PostDetailModal from "../components/PostDetailModal";
 import { MNNIT_DEPARTMENTS } from "../components/AcademicOnboardingModal";
 import "./Profile.css";
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
@@ -86,6 +87,9 @@ const Profile = () => {
     `https://api.dicebear.com/7.x/bottts/svg?seed=RobotX&backgroundColor=transparent`,
   ];
   useEffect(() => {
+    // `cancelled` flips when the user navigates to another profile (or leaves)
+    // mid-request, so a slow response can't overwrite the profile now on screen.
+    let cancelled = false;
     const fetchProfile = async () => {
       try {
         setLoading(true);
@@ -103,6 +107,7 @@ const Profile = () => {
         }
 
         const res = await apiClient.get(`/profile/${targetUsername}`);
+        if (cancelled) return;
         setProfileUser(res.data.data);
 
         // Initialize edit states
@@ -119,21 +124,25 @@ const Profile = () => {
         setPostsLoading(true);
         try {
           const postsRes = await apiClient.get(`/posts/user/${res.data.data._id}`);
-          setUserPosts(postsRes.data.data || []);
+          if (!cancelled) setUserPosts(postsRes.data.data || []);
         } catch {
-          setUserPosts([]);
+          if (!cancelled) setUserPosts([]);
         } finally {
-          setPostsLoading(false);
+          if (!cancelled) setPostsLoading(false);
         }
       } catch {
+        if (cancelled) return;
         toast.error("Profile not found");
         navigate("/dashboard");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchProfile();
+    return () => {
+      cancelled = true;
+    };
   }, [username, currentUser, navigate]);
 
   const isOwnProfile = currentUser && profileUser && currentUser._id === profileUser._id;
@@ -848,7 +857,7 @@ const Profile = () => {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <img
-                            src={u.avatar || defaultAvatar}
+                            src={optimizeAvatar(u.avatar, 48) || defaultAvatar}
                             alt={u.username}
                             className="w-12 h-12 rounded-full object-cover border border-violet-500/20 group-hover:border-violet-500/50 transition-colors shrink-0"
                             onError={(e) => {
@@ -928,7 +937,7 @@ const Profile = () => {
                           </span>
                           <span className="profile-post-stat">
                             <span className="material-icons">chat_bubble_outline</span>
-                            {post.comments?.length || 0}
+                            {post.commentsCount || 0}
                           </span>
                         </div>
                         {post.caption && (
@@ -1005,7 +1014,7 @@ const Profile = () => {
                     {postToDelete.caption || "(No caption)"}
                   </p>
                   <p className="profile-delete-preview-meta">
-                    {formatPostDate(postToDelete.createdAt)} &middot; {postToDelete.upvotes?.length || 0} upvotes &middot; {postToDelete.comments?.length || 0} comments
+                    {formatPostDate(postToDelete.createdAt)} &middot; {postToDelete.upvotes?.length || 0} upvotes &middot; {postToDelete.commentsCount || 0} comments
                   </p>
                 </div>
               </div>
@@ -1135,7 +1144,7 @@ const Profile = () => {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <img
-                            src={u.avatar || defaultAvatar}
+                            src={optimizeAvatar(u.avatar, 48) || defaultAvatar}
                             alt={u.username}
                             className="w-10 h-10 rounded-full object-cover border border-violet-500/20"
                             onError={(e) => { e.target.src = defaultAvatar; }}

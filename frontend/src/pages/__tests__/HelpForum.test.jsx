@@ -161,4 +161,54 @@ describe("HelpForum Component", () => {
 
     console.log("TRACE [HelpForum.test.jsx]: QuestionCard verified with complete title and layout");
   });
+
+  const questionOf = (id, title) => ({
+    _id: id, title, body: "", category: "General", tags: [], acceptedAnswers: [], answers: [],
+    upvotes: [], downvotes: [], views: 0,
+    userId: { _id: "author1", username: "someone", avatar: "" },
+    createdAt: new Date().toISOString(),
+  });
+
+  it("drops a slow response for a previous filter so it can't overwrite the list for the current one", async () => {
+    console.log("TRACE [HelpForum.test.jsx]: stale response for an old filter is ignored");
+    let resolveSlow;
+    // 1st call (initial "all" view) is slow; 2nd call (Academic category) answers first.
+    questionApi.getQuestions
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSlow = resolve; }))
+      .mockResolvedValueOnce({ data: [questionOf("q-new", "Academic question")], nextCursor: null, hasMore: false });
+
+    renderComponent();
+    const academicBtn = await waitFor(() => {
+      const el = document.getElementById("hf-mobile-cat-academic");
+      expect(el).toBeInTheDocument();
+      return el;
+    });
+
+    fireEvent.click(academicBtn);
+    expect(await screen.findByText("Academic question")).toBeInTheDocument();
+
+    // The slow, now-obsolete "all" response finally arrives...
+    resolveSlow({ data: [questionOf("q-old", "Stale question from the old filter")], nextCursor: null, hasMore: false });
+    await new Promise((r) => setTimeout(r, 30));
+
+    console.log("TRACE [HelpForum.test.jsx]: stale question visible? ", Boolean(screen.queryByText("Stale question from the old filter")));
+    expect(screen.queryByText("Stale question from the old filter")).not.toBeInTheDocument();
+    expect(screen.getByText("Academic question")).toBeInTheDocument();
+  });
+
+  it("'Load more' sends back the API's opaque cursor unchanged (date or offset) and appends the next page", async () => {
+    console.log("TRACE [HelpForum.test.jsx]: opaque cursor round-trip");
+    questionApi.getQuestions
+      .mockResolvedValueOnce({ data: [questionOf("q1", "First page question")], nextCursor: "o:15", hasMore: true })
+      .mockResolvedValueOnce({ data: [questionOf("q2", "Second page question")], nextCursor: null, hasMore: false });
+
+    renderComponent();
+    await screen.findByText("First page question");
+
+    fireEvent.click(await screen.findByRole("button", { name: /load more/i }));
+
+    expect(await screen.findByText("Second page question")).toBeInTheDocument();
+    expect(screen.getByText("First page question")).toBeInTheDocument();
+    expect(questionApi.getQuestions).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: "o:15" }));
+  });
 });

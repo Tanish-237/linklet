@@ -3,12 +3,13 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 import { apiClient } from '../api/apiClient';
-import linkletLogo from '../assets/linklet-logo.png';
-import defaultAvatar from '../assets/default-avatar.png';
+import linkletLogo from '../assets/linklet-logo.webp';
+import defaultAvatar from '../assets/default-avatar.webp';
 import AcademicOnboardingModal from '../components/AcademicOnboardingModal';
 import { useSocket } from '../hooks/useSocket';
 import NotificationDropdown from '../components/NotificationDropdown';
 import WhatsNewDropdown, { isReleaseSeen, markReleaseSeen, RELEASE_VERSION } from '../components/WhatsNewDropdown';
+import { optimizeAvatar } from "../utlis/cloudinary";
 
 export default function Layout({ children }) {
   const navigate = useNavigate();
@@ -323,7 +324,7 @@ export default function Layout({ children }) {
                 aria-label="User menu"
               >
                 <img
-                  src={user?.avatar || defaultAvatar}
+                  src={optimizeAvatar(user?.avatar, 40) || defaultAvatar}
                   alt="Avatar"
                   className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-gray-800 group-hover:border-violet-500 transition-all duration-200 object-cover"
                 />

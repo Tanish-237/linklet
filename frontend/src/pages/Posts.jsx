@@ -1,13 +1,18 @@
 // src/pages/Posts.jsx
-import React, { useEffect, useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import React, { useEffect, useMemo, useState, useRef } from "react";
+import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useInView } from "react-intersection-observer";
 import { apiClient } from "../api/apiClient";
-import { deletePost } from "../api/post.api";
+import { deletePost, getFeed } from "../api/post.api";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import defaultAvatar from "../assets/default-avatar.png";
-import PostDetailModal, { formatTime } from "../components/PostDetailModal";
+import defaultAvatar from "../assets/default-avatar.webp";
+import PostDetailModal from "../components/PostDetailModal";
+import SEO from "../components/SEO";
+import { POSTS_TITLE, POSTS_DESCRIPTION } from "./static/PostsSeoShell";
+import { formatTime } from "../utlis/formatTime";
+import { optimizeAvatar, optimizeImage, buildSrcSet } from "../utlis/cloudinary";
 import "./Posts.css";
 
 
@@ -176,7 +181,7 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
   const currentUserId = user?._id || user?.id;
   const isUpvoted = post.upvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
   const isDownvoted = post.downvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
-  const commentCount = post.comments?.length || 0;
+  const commentCount = post.commentsCount || 0;
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -211,13 +216,13 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
   const authorId = (author._id || author.id || author)?.toString();
   const canDelete = currentUserId && (authorId === currentUserId?.toString() || user?.role === "admin");
   const username = author.username || "User";
-  const avatar = author.avatar || defaultAvatar;
+  const avatar = optimizeAvatar(author.avatar, 40) || defaultAvatar;
 
   return (
     <div className="feed-card">
       {/* Header: Avatar + Username + Bookmark toggle */}
       <div className="feed-card__header">
-        <img src={avatar} alt="Profile" className="feed-card__avatar" />
+        <img src={avatar} alt="Profile" className="feed-card__avatar" loading="lazy" decoding="async" />
         <div className="feed-card__user-info">
           <span
             className="feed-card__username"
@@ -264,7 +269,15 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
       {/* Media: Image / Video */}
       {post.image && (
         <div className="feed-card__media" onClick={() => onOpenComments(post)}>
-          <img src={post.image} alt="" className="feed-card__image" />
+          <img
+            src={optimizeImage(post.image, { width: 800 })}
+            srcSet={buildSrcSet(post.image, [480, 800, 1200])}
+            sizes="(max-width: 640px) 100vw, 640px"
+            alt=""
+            className="feed-card__image"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
       )}
 
@@ -336,34 +349,55 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
 const Posts = () => {
   const { user } = useAuth();
 
-  // In-memory cached feed query with 5-minute freshness (0ms instant render on tab switch)
+  const queryClient = useQueryClient();
+
+  // Infinite feed: 15 posts per page, cursor-paginated by the API. The query
+  // cache keeps already-loaded pages so switching tabs and coming back is instant.
   const {
-    data: feedData = [],
+    data: feedPages,
     isLoading: isFeedLoading,
-    refetch: fetchPosts,
-  } = useQuery({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
     queryKey: ["posts", "feed"],
-    queryFn: async () => {
-      const res = await apiClient.get(`/posts/feed?limit=50`);
-      return res.data.data || [];
-    },
-    staleTime: 5 * 60 * 1000,
+    queryFn: getFeed,
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextCursor : undefined),
+    staleTime: 60 * 1000,
   });
 
+  const feedData = useMemo(() => {
+    const seen = new Set();
+    return (feedPages?.pages || [])
+      .flatMap((page) => page.data || [])
+      .filter((post) => (seen.has(post._id) ? false : (seen.add(post._id), true)));
+  }, [feedPages]);
+
+  // Local copy so votes / comment-count changes can update a card instantly
+  // without waiting for the next refetch.
   const [posts, setPosts] = useState(feedData);
 
   useEffect(() => {
-    if (feedData) setPosts(feedData);
+    setPosts(feedData);
   }, [feedData]);
+
+  // Load the next page shortly before the sentinel scrolls into view.
+  const { ref: loadMoreRef, inView } = useInView({ rootMargin: "400px 0px" });
+  useEffect(() => {
+    if (inView && hasNextPage && !isFetchingNextPage) fetchNextPage();
+  }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const loading = isFeedLoading && posts.length === 0;
 
   // Bookmark state with in-memory caching
-  const { data: bookmarkIds = [] } = useQuery({
+  // No `= []` default on purpose: a fresh array every render while the query is
+  // loading would re-trigger the effect below on every render (a render loop).
+  const { data: bookmarkIds } = useQuery({
     queryKey: ["bookmarks", user?._id],
     queryFn: async () => {
-      const res = await apiClient.get("/profile/me/bookmarks");
-      return (res.data.data || []).map((b) => (b._id || b).toString());
+      const res = await apiClient.get("/profile/me/bookmark-ids");
+      return (res.data.data || []).map((id) => id.toString());
     },
     enabled: !!user,
     staleTime: 5 * 60 * 1000,
@@ -473,6 +507,7 @@ const Posts = () => {
 
   return (
     <div className="feed-container">
+      <SEO title={POSTS_TITLE} description={POSTS_DESCRIPTION} path="/posts" />
       {/* Create Post Prompt */}
       <div className="feed-create-prompt" onClick={handleCreatePost}>
         <img src={user?.avatar || defaultAvatar} alt="Your profile" className="feed-create-prompt__avatar" />
@@ -524,6 +559,16 @@ const Posts = () => {
               isSaved={savedPosts.has(post._id?.toString())}
             />
           ))}
+          {/* Infinite-scroll sentinel */}
+          <div ref={loadMoreRef} className="feed-load-more" aria-live="polite">
+            {isFetchingNextPage && (
+              <>
+                <div className="feed-loading__spinner"></div>
+                <p>Loading more posts...</p>
+              </>
+            )}
+            {!hasNextPage && posts.length > 0 && <p className="feed-load-more__end">You&apos;re all caught up</p>}
+          </div>
         </div>
       )}
 
@@ -532,7 +577,7 @@ const Posts = () => {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         user={user}
-        onPostCreated={fetchPosts}
+        onPostCreated={() => queryClient.resetQueries({ queryKey: ["posts", "feed"] })}
       />
 
       {/* Post Detail Modal (Large Side-by-Side) */}

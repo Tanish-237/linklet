@@ -3,76 +3,59 @@ import { apiClient } from "../api/apiClient";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
-import defaultAvatar from "../assets/default-avatar.png";
+import defaultAvatar from "../assets/default-avatar.webp";
 import SaveToCollectionModal from "../components/SaveToCollectionModal";
-import EmojiPicker from "emoji-picker-react";
+import PostCommentsPanel from "../components/PostCommentsPanel";
+import { formatTime } from "../utlis/formatTime";
+import { optimizeAvatar, optimizeImage, buildSrcSet } from "../utlis/cloudinary";
 import "./Posts.css";
-
-const formatTime = (dateString) => {
-  if (!dateString) return "just now";
-  const now = Date.now();
-  const created = new Date(dateString).getTime();
-  const diffMs = now - created;
-  const diffMins = Math.floor(diffMs / 60000);
-
-  if (diffMins < 1) return "just now";
-  if (diffMins < 60) return `${diffMins}m ago`;
-  const diffHours = Math.floor(diffMins / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  return new Date(dateString).toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-};
 
 const PostDetail = () => {
   const { postId } = useParams();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [commentText, setCommentText] = useState("");
-  const [commentLoading, setCommentLoading] = useState(false);
-  const [replyTextMap, setReplyTextMap] = useState({});
-  const [replyingToKey, setReplyingToKey] = useState(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [savedPosts, setSavedPosts] = useState(new Set());
   const [collectionPostId, setCollectionPostId] = useState(null);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const { user } = useAuth();
   const navigate = useNavigate();
   const shareRef = useRef(null);
-  const emojiRef = useRef(null);
-  const commentInputRef = useRef(null);
 
-  const fetchPostDetail = async () => {
-    try {
-      setLoading(true);
-      const res = await apiClient.get(`/posts/${postId}`);
-      if (!res.data || !res.data.data) {
-        throw new Error("Post not found");
-      }
-      setPost(res.data.data);
-    } catch (error) {
-      toast.error("Post not found or failed to load");
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Load the post itself (comments are paginated separately by PostCommentsPanel).
+  // `cancelled` drops the response if the user navigated to another post meanwhile.
   useEffect(() => {
+    let cancelled = false;
+    const fetchPostDetail = async () => {
+      try {
+        setLoading(true);
+        const res = await apiClient.get(`/posts/${postId}`);
+        if (cancelled) return;
+        if (!res.data || !res.data.data) {
+          throw new Error("Post not found");
+        }
+        setPost(res.data.data);
+      } catch (error) {
+        if (cancelled) return;
+        setPost(null);
+        toast.error("Post not found or failed to load");
+        console.error("Error:", error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
     fetchPostDetail();
+    return () => {
+      cancelled = true;
+    };
   }, [postId]);
 
   useEffect(() => {
     const fetchBookmarks = async () => {
       if (!user) return;
       try {
-        const res = await apiClient.get("/profile/me/bookmarks");
-        const bookmarkIds = (res.data.data || []).map((b) => (b._id || b).toString());
-        setSavedPosts(new Set(bookmarkIds));
+        const res = await apiClient.get("/profile/me/bookmark-ids");
+        setSavedPosts(new Set((res.data.data || []).map((id) => id.toString())));
       } catch {
         // silently fail
       }
@@ -87,32 +70,6 @@ const PostDetail = () => {
     if (showShareMenu) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showShareMenu]);
-
-  // Close emoji picker on outside click
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmojiPicker(false);
-    };
-    if (showEmojiPicker) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showEmojiPicker]);
-
-  const handleEmojiClick = (emojiData) => {
-    const emoji = emojiData.emoji;
-    const input = commentInputRef.current;
-    if (input) {
-      const start = input.selectionStart;
-      const end = input.selectionEnd;
-      const newText = commentText.slice(0, start) + emoji + commentText.slice(end);
-      setCommentText(newText);
-      setTimeout(() => {
-        input.focus();
-        input.setSelectionRange(start + emoji.length, start + emoji.length);
-      }, 0);
-    } else {
-      setCommentText((prev) => prev + emoji);
-    }
-  };
 
   const closeModal = () => {
     if (window.history.length > 2 && document.referrer.includes(window.location.host)) {
@@ -136,42 +93,6 @@ const PostDetail = () => {
       const res = await apiClient.post(`/posts/${postId}/downvote`);
       setPost(res.data.data);
     } catch { toast.error("Error voting"); }
-  };
-
-  const handleCommentSubmit = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !user) return;
-    try {
-      setCommentLoading(true);
-      const res = await apiClient.post(`/posts/${postId}/comment`, { text: commentText });
-      setPost(res.data.data);
-      setCommentText("");
-      toast.success("Comment added");
-    } catch { toast.error("Error adding comment"); }
-    finally { setCommentLoading(false); }
-  };
-
-  const handleReplySubmit = async (commentId, replyToUser) => {
-    const text = replyTextMap[replyingToKey];
-    if (!text || !text.trim() || !user) return;
-    try {
-      const res = await apiClient.post(`/posts/${postId}/comments/${commentId}/reply`, {
-        text: text.trim(),
-        replyToUsername: replyToUser,
-      });
-      setPost(res.data.data);
-      setReplyTextMap((prev) => ({ ...prev, [replyingToKey]: "" }));
-      setReplyingToKey(null);
-      toast.success("Reply added");
-    } catch { toast.error("Error adding reply"); }
-  };
-
-  const handleToggleCommentUpvote = async (commentId) => {
-    if (!user) { toast.info("Please log in to vote"); return; }
-    try {
-      const res = await apiClient.post(`/posts/${postId}/comments/${commentId}/upvote`);
-      setPost(res.data.data);
-    } catch { toast.error("Error voting on comment"); }
   };
 
   const handleShare = async (platform) => {
@@ -226,7 +147,7 @@ const PostDetail = () => {
 
   const postAuthor = post.userId || post.user || {};
   const postUsername = postAuthor.username || "User";
-  const postAvatar = postAuthor.avatar || defaultAvatar;
+  const postAvatar = optimizeAvatar(postAuthor.avatar, 40) || defaultAvatar;
   const isSaved = savedPosts.has(post._id?.toString());
 
   return (
@@ -273,7 +194,14 @@ const PostDetail = () => {
           {/* Image */}
           {post.image && (
             <div className="feed-detail__media">
-              <img src={post.image} alt="" className="feed-detail__image" />
+              <img
+                src={optimizeImage(post.image, { width: 1200 })}
+                srcSet={buildSrcSet(post.image)}
+                sizes="(max-width: 900px) 100vw, 60vw"
+                alt=""
+                className="feed-detail__image"
+                decoding="async"
+              />
             </div>
           )}
 
@@ -300,7 +228,7 @@ const PostDetail = () => {
 
             <span className="feed-detail__comment-count">
               <span className="material-icons" style={{ fontSize: "1.1rem" }}>chat_bubble_outline</span>
-              {post.comments?.length || 0} comments
+              {post.commentsCount || 0} comments
             </span>
 
             {/* Share button */}
@@ -337,198 +265,13 @@ const PostDetail = () => {
         </div>
 
         {/* Right Side: Comments */}
-        <div className="feed-detail__right">
-          <div className="feed-detail__comments-header">
-            <span className="material-icons" style={{ color: "#a78bfa", fontSize: "1.2rem" }}>forum</span>
-            <h3>Comments</h3>
-            <span className="feed-detail__comments-count">{post.comments?.length || 0}</span>
-          </div>
-
-          {/* Comments List */}
-          <div className="feed-detail__comments-list custom-scrollbar">
-            {(!post.comments || post.comments.length === 0) ? (
-              <div className="feed-detail__no-comments">
-                <span className="material-icons" style={{ fontSize: "2.5rem", color: "#374151" }}>chat_bubble_outline</span>
-                <p>No comments yet</p>
-                <span>Be the first to share your thoughts!</span>
-              </div>
-            ) : (
-              post.comments.map((comment) => {
-                const commentUser = comment.userId || comment.user || {};
-                const commentAuthorName = commentUser.username || "User";
-                const commentAvatar = commentUser.avatar || defaultAvatar;
-                const commentUpvotes = comment.upvotes || [];
-                const isCommentLiked = commentUpvotes.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
-
-                return (
-                  <div key={comment._id} className="feed-detail__comment-node">
-                    <div className="feed-detail__comment-card">
-                      <div className="feed-detail__comment-header">
-                        <img src={commentAvatar} alt="" className="feed-detail__comment-avatar" />
-                        <span
-                          className="feed-detail__comment-author"
-                          onClick={() => navigate(`/dashboard/profile/${commentAuthorName}`)}
-                        >
-                          {commentAuthorName}
-                        </span>
-                        <span className="feed-detail__comment-time">· {formatTime(comment.createdAt)}</span>
-                      </div>
-                      <p className="feed-detail__comment-body">{comment.text}</p>
-                      <div className="feed-detail__comment-footer">
-                        <button
-                          onClick={() => handleToggleCommentUpvote(comment._id)}
-                          className={`feed-detail__comment-action ${isCommentLiked ? "liked" : ""}`}
-                        >
-                          <span className="material-icons" style={{ fontSize: "0.85rem", color: isCommentLiked ? "#a78bfa" : "inherit" }}>
-                            {isCommentLiked ? "thumb_up" : "thumb_up_off_alt"}
-                          </span>
-                          {commentUpvotes.length > 0 ? commentUpvotes.length : "Like"}
-                        </button>
-                        <button
-                          onClick={() => setReplyingToKey(replyingToKey === comment._id ? null : comment._id)}
-                          className="feed-detail__comment-action"
-                        >
-                          <span className="material-icons" style={{ fontSize: "0.85rem" }}>reply</span>
-                          Reply
-                        </button>
-                      </div>
-
-                      {/* Reply Input for Top-level Comment */}
-                      {replyingToKey === comment._id && (
-                        <div className="feed-detail__reply-box">
-                          <input
-                            type="text"
-                            placeholder={`Replying to @${commentAuthorName}...`}
-                            value={replyTextMap[comment._id] || ""}
-                            onChange={(e) => setReplyTextMap({ ...replyTextMap, [comment._id]: e.target.value })}
-                            className="feed-detail__reply-input"
-                            autoFocus
-                          />
-                          <div className="feed-detail__reply-actions">
-                            <button onClick={() => setReplyingToKey(null)} className="feed-detail__reply-cancel">Cancel</button>
-                            <button onClick={() => handleReplySubmit(comment._id, commentAuthorName)} className="feed-detail__reply-submit">Reply</button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Nested Replies */}
-                      {comment.replies && comment.replies.length > 0 && (
-                        <div className="feed-detail__reply-thread">
-                          {comment.replies.map((reply) => {
-                            const replyUser = reply.userId || reply.user || {};
-                            const replyAuthorName = replyUser.username || "User";
-                            const replyAvatar = replyUser.avatar || defaultAvatar;
-                            const replyKey = `${comment._id}-${reply._id}`;
-
-                            return (
-                              <div key={reply._id} className="feed-detail__reply-node">
-                                <div className="feed-detail__comment-card feed-detail__comment-card--reply">
-                                  <div className="feed-detail__comment-header">
-                                    <img src={replyAvatar} alt="" className="feed-detail__comment-avatar" />
-                                    <span
-                                      className="feed-detail__comment-author"
-                                      onClick={() => navigate(`/dashboard/profile/${replyAuthorName}`)}
-                                    >
-                                      {replyAuthorName}
-                                    </span>
-                                    <span className="feed-detail__comment-time">· {formatTime(reply.createdAt)}</span>
-                                  </div>
-                                  <p className="feed-detail__comment-body">
-                                    {reply.replyToUsername && (
-                                      <span className="feed-detail__mention">@{reply.replyToUsername} </span>
-                                    )}
-                                    {reply.text}
-                                  </p>
-                                  <div className="feed-detail__comment-footer">
-                                    <button
-                                      onClick={() => setReplyingToKey(replyingToKey === replyKey ? null : replyKey)}
-                                      className="feed-detail__comment-action"
-                                    >
-                                      <span className="material-icons" style={{ fontSize: "0.85rem" }}>reply</span>
-                                      Reply
-                                    </button>
-                                  </div>
-
-                                  {/* Inline Reply Input for a Reply */}
-                                  {replyingToKey === replyKey && (
-                                    <div className="feed-detail__reply-box">
-                                      <input
-                                        type="text"
-                                        placeholder={`Replying to @${replyAuthorName}...`}
-                                        value={replyTextMap[replyKey] || ""}
-                                        onChange={(e) => setReplyTextMap({ ...replyTextMap, [replyKey]: e.target.value })}
-                                        className="feed-detail__reply-input"
-                                        autoFocus
-                                      />
-                                      <div className="feed-detail__reply-actions">
-                                        <button onClick={() => setReplyingToKey(null)} className="feed-detail__reply-cancel">Cancel</button>
-                                        <button onClick={() => handleReplySubmit(comment._id, replyAuthorName)} className="feed-detail__reply-submit">Reply</button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
-
-          {/* Comment Input */}
-          <div className="feed-detail__comment-input-area">
-            <form onSubmit={handleCommentSubmit} className="feed-detail__comment-form">
-              <img src={user?.avatar || defaultAvatar} alt="" className="feed-detail__comment-input-avatar" />
-
-              {/* Emoji Picker Trigger */}
-              <div className="feed-detail__emoji-wrap" ref={emojiRef}>
-                <button
-                  type="button"
-                  className="feed-detail__emoji-btn"
-                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  aria-label="Pick emoji"
-                  disabled={!user}
-                >
-                  <span className="material-icons">sentiment_satisfied_alt</span>
-                </button>
-                {showEmojiPicker && (
-                  <div className="feed-detail__emoji-picker-wrap">
-                    <EmojiPicker
-                      onEmojiClick={handleEmojiClick}
-                      theme="dark"
-                      skinTonesDisabled
-                      searchDisabled={false}
-                      height={380}
-                      width={300}
-                      lazyLoadEmojis
-                    />
-                  </div>
-                )}
-              </div>
-
-              <input
-                ref={commentInputRef}
-                type="text"
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder={user ? "Add a comment..." : "Log in to comment"}
-                className="feed-detail__comment-input"
-                disabled={!user}
-              />
-              <button type="submit" disabled={commentLoading || !user || !commentText.trim()} className="feed-detail__comment-send">
-                {commentLoading ? (
-                  <span className="material-icons feed-spin">refresh</span>
-                ) : (
-                  <span className="material-icons">send</span>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
+        <PostCommentsPanel
+          postId={post._id}
+          commentsCount={post.commentsCount || 0}
+          onCountChange={(commentsCount) => setPost((prev) => (prev ? { ...prev, commentsCount } : prev))}
+          user={user}
+          onNavigateToProfile={(username) => navigate(`/dashboard/profile/${username}`)}
+        />
       </div>
 
       {/* Save to Collection Modal */}
