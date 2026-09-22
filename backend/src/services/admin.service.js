@@ -293,7 +293,7 @@ export const setResourceVerification = async (adminUserId, resourceId, isVerifie
           type: "SYSTEM_ALERT",
           title: "Content Moderated",
           message: `Your study resource "${resource.title}" was hidden by an administrator for content moderation.`,
-          link: "/dashboard/global-search",
+          link: "/resource-hub",
           entityId: null,
           entityType: "System",
         });

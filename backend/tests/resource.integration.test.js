@@ -51,7 +51,7 @@ app.use((err, req, res, next) => {
 
 const request = supertest(app);
 
-describe('Resource API & Global Search Guest Gate Tests', () => {
+describe('Resource API & Resource Hub Guest Gate Tests', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     isAuthenticated = false;

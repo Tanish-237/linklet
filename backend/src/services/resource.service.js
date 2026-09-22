@@ -121,7 +121,7 @@ export const deleteResource = async (resourceId, userId, userRole) => {
         type: "SYSTEM_ALERT",
         title: "Content Moderated",
         message: `Your study resource "${resource.title}" was removed by an administrator for content moderation.`,
-        link: "/dashboard/global-search",
+        link: "/resource-hub",
         entityId: null,
         entityType: "System",
       });

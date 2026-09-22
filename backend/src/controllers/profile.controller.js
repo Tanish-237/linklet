@@ -305,7 +305,7 @@ export const toggleFollowUser = async (req, res, next) => {
             type: "USER_FOLLOW",
             title: "New Follower",
             message: `${currentUser.fullName || currentUser.username} started following you.`,
-            link: `/dashboard/profile/${currentUser.username}`,
+            link: `/profile/${currentUser.username}`,
             entityId: currentUserId,
             entityType: "User",
           });

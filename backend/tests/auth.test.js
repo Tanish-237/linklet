@@ -34,7 +34,7 @@ jest.unstable_mockModule('../src/utils/email.service.js', () => ({
   sendEmail: mockSendEmail,
 }));
 
-const { generateAndSendOtp, register, changePassword, forgotPasswordSendOtp, resetPassword } = await import('../src/services/auth.service.js');
+const { generateAndSendOtp, register, changePassword, forgotPasswordSendOtp, resetPassword, generateUniqueUsername } = await import('../src/services/auth.service.js');
 const { cookieOptions, changePassword: changePasswordController, sendForgotPasswordOtp: sendForgotPasswordOtpController, resetPassword: resetPasswordController } = await import('../src/controllers/auth.controller.js');
 const { calculateAcademicYear, calculateDefaultSemester } = await import('../src/utils/academicYear.js');
 
@@ -162,6 +162,35 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
       );
       expect(mockSendEmail).toHaveBeenCalledTimes(1);
       console.log('[TEST] Successfully dispatched OTP to new MNNIT student email.');
+    });
+  });
+
+  describe('generateUniqueUsername', () => {
+    test('uses the bare name.regno email prefix as the username when it is free', async () => {
+      console.log('[TEST] generateUniqueUsername › uses bare email prefix when available');
+      mockFindUserByUsername.mockResolvedValueOnce(null);
+
+      const username = await generateUniqueUsername('krishna.20233169@mnnit.ac.in');
+      console.log('[TEST] Generated username:', username);
+
+      expect(username).toBe('krishna.20233169');
+      expect(mockFindUserByUsername).toHaveBeenCalledTimes(1);
+      expect(mockFindUserByUsername).toHaveBeenCalledWith('krishna.20233169');
+      console.log('[TEST] Correctly returned the unmodified name.regno prefix, no random suffix appended.');
+    });
+
+    test('falls back to a random suffix only when the bare prefix is already taken', async () => {
+      console.log('[TEST] generateUniqueUsername › falls back to suffix on collision');
+      mockFindUserByUsername
+        .mockResolvedValueOnce({ _id: 'existing_user' }) // bare username taken
+        .mockResolvedValueOnce(null); // suffixed candidate is free
+
+      const username = await generateUniqueUsername('krishna.20233169@mnnit.ac.in');
+      console.log('[TEST] Generated username:', username);
+
+      expect(username).toMatch(/^krishna\.20233169_[0-9a-f]{6}$/);
+      expect(mockFindUserByUsername).toHaveBeenCalledTimes(2);
+      console.log('[TEST] Correctly fell back to a suffixed username only after a collision.');
     });
   });
 

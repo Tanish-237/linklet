@@ -12,6 +12,33 @@ import { OAuth2Client } from "google-auth-library";
 import { isAllowedInstitutionalEmail, OTP_TTL_SECONDS } from "../config/constants.js";
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from "../utils/password.utils.js";
 
+// MNNIT institutional emails are `name.regno@mnnit.ac.in`, so the local part is
+// already a unique, human-readable identifier per student — use it as-is for the
+// default username instead of always tacking on a random suffix. Only fall back
+// to a suffix on an actual collision (e.g. a prior user freed up that exact name).
+const USERNAME_CHARSET = /[^a-zA-Z0-9_.]/g;
+
+export const generateUniqueUsername = async (email) => {
+  const baseUsername = email.split("@")[0].replace(USERNAME_CHARSET, "_");
+
+  const bareTaken = await userRepository.findUserByUsername(baseUsername);
+  if (!bareTaken) {
+    return baseUsername;
+  }
+
+  let generatedUsername = "";
+  let isUnique = false;
+  while (!isUnique) {
+    const uniqueSuffix = crypto.randomBytes(3).toString("hex");
+    generatedUsername = `${baseUsername}_${uniqueSuffix}`;
+    const existingUser = await userRepository.findUserByUsername(generatedUsername);
+    if (!existingUser) {
+      isUnique = true;
+    }
+  }
+  return generatedUsername;
+};
+
 export const generateAndSendOtp = async (email) => {
   // Enforce @mnnit.ac.in domain restriction
   if (!isAllowedInstitutionalEmail(email)) {
@@ -89,18 +116,7 @@ export const register = async (userData) => {
   }
 
   // Auto-generate username (guaranteed unique)
-  const baseUsername = email.split('@')[0];
-  let generatedUsername = "";
-  let isUnique = false;
-
-  while (!isUnique) {
-    const uniqueSuffix = crypto.randomBytes(3).toString('hex');
-    generatedUsername = `${baseUsername}_${uniqueSuffix}`;
-    const existingUser = await userRepository.findUserByUsername(generatedUsername);
-    if (!existingUser) {
-      isUnique = true;
-    }
-  }
+  const generatedUsername = await generateUniqueUsername(email);
 
   const dynamicYear = calculateAcademicYear(email);
 
@@ -379,26 +395,14 @@ export const authenticateWithGoogle = async (credential) => {
     }
   } else {
     // Register brand new user with verified Google details
-    const baseUsername = email.split("@")[0];
-    let generatedUsername = "";
-    let isUnique = false;
-
-    while (!isUnique) {
-      const uniqueSuffix = crypto.randomBytes(3).toString("hex");
-      generatedUsername = `${baseUsername}_${uniqueSuffix}`;
-      const existingUser = await userRepository.findUserByUsername(generatedUsername);
-      if (!existingUser) {
-        isUnique = true;
-      }
-    }
-
+    const generatedUsername = await generateUniqueUsername(email);
     const dynamicYear = calculateAcademicYear(email);
     const randomPassword = crypto.randomBytes(16).toString("hex");
 
     user = await userRepository.createUser({
       email,
       password: randomPassword,
-      fullName: payload.name || baseUsername,
+      fullName: payload.name || generatedUsername,
       username: generatedUsername,
       avatar: payload.picture,
       googleId: payload.sub,

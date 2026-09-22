@@ -5,7 +5,7 @@ import { documentUploadMiddleware } from "../middlewares/multer.middleware.js";
 
 const router = express.Router();
 
-// All resource routes require authentication (no guest access to library/global-search)
+// All resource routes require authentication (no guest access to library/resource-hub)
 router.use(isLoggedIn);
 
 router.get("/library", resourceController.getLibrary);
