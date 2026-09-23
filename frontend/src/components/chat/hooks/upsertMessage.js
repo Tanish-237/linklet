@@ -13,7 +13,18 @@ export const upsertMessage = (prev, incoming) => {
     m._id === incoming._id ||
     (incoming.clientId && m.clientId && m.clientId === incoming.clientId);
 
-  const existingIndex = prev.findIndex(matchesIncoming);
+  // A send with several files comes back as one message per file, with the
+  // clientId suffixed `:0`, `:1`, ... The first of them to arrive takes over
+  // the optimistic bubble (which carries the plain clientId); the rest are
+  // appended. Otherwise the bubble lingers next to the real messages.
+  const baseClientId = incoming.clientId?.replace(/:\d+$/, "");
+  const matchesOptimistic = (m) =>
+    baseClientId !== incoming.clientId &&
+    String(m._id).startsWith("opt_") &&
+    m.clientId === baseClientId;
+
+  let existingIndex = prev.findIndex(matchesIncoming);
+  if (existingIndex === -1) existingIndex = prev.findIndex(matchesOptimistic);
   if (existingIndex === -1) return [...prev, incoming];
 
   const next = prev.slice();

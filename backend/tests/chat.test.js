@@ -320,6 +320,22 @@ describe('Chat Service Unit Tests', () => {
       expect(result.media).toBe('https://cloudinary.com/fake.png');
     });
 
+    it('stores a voice note once even when the client uploads it under two field names', async () => {
+      mockFindChatById.mockResolvedValue({ _id: 'chat1', participants: [{ _id: 'user1' }] });
+      const recording = { path: '/tmp/voicenote_1.webm', mimetype: 'audio/webm', originalname: 'voicenote_1.webm' };
+
+      const result = await chatService.sendMessage(
+        'user1',
+        { chatId: 'chat1', mediaType: 'audio', clientId: 'voice1' },
+        [{ ...recording, fieldname: 'media' }, { ...recording, fieldname: 'file' }]
+      );
+
+      const created = mockCreateManyMessages.mock.calls[0][0];
+      expect(created).toHaveLength(1);
+      expect(created[0]).toMatchObject({ mediaType: 'audio', clientId: 'voice1' });
+      expect(Array.isArray(result)).toBe(false);
+    });
+
     it('throws error if user is not in chat', async () => {
       console.log('TRACE [chat.test.js]: Testing sendMessage - non-participant error');
       mockFindChatById.mockResolvedValue({

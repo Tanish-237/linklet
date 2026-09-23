@@ -430,6 +430,12 @@ export const sendMessage = async (
     files = [filesParam];
   }
 
+  // A voice note is a single recording. Older clients uploaded it twice (as
+  // `media` and `file`), which stored — and delivered — two voice notes.
+  if (mediaType === "audio" && files.length > 1) {
+    files = files.slice(0, 1);
+  }
+
   // If replying, the message being replied to must belong to THIS chat — otherwise
   // a participant could reference (and thereby leak the content of) a message from
   // a chat they aren't part of via the populated replyTo preview.

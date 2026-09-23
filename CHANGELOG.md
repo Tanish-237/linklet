@@ -5,6 +5,12 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-09-23
+
+### Fixed
+- Voice notes were sent twice: the recording was uploaded under two form fields and the server stored one message per file, so everyone in the chat got two copies and the sender also saw a third bubble stuck on "sending". The client now uploads it once, and the server keeps only one file for `mediaType: "audio"`, so browsers still running the old build stop creating duplicates too.
+- Sending several attachments at once no longer shows the "sending" bubble (and its caption) next to the delivered attachments while the upload response is on its way; the first delivered attachment takes its place.
+
 ## [2.1.0] - 2026-09-23
 
 ### Deploy notes

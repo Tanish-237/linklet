@@ -235,8 +235,10 @@ const ChatWindow = ({
       try {
         const formData = new FormData();
         formData.append("chatId", chat._id);
+        // Exactly once: the server turns every uploaded file into its own
+        // message, so a second copy under another field name was a second
+        // voice note.
         formData.append("media", audioFile);
-        formData.append("file", audioFile);
         formData.append("mediaType", "audio");
         formData.append("clientId", clientId);
 
