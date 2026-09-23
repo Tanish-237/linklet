@@ -12,6 +12,7 @@ vi.mock("../../api/apiClient", () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
+    patch: vi.fn(),
     delete: vi.fn(),
   },
 }));
@@ -152,5 +153,50 @@ describe("GlobalSearch / Resource Page", () => {
     });
     console.log("TRACE [Resource.test.jsx]: Verified page 2 resource loaded and appended");
   });
-});
 
+  it("downloads during the tap itself, without waiting for the download counter (phones drop late downloads)", async () => {
+    apiClient.get.mockImplementation((url) => {
+      if (url.includes("/resources/library")) {
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                _id: "res1",
+                title: "DBMS Unit 3",
+                category: "notes",
+                fileType: "xlsx",
+                fileUrl: "https://res.cloudinary.com/demo/raw/upload/v1/document-1.xlsx",
+                fileSize: 2516582,
+                downloadsCount: 7,
+                user: { _id: "user999", username: "bob" },
+              },
+            ],
+            pagination: { page: 1, totalPages: 1, totalDocs: 1, hasNextPage: false },
+          },
+        });
+      }
+      if (url.includes("/resources/stats")) {
+        return Promise.resolve({ data: { data: { total: 1, categories: { all: 1, notes: 1 } } } });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    apiClient.patch.mockReturnValue(new Promise(() => {})); // counter never answers
+    const clicked = [];
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function () {
+      clicked.push(this.href);
+    });
+
+    renderComponent();
+    await screen.findByText("DBMS Unit 3");
+
+    // File size sits immediately left of the download count.
+    const size = screen.getByTitle("File size");
+    expect(size).toHaveTextContent("2.4 MB");
+    expect(size.nextElementSibling).toHaveTextContent(/download\s*7/);
+    fireEvent.click(screen.getAllByRole("button", { name: /download/i }).find((b) => /Download$/.test(b.textContent.trim())));
+
+    expect(clicked).toEqual(["https://res.cloudinary.com/demo/raw/upload/fl_attachment:DBMS_Unit_3/v1/document-1.xlsx"]);
+    expect(apiClient.patch).toHaveBeenCalledWith("/resources/res1/download");
+    clickSpy.mockRestore();
+  });
+});

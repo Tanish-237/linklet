@@ -19,6 +19,7 @@ const resourceSchema = new mongoose.Schema({
   fileUrl: { type: String }, // URL to Cloudinary document
   fileType: { type: String }, // e.g., "pdf", "doc", "docx"
   fileName: { type: String }, // Original file name
+  fileSize: { type: Number }, // Bytes; unset for links (and until `migrate:resource-sizes` backfills older uploads)
   branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
   publicId: { type: String }, // Cloudinary public ID for deletion purposes
   downloadsCount: { type: Number, default: 0 },

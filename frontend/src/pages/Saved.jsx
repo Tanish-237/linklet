@@ -8,7 +8,8 @@ import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import PostDetailModal from "../components/PostDetailModal";
 import { PostGrid, PostGridCard } from "../components/PostGridCard";
-import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
+import { isSafeHttpUrl } from "../utlis/safeUrl";
+import { downloadFile } from "../utlis/download";
 import { useAuth } from "../context/AuthContext";
 import useThemeStore from "../theme/useThemeStore";
 import { getVideoThumbnail } from "../utlis/cloudinary";
@@ -60,43 +61,10 @@ export default function Saved({ username }) {
   const [starredChatMedia, setStarredChatMedia] = useState([]);
   const [mediaFilter, setMediaFilter] = useState("all");
 
-  const handleDownloadChatMedia = async (item) => {
+  // Called straight from the tap — phones drop a download started after an await.
+  const handleDownloadChatMedia = (item) => {
     if (!item?.media) return;
-    try {
-      toast.info("Preparing download...");
-      let fetchUrl = item.media;
-      if (fetchUrl.includes("cloudinary.com") && !fetchUrl.includes("fl_attachment")) {
-        fetchUrl = fetchUrl.replace("/upload/", "/upload/fl_attachment/");
-      }
-
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error("Download failed");
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      const filename = (item.fileName || item.media.split("/").pop() || "starred-media").split("?")[0];
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-      toast.success("Download complete");
-    } catch (err) {
-      console.warn("Direct blob download failed, falling back to transformed URL", err);
-      let fallbackUrl = item.media;
-      if (fallbackUrl.includes("cloudinary.com") && !fallbackUrl.includes("fl_attachment")) {
-        fallbackUrl = fallbackUrl.replace("/upload/", "/upload/fl_attachment/");
-      }
-      const link = document.createElement("a");
-      link.href = fallbackUrl;
-      link.download = item.fileName || "download";
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
+    downloadFile(item.media, item.fileName);
   };
 
   const handleUnstarMedia = (mediaId) => {
@@ -220,31 +188,13 @@ export default function Saved({ username }) {
     }
   };
 
-  const handleDownload = async (resource) => {
+  const handleDownload = (resource) => {
     if (!isSafeHttpUrl(resource.fileUrl)) {
       toast.error("This resource's link is invalid and cannot be opened.");
       return;
     }
-    try {
-      await apiClient.patch(`/resources/${resource._id}/download`);
-      let url = resource.fileUrl;
-      if (url.includes("cloudinary.com") && !url.includes("fl_attachment"))
-        url = url.replace("/upload/", "/upload/fl_attachment/");
-
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Download failed");
-      const blob = await res.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      a.download = resource.title || resource.fileName || "download";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch {
-      safeOpenUrl(resource.fileUrl);
-    }
+    downloadFile(resource.fileUrl, resource.title || resource.fileName);
+    apiClient.patch(`/resources/${resource._id}/download`).catch(() => {});
   };
 
   const openPost = (post) => {
@@ -571,19 +521,19 @@ export default function Saved({ username }) {
             </div>
 
             {/* Media Content */}
-            <div className="w-full flex items-center justify-center max-h-[60vh] overflow-auto rounded-xl bg-black/40 p-2">
+            <div className="w-full flex items-center justify-center max-h-[60dvh] overflow-auto rounded-xl bg-black/40 p-2">
               {previewChatMedia.mediaType === "image" ? (
                 <img loading="lazy" decoding="async"
                   src={previewChatMedia.media}
                   alt="Starred media"
-                  className="max-h-[55vh] max-w-full object-contain rounded-lg shadow-lg"
+                  className="max-h-[55dvh] max-w-full object-contain rounded-lg shadow-lg"
                 />
               ) : previewChatMedia.mediaType === "video" ? (
                 <video
                   src={previewChatMedia.media}
                   controls
                   autoPlay
-                  className="max-h-[55vh] max-w-full rounded-lg shadow-lg"
+                  className="max-h-[55dvh] max-w-full rounded-lg shadow-lg"
                 />
               ) : previewChatMedia.mediaType === "audio" ? (
                 <audio

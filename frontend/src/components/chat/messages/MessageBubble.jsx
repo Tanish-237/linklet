@@ -1,5 +1,6 @@
 import React from "react";
 import MessageMedia from "./MessageMedia";
+import useLongPress from "../../../hooks/useLongPress";
 
 export const formatMessageClock = (dateStr) => {
   if (!dateStr) return "";
@@ -93,11 +94,24 @@ const MessageBubble = ({
   // If message has media and no text caption, the media component (audio/image) handles its own inline timestamp
   const showContentRow = !msg.media || Boolean(msg.content);
 
+  // Phones: press and hold the bubble for its menu (the chevron only shows on
+  // hover). The menu anchors to the chevron's spot, as if it had been tapped.
+  const bindLongPress = useLongPress();
+  const longPressProps = onOpenMenu
+    ? bindLongPress((e) =>
+        onOpenMenu(
+          { ...e, currentTarget: e.currentTarget.querySelector(".msg-bubble-chevron-btn") || e.currentTarget },
+          msg._id
+        )
+      )
+    : {};
+
   return (
     <div
       className={`message-bubble relative group ${
         isSelected ? "ring-2 ring-violet-500/60" : ""
       }`}
+      {...longPressProps}
     >
       {/* WhatsApp Fixed Top-Right Dropdown Trigger Button (Overlapping, only visible on hover) */}
       {onOpenMenu && (

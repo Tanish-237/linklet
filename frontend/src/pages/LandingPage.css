@@ -67,9 +67,11 @@
   transition: background-color 0.2s ease, transform 0.15s ease;
 }
 
-.landing-hero__cta:hover {
-  background-color: rgb(var(--accent-hover));
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .landing-hero__cta:hover {
+    background-color: rgb(var(--accent-hover));
+    transform: translateY(-1px);
+  }
 }
 
 .landing-hero__cta:active {
@@ -89,8 +91,10 @@
   transition: color 0.2s ease;
 }
 
-.landing-hero__login a:hover {
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .landing-hero__login a:hover {
+    color: rgb(var(--accent-fg));
+  }
 }
 
 /* ---- Features Section ---- */
@@ -133,9 +137,11 @@
   transition: border-color 0.25s ease, background-color 0.25s ease;
 }
 
-.landing-feature-card:hover {
-  border-color: rgb(var(--surface-3));
-  background-color: rgb(var(--surface));
+@media (hover: hover) {
+  .landing-feature-card:hover {
+    border-color: rgb(var(--surface-3));
+    background-color: rgb(var(--surface));
+  }
 }
 
 .landing-feature-card__icon {
@@ -236,9 +242,11 @@
   display: inline-block;
 }
 
-.landing-footer__link:hover {
-  color: rgb(var(--fg));
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .landing-footer__link:hover {
+    color: rgb(var(--fg));
+    transform: translateY(-1px);
+  }
 }
 
 .landing-footer__bottom {

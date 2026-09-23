@@ -5,6 +5,18 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // iOS Safari zooms in on any focused field with text under 16px (the
+      // chat box, search boxes) and stays zoomed. maximum-scale stops that;
+      // iOS still allows pinch-zoom with it. Android would block pinch-zoom,
+      // so it's added on iOS only.
+      (function () {
+        var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        var meta = ios && document.querySelector('meta[name="viewport"]');
+        if (meta) meta.content += ", maximum-scale=1";
+      })();
+    </script>
     <meta name="theme-color" content="#f1f2f5" />
     <meta name="color-scheme" content="light dark" />
     <script>

@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { downloadFile } from "../../../utlis/download";
 
 const MediaLightboxModal = ({ media, onClose, onShowInChat }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
-
   useEffect(() => {
     if (!media) return;
     const onKey = (e) => {
@@ -15,30 +14,12 @@ const MediaLightboxModal = ({ media, onClose, onShowInChat }) => {
 
   if (!media) return null;
 
-  const handleDownload = async (e) => {
+  // Straight from the tap: phones drop a download started after an await
+  // (the old fetch-to-blob), and Cloudinary's attachment URL saves the file
+  // without leaving the page.
+  const handleDownload = (e) => {
     e.stopPropagation();
-    if (isDownloading) return;
-    setIsDownloading(true);
-    try {
-      // A plain <a download> is ignored by browsers for cross-origin URLs
-      // (e.g. Cloudinary), which just navigates to the file instead of
-      // saving it. Fetching as a blob and downloading that forces an
-      // actual save regardless of the resource's origin.
-      const response = await fetch(media.url);
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = media.url.split("/").pop()?.split("?")[0] || "download";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(blobUrl);
-    } catch {
-      window.open(media.url, "_blank", "noopener,noreferrer");
-    } finally {
-      setIsDownloading(false);
-    }
+    downloadFile(media.url);
   };
 
   // Portalled to <body>: the chat container uses backdrop-filter, which makes
@@ -64,13 +45,12 @@ const MediaLightboxModal = ({ media, onClose, onShowInChat }) => {
         <button
           type="button"
           onClick={handleDownload}
-          disabled={isDownloading}
           className="lightbox-action-btn"
           title="Download media"
           aria-label="Download media"
         >
           <span className="material-icons text-xl">
-            {isDownloading ? "hourglass_top" : "download"}
+            download
           </span>
         </button>
         <button

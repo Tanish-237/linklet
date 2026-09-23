@@ -109,3 +109,10 @@
     -webkit-line-clamp: 4;
   }
 }
+
+/* Touch screens: no backdrop blur — it repeats on every thumbnail, and a blur on each is recomputed on every scroll frame. */
+@media (hover: none) {
+  .pt-video-badge {
+    backdrop-filter: none;
+  }
+}

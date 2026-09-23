@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
 import ChatWindow from "../chat/ChatWindow";
 import { apiClient } from "../../api/apiClient";
@@ -509,6 +509,21 @@ describe("ChatWindow Component", () => {
     expect(screen.queryByPlaceholderText("Type a message...")).not.toBeInTheDocument();
     console.log("TRACE [ChatWindow.test.jsx]: Verified blocked banner renders and composer is hidden");
   });
+
+  it("opens a message's menu on press-and-hold (phones have no hover chevron)", async () => {
+    apiClient.get.mockResolvedValue({
+      data: { success: true, data: { messages: sampleMessages, hasMore: false } },
+    });
+    render(<ChatWindow chat={sampleChat} currentUser={{ _id: "u1" }} socket={null} onToggleInfo={vi.fn()} />);
+
+    const bubble = (await screen.findByText("Hello there!")).closest(".message-bubble");
+    expect(screen.queryByRole("button", { name: "Reply" })).toBeNull();
+
+    fireEvent.touchStart(bubble, { touches: [{ clientX: 50, clientY: 50 }] });
+    await act(() => new Promise((r) => setTimeout(r, 500)));
+    fireEvent.touchEnd(bubble);
+
+    expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "React to message" }).className).toContain("opacity-100");
+  });
 });
-
-

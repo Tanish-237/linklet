@@ -133,6 +133,7 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
         fileUrl: 1,
         fileType: 1,
         fileName: 1,
+        fileSize: 1,
         branch: 1,
         publicId: 1,
         downloadsCount: 1,

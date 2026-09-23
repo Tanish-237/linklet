@@ -9,12 +9,19 @@ import useThemeStore from "../theme/useThemeStore";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
+import { downloadFile } from "../utlis/download";
+import { formatFileSize } from "../utlis/fileSize";
 import useCachedState from "../hooks/useCachedState";
 import { savedBookmarksQuery, resourceLibraryQuery } from "../api/pageQueries";
 import "./Resource.css";
 
 /* ─────────────────────────── helpers ─────────────────────────── */
 const formatCount = (n) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n || 0);
+
+const FileSizeChip = ({ bytes }) => {
+  const size = formatFileSize(bytes);
+  return size ? <span className="gs-stat-chip" title="File size">{size}</span> : null;
+};
 
 const timeAgo = (dateStr) => {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -239,6 +246,12 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
               <span className="gs-dot" />
               <span className="gs-category-badge">{resource.category}</span>
               <span className="gs-dot" />
+              {formatFileSize(resource.fileSize) && (
+                <>
+                  <FileSizeChip bytes={resource.fileSize} />
+                  <span className="gs-dot" />
+                </>
+              )}
               <span className="gs-stat-chip">
                 <span className="material-icons">download</span>
                 {formatCount(resource.downloadsCount)}
@@ -336,10 +349,13 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
             {resource.userId?.username || "Anonymous"}
           </Link>
         </div>
-        <span className="gs-stat-chip">
-          <span className="material-icons">download</span>
-          {formatCount(resource.downloadsCount)}
-        </span>
+        <div className="gs-card-stats">
+          <FileSizeChip bytes={resource.fileSize} />
+          <span className="gs-stat-chip">
+            <span className="material-icons">download</span>
+            {formatCount(resource.downloadsCount)}
+          </span>
+        </div>
       </div>
 
       <div className="gs-card-actions" onClick={(e) => e.stopPropagation()}>
@@ -534,29 +550,22 @@ export default function GlobalSearch() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly]);
 
-  const handleResourceAction = async (resource, actionType) => {
+  const handleResourceAction = (resource, actionType) => {
     if (!isSafeHttpUrl(resource.fileUrl)) {
       toast.error("This resource's link is invalid and cannot be opened.");
       return;
     }
-    try {
-      setResources((prev) =>
-        prev.map((r) => r._id === resource._id ? { ...r, downloadsCount: (r.downloadsCount || 0) + 1 } : r)
-      );
-      await apiClient.patch(`/resources/${resource._id}/download`);
-      let url = resource.fileUrl;
-      if (actionType === "download") {
-        if (url.includes("cloudinary.com") && !url.includes("fl_attachment"))
-          url = url.replace("/upload/", "/upload/fl_attachment/");
-        const a = document.createElement("a");
-        a.href = url; a.download = resource.title || resource.fileName || "download"; a.target = "_blank";
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      } else {
-        safeOpenUrl(url);
-      }
-    } catch {
+    // Open/save first, while the tap is still being handled — phones drop a
+    // download or new tab started after an await. The count is fire-and-forget.
+    if (actionType === "download") {
+      downloadFile(resource.fileUrl, resource.title || resource.fileName);
+    } else {
       safeOpenUrl(resource.fileUrl);
     }
+    setResources((prev) =>
+      prev.map((r) => r._id === resource._id ? { ...r, downloadsCount: (r.downloadsCount || 0) + 1 } : r)
+    );
+    apiClient.patch(`/resources/${resource._id}/download`).catch(() => {});
   };
 
   const handleToggleBookmark = async (id) => {

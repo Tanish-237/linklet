@@ -151,7 +151,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
       role="dialog"
       aria-modal="true"
     >
-      <div className="bg-gray-900 border border-gray-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-95 duration-200">
+      <div className="bg-gray-900 border border-gray-800 rounded-3xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden animate-in fade-in zoom-95 duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-800/80 bg-gray-950/40">
           <div className="flex items-center gap-3">

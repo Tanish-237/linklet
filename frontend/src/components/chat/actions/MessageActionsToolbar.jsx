@@ -3,6 +3,7 @@ import React from "react";
 const MessageActionsToolbar = ({
   messageId,
   isReactionActive,
+  isMenuActive,
   onOpenReaction,
 }) => {
   return (
@@ -11,6 +12,9 @@ const MessageActionsToolbar = ({
       className={`msg-reaction-circle-btn ${
         isReactionActive
           ? "active opacity-100 scale-100"
+          : isMenuActive
+          ? // Shown with the message menu, so phones (no hover) can react too
+            "opacity-100 scale-100"
           : "opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 pointer-events-none group-hover:pointer-events-auto"
       }`}
       onClick={(e) => onOpenReaction(e, messageId)}

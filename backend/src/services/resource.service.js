@@ -42,6 +42,7 @@ export const uploadResource = async (userId, resourceData) => {
     fileUrl: resourceData.fileUrl,
     fileType: resourceData.fileType,
     fileName: resourceData.fileName,
+    fileSize: resourceData.fileSize,
     publicId: resourceData.publicId,
     branch: resourceData.branch,
   });

@@ -386,9 +386,12 @@ body {
     cursor: pointer;
     white-space: nowrap;
   }
-  .pill:hover {
-    background: rgb(var(--surface-3));
-    color: rgb(var(--fg));
+
+  @media (hover: hover) {
+    .pill:hover {
+      background: rgb(var(--surface-3));
+      color: rgb(var(--fg));
+    }
   }
   .pill[aria-pressed="true"],
   .pill.is-active {
@@ -432,8 +435,11 @@ body {
     transition: background-color 150ms ease, transform 150ms ease;
     cursor: pointer;
   }
-  .btn-primary:hover {
-    background: rgb(var(--accent-hover));
+
+  @media (hover: hover) {
+    .btn-primary:hover {
+      background: rgb(var(--accent-hover));
+    }
   }
   .btn-primary:disabled {
     opacity: 0.5;
@@ -456,9 +462,12 @@ body {
     transition: background-color 150ms ease, border-color 150ms ease;
     cursor: pointer;
   }
-  .btn-secondary:hover {
-    background: rgb(var(--surface-2));
-    border-color: rgb(var(--line-strong));
+
+  @media (hover: hover) {
+    .btn-secondary:hover {
+      background: rgb(var(--surface-2));
+      border-color: rgb(var(--line-strong));
+    }
   }
 }
 
@@ -537,8 +546,10 @@ body {
   color: rgb(var(--on-accent));
 }
 
-:root [data-sonner-toast] [data-button][data-action]:hover {
-  background: rgb(var(--accent-hover));
+@media (hover: hover) {
+  :root [data-sonner-toast] [data-button][data-action]:hover {
+    background: rgb(var(--accent-hover));
+  }
 }
 
 :root [data-sonner-toast] [data-close-button] {
@@ -547,7 +558,9 @@ body {
   color: rgb(var(--fg-muted));
 }
 
-:root [data-sonner-toast] [data-close-button]:hover {
-  background: rgb(var(--surface-2));
-  color: rgb(var(--fg));
+@media (hover: hover) {
+  :root [data-sonner-toast] [data-close-button]:hover {
+    background: rgb(var(--surface-2));
+    color: rgb(var(--fg));
+  }
 }

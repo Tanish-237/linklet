@@ -5,6 +5,26 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-09-23
+
+### Deploy notes
+- Run `npm run migrate:resource-sizes` (backend) once per database to fill in file sizes for resources uploaded before this release (`-- --dry-run` first; it only sets the new `fileSize` field and is safe to re-run). Until then those resources simply show no size.
+
+### Added
+- Resource cards show the file size (e.g. "2.4 MB") to the left of the download count, in grid and list views. New uploads store Cloudinary's reported size in `fileSize` (bytes); links have none.
+
+### Changed
+- The desktop rail no longer draws a divider above the theme toggle (the navigation drawer keeps its divider).
+
+### Fixed (phones)
+- **Downloads work on phones.** Resource, Saved and chat-media downloads started only after an API call or a fetch-to-blob had finished, which mobile browsers (iOS Safari especially) silently block; the blob URL was also revoked before the save could start. Every download button now uses one helper (`utlis/download.js`) that saves the file during the tap itself via Cloudinary's `fl_attachment` URL, with the resource's title as the file name. The download counter is updated in the background.
+- **Resource preview on phones:** PDFs no longer show a blank or first-page-only frame (phone browsers can't render a PDF inside an iframe); touch screens get **Open PDF** and **Download** buttons instead. The preview header has a Download button, and "Download File" for other types now downloads instead of opening a tab.
+- **Smoother feed scrolling:** hover effects no longer fire on touch. All 216 plain-CSS `:hover` rules now apply only on devices that can hover (`@media (hover: hover)`, the same as Tailwind's `hover:`), so cards stop lifting, re-shadowing and "sticking" under your finger while you scroll. Per-item backdrop blurs (feed cards, chat badges and buttons, grid badges) are off on touch screens, where they were re-rendered every scroll frame.
+- **Press and hold on phones:** holding a chat message opens its menu, with the react button beside it; holding a chat in the list opens its menu on iPhones too (iOS never fires `contextmenu`). The hold no longer starts a text selection or the browser's callout.
+- Controls that only appeared on hover are visible on touch screens: delete buttons on collection and resource cards, the chat list menu button, the delete-notification button, the change-group-icon button and the change-avatar overlay.
+- iOS no longer zooms the page in (and leaves it zoomed) when you tap the chat box or a search box; pinch-zoom still works.
+- Pop-ups and panels sized with `vh` use `dvh`, so their bottom edge (and buttons) aren't hidden behind Safari's toolbar.
+
 ## [2.1.1] - 2026-09-23
 
 ### Fixed

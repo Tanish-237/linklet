@@ -25,10 +25,12 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.feed-create-prompt:hover {
-  border-color: rgb(var(--accent) / 0.35);
-  background: rgb(var(--surface) / calc(0.65 + var(--glass-fill)));
-  box-shadow: 0 0 20px rgb(var(--accent) / 0.08);
+@media (hover: hover) {
+  .feed-create-prompt:hover {
+    border-color: rgb(var(--accent) / 0.35);
+    background: rgb(var(--surface) / calc(0.65 + var(--glass-fill)));
+    box-shadow: 0 0 20px rgb(var(--accent) / 0.08);
+  }
 }
 
 .feed-create-prompt__avatar {
@@ -41,8 +43,10 @@
   transition: border-color 0.3s;
 }
 
-.feed-create-prompt:hover .feed-create-prompt__avatar {
-  border-color: rgb(var(--accent) / 0.5);
+@media (hover: hover) {
+  .feed-create-prompt:hover .feed-create-prompt__avatar {
+    border-color: rgb(var(--accent) / 0.5);
+  }
 }
 
 .feed-create-prompt__input {
@@ -56,9 +60,11 @@
   transition: all 0.3s;
 }
 
-.feed-create-prompt:hover .feed-create-prompt__input {
-  border-color: rgb(var(--accent) / 0.25);
-  color: rgb(var(--fg-muted));
+@media (hover: hover) {
+  .feed-create-prompt:hover .feed-create-prompt__input {
+    border-color: rgb(var(--accent) / 0.25);
+    color: rgb(var(--fg-muted));
+  }
 }
 
 .feed-create-prompt__actions {
@@ -80,9 +86,11 @@
   transition: all 0.2s;
 }
 
-.feed-create-prompt__btn:hover {
-  background: rgb(var(--accent) / 0.15);
-  transform: scale(1.08);
+@media (hover: hover) {
+  .feed-create-prompt__btn:hover {
+    background: rgb(var(--accent) / 0.15);
+    transform: scale(1.08);
+  }
 }
 
 .feed-create-prompt__btn .material-icons {
@@ -139,11 +147,13 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.feed-card:hover {
-  border-color: rgb(var(--accent) / 0.28);
-  box-shadow: 0 8px 32px rgb(var(--accent) / 0.08),
+@media (hover: hover) {
+  .feed-card:hover {
+    border-color: rgb(var(--accent) / 0.28);
+    box-shadow: 0 8px 32px rgb(var(--accent) / 0.08),
               0 2px 8px rgba(0, 0, 0, 0.2);
-  transform: translateY(-2px);
+    transform: translateY(-2px);
+  }
 }
 
 /* Light mode: separate cards from the canvas with a neutral hairline and a
@@ -155,11 +165,14 @@
   box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.06),
               0 1px 3px rgb(var(--shadow-color) / 0.04);
 }
-:root[data-theme="light"] .feed-card:hover,
+
+@media (hover: hover) {
+  :root[data-theme="light"] .feed-card:hover,
 :root[data-theme="light"] .feed-create-prompt:hover {
-  border-color: rgb(var(--line-strong));
-  box-shadow: 0 4px 16px -4px rgb(var(--shadow-color) / 0.12),
+    border-color: rgb(var(--line-strong));
+    box-shadow: 0 4px 16px -4px rgb(var(--shadow-color) / 0.12),
               0 1px 3px rgb(var(--shadow-color) / 0.06);
+  }
 }
 :root[data-theme="light"] .feed-create-prompt__input {
   background: rgb(var(--surface-2));
@@ -184,8 +197,10 @@
   transition: border-color 0.3s;
 }
 
-.feed-card:hover .feed-card__avatar {
-  border-color: rgb(var(--accent) / 0.45);
+@media (hover: hover) {
+  .feed-card:hover .feed-card__avatar {
+    border-color: rgb(var(--accent) / 0.45);
+  }
 }
 
 .feed-card__user-info {
@@ -205,9 +220,11 @@
   text-decoration: none;
 }
 
-.feed-card__username:hover {
-  color: rgb(var(--accent-fg));
-  text-decoration: underline;
+@media (hover: hover) {
+  .feed-card__username:hover {
+    color: rgb(var(--accent-fg));
+    text-decoration: underline;
+  }
 }
 
 .feed-card__time {
@@ -231,17 +248,21 @@
   flex-shrink: 0;
 }
 
-.feed-card__save-btn:hover {
-  background: rgb(var(--accent) / 0.12);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .feed-card__save-btn:hover {
+    background: rgb(var(--accent) / 0.12);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .feed-card__save-btn--saved {
   color: rgb(var(--accent-fg)) !important;
 }
 
-.feed-card__save-btn--saved:hover {
-  color: rgb(var(--accent-fg)) !important;
+@media (hover: hover) {
+  .feed-card__save-btn--saved:hover {
+    color: rgb(var(--accent-fg)) !important;
+  }
 }
 
 .feed-card__save-btn .material-icons {
@@ -370,15 +391,20 @@
   font-weight: 700;
 }
 
-.feed-card__vote-btn:hover {
-  background: rgb(var(--accent) / 0.1);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .feed-card__vote-btn:hover {
+    background: rgb(var(--accent) / 0.1);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 /* Upvote Active State */
-.feed-card__vote-btn--up:hover {
-  background: rgb(var(--accent-soft) / 0.6);
-  color: rgb(var(--accent-fg));
+
+@media (hover: hover) {
+  .feed-card__vote-btn--up:hover {
+    background: rgb(var(--accent-soft) / 0.6);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .feed-card__vote-btn--active-up {
@@ -392,9 +418,12 @@
 }
 
 /* Downvote Active State */
-.feed-card__vote-btn--down:hover {
-  background: rgb(var(--surface-2) / 0.6);
-  color: rgb(var(--danger-fg));
+
+@media (hover: hover) {
+  .feed-card__vote-btn--down:hover {
+    background: rgb(var(--surface-2) / 0.6);
+    color: rgb(var(--danger-fg));
+  }
 }
 
 .feed-card__vote-btn--active-down {
@@ -439,10 +468,12 @@
   transition: all 0.2s;
 }
 
-.feed-card__comment-btn:hover {
-  background: rgb(var(--accent) / 0.12);
-  border-color: rgb(var(--accent) / 0.3);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .feed-card__comment-btn:hover {
+    background: rgb(var(--accent) / 0.12);
+    border-color: rgb(var(--accent) / 0.3);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .feed-card__comment-btn .material-icons {
@@ -474,10 +505,12 @@
   transition: all 0.2s;
 }
 
-.feed-card__share-btn:hover {
-  background: rgb(var(--accent) / 0.12);
-  border-color: rgb(var(--accent) / 0.3);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .feed-card__share-btn:hover {
+    background: rgb(var(--accent) / 0.12);
+    border-color: rgb(var(--accent) / 0.3);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .feed-card__share-btn .material-icons {
@@ -517,9 +550,11 @@
   transition: all 0.15s;
 }
 
-.feed-card__share-option:hover {
-  background: rgb(var(--accent) / 0.12);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .feed-card__share-option:hover {
+    background: rgb(var(--accent) / 0.12);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .feed-card__share-option .material-icons {
@@ -527,17 +562,19 @@
   color: rgb(var(--fg-muted));
 }
 
-.feed-card__share-option:hover .material-icons {
-  color: rgb(var(--accent-fg));
-}
+@media (hover: hover) {
+  .feed-card__share-option:hover .material-icons {
+    color: rgb(var(--accent-fg));
+  }
 
-.feed-card__share-option--danger:hover {
-  background: rgba(239, 68, 68, 0.12);
-  color: rgb(var(--danger-fg));
-}
+  .feed-card__share-option--danger:hover {
+    background: rgba(239, 68, 68, 0.12);
+    color: rgb(var(--danger-fg));
+  }
 
-.feed-card__share-option--danger:hover .material-icons {
-  color: rgb(var(--danger-fg));
+  .feed-card__share-option--danger:hover .material-icons {
+    color: rgb(var(--danger-fg));
+  }
 }
 
 /* Post options ("⋮") trigger button — sits in the card header next to the
@@ -558,9 +595,11 @@
   flex-shrink: 0;
 }
 
-.feed-card__actions-btn:hover {
-  background: rgb(var(--accent) / 0.12);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .feed-card__actions-btn:hover {
+    background: rgb(var(--accent) / 0.12);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 /* ─── Loading State ──────────────────────────────────────────────────────── */
@@ -650,8 +689,10 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.feed-empty__cta:hover {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .feed-empty__cta:hover {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .feed-empty__cta:active {
@@ -683,6 +724,7 @@
   width: 100%;
   max-width: 620px;
   max-height: 90vh;
+  max-height: 90dvh;
   background: linear-gradient(180deg, rgb(var(--surface) / calc(0.98 + var(--glass-fill))), rgb(var(--surface) / calc(0.98 + var(--glass-fill))));
   border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 20px;
@@ -723,9 +765,11 @@
   transition: all 0.2s;
 }
 
-.feed-create-modal__close:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: rgb(var(--danger-fg));
+@media (hover: hover) {
+  .feed-create-modal__close:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: rgb(var(--danger-fg));
+  }
 }
 
 /* ─── Report Post Modal ──────────────────────────────────────────────────── */
@@ -772,8 +816,10 @@
   transition: background 0.15s;
 }
 
-.feed-report-modal__reason:hover {
-  background: rgb(var(--accent) / 0.08);
+@media (hover: hover) {
+  .feed-report-modal__reason:hover {
+    background: rgb(var(--accent) / 0.08);
+  }
 }
 
 .feed-report-modal__reason input[type="radio"] {
@@ -801,8 +847,10 @@
   transition: background 0.15s;
 }
 
-.feed-report-modal__submit-btn:hover:not(:disabled) {
-  background: #b91c1c;
+@media (hover: hover) {
+  .feed-report-modal__submit-btn:hover:not(:disabled) {
+    background: #b91c1c;
+  }
 }
 
 .feed-report-modal__submit-btn:disabled {
@@ -919,8 +967,10 @@
   transition: background 0.2s;
 }
 
-.feed-create-modal__preview-remove:hover {
-  background: rgba(239, 68, 68, 0.7);
+@media (hover: hover) {
+  .feed-create-modal__preview-remove:hover {
+    background: rgba(239, 68, 68, 0.7);
+  }
 }
 
 .feed-create-modal__preview-remove .material-icons {
@@ -941,10 +991,16 @@
   margin-bottom: 1rem;
 }
 
-.feed-create-modal__dropzone:hover,
 .feed-create-modal__dropzone--active {
   border-color: rgb(var(--accent) / 0.5);
   background: rgb(var(--accent) / 0.05);
+}
+
+@media (hover: hover) {
+  .feed-create-modal__dropzone:hover {
+    border-color: rgb(var(--accent) / 0.5);
+    background: rgb(var(--accent) / 0.05);
+  }
 }
 
 .feed-create-modal__dropzone-icon {
@@ -999,9 +1055,11 @@
   transition: all 0.2s;
 }
 
-.feed-create-modal__cancel-btn:hover {
-  background: rgb(var(--line-strong) / 0.7);
-  color: rgb(var(--fg-secondary));
+@media (hover: hover) {
+  .feed-create-modal__cancel-btn:hover {
+    background: rgb(var(--line-strong) / 0.7);
+    color: rgb(var(--fg-secondary));
+  }
 }
 
 .feed-create-modal__submit-btn {
@@ -1020,8 +1078,10 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.feed-create-modal__submit-btn:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .feed-create-modal__submit-btn:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .feed-create-modal__submit-btn:active:not(:disabled) {
@@ -1061,6 +1121,7 @@
   width: 92vw;
   max-width: 1200px;
   height: 88vh;
+  height: 88dvh;
   background: linear-gradient(180deg, rgb(var(--surface) / calc(0.98 + var(--glass-fill))), rgb(var(--surface) / calc(0.99 + var(--glass-fill))));
   border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 20px;
@@ -1093,9 +1154,11 @@
   transition: all 0.2s;
 }
 
-.feed-detail__close-btn:hover {
-  background: rgba(239, 68, 68, 0.25);
-  color: rgb(var(--danger-fg));
+@media (hover: hover) {
+  .feed-detail__close-btn:hover {
+    background: rgba(239, 68, 68, 0.25);
+    color: rgb(var(--danger-fg));
+  }
 }
 
 /* Left side (Post) */
@@ -1146,9 +1209,11 @@
   transition: color 0.2s;
 }
 
-.feed-detail__username:hover {
-  color: rgb(var(--accent-fg));
-  text-decoration: underline;
+@media (hover: hover) {
+  .feed-detail__username:hover {
+    color: rgb(var(--accent-fg));
+    text-decoration: underline;
+  }
 }
 
 .feed-detail__time {
@@ -1196,6 +1261,7 @@
   width: 100%;
   height: 100%;
   max-height: 65vh;
+  max-height: 65dvh;
   object-fit: contain;
   display: block;
 }
@@ -1305,9 +1371,11 @@
   transition: all 0.2s;
 }
 
-.feed-detail__comment-card:hover {
-  background: rgb(var(--surface) / calc(0.65 + var(--glass-fill)));
-  border-color: rgb(var(--accent) / 0.2);
+@media (hover: hover) {
+  .feed-detail__comment-card:hover {
+    background: rgb(var(--surface) / calc(0.65 + var(--glass-fill)));
+    border-color: rgb(var(--accent) / 0.2);
+  }
 }
 
 .feed-detail__comment-card--reply {
@@ -1337,9 +1405,11 @@
   transition: color 0.2s;
 }
 
-.feed-detail__comment-author:hover {
-  color: rgb(var(--accent-fg));
-  text-decoration: underline;
+@media (hover: hover) {
+  .feed-detail__comment-author:hover {
+    color: rgb(var(--accent-fg));
+    text-decoration: underline;
+  }
 }
 
 .feed-detail__comment-time {
@@ -1382,10 +1452,16 @@
   transition: all 0.15s;
 }
 
-.feed-detail__comment-action:hover,
 .feed-detail__comment-action.liked {
   color: rgb(var(--accent-fg));
   background: rgb(var(--accent) / 0.1);
+}
+
+@media (hover: hover) {
+  .feed-detail__comment-action:hover {
+    color: rgb(var(--accent-fg));
+    background: rgb(var(--accent) / 0.1);
+  }
 }
 
 /* Reply Input Box */
@@ -1457,9 +1533,12 @@
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.feed-detail__load-more:hover:not(:disabled) {
-  background: rgb(var(--accent) / 0.16);
-  border-color: rgb(var(--accent) / 0.35);
+
+@media (hover: hover) {
+  .feed-detail__load-more:hover:not(:disabled) {
+    background: rgb(var(--accent) / 0.16);
+    border-color: rgb(var(--accent) / 0.35);
+  }
 }
 .feed-detail__load-more:disabled {
   opacity: 0.6;
@@ -1483,8 +1562,10 @@
   gap: 0.55rem;
 }
 
-.feed-detail__reply-thread:hover {
-  border-left-color: rgb(var(--accent-fg) / 0.4);
+@media (hover: hover) {
+  .feed-detail__reply-thread:hover {
+    border-left-color: rgb(var(--accent-fg) / 0.4);
+  }
 }
 
 /* Beyond MAX_INDENT_DEPTH (PostCommentsPanel.jsx), replies stop indenting
@@ -1565,8 +1646,10 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.feed-detail__comment-send:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .feed-detail__comment-send:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .feed-detail__comment-send:active:not(:disabled) {
@@ -1633,6 +1716,7 @@
     flex-direction: column;
     width: 96vw;
     height: 92vh;
+    height: 92dvh;
   }
 
   .feed-detail__left {
@@ -1640,12 +1724,14 @@
     border-right: none;
     border-bottom: 1px solid rgb(var(--accent) / 0.1);
     max-height: 48vh;
+    max-height: 48dvh;
   }
 
   .feed-detail__right {
     flex: 1;
     width: 100%;
     max-height: 44vh;
+    max-height: 44dvh;
   }
 
   .feed-detail__media {
@@ -1654,6 +1740,7 @@
 
   .feed-detail__image {
     max-height: 32vh;
+    max-height: 32dvh;
   }
 }
 
@@ -1710,10 +1797,12 @@
   flex-shrink: 0;
 }
 
-.feed-detail__emoji-btn:hover:not(:disabled) {
-  color: #f9c23c;
-  background: rgba(249, 194, 60, 0.1);
-  transform: scale(1.15);
+@media (hover: hover) {
+  .feed-detail__emoji-btn:hover:not(:disabled) {
+    color: #f9c23c;
+    background: rgba(249, 194, 60, 0.1);
+    transform: scale(1.15);
+  }
 }
 
 .feed-detail__emoji-btn:disabled {
@@ -1777,6 +1866,16 @@
   height: 26px;
 }
 
-:root[data-theme="light"] .feed-detail__emoji-btn:hover:not(:disabled) {
-  color: #a16207;
+@media (hover: hover) {
+  :root[data-theme="light"] .feed-detail__emoji-btn:hover:not(:disabled) {
+    color: #a16207;
+  }
+}
+
+/* Touch screens: no backdrop blur — a blur behind every card is recomputed on each scroll frame — the main cause of choppy feed scrolling — and the card is almost opaque anyway. */
+@media (hover: none) {
+  .feed-card,
+  .feed-create-prompt {
+    backdrop-filter: none;
+  }
 }

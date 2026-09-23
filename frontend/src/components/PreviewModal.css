@@ -15,6 +15,7 @@
   width: 100%;
   max-width: 960px;
   height: 88vh;
+  height: 88dvh;
   background: rgb(var(--surface) / calc(0.98 + var(--glass-fill)));
   border: 1px solid rgb(var(--accent) / 0.25);
   border-radius: 20px;

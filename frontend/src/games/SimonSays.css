@@ -103,9 +103,11 @@
   cursor: not-allowed;
 }
 
-.start-button:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .start-button:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+    transform: translateY(-2px);
+  }
 }
 
 .message {

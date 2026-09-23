@@ -1,6 +1,6 @@
 {
   "name": "backend",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "main": "index.js",
   "type": "module",
   "engines": {
@@ -13,7 +13,8 @@
     "lint": "eslint .",
     "migrate:comments": "node scripts/migrate-post-comments.js",
     "migrate:usernames": "node scripts/migrate-usernames.js",
-    "migrate:resource-categories": "node scripts/migrate-resource-categories.js"
+    "migrate:resource-categories": "node scripts/migrate-resource-categories.js",
+    "migrate:resource-sizes": "node scripts/migrate-resource-sizes.js"
   },
   "keywords": [],
   "author": "",

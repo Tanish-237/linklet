@@ -257,7 +257,7 @@ export default function NotificationDropdown({
         <div
           role="dialog"
           aria-label="Notifications panel"
-          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70vh] bg-popover rounded-2xl shadow-popover border border-line-strong transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70dvh] bg-popover rounded-2xl shadow-popover border border-line-strong transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
         >
           {/* Header */}
           <div className="p-4 border-b border-line flex items-center justify-between gap-3 bg-surface-2/70">
@@ -412,7 +412,7 @@ export default function NotificationDropdown({
                           e.stopPropagation();
                           deleteMutation.mutate(notif._id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-rose-400 p-1 rounded-md hover:bg-surface-3 transition-all cursor-pointer"
+                        className="[@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 text-gray-500 hover:text-rose-400 p-1 rounded-md hover:bg-surface-3 transition-all cursor-pointer"
                         title="Delete notification"
                       >
                         <span className="material-icons text-sm leading-none">close</span>

@@ -32,11 +32,13 @@
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.admin-metric-card:hover {
-  background: rgb(var(--surface) / calc(0.85 + var(--glass-fill)));
-  border-color: rgb(var(--accent) / 0.35);
-  transform: translateY(-2px);
-  box-shadow: 0 16px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgb(var(--accent) / 0.15);
+@media (hover: hover) {
+  .admin-metric-card:hover {
+    background: rgb(var(--surface) / calc(0.85 + var(--glass-fill)));
+    border-color: rgb(var(--accent) / 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 30px -10px rgba(0, 0, 0, 0.5), 0 0 20px -5px rgb(var(--accent) / 0.15);
+  }
 }
 
 /* Nav Tabs */
@@ -64,9 +66,11 @@
   transition: all 0.2s ease;
 }
 
-.admin-tab-btn:hover {
-  color: rgb(var(--fg));
-  background: rgb(var(--accent) / 0.08);
+@media (hover: hover) {
+  .admin-tab-btn:hover {
+    color: rgb(var(--fg));
+    background: rgb(var(--accent) / 0.08);
+  }
 }
 
 .admin-tab-btn.active {
@@ -148,9 +152,11 @@
   transition: all 0.15s ease;
 }
 
-.admin-search-clear-btn:hover {
-  color: rgb(var(--fg));
-  background: rgb(var(--fg) / 0.1);
+@media (hover: hover) {
+  .admin-search-clear-btn:hover {
+    color: rgb(var(--fg));
+    background: rgb(var(--fg) / 0.1);
+  }
 }
 
 /* Regular Form Input */
@@ -232,10 +238,12 @@
   box-shadow: 0 4px 14px rgb(var(--accent) / 0.35);
 }
 
-.admin-primary-btn:hover:not(:disabled) {
-  background: rgb(var(--accent-hover));
-  box-shadow: 0 6px 18px rgb(var(--accent) / 0.45);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .admin-primary-btn:hover:not(:disabled) {
+    background: rgb(var(--accent-hover));
+    box-shadow: 0 6px 18px rgb(var(--accent) / 0.45);
+    transform: translateY(-1px);
+  }
 }
 
 .admin-primary-btn:disabled {
@@ -260,10 +268,12 @@
   box-shadow: 0 4px 14px rgba(225, 29, 72, 0.35);
 }
 
-.admin-danger-btn:hover:not(:disabled) {
-  background: #be123c;
-  box-shadow: 0 6px 18px rgba(225, 29, 72, 0.45);
-  transform: translateY(-1px);
+@media (hover: hover) {
+  .admin-danger-btn:hover:not(:disabled) {
+    background: #be123c;
+    box-shadow: 0 6px 18px rgba(225, 29, 72, 0.45);
+    transform: translateY(-1px);
+  }
 }
 
 .admin-danger-btn:disabled {
@@ -287,10 +297,12 @@
   transition: all 0.2s ease;
 }
 
-.admin-secondary-btn:hover:not(:disabled) {
-  background: rgb(var(--surface-3) / 0.9);
-  color: rgb(var(--fg));
-  border-color: rgb(var(--fg-muted) / 0.8);
+@media (hover: hover) {
+  .admin-secondary-btn:hover:not(:disabled) {
+    background: rgb(var(--surface-3) / 0.9);
+    color: rgb(var(--fg));
+    border-color: rgb(var(--fg-muted) / 0.8);
+  }
 }
 
 /* Data Table */
@@ -323,8 +335,10 @@
   transition: background-color 0.15s ease;
 }
 
-.admin-table tbody tr:hover {
-  background-color: rgb(var(--surface-2) / 0.4);
+@media (hover: hover) {
+  .admin-table tbody tr:hover {
+    background-color: rgb(var(--surface-2) / 0.4);
+  }
 }
 
 .admin-table tr:last-child td {
@@ -376,9 +390,11 @@
   transition: all 0.15s ease;
 }
 
-.admin-modal-close-btn:hover {
-  color: rgb(var(--fg));
-  background: rgb(var(--fg) / 0.1);
+@media (hover: hover) {
+  .admin-modal-close-btn:hover {
+    color: rgb(var(--fg));
+    background: rgb(var(--fg) / 0.1);
+  }
 }
 
 @keyframes adminModalFadeIn {

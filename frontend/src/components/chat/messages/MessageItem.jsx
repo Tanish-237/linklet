@@ -101,6 +101,7 @@ const MessageItem = ({
             <MessageActionsToolbar
               messageId={msg._id}
               isReactionActive={isReactionActive}
+              isMenuActive={isMenuActive}
               onOpenReaction={onOpenReaction}
             />
           </div>

@@ -28,7 +28,7 @@ const MessageMedia = ({
           onClick={() => onOpenLightbox({ url: msg.media, type: "image" })}
         />
         {!hasCaption && formatMessageClock && (
-          <div className="absolute bottom-1.5 right-2 flex items-center px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-sm text-[11px] text-white/95 select-none shadow pointer-events-none">
+          <div className="absolute bottom-1.5 right-2 flex items-center px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-sm [@media(hover:none)]:backdrop-blur-none text-[11px] text-white/95 select-none shadow pointer-events-none">
             <span>{formatMessageClock(msg.createdAt)}</span>
             {isSent && (
               <span className="ml-1.5 flex items-center">
@@ -67,7 +67,7 @@ const MessageMedia = ({
           </div>
         </div>
         {!hasCaption && formatMessageClock && (
-          <div className="absolute bottom-1.5 right-2 flex items-center px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-sm text-[11px] text-white/95 select-none shadow pointer-events-none">
+          <div className="absolute bottom-1.5 right-2 flex items-center px-1.5 py-0.5 rounded-md bg-black/65 backdrop-blur-sm [@media(hover:none)]:backdrop-blur-none text-[11px] text-white/95 select-none shadow pointer-events-none">
             <span>{formatMessageClock(msg.createdAt)}</span>
             {isSent && (
               <span className="ml-1.5 flex items-center">

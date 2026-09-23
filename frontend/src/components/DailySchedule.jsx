@@ -763,7 +763,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
         </div>
       ) : (
         <div className="relative">
-          <div ref={timelineScrollRef} className="max-h-[70vh] overflow-y-auto pl-1 pr-1 custom-scrollbar">
+          <div ref={timelineScrollRef} className="max-h-[70dvh] overflow-y-auto pl-1 pr-1 custom-scrollbar">
             <div className="relative pt-3">
               {SLOTS.map((slot, idx) => {
                 const isNowInSlot = isToday && nowHours >= slot.startHour && nowHours < slot.endHour;

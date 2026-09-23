@@ -74,8 +74,10 @@
   cursor: pointer;
 }
 
-.scm-item:hover {
-  background: rgb(var(--fg) / 0.05);
+@media (hover: hover) {
+  .scm-item:hover {
+    background: rgb(var(--fg) / 0.05);
+  }
 }
 
 .scm-item-left {
@@ -116,8 +118,10 @@
   transition: all 0.2s;
 }
 
-.scm-btn:hover {
-  background: rgb(var(--accent) / 0.3);
+@media (hover: hover) {
+  .scm-btn:hover {
+    background: rgb(var(--accent) / 0.3);
+  }
 }
 
 .scm-btn.saved {
@@ -169,8 +173,10 @@
   transition: background 0.2s;
 }
 
-.scm-create-btn:hover:not(:disabled) {
-  background: rgb(var(--accent));
+@media (hover: hover) {
+  .scm-create-btn:hover:not(:disabled) {
+    background: rgb(var(--accent));
+  }
 }
 
 .scm-create-btn:disabled {

@@ -23,6 +23,7 @@ export const createResource = async (req, res, next) => {
     let fileType = "link";
     let fileName = "";
     let publicId = null;
+    let fileSize;
 
     if (req.file) {
       // Upload to Cloudinary
@@ -36,6 +37,7 @@ export const createResource = async (req, res, next) => {
       fileType = cloudinaryResponse.format || req.file.mimetype;
       fileName = req.file.originalname;
       publicId = cloudinaryResponse.public_id;
+      fileSize = cloudinaryResponse.bytes || req.file.size;
     } else {
       fileUrl = linkUrl;
       fileName = linkUrl;
@@ -49,6 +51,7 @@ export const createResource = async (req, res, next) => {
       fileUrl,
       fileType,
       fileName,
+      fileSize,
       publicId,
       branch: req.user.branch,
     };

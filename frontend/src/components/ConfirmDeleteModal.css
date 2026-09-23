@@ -93,9 +93,11 @@
   flex: 1;
 }
 
-.cd-btn-cancel:hover {
-  background: rgb(var(--fg) / 0.12);
-  color: rgb(var(--fg));
+@media (hover: hover) {
+  .cd-btn-cancel:hover {
+    background: rgb(var(--fg) / 0.12);
+    color: rgb(var(--fg));
+  }
 }
 
 .cd-btn-confirm {
@@ -105,9 +107,11 @@
   flex: 1;
 }
 
-.cd-btn-confirm:hover:not(:disabled) {
-  background-color: #b91c1c;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+@media (hover: hover) {
+  .cd-btn-confirm:hover:not(:disabled) {
+    background-color: #b91c1c;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+  }
 }
 
 .cd-btn-confirm:active:not(:disabled) {

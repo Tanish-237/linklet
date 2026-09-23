@@ -31,10 +31,12 @@
   transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
 
-.bm-back-btn:hover {
-  background: rgb(var(--accent) / 0.12);
-  color: rgb(var(--accent-fg));
-  border-color: rgb(var(--accent) / 0.3);
+@media (hover: hover) {
+  .bm-back-btn:hover {
+    background: rgb(var(--accent) / 0.12);
+    color: rgb(var(--accent-fg));
+    border-color: rgb(var(--accent) / 0.3);
+  }
 }
 
 .bm-back-btn .material-icons {
@@ -70,8 +72,10 @@
   transition: background-color 0.15s ease;
 }
 
-.bm-btn-create:hover {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .bm-btn-create:hover {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .bm-btn-create:active {
@@ -118,8 +122,10 @@
   transition: background-color 0.15s ease;
 }
 
-.bm-create-form button:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .bm-create-form button:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .bm-create-form button:disabled {
@@ -183,11 +189,13 @@
   flex-direction: column;
 }
 
-.bm-collection-card:hover {
-  transform: translateY(-4px);
-  border-color: rgb(var(--accent) / 0.3);
-  box-shadow: 0 10px 24px -6px rgb(var(--shadow-color) / 0.18),
+@media (hover: hover) {
+  .bm-collection-card:hover {
+    transform: translateY(-4px);
+    border-color: rgb(var(--accent) / 0.3);
+    box-shadow: 0 10px 24px -6px rgb(var(--shadow-color) / 0.18),
               0 2px 6px rgb(var(--shadow-color) / 0.06);
+  }
 }
 
 .bm-collection-cover {
@@ -232,9 +240,19 @@
   z-index: 2;
 }
 
-.bm-collection-card:hover .bm-del-btn {
-  opacity: 1;
-  transform: scale(1);
+@media (hover: hover) {
+  .bm-collection-card:hover .bm-del-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Touch screens have no hover to reveal it — keep it visible there. */
+@media (hover: none) {
+  .bm-del-btn {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .bm-del-btn .material-icons {
@@ -243,15 +261,17 @@
   transition: color 0.2s;
 }
 
-.bm-del-btn:hover {
-  background: rgba(239, 68, 68, 0.9);
-  border-color: rgba(239, 68, 68, 0.5);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
-  transform: scale(1.08);
-}
+@media (hover: hover) {
+  .bm-del-btn:hover {
+    background: rgba(239, 68, 68, 0.9);
+    border-color: rgba(239, 68, 68, 0.5);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+    transform: scale(1.08);
+  }
 
-.bm-del-btn:hover .material-icons {
-  color: rgb(var(--fg));
+  .bm-del-btn:hover .material-icons {
+    color: rgb(var(--fg));
+  }
 }
 
 .bm-collection-info {
@@ -299,10 +319,12 @@
   transition: all 0.2s;
 }
 
-.bm-item:hover {
-  background: rgb(var(--fg) / 0.04);
-  border-color: rgb(var(--fg) / 0.1);
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .bm-item:hover {
+    background: rgb(var(--fg) / 0.04);
+    border-color: rgb(var(--fg) / 0.1);
+    transform: translateY(-2px);
+  }
 }
 
 .bm-left {
@@ -353,8 +375,10 @@
   font-weight: 500;
 }
 
-.bm-author:hover {
-  text-decoration: underline;
+@media (hover: hover) {
+  .bm-author:hover {
+    text-decoration: underline;
+  }
 }
 
 .bm-cat {
@@ -384,14 +408,16 @@
   transition: all 0.2s;
 }
 
-.bm-action-btn:hover {
-  background: rgb(var(--accent) / 0.2);
-  color: rgb(var(--accent-fg));
-}
+@media (hover: hover) {
+  .bm-action-btn:hover {
+    background: rgb(var(--accent) / 0.2);
+    color: rgb(var(--accent-fg));
+  }
 
-.bm-action-btn.bm-remove:hover {
-  background: rgba(239, 68, 68, 0.9);
-  color: rgb(var(--fg));
+  .bm-action-btn.bm-remove:hover {
+    background: rgba(239, 68, 68, 0.9);
+    color: rgb(var(--fg));
+  }
 }
 
 .bm-action-btn .material-icons {
@@ -520,9 +546,11 @@
   font-size: 16px;
 }
 
-.bm-media-filter:hover {
-  border-color: rgb(var(--accent) / 0.35);
-  color: rgb(var(--fg));
+@media (hover: hover) {
+  .bm-media-filter:hover {
+    border-color: rgb(var(--accent) / 0.35);
+    color: rgb(var(--fg));
+  }
 }
 
 .bm-media-filter.active {
@@ -559,10 +587,12 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.bm-sm-card:hover {
-  transform: translateY(-2px);
-  border-color: rgb(var(--accent) / 0.3);
-  box-shadow: 0 10px 24px -8px rgb(var(--shadow-color) / 0.2);
+@media (hover: hover) {
+  .bm-sm-card:hover {
+    transform: translateY(-2px);
+    border-color: rgb(var(--accent) / 0.3);
+    box-shadow: 0 10px 24px -8px rgb(var(--shadow-color) / 0.2);
+  }
 }
 
 .bm-sm-preview {
@@ -590,8 +620,10 @@
   transition: transform 0.3s ease;
 }
 
-.bm-sm-card:hover .bm-sm-img {
-  transform: scale(1.04);
+@media (hover: hover) {
+  .bm-sm-card:hover .bm-sm-img {
+    transform: scale(1.04);
+  }
 }
 
 /* Type chip — fixed dark glass since it can sit on any photo. */
@@ -639,9 +671,11 @@
   font-size: 17px;
 }
 
-.bm-sm-star:hover {
-  transform: scale(1.08);
-  background: rgba(0, 0, 0, 0.65);
+@media (hover: hover) {
+  .bm-sm-star:hover {
+    transform: scale(1.08);
+    background: rgba(0, 0, 0, 0.65);
+  }
 }
 
 .bm-sm-star:focus-visible {
@@ -841,9 +875,11 @@
   font-size: 18px;
 }
 
-.bm-sm-icon-btn:hover {
-  color: rgb(var(--accent-fg));
-  background: rgb(var(--accent) / 0.1);
+@media (hover: hover) {
+  .bm-sm-icon-btn:hover {
+    color: rgb(var(--accent-fg));
+    background: rgb(var(--accent) / 0.1);
+  }
 }
 
 .bm-sm-icon-btn:focus-visible {
@@ -901,5 +937,15 @@
   .bm-sm-icon-btn {
     width: 28px;
     height: 28px;
+  }
+}
+
+/* Touch screens: no backdrop blur — these repeat on every grid item, and a blur on each is recomputed on every scroll frame. */
+@media (hover: none) {
+  .bm-sm-kind,
+  .bm-sm-star,
+  .bm-sm-play .material-icons,
+  .bm-del-btn {
+    backdrop-filter: none;
   }
 }

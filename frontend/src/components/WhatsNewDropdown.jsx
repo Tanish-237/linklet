@@ -105,7 +105,7 @@ export default function WhatsNewDropdown({
         <div
           role="dialog"
           aria-label="What's New release notes"
-          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-88 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70vh] bg-popover rounded-2xl shadow-popover border border-line-strong transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-88 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70dvh] bg-popover rounded-2xl shadow-popover border border-line-strong transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
         >
           {/* Header */}
           <div className="p-3.5 border-b border-line bg-surface-2/70 flex items-center justify-between">

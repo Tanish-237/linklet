@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { toast } from "sonner";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
+import { downloadFile } from "../utlis/download";
 import useThemeStore from "../theme/useThemeStore";
 import "./PreviewModal.css";
 
@@ -105,6 +106,8 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
   const { icon, color } = getFileIcon(resource.fileName, resource.fileType, theme);
   const [copying, setCopying] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const isTouchScreen =
+    typeof window !== "undefined" && window.matchMedia?.("(hover: none) and (pointer: coarse)").matches;
 
   const ownerId = resource.userId?._id || resource.userId;
   const isOwner = user?._id && (ownerId?.toString() === user._id || user.role === "admin");
@@ -137,6 +140,16 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
             </div>
           </div>
           <div className="gs-preview-header-actions">
+            {preview.type !== "invalid" && resource.fileType !== "link" && (
+              <button
+                className="gs-icon-btn"
+                title="Download"
+                aria-label="Download"
+                onClick={() => downloadFile(resource.fileUrl, resource.title || resource.fileName)}
+              >
+                <span className="material-icons">download</span>
+              </button>
+            )}
             <button className="gs-icon-btn" title={copying ? "Copied!" : "Copy link"} onClick={copyLink}>
               <span className="material-icons">{copying ? "check" : "link"}</span>
             </button>
@@ -156,7 +169,23 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
           </div>
         </div>
         <div className="gs-preview-body">
-          {preview.type === "pdf" && <iframe src={preview.url} title="PDF Preview" className="gs-preview-iframe" allow="fullscreen" />}
+          {preview.type === "pdf" && !isTouchScreen && <iframe src={preview.url} title="PDF Preview" className="gs-preview-iframe" allow="fullscreen" />}
+          {preview.type === "pdf" && isTouchScreen && (
+            // Phone browsers can't show a PDF inside an iframe (Android shows
+            // nothing, iOS only the first page) — hand it to the native viewer.
+            <div className="gs-preview-fallback">
+              <span className="material-icons" style={{ color, fontSize: 64 }}>{icon}</span>
+              <p>Open the PDF to read it, or save it to your phone.</p>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center" }}>
+                <button className="gs-btn-primary" onClick={() => safeOpenUrl(preview.url)}>
+                  <span className="material-icons">open_in_new</span> Open PDF
+                </button>
+                <button className="gs-btn-primary" onClick={() => downloadFile(resource.fileUrl, resource.title || resource.fileName)}>
+                  <span className="material-icons">download</span> Download
+                </button>
+              </div>
+            </div>
+          )}
           {preview.type === "image" && <img src={preview.url} alt={resource.title || "Preview"} className="gs-preview-image" />}
           {preview.type === "video" && <video src={preview.url} controls className="gs-preview-video" style={{ width: "100%", height: "100%", backgroundColor: "#000" }} />}
           {preview.type === "youtube" && <iframe src={preview.url} title="YouTube Video" className="gs-preview-iframe" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />}
@@ -175,8 +204,8 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
             <div className="gs-preview-fallback">
               <span className="material-icons" style={{ color, fontSize: 64 }}>{icon}</span>
               <p>Preview not available for this file type.</p>
-              <button className="gs-btn-primary" onClick={() => safeOpenUrl(resource.fileUrl)}>
-                <span className="material-icons">open_in_new</span> Download File
+              <button className="gs-btn-primary" onClick={() => downloadFile(resource.fileUrl, resource.title || resource.fileName)}>
+                <span className="material-icons">download</span> Download File
               </button>
             </div>
           )}

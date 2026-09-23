@@ -289,7 +289,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessa
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={isUploadingImage}
-                    className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white"
+                    className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center [@media(hover:hover)]:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer text-white"
                     title="Change group icon"
                     aria-label="Change group icon"
                   >

@@ -23,9 +23,11 @@
   transition: all 0.2s ease;
 }
 
-.tabs button:hover {
-  border-color: rgb(var(--surface-3));
-  color: rgb(var(--fg));
+@media (hover: hover) {
+  .tabs button:hover {
+    border-color: rgb(var(--surface-3));
+    color: rgb(var(--fg));
+  }
 }
 
 .tabs button.active {
@@ -64,9 +66,11 @@
   text-align: center;
 }
 
-.game-card:hover {
-  transform: translateY(-4px);
-  border-color: rgb(var(--accent));
+@media (hover: hover) {
+  .game-card:hover {
+    transform: translateY(-4px);
+    border-color: rgb(var(--accent));
+  }
 }
 
 .game-card h3 {
@@ -91,8 +95,10 @@
   cursor: pointer;
 }
 
-.back-button:hover {
-  background-color: rgb(var(--surface-3));
+@media (hover: hover) {
+  .back-button:hover {
+    background-color: rgb(var(--surface-3));
+  }
 }
 
 .video-form {
@@ -127,8 +133,10 @@
   white-space: nowrap;
 }
 
-.submit-button:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .submit-button:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .video-container {
@@ -178,8 +186,10 @@
   color: white;
 }
 
-.create-room-btn:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .create-room-btn:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .create-room-btn:disabled {
@@ -259,9 +269,11 @@
   white-space: nowrap;
 }
 
-.join-room-btn:hover:not(:disabled) {
-  border-color: rgb(var(--accent));
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .join-room-btn:hover:not(:disabled) {
+    border-color: rgb(var(--accent));
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .join-room-btn:disabled {

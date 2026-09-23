@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { formatTypingText } from "./chat/typingText";
 import useConfirm from "../hooks/useConfirm";
+import useLongPress from "../hooks/useLongPress";
 import { createPortal } from "react-dom";
 import { apiClient } from "../api/apiClient";
 import { toast } from "sonner";
@@ -36,6 +37,7 @@ const ChatSidebar = ({
 }) => {
   const [confirm, confirmDialog] = useConfirm();
   const [searchQuery, setSearchQuery] = useState("");
+  const bindLongPress = useLongPress();
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
@@ -660,7 +662,6 @@ const ChatSidebar = ({
                 onMouseEnter={() => onPrefetchChat?.(chat._id)}
                 onMouseLeave={() => onPrefetchChat?.(null)}
                 onFocus={() => onPrefetchChat?.(chat._id)}
-                onTouchStart={() => onPrefetchChat?.(chat._id, 0)}
                 onKeyDown={(e) => {
                   if (e.target !== e.currentTarget) return;
                   if (e.key === "Enter" || e.key === " ") {
@@ -668,7 +669,12 @@ const ChatSidebar = ({
                     onSelectChat(chat);
                   }
                 }}
-                onContextMenu={(e) => handleOpenContextMenu(chat, e)}
+                // Right-click on desktop, press-and-hold on phones (iOS never
+                // fires contextmenu for a long-press).
+                {...bindLongPress((e) => handleOpenContextMenu(chat, e), {
+                  onTouchStart: () => onPrefetchChat?.(chat._id, 0),
+                  onContextMenu: (e) => handleOpenContextMenu(chat, e),
+                })}
                 className={`chat-item group ${isActive ? "active" : ""}`}
               >
                 <div className="chat-avatar-container">

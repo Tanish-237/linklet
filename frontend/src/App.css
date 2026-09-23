@@ -47,8 +47,10 @@ body:has(.contact-page) {
   border-radius: 2px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(var(--accent) / 0.5);
+@media (hover: hover) {
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--accent) / 0.5);
+  }
 }
 
 /* Tooltip Styles */
@@ -73,8 +75,10 @@ body:has(.contact-page) {
   margin-top: 0.5rem;
 }
 
-.tooltip-wrapper:hover .tooltip {
-  opacity: 1;
+@media (hover: hover) {
+  .tooltip-wrapper:hover .tooltip {
+    opacity: 1;
+  }
 }
 
 /* Modal Animation */

@@ -47,9 +47,11 @@
   transition: all 0.25s ease;
 }
 
-.settings-tab-btn:hover {
-  color: rgb(var(--accent-fg));
-  background: rgb(var(--accent) / 0.1);
+@media (hover: hover) {
+  .settings-tab-btn:hover {
+    color: rgb(var(--accent-fg));
+    background: rgb(var(--accent) / 0.1);
+  }
 }
 
 .settings-tab-btn.active {
@@ -183,9 +185,11 @@
   background: rgb(var(--surface-3));
 }
 
-.settings-avatar-choice-btn:hover {
-  transform: scale(1.1);
-  border-color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .settings-avatar-choice-btn:hover {
+    transform: scale(1.1);
+    border-color: rgb(var(--accent-fg));
+  }
 }
 
 .settings-avatar-choice-btn.selected {
@@ -224,8 +228,10 @@
   margin-left: 0.2rem;
 }
 
-.settings-skill-chip button:hover {
-  color: rgb(var(--danger-fg));
+@media (hover: hover) {
+  .settings-skill-chip button:hover {
+    color: rgb(var(--danger-fg));
+  }
 }
 
 .settings-toggle-row {
@@ -239,9 +245,11 @@
   transition: all 0.2s ease;
 }
 
-.settings-toggle-row:hover {
-  background: rgb(var(--surface) / calc(0.7 + var(--glass-fill)));
-  border-color: rgb(var(--accent) / 0.3);
+@media (hover: hover) {
+  .settings-toggle-row:hover {
+    background: rgb(var(--surface) / calc(0.7 + var(--glass-fill)));
+    border-color: rgb(var(--accent) / 0.3);
+  }
 }
 
 .settings-toggle-info h4 {
@@ -320,8 +328,10 @@
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-.settings-primary-btn:hover:not(:disabled) {
-  background-color: rgb(var(--accent-hover));
+@media (hover: hover) {
+  .settings-primary-btn:hover:not(:disabled) {
+    background-color: rgb(var(--accent-hover));
+  }
 }
 
 .settings-primary-btn:active:not(:disabled) {

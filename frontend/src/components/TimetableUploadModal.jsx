@@ -167,7 +167,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-surface border border-violet-500/20 rounded-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+      <div className="bg-surface border border-violet-500/20 rounded-2xl w-full max-w-2xl max-h-[92dvh] sm:max-h-[90dvh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-line flex items-center justify-between bg-surface-2">
           <div className="flex items-center gap-3">

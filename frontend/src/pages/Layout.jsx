@@ -349,7 +349,7 @@ export default function Layout({ children }) {
             desktop, the same fixed circle size, so spacing reads evenly
             instead of each control sizing itself independently. */}
         <div
-          className="max-md:contents md:flex md:flex-col items-center md:gap-2 md:border-t border-line md:px-2 md:py-2.5 shrink-0 relative z-50"
+          className="max-md:contents md:flex md:flex-col items-center md:gap-2 md:px-2 md:py-2.5 shrink-0 relative z-50"
           ref={dropdownRef}
         >
           {/* Phones: these triggers are hidden (the bottom bar is Explore +

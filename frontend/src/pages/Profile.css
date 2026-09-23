@@ -152,8 +152,10 @@
   transition: border-color 0.3s ease;
 }
 
-.profile-glass:hover {
-  border-color: rgb(var(--accent) / 0.18);
+@media (hover: hover) {
+  .profile-glass:hover {
+    border-color: rgb(var(--accent) / 0.18);
+  }
 }
 
 
@@ -233,8 +235,18 @@
   z-index: 10;
 }
 
-.profile-avatar-wrapper:hover .profile-avatar-overlay {
-  opacity: 1;
+@media (hover: hover) {
+  .profile-avatar-wrapper:hover .profile-avatar-overlay {
+    opacity: 1;
+  }
+}
+
+/* Only rendered while editing your own profile — on touch screens show it
+   outright, since there's no hover to reveal it. */
+@media (hover: none) {
+  .profile-avatar-overlay {
+    opacity: 1;
+  }
 }
 
 .profile-avatar-overlay .material-icons {
@@ -340,10 +352,12 @@
   white-space: nowrap;
 }
 
-.profile-info-chip:hover {
-  background: rgb(var(--accent) / 0.12);
-  border-color: rgb(var(--accent) / 0.25);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .profile-info-chip:hover {
+    background: rgb(var(--accent) / 0.12);
+    border-color: rgb(var(--accent) / 0.25);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 .profile-info-chip .material-icons {
@@ -369,11 +383,13 @@
   text-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
 }
 
-.profile-info-chip.profile-info-chip-alumni:hover {
-  background: rgba(254, 240, 138, 0.22);
-  border-color: rgba(250, 204, 21, 0.8);
-  color: rgb(var(--fg));
-  box-shadow: 0 0 18px rgba(250, 204, 21, 0.6), inset 0 0 10px rgba(250, 204, 21, 0.2);
+@media (hover: hover) {
+  .profile-info-chip.profile-info-chip-alumni:hover {
+    background: rgba(254, 240, 138, 0.22);
+    border-color: rgba(250, 204, 21, 0.8);
+    color: rgb(var(--fg));
+    box-shadow: 0 0 18px rgba(250, 204, 21, 0.6), inset 0 0 10px rgba(250, 204, 21, 0.2);
+  }
 }
 
 @keyframes alumniGlow {
@@ -410,9 +426,11 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.profile-btn-follow:hover {
-  background-color: rgb(var(--accent-hover));
-  box-shadow: 0 4px 12px rgb(var(--accent) / 0.25);
+@media (hover: hover) {
+  .profile-btn-follow:hover {
+    background-color: rgb(var(--accent-hover));
+    box-shadow: 0 4px 12px rgb(var(--accent) / 0.25);
+  }
 }
 
 .profile-btn-follow:active {
@@ -438,11 +456,13 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.profile-btn-message:hover {
-  background: rgb(var(--accent) / 0.15);
-  border-color: rgb(var(--accent) / 0.35);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgb(var(--accent) / 0.15);
+@media (hover: hover) {
+  .profile-btn-message:hover {
+    background: rgb(var(--accent) / 0.15);
+    border-color: rgb(var(--accent) / 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgb(var(--accent) / 0.15);
+  }
 }
 
 .profile-btn-message .material-icons {
@@ -490,15 +510,17 @@
   transition: opacity 0.35s ease;
 }
 
-.profile-stat-card:hover {
-  background: rgb(var(--accent) / 0.09);
-  border-color: rgb(var(--accent) / 0.22);
-  transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgb(var(--accent) / 0.10);
-}
+@media (hover: hover) {
+  .profile-stat-card:hover {
+    background: rgb(var(--accent) / 0.09);
+    border-color: rgb(var(--accent) / 0.22);
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgb(var(--accent) / 0.10);
+  }
 
-.profile-stat-card:hover::before {
-  opacity: 1;
+  .profile-stat-card:hover::before {
+    opacity: 1;
+  }
 }
 
 .stat-icon-bg {
@@ -579,12 +601,14 @@
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.profile-skill-tag:hover {
-  background: rgb(var(--accent) / 0.14);
-  border-color: rgb(var(--accent) / 0.35);
-  transform: translateY(-2px) scale(1.03);
-  box-shadow: 0 6px 16px rgb(var(--accent) / 0.12);
-  color: rgb(var(--accent-fg));
+@media (hover: hover) {
+  .profile-skill-tag:hover {
+    background: rgb(var(--accent) / 0.14);
+    border-color: rgb(var(--accent) / 0.35);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 6px 16px rgb(var(--accent) / 0.12);
+    color: rgb(var(--accent-fg));
+  }
 }
 
 
@@ -614,8 +638,10 @@
   white-space: nowrap;
 }
 
-.profile-tab-btn:hover {
-  color: rgb(var(--fg-secondary));
+@media (hover: hover) {
+  .profile-tab-btn:hover {
+    color: rgb(var(--fg-secondary));
+  }
 }
 
 .profile-tab-btn.active {
@@ -678,11 +704,13 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.profile-follow-header-btn:hover {
-  background: rgb(var(--accent) / 0.14);
-  border-color: rgb(var(--accent) / 0.35);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgb(var(--accent) / 0.12);
+@media (hover: hover) {
+  .profile-follow-header-btn:hover {
+    background: rgb(var(--accent) / 0.14);
+    border-color: rgb(var(--accent) / 0.35);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgb(var(--accent) / 0.12);
+  }
 }
 
 /* Tab content area */
@@ -870,9 +898,11 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.profile-btn-primary:hover {
-  background-color: rgb(var(--accent-hover));
-  box-shadow: 0 4px 12px rgb(var(--accent) / 0.25);
+@media (hover: hover) {
+  .profile-btn-primary:hover {
+    background-color: rgb(var(--accent-hover));
+    box-shadow: 0 4px 12px rgb(var(--accent) / 0.25);
+  }
 }
 
 .profile-btn-primary:active {
@@ -905,9 +935,11 @@
   transition: all 0.3s ease;
 }
 
-.profile-btn-secondary:hover {
-  background: rgb(var(--fg-muted) / 0.22);
-  border-color: rgb(var(--fg-muted) / 0.5);
+@media (hover: hover) {
+  .profile-btn-secondary:hover {
+    background: rgb(var(--fg-muted) / 0.22);
+    border-color: rgb(var(--fg-muted) / 0.5);
+  }
 }
 
 .profile-btn-edit {
@@ -925,11 +957,13 @@
   transition: all 0.3s ease;
 }
 
-.profile-btn-edit:hover {
-  background: rgb(var(--accent) / 0.16);
-  border-color: rgb(var(--accent) / 0.4);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgb(var(--accent) / 0.12);
+@media (hover: hover) {
+  .profile-btn-edit:hover {
+    background: rgb(var(--accent) / 0.16);
+    border-color: rgb(var(--accent) / 0.4);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgb(var(--accent) / 0.12);
+  }
 }
 
 .profile-btn-edit .material-icons {
@@ -1250,9 +1284,11 @@
   transition: all 0.25s ease;
 }
 
-.profile-delete-modal-cancel:hover {
-  background: rgb(var(--fg-muted) / 0.22);
-  border-color: rgb(var(--fg-muted) / 0.5);
+@media (hover: hover) {
+  .profile-delete-modal-cancel:hover {
+    background: rgb(var(--fg-muted) / 0.22);
+    border-color: rgb(var(--fg-muted) / 0.5);
+  }
 }
 
 .profile-delete-modal-confirm {
@@ -1273,9 +1309,11 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
-.profile-delete-modal-confirm:hover {
-  background-color: #b91c1c;
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+@media (hover: hover) {
+  .profile-delete-modal-confirm:hover {
+    background-color: #b91c1c;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.25);
+  }
 }
 
 .profile-delete-modal-confirm:active {
