@@ -9,10 +9,6 @@ export const findAllBranches = async () => {
   return await Branch.find({});
 };
 
-export const findBranchById = async (id) => {
-  return await Branch.findById(id);
-};
-
 export const updateBranch = async (id, updateData) => {
   return await Branch.findByIdAndUpdate(id, updateData, { new: true, runValidators: true });
 };

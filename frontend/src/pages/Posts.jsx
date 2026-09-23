@@ -1,5 +1,6 @@
 // src/pages/Posts.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
+import useConfirm from "../hooks/useConfirm";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useInView } from "react-intersection-observer";
@@ -250,7 +251,7 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
             onClick={(e) => { e.stopPropagation(); onSaveToCollection(post._id); }}
             title={isSaved ? "Remove / Manage Collections" : "Save to Collection"}
           >
-            <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
+            <span className={`material-icons ${isSaved ? "icon-filled" : ""}`}>bookmark</span>
           </button>
         </div>
       </div>
@@ -292,7 +293,7 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
                 </div>
               )}
               <span className="feed-card__video-play-overlay">
-                <span className="material-icons">play_arrow</span>
+                <span className="material-icons icon-filled">play_arrow</span>
               </span>
             </div>
           ) : (
@@ -350,6 +351,7 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
 
 // ─── Main Posts Component ───────────────────────────────────────────────────
 const Posts = () => {
+  const [confirm, confirmDialog] = useConfirm();
   const { user } = useAuth();
 
   const queryClient = useQueryClient();
@@ -523,7 +525,7 @@ const Posts = () => {
   };
 
   const handleDeletePost = async (postId) => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    if (!(await confirm({ title: "Delete post?", message: "This post and its comments will be permanently removed." }))) return;
     try {
       await deletePost(postId);
       setPosts((prev) => prev.filter((p) => p._id !== postId));
@@ -538,6 +540,7 @@ const Posts = () => {
   };
 
   return (
+    <>
     <div className="feed-container">
       <SEO title={POSTS_TITLE} description={POSTS_DESCRIPTION} path="/posts" />
       {/* Create Post Prompt */}
@@ -661,6 +664,8 @@ const Posts = () => {
         <ReportPostModal postId={reportingPostId} onClose={() => setReportingPostId(null)} />
       )}
     </div>
+    {confirmDialog}
+    </>
   );
 };
 

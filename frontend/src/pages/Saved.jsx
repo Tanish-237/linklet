@@ -1,33 +1,54 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
-import { getCollections, deleteCollection, toggleResourceInCollection, createCollection } from "../api/collection.api";
+import { deleteCollection, toggleResourceInCollection, createCollection } from "../api/collection.api";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import PostDetailModal from "../components/PostDetailModal";
-import PostThumbnail from "../components/PostThumbnail";
+import { PostGrid, PostGridCard } from "../components/PostGridCard";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import { useAuth } from "../context/AuthContext";
 import useThemeStore from "../theme/useThemeStore";
+import { getVideoThumbnail } from "../utlis/cloudinary";
+import useCachedState from "../hooks/useCachedState";
+import { savedBookmarksQuery, savedCollectionsQuery } from "../api/pageQueries";
 import "./Saved.css";
-import "./Profile.css";
 
 const timeAgo = (d) => {
   const diff = (Date.now() - new Date(d)) / 1000;
+  if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 };
 
+const EMPTY = [];
+
 /* ─────────────── Saved page component ─────────────── */
 export default function Saved({ username }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [savedResources, setSavedResources] = useState([]);
-  const [collections, setCollections] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const isOwnProfile = !username;
+  // Cached per user, so coming back to Saved renders instantly instead of
+  // re-fetching behind a skeleton every time.
+  const [savedResources, setSavedResources, savedQuery] = useCachedState({
+    ...savedBookmarksQuery(user?._id, username),
+    initialValue: EMPTY,
+  });
+  const [collections, setCollections, collectionsQuery] = useCachedState({
+    ...savedCollectionsQuery(user?._id),
+    initialValue: EMPTY,
+    enabled: Boolean(user?._id) && isOwnProfile,
+  });
+  // Only for opening a single collection's details below.
+  const [loading, setLoading] = useState(false);
+  const initialLoading = savedQuery.isPending || (isOwnProfile && collectionsQuery.isPending);
+  const loadError = savedQuery.isError || collectionsQuery.isError;
+  useEffect(() => {
+    if (loadError) toast.error("Failed to load saved items");
+  }, [loadError]);
   const [previewResource, setPreviewResource] = useState(null);
   const [previewChatMedia, setPreviewChatMedia] = useState(null);
   const [selectedPost, setSelectedPost] = useState(null);
@@ -37,6 +58,7 @@ export default function Saved({ username }) {
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [starredChatMedia, setStarredChatMedia] = useState([]);
+  const [mediaFilter, setMediaFilter] = useState("all");
 
   const handleDownloadChatMedia = async (item) => {
     if (!item?.media) return;
@@ -94,8 +116,6 @@ export default function Saved({ username }) {
     }
   };
 
-  const isOwnProfile = !username;
-
   const loadStarredChatMedia = () => {
     if (!user?._id) return;
     try {
@@ -107,41 +127,9 @@ export default function Saved({ username }) {
   };
 
   useEffect(() => {
-    loadData();
     loadStarredChatMedia();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [username, user?._id]);
-
-  // Latest-request-wins: switching between users' saved pages quickly must not let
-  // a slow earlier response replace the list for the page now showing.
-  const loadRequestRef = useRef(0);
-
-  const loadData = async () => {
-    const stamp = ++loadRequestRef.current;
-    try {
-      setLoading(true);
-      if (isOwnProfile) {
-        const url = "/profile/me/bookmarks";
-        const [bookmarksRes, cols] = await Promise.all([
-          apiClient.get(url),
-          getCollections(),
-        ]);
-        if (stamp !== loadRequestRef.current) return;
-        setSavedResources(bookmarksRes.data.data || []);
-        setCollections(cols || []);
-      } else {
-        const url = `/profile/${username}/bookmarks`;
-        const res = await apiClient.get(url);
-        if (stamp !== loadRequestRef.current) return;
-        setSavedResources(res.data.data || []);
-      }
-    } catch {
-      if (stamp !== loadRequestRef.current) return;
-      toast.error("Failed to load saved items");
-    } finally {
-      if (stamp === loadRequestRef.current) setLoading(false);
-    }
-  };
+  }, [user?._id]);
 
   const savedPosts = savedResources.filter((item) => item.category === "Post");
   const savedResourceItems = savedResources.filter((item) => item.category !== "Post");
@@ -259,7 +247,30 @@ export default function Saved({ username }) {
     }
   };
 
-  if (loading && !activeCollection && savedResources.length === 0 && collections.length === 0) {
+  const openPost = (post) => {
+    setSelectedPost(post);
+    setShowPostModal(true);
+  };
+
+  const postModal = (
+    <PostDetailModal
+      isOpen={showPostModal}
+      onClose={() => {
+        setShowPostModal(false);
+        setSelectedPost(null);
+      }}
+      post={selectedPost}
+      user={user}
+      onPostUpdated={(updated) => {
+        const swap = (prev) => prev.map((p) => (p._id === updated._id ? updated : p));
+        setCollectionResources(swap);
+        setSavedResources(swap);
+        setSelectedPost(updated);
+      }}
+    />
+  );
+
+  if (initialLoading && !activeCollection) {
     return (
       <div className="bm-container">
         <Helmet>
@@ -288,18 +299,39 @@ export default function Saved({ username }) {
     return (
       <div className="bm-container">
         <Helmet>
-          <title>{username ? `${username}'s Saves` : "Saved"} | Linklet</title>
+          <title>{`${username ? `${username}'s Saves` : "Saved"} | Linklet`}</title>
         </Helmet>
         {savedResources.length === 0 ? (
-          <div className="bm-empty">No saved resources found.</div>
+          <div className="bm-empty">Nothing saved yet.</div>
         ) : (
-          <div className="bm-list">
-            {savedResources.map((r) => (
-              <ResourceListItem key={r._id} resource={r} onOpen={setPreviewResource} onDownload={handleDownload} />
-            ))}
-          </div>
+          <>
+            {/* Posts and files are different things — posts get the post
+                card grid, files the resource list (a post rendered as a file
+                row had no title and a pointless download button). */}
+            {savedPosts.length > 0 && (
+              <section className="bm-section">
+                <h3 className="bm-section-title">
+                  Posts <span className="bm-section-count">{savedPosts.length}</span>
+                </h3>
+                <SavedPostGrid posts={savedPosts} onOpen={openPost} />
+              </section>
+            )}
+            {savedResourceItems.length > 0 && (
+              <section className="bm-section">
+                <h3 className="bm-section-title">
+                  Resources <span className="bm-section-count">{savedResourceItems.length}</span>
+                </h3>
+                <div className="bm-list">
+                  {savedResourceItems.map((r) => (
+                    <ResourceListItem key={r._id} resource={r} onOpen={setPreviewResource} onDownload={handleDownload} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
         )}
         {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
+        {postModal}
       </div>
     );
   }
@@ -347,7 +379,7 @@ export default function Saved({ username }) {
           {/* Saved Resources Collection Card */}
           <div className="bm-collection-card all-saves" onClick={() => loadCollectionResources("all")}>
             <div className="bm-collection-cover">
-              <span className="material-icons">bookmark</span>
+              <span className="material-icons icon-filled">bookmark</span>
             </div>
             <div className="bm-collection-info">
               <h3>Saved Resources</h3>
@@ -359,7 +391,7 @@ export default function Saved({ username }) {
           {isOwnProfile && (
             <div className="bm-collection-card chat-media-card" onClick={() => loadCollectionResources("chatMedia")}>
               <div className="bm-collection-cover" style={{ background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" }}>
-                <span className="material-icons">star</span>
+                <span className="material-icons icon-filled">star</span>
               </div>
               <div className="bm-collection-info">
                 <h3>Starred Chat Media</h3>
@@ -440,8 +472,33 @@ export default function Saved({ username }) {
             No starred chat media yet. Star images, videos, voice notes or documents in a chat to save them here.
           </div>
         ) : (
+          <>
+          <div className="bm-media-filters" role="tablist" aria-label="Filter starred media">
+            {MEDIA_FILTERS.map((f) => {
+              const count = f.id === "all"
+                ? starredChatMedia.length
+                : starredChatMedia.filter((m) => mediaKind(m) === f.id).length;
+              if (f.id !== "all" && count === 0) return null;
+              return (
+                <button
+                  key={f.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={mediaFilter === f.id}
+                  className={`bm-media-filter ${mediaFilter === f.id ? "active" : ""}`}
+                  onClick={() => setMediaFilter(f.id)}
+                >
+                  <span className="material-icons">{f.icon}</span>
+                  {f.label}
+                  <span className="bm-media-filter-count">{count}</span>
+                </button>
+              );
+            })}
+          </div>
           <div className="bm-chat-media-grid">
-            {starredChatMedia.map((item) => (
+            {starredChatMedia
+              .filter((m) => mediaFilter === "all" || mediaKind(m) === mediaFilter)
+              .map((item) => (
               <ChatMediaCard
                 key={item._id}
                 item={item}
@@ -452,55 +509,18 @@ export default function Saved({ username }) {
               />
             ))}
           </div>
+          </>
         )
       ) : loading ? (
         <div className="bm-spinner" style={{ margin: "40px auto" }} />
       ) : collectionResources.length === 0 ? (
         <div className="bm-empty">This collection is empty.</div>
       ) : activeCollection === "posts" ? (
-        /* Instagram-style Post Grid for Saved Posts */
-        <div className="profile-posts-grid" style={{ marginTop: "1rem" }}>
-          {collectionResources.map((post) => (
-            <div
-              key={post._id}
-              className="profile-post-card cursor-pointer"
-              onClick={() => {
-                setSelectedPost(post);
-                setShowPostModal(true);
-              }}
-            >
-              <PostThumbnail post={post} />
-
-              {/* Hover overlay: stats + caption */}
-              <div className="profile-post-overlay">
-                <div className="profile-post-stats">
-                  <span className="profile-post-stat">
-                    <span className="material-icons">arrow_upward</span>
-                    {post.upvotes?.length || 0}
-                  </span>
-                  <span className="profile-post-stat">
-                    <span className="material-icons">chat_bubble_outline</span>
-                    {post.commentsCount || 0}
-                  </span>
-                </div>
-                {post.caption && (
-                  <p className="profile-post-caption-preview">{post.caption}</p>
-                )}
-              </div>
-
-              {/* Unsave button */}
-              {isOwnProfile && (
-                <button
-                  className="profile-post-delete-btn"
-                  title="Remove from saved posts"
-                  onClick={(e) => handleRemoveFromCollection(e, post._id)}
-                >
-                  <span className="material-icons">bookmark_remove</span>
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
+        <SavedPostGrid
+          posts={collectionResources}
+          onOpen={openPost}
+          onRemove={isOwnProfile ? (e, id) => handleRemoveFromCollection(e, id) : undefined}
+        />
       ) : (
         /* Regular list for resources */
         <div className="bm-list">
@@ -518,22 +538,7 @@ export default function Saved({ username }) {
 
       {previewResource && <PreviewModal resource={previewResource} onClose={() => setPreviewResource(null)} />}
 
-      {/* Post Detail Modal for Saved Posts Grid */}
-      <PostDetailModal
-        isOpen={showPostModal}
-        onClose={() => {
-          setShowPostModal(false);
-          setSelectedPost(null);
-        }}
-        post={selectedPost}
-        user={user}
-        onPostUpdated={(updated) => {
-          setCollectionResources((prev) =>
-            prev.map((p) => (p._id === updated._id ? updated : p))
-          );
-          setSelectedPost(updated);
-        }}
-      />
+      {postModal}
 
       {/* Starred Chat Media Lightbox / Preview Modal */}
       {previewChatMedia && (
@@ -547,8 +552,8 @@ export default function Saved({ username }) {
           >
             <div className="flex items-center justify-between w-full pb-2 border-b border-gray-800">
               <div className="flex items-center gap-2">
-                <span className="material-icons text-amber-400">star</span>
-                <span className="text-fg font-medium text-sm">
+                <span className="material-icons icon-filled text-amber-400">star</span>
+                <span className="text-white font-medium text-sm">
                   {previewChatMedia.chatName || "Starred Media"}
                 </span>
                 <span className="text-gray-400 text-xs">
@@ -558,7 +563,7 @@ export default function Saved({ username }) {
               <button
                 type="button"
                 onClick={() => setPreviewChatMedia(null)}
-                className="text-gray-400 hover:text-fg transition-colors p-1"
+                className="text-gray-400 hover:text-white transition-colors p-1"
                 aria-label="Close"
               >
                 <span className="material-icons">close</span>
@@ -592,7 +597,7 @@ export default function Saved({ username }) {
                   <span className="material-icons text-5xl text-violet-400">
                     insert_drive_file
                   </span>
-                  <span>Document Attachment</span>
+                  <span className="text-sm text-center break-all px-6">{mediaFileName(previewChatMedia)}</span>
                 </div>
               )}
             </div>
@@ -643,102 +648,181 @@ export default function Saved({ username }) {
   );
 }
 
-// Starred Chat Media Card Component
+/* ─────────────── Saved posts ─────────────── */
+
+function SavedPostGrid({ posts, onOpen, onRemove }) {
+  return (
+    <PostGrid>
+      {posts.map((post) => (
+        <PostGridCard
+          key={post._id}
+          post={post}
+          onOpen={onOpen}
+          showAuthor
+          action={
+            onRemove
+              ? { icon: "bookmark", hoverIcon: "bookmark_remove", filled: true, label: "Remove from saved", onClick: (e, p) => onRemove(e, p._id) }
+              : undefined
+          }
+        />
+      ))}
+    </PostGrid>
+  );
+}
+
+/* ─────────────── Starred chat media ─────────────── */
+
+const MEDIA_FILTERS = [
+  { id: "all", label: "All", icon: "star" },
+  { id: "image", label: "Photos", icon: "image" },
+  { id: "video", label: "Videos", icon: "videocam" },
+  { id: "audio", label: "Voice notes", icon: "mic" },
+  { id: "document", label: "Files", icon: "description" },
+];
+
+const mediaKind = (item) => (["image", "video", "audio"].includes(item.mediaType) ? item.mediaType : "document");
+
+// Starred items store the message's media URL, not a file name; recover a
+// readable one from the URL (Cloudinary keeps the original name in the path).
+const mediaFileName = (item) => {
+  if (item.fileName) return item.fileName;
+  try {
+    const last = decodeURIComponent(new URL(item.media).pathname.split("/").pop() || "");
+    if (last) return last;
+  } catch {
+    // Not a URL — fall through
+  }
+  return item.content || "Document";
+};
+
+const fileExtension = (name) => {
+  const m = /\.([a-z0-9]{1,5})$/i.exec(name || "");
+  return m ? m[1].toUpperCase() : "FILE";
+};
+
+// Deterministic tint per chat, so the same conversation is recognisable at a glance.
+const CHAT_TINTS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6"];
+const chatTint = (key = "") => CHAT_TINTS[[...key].reduce((n, c) => n + c.charCodeAt(0), 0) % CHAT_TINTS.length];
+
+const KIND_META = {
+  image: { icon: "image", label: "Photo" },
+  video: { icon: "videocam", label: "Video" },
+  audio: { icon: "mic", label: "Voice note" },
+  document: { icon: "description", label: "File" },
+};
+
 function ChatMediaCard({ item, onUnstar, onPreview, onDownload, onJumpToMessage }) {
-  const isImage = item.mediaType === "image";
-  const isVideo = item.mediaType === "video";
-  const theme = useThemeStore((s) => s.theme);
+  const kind = mediaKind(item);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const videoThumb = kind === "video" ? getVideoThumbnail(item.media) : undefined;
+  const fileName = kind === "document" ? mediaFileName(item) : "";
+  const chatName = item.chatName || "Chat";
 
-  // Same pastel-washes-out-on-white issue as getFileIcon — darker, more
-  // saturated shade for light mode instead of the dark-tuned default.
-  const iconMap = {
-    video: { icon: "videocam", dark: "#6366f1", light: "#4338ca", label: "Video" },
-    audio: { icon: "mic", dark: "#a855f7", light: "#7e22ce", label: "Voice Note" },
-    document: { icon: "insert_drive_file", dark: "#3b82f6", light: "#1d4ed8", label: "Document" },
-  };
-
-  const { icon = "attach_file", dark = "#8b5cf6", light = "#6d28d9", label = "Media" } = iconMap[item.mediaType] || {};
-  const color = theme === "light" ? light : dark;
+  let preview;
+  if (kind === "image" && item.media && !thumbFailed) {
+    preview = (
+      <img
+        src={item.media}
+        alt={`Photo from ${chatName}`}
+        className="bm-sm-img"
+        loading="lazy"
+        onError={() => setThumbFailed(true)}
+      />
+    );
+  } else if (kind === "video") {
+    preview = (
+      <>
+        {videoThumb && !thumbFailed ? (
+          <img src={videoThumb} alt={`Video from ${chatName}`} className="bm-sm-img" loading="lazy" onError={() => setThumbFailed(true)} />
+        ) : (
+          <div className="bm-sm-tile bm-sm-tile-video" />
+        )}
+        <span className="bm-sm-play">
+          <span className="material-icons icon-filled">play_arrow</span>
+        </span>
+      </>
+    );
+  } else if (kind === "audio") {
+    preview = (
+      <div className="bm-sm-tile bm-sm-tile-audio">
+        <span className="bm-sm-audio-btn">
+          <span className="material-icons icon-filled">play_arrow</span>
+        </span>
+        <span className="bm-sm-wave" aria-hidden="true">
+          {[5, 9, 14, 8, 17, 11, 6, 13, 18, 10, 7, 12, 16, 9, 5, 11, 14, 7].map((h, i) => (
+            <i key={i} style={{ height: `${h * 1.6}px` }} />
+          ))}
+        </span>
+      </div>
+    );
+  } else {
+    preview = (
+      <div className="bm-sm-tile bm-sm-tile-doc">
+        <span className="bm-sm-doc-icon">
+          <span className="material-icons">{kind === "image" ? "broken_image" : "description"}</span>
+          <span className="bm-sm-doc-ext">{kind === "image" ? "IMG" : fileExtension(fileName)}</span>
+        </span>
+        {fileName && <span className="bm-sm-doc-name" title={fileName}>{fileName}</span>}
+      </div>
+    );
+  }
 
   return (
-    <div
-      className="bm-chat-media-card"
-      onClick={() => onPreview && onPreview(item)}
-      title="Click anywhere to preview"
-    >
-      {/* Preview area */}
-      <div className="bm-chat-media-preview">
-        {isImage && item.media ? (
-          <img
-            src={item.media}
-            alt="Starred media"
-            className="bm-chat-media-img"
-            loading="lazy"
-          />
-        ) : isVideo && item.media ? (
-          <div className="bm-chat-media-video-container">
-            <video
-              src={item.media}
-              className="bm-chat-media-img"
-              preload="metadata"
-            />
-            <div className="bm-chat-media-badge-center">
-              <span className="material-icons">play_circle_filled</span>
-            </div>
-          </div>
-        ) : (
-          <div className="bm-chat-media-icon-placeholder" style={{ background: `${color}18` }}>
-            <span className="material-icons" style={{ color, fontSize: "2.4rem" }}>{icon}</span>
-            <span className="bm-chat-media-label" style={{ color }}>{label}</span>
-          </div>
+    <article className="bm-sm-card">
+      <button
+        type="button"
+        className="bm-sm-preview"
+        onClick={() => onPreview?.(item)}
+        aria-label={`Open ${KIND_META[kind].label.toLowerCase()} from ${chatName}`}
+      >
+        {preview}
+        {/* File and voice-note tiles already show what they are. */}
+        {(kind === "image" || kind === "video") && (
+          <span className="bm-sm-kind">
+            <span className="material-icons">{KIND_META[kind].icon}</span>
+            {KIND_META[kind].label}
+          </span>
         )}
+      </button>
 
-        {/* Top-right floating actions (Download & Unstar) */}
-        <div className="bm-chat-media-top-actions" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        className="bm-sm-star"
+        title="Unstar"
+        aria-label="Unstar"
+        onClick={() => onUnstar?.()}
+      >
+        <span className="material-icons icon-filled">star</span>
+      </button>
+
+      <div className="bm-sm-footer">
+        <span className="bm-sm-chat-dot" style={{ background: chatTint(item.chatId || chatName) }} aria-hidden="true">
+          {chatName.trim().charAt(0).toUpperCase()}
+        </span>
+        <div className="bm-sm-meta">
+          <span className="bm-sm-chat" title={chatName}>{chatName}</span>
+          <span className="bm-sm-time">{timeAgo(item.createdAt)}</span>
+        </div>
+        <div className="bm-sm-actions">
           {item.media && (
-            <button
-              type="button"
-              className="bm-media-action-btn"
-              title="Download"
-              onClick={() => onDownload && onDownload(item)}
-            >
+            <button type="button" className="bm-sm-icon-btn" title="Download" aria-label="Download" onClick={() => onDownload?.(item)}>
               <span className="material-icons">download</span>
             </button>
           )}
-          <button
-            type="button"
-            className="bm-media-action-btn bm-media-unstar-btn"
-            title="Unstar"
-            onClick={() => onUnstar && onUnstar()}
-          >
-            <span className="material-icons">star</span>
-          </button>
+          {item.chatId && (
+            <button
+              type="button"
+              className="bm-sm-icon-btn"
+              title="Go to message"
+              aria-label="Go to message"
+              onClick={() => onJumpToMessage?.(item.chatId, item._id)}
+            >
+              <span className="material-icons">chat</span>
+            </button>
+          )}
         </div>
       </div>
-
-      {/* Info footer with chat info and clear full-width 'Go to message' button */}
-      <div className="bm-chat-media-footer" onClick={(e) => e.stopPropagation()}>
-        <div className="bm-chat-media-meta">
-          <div className="bm-chat-media-chat-title" title={item.chatName}>
-            <span className="material-icons bm-chat-media-meta-icon">forum</span>
-            <span className="bm-chat-media-chat-name">{item.chatName || "Chat"}</span>
-          </div>
-          <span className="bm-chat-media-time">{timeAgo(item.createdAt)}</span>
-        </div>
-
-        {item.chatId && (
-          <button
-            type="button"
-            className="bm-chat-media-goto-btn"
-            onClick={() => onJumpToMessage && onJumpToMessage(item.chatId, item._id)}
-            title="Go to original message in chat"
-          >
-            <span className="material-icons">chat</span>
-            <span>Go to message</span>
-          </button>
-        )}
-      </div>
-    </div>
+    </article>
   );
 }
 

@@ -14,10 +14,14 @@ const isProduction = process.env.NODE_ENV === "production";
  */
 const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
 
+// Tokens live only in these httpOnly cookies — they are never returned in a
+// response body, so page JavaScript (and any XSS) can't read them. SameSite=Lax
+// works because the site (linklet.org) and API (api.linklet.org) are the same
+// site, and it stops other sites from riding the session (CSRF).
 export const cookieOptions = {
   httpOnly: true,
   secure: isProduction,
-  sameSite: isProduction ? "none" : "lax",
+  sameSite: "lax",
 };
 
 export const sendOtp = async (req, res, next) => {
@@ -55,8 +59,6 @@ export const registerUser = async (req, res, next) => {
       success: true,
       message: "User registered successfully",
       user: result.user,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
     });
   } catch (error) {
     next(error);
@@ -83,8 +85,6 @@ export const loginUser = async (req, res, next) => {
       success: true,
       message: "Logged in successfully",
       user: result.user,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
     });
   } catch (error) {
     next(error);
@@ -121,8 +121,6 @@ export const refreshAccessToken = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: "Access token refreshed",
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
     });
   } catch (error) {
     next(error);
@@ -221,8 +219,6 @@ export const googleAuth = async (req, res, next) => {
       success: true,
       message: "Google authentication successful",
       user: result.user,
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
     });
   } catch (error) {
     next(error);

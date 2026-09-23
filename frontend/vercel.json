@@ -6,7 +6,7 @@
     { "source": "/terms", "destination": "/terms/index.html" },
     { "source": "/posts", "destination": "/posts/index.html" },
     { "source": "/", "destination": "/index.html" },
-    { "source": "/(.*)", "destination": "/app-shell.html" }
+    { "source": "/((?!assets/).*)", "destination": "/app-shell.html" }
   ],
   "headers": [
     {

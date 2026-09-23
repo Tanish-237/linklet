@@ -61,8 +61,8 @@ const MessageMedia = ({
             <video src={msg.media} preload="metadata" className="message-media-img block w-full object-cover" />
           )}
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors rounded-xl">
-            <span className="material-icons text-4xl text-white drop-shadow-md">
-              play_circle_filled
+            <span className="material-icons icon-filled text-4xl text-white drop-shadow-md">
+              play_circle
             </span>
           </div>
         </div>

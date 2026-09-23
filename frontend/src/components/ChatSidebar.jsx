@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { formatTypingText } from "./chat/typingText";
+import useConfirm from "../hooks/useConfirm";
 import { createPortal } from "react-dom";
 import { apiClient } from "../api/apiClient";
 import { toast } from "sonner";
@@ -32,6 +34,7 @@ const ChatSidebar = ({
   onLoadMoreChats,
   onPrefetchChat,
 }) => {
+  const [confirm, confirmDialog] = useConfirm();
   const [searchQuery, setSearchQuery] = useState("");
   const [userSearchResults, setUserSearchResults] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
@@ -208,6 +211,9 @@ const ChatSidebar = ({
     return other?.avatar || defaultAvatar;
   };
 
+  const getOtherUser = (chat) =>
+    chat?.participants?.find((p) => (p?._id || p)?.toString() !== currentUser?._id?.toString());
+
   const getOtherUserId = (chat) => {
     if (chat.isGroup) return null;
     const other = chat.participants?.find(
@@ -319,6 +325,17 @@ const ChatSidebar = ({
     const otherId = getOtherUserId(chat);
     if (!otherId) return;
     setMenuChat(null);
+    if (!blockedUserIds.includes(otherId)) {
+      const name = getOtherUser(chat)?.username;
+      const ok = await confirm({
+        title: `Block ${name || "this user"}?`,
+        message: "They won't be able to message you. You can unblock them any time from this menu.",
+        confirmText: "Block",
+        icon: "block",
+        confirmIcon: "block",
+      });
+      if (!ok) return;
+    }
     try {
       const res = await apiClient.post(`/profile/block/${otherId}`);
       if (res.data?.success) {
@@ -339,6 +356,23 @@ const ChatSidebar = ({
 
   const handleDeleteChat = async (chat) => {
     setMenuChat(null);
+    const name = chat.isGroup ? chat.chatName : getOtherUser(chat)?.username;
+    const ok = await confirm(
+      chat.isGroup
+        ? {
+            title: "Leave group?",
+            message: `You'll leave "${name || "this group"}" and stop receiving its messages. An admin will need to add you back.`,
+            confirmText: "Leave",
+            icon: "logout",
+            confirmIcon: "logout",
+          }
+        : {
+            title: "Delete chat?",
+            message: `Your conversation${name ? ` with ${name}` : ""} will be removed from your chat list.`,
+            confirmText: "Delete",
+          }
+    );
+    if (!ok) return;
     try {
       await apiClient.delete(`/chat/${chat._id}`);
       if (onDeleteChat) onDeleteChat(chat._id);
@@ -393,11 +427,11 @@ const ChatSidebar = ({
   };
 
   const renderMessagePreview = (chat) => {
-    const isTyping = typingMap[chat._id];
-    if (isTyping) {
+    const typers = typingMap[chat._id];
+    if (typers?.length) {
       return (
-        <span className="text-emerald-400 font-medium italic flex items-center gap-1 animate-pulse text-xs">
-          typing...
+        <span className="text-emerald-400 font-medium italic flex items-center gap-1 animate-pulse text-xs truncate">
+          {formatTypingText(typers.map((t) => t.username), chat.isGroup)}
         </span>
       );
     }
@@ -675,7 +709,7 @@ const ChatSidebar = ({
                     </span>
                     <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                       {isMuted && <span className="material-icons text-gray-500 text-[14px]">volume_off</span>}
-                      {isPinned && <span className="material-icons chat-pinned-icon">push_pin</span>}
+                      {isPinned && <span className="material-icons icon-filled chat-pinned-icon">push_pin</span>}
                       {isArchived && <span className="material-icons text-gray-500 text-[14px]">archive</span>}
                       {unread > 0 && !isMuted && <span className="unread-badge">{unread > 99 ? "99+" : unread}</span>}
                       {unread > 0 && isMuted && (
@@ -729,7 +763,7 @@ const ChatSidebar = ({
             {getChatUnreadCount(menuChat) > 0 ? "Mark as read" : "Mark as unread"}
           </button>
           <button type="button" onClick={(e) => togglePinChat(menuChat._id, e)} className="chat-item-menu-btn">
-            <span className="material-icons text-base">push_pin</span>
+            <span className="material-icons icon-filled text-base">push_pin</span>
             {pinnedChatIds.includes(menuChat._id) ? "Unpin" : "Pin"}
           </button>
           <button type="button" onClick={(e) => toggleMuteChat(menuChat._id, e)} className="chat-item-menu-btn">
@@ -772,6 +806,7 @@ const ChatSidebar = ({
         </div>,
         document.body
       )}
+      {confirmDialog}
     </div>
   );
 };

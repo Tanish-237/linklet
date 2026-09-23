@@ -69,6 +69,22 @@ const LegacyHelpRedirect = () => {
   return <Navigate to={`/help${rest}`} replace />;
 };
 
+// About / Contact / Privacy / Terms: signed-in users read them inside the
+// normal app shell (rail on desktop, bottom bar on phones) instead of the
+// public top navbar, whose signed-in variant didn't fit on phones. Signed-out
+// visitors keep the simple public header (logo, Login, Sign Up).
+const StaticPageShell = ({ children }) => {
+  const user = useAuthStore((s) => s.user);
+  return user ? (
+    <Layout>{children}</Layout>
+  ) : (
+    <>
+      <Navbar />
+      {children}
+    </>
+  );
+};
+
 function App() {
   const { user, isLoading, checkAuth } = useAuthStore();
 
@@ -88,7 +104,11 @@ function App() {
   return (
     <HelmetProvider>
       <SocketProvider>
-        <Router>
+        {/* No transitions: React Router otherwise wraps navigations in
+            startTransition, which keeps the old page on screen (with the
+            new URL already showing) until the next page's chunk downloads,
+            so on a slow connection clicks looked like they did nothing. */}
+        <Router useTransitions={false}>
           <AppToaster />
           <ErrorBoundary>
           <Suspense
@@ -331,37 +351,33 @@ function App() {
             <Route
               path="/about"
               element={
-                <>
-                  <Navbar />
+                <StaticPageShell>
                   <AboutPage />
-                </>
+                </StaticPageShell>
               }
             />
             <Route
               path="/contact"
               element={
-                <>
-                  <Navbar />
+                <StaticPageShell>
                   <ContactPage />
-                </>
+                </StaticPageShell>
               }
             />
             <Route
               path="/privacy"
               element={
-                <>
-                  <Navbar />
+                <StaticPageShell>
                   <PrivacyPolicyPage />
-                </>
+                </StaticPageShell>
               }
             />
             <Route
               path="/terms"
               element={
-                <>
-                  <Navbar />
+                <StaticPageShell>
                   <TermsOfServicePage />
-                </>
+                </StaticPageShell>
               }
             />
 

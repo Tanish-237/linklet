@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import useAuthStore from "../useAuthStore";
 import { apiClient } from "../../api/apiClient";
+import { refreshAccessToken } from "../../api/refreshToken";
+
+vi.mock("../../api/refreshToken", () => ({ refreshAccessToken: vi.fn() }));
 
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
@@ -53,7 +56,6 @@ describe("useAuthStore Zustand Store Tests", () => {
       isAuthenticated: true,
       isLoading: false,
     });
-    localStorage.setItem("accessToken", "fake-token");
 
     // Mock window.location
     const originalLocation = window.location;
@@ -65,7 +67,7 @@ describe("useAuthStore Zustand Store Tests", () => {
     const state = useAuthStore.getState();
     expect(state.user).toBeNull();
     expect(state.isAuthenticated).toBe(false);
-    expect(localStorage.getItem("accessToken")).toBeNull();
+    expect(apiClient.post).toHaveBeenCalledWith("/auth/logout");
     console.log("TRACE [useAuthStore.test.js]: Logout verified successfully");
 
     window.location = originalLocation;
@@ -121,5 +123,40 @@ describe("useAuthStore Zustand Store Tests", () => {
     expect(state.isAuthenticated).toBe(false);
     console.log("TRACE [useAuthStore.test.js]: auth-expired event reset verified successfully");
   });
-});
 
+  it("renews an expired access cookie instead of signing out a returning user", async () => {
+    const user = { _id: "u123", username: "alex" };
+    useAuthStore.setState({ user, isAuthenticated: true, isLoading: false });
+    apiClient.get
+      .mockResolvedValueOnce({ data: { user: null } }) // access cookie expired
+      .mockResolvedValueOnce({ data: { user } }); // after refresh
+    refreshAccessToken.mockResolvedValueOnce(true);
+
+    await useAuthStore.getState().checkAuth();
+
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1);
+    expect(useAuthStore.getState().user).toEqual(user);
+    expect(useAuthStore.getState().isAuthenticated).toBe(true);
+  });
+
+  it("does not attempt a refresh for a visitor who was never signed in", async () => {
+    useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
+    apiClient.get.mockResolvedValueOnce({ data: { user: null } });
+
+    await useAuthStore.getState().checkAuth();
+
+    expect(refreshAccessToken).not.toHaveBeenCalled();
+    expect(useAuthStore.getState().user).toBeNull();
+  });
+
+  it("signs out when the refresh token is also no longer valid", async () => {
+    useAuthStore.setState({ user: { _id: "u123" }, isAuthenticated: true, isLoading: false });
+    apiClient.get.mockResolvedValueOnce({ data: { user: null } });
+    refreshAccessToken.mockRejectedValueOnce(new Error("refresh expired"));
+
+    await useAuthStore.getState().checkAuth();
+
+    expect(useAuthStore.getState().user).toBeNull();
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+});

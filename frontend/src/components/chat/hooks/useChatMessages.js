@@ -199,7 +199,15 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
-      if (readReceiptTimerRef.current) clearTimeout(readReceiptTimerRef.current);
+      // Leaving the chat with a read receipt still queued (a message arrived
+      // under a second ago): send it now instead of dropping it, or the
+      // server keeps those messages unread and they come back as "unread"
+      // the next time this chat is opened.
+      if (readReceiptTimerRef.current) {
+        clearTimeout(readReceiptTimerRef.current);
+        readReceiptTimerRef.current = null;
+        markChatRead();
+      }
       Object.values(typingExpiries).forEach(clearTimeout);
     };
   }, [markChatRead]);
@@ -217,6 +225,9 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
 
         const senderId = (newMessage.sender?._id || newMessage.sender)?.toString();
         if (senderId !== currentUser?._id?.toString()) scheduleReadReceipt();
+        // The message they were typing has arrived
+        const senderName = newMessage.sender?.username;
+        if (senderName) clearTypingUser(senderName);
 
         if (onUpdateLastMessageRef.current) {
           onUpdateLastMessageRef.current(chat._id, newMessage);
@@ -347,14 +358,16 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
   // Load older messages via cursor pagination
   // Scroll position across the prepend is kept by ChatWindow's own scroll
   // anchoring (it pins the message you were looking at), so this only loads.
-  const loadOlderMessages = useCallback(async () => {
+  // `untilId` ("go to message"): the server reaches back to that message in
+  // one request instead of the client paging 25 at a time until it appears.
+  const loadOlderMessages = useCallback(async (untilId) => {
     if (!chat?._id || !hasMore || !nextCursor || loadingOlder) return;
 
     setLoadingOlder(true);
 
     try {
       const res = await apiClient.get(`/chat/message/${chat._id}`, {
-        params: { cursor: nextCursor, limit: 25 },
+        params: { cursor: nextCursor, limit: 25, ...(typeof untilId === "string" ? { until: untilId } : {}) },
       });
 
       if (res.data.success) {

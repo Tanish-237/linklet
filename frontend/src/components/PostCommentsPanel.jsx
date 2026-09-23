@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, lazy, Suspense } from "react";
+import useConfirm from "../hooks/useConfirm";
 import { toast } from "sonner";
 import defaultAvatar from "../assets/default-avatar.webp";
 import usePostComments from "../hooks/usePostComments";
@@ -38,6 +39,7 @@ const Avatar = ({ src, className }) => (
  * a paginated thread (comments + inline reply previews), plus the composer.
  */
 const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onNavigateToProfile }) => {
+  const [confirm, confirmDialog] = useConfirm();
   const thread = usePostComments(postId, { onCountChange });
 
   const [commentText, setCommentText] = useState("");
@@ -93,9 +95,11 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
 
   // `parentId` is whichever node — a top-level comment or a reply at any
   // depth — the user hit "Reply" on; the new reply nests directly under it.
+  const replySubmittingRef = useRef(false);
   const handleReplySubmit = async (parentId, replyToUser) => {
     const text = replyTextMap[replyingToKey];
-    if (!text || !text.trim() || !user) return;
+    if (!text || !text.trim() || !user || replySubmittingRef.current) return;
+    replySubmittingRef.current = true;
     try {
       await thread.addReply(parentId, text.trim(), replyToUser);
       setReplyTextMap((prev) => ({ ...prev, [replyingToKey]: "" }));
@@ -103,6 +107,8 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
       toast.success("Reply added");
     } catch (error) {
       toast.error(error.response?.data?.message || "Error adding reply");
+    } finally {
+      replySubmittingRef.current = false;
     }
   };
 
@@ -119,7 +125,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
   };
 
   const handleDelete = async (commentId) => {
-    if (!window.confirm("Are you sure you want to delete this comment?")) return;
+    if (!(await confirm({ title: "Delete comment?", message: "This comment will be permanently removed." }))) return;
     try {
       await thread.deleteComment(commentId);
       toast.success("Comment deleted");
@@ -143,6 +149,15 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
         placeholder={placeholder}
         value={replyTextMap[key] || ""}
         onChange={(e) => setReplyTextMap({ ...replyTextMap, [key]: e.target.value })}
+        onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return;
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onSubmit();
+          } else if (e.key === "Escape") {
+            setReplyingToKey(null);
+          }
+        }}
         className="feed-detail__reply-input"
         autoFocus
       />
@@ -213,10 +228,10 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
                 className={`feed-detail__comment-action ${isLiked ? "liked" : ""}`}
               >
                 <span
-                  className="material-icons"
+                  className={`material-icons ${isLiked ? "icon-filled" : ""}`}
                   style={{ fontSize: "0.85rem", color: isLiked ? "rgb(var(--accent-fg))" : "inherit" }}
                 >
-                  {isLiked ? "thumb_up" : "thumb_up_off_alt"}
+                  thumb_up
                 </span>
                 {upvotes.length > 0 ? upvotes.length : "Like"}
               </button>
@@ -297,6 +312,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
   };
 
   return (
+    <>
     <div className="feed-detail__right">
       <div className="feed-detail__comments-header">
         <span className="material-icons" style={{ color: "rgb(var(--accent-fg))", fontSize: "1.2rem" }}>forum</span>
@@ -362,6 +378,8 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
         </form>
       </div>
     </div>
+    {confirmDialog}
+    </>
   );
 };
 

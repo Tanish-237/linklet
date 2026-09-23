@@ -27,7 +27,7 @@ const PrivacyPolicyPage = () => {
   }, []);
 
   return (
-    <div className="privacy-page min-h-screen bg-canvas text-fg no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+    <div className="privacy-page static-page bg-canvas text-fg no-scrollbar">
       <SEO title="Privacy Policy | Linklet" description={PRIVACY_DESCRIPTION} path="/privacy" />
       <div className="max-w-4xl mx-auto">
         <div className="mb-12 border-b border-zinc-800/80 pb-8">

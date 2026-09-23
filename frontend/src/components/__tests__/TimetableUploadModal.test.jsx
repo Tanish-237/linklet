@@ -8,7 +8,6 @@ vi.mock("../../api/timetable.api", () => ({
   uploadTimetablePdf: vi.fn(),
   confirmTimetable: vi.fn(),
   fetchTimetable: vi.fn(),
-  deleteTimetable: vi.fn(),
 }));
 
 describe("TimetableUploadModal Component Tests", () => {

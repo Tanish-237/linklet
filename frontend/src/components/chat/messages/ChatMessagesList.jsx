@@ -37,6 +37,7 @@ const ChatMessagesList = ({
   onOpenLightbox,
   onRetryFailed,
   onDiscardFailed,
+  onJumpToMessage,
 }) => {
   // Filter messages to ensure they belong to this chat (guards against transient prop desync)
   const validMessages = messages.filter((m) => {
@@ -173,6 +174,7 @@ const ChatMessagesList = ({
                 onOpenLightbox={onOpenLightbox}
                 onRetryFailed={onRetryFailed}
                 onDiscardFailed={onDiscardFailed}
+                onJumpToMessage={onJumpToMessage}
               />
             </React.Fragment>
           );

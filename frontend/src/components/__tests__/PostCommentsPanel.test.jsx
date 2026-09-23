@@ -53,7 +53,6 @@ const renderPanel = (props = {}) =>
 describe("PostCommentsPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    window.confirm = vi.fn(() => true);
   });
 
   it("shows a loading state then the comments and the count in the header", async () => {
@@ -190,6 +189,38 @@ describe("PostCommentsPanel", () => {
     expect(postApi.addReply).toHaveBeenCalledWith("post1", id(1), "thanks!", "alice");
   });
 
+  it("pressing Enter in the reply box sends the reply (no mouse needed), once", async () => {
+    postApi.getPostComments.mockResolvedValueOnce({ data: [comment(1)], hasMore: false, nextCursor: null });
+    postApi.addReply.mockResolvedValueOnce({
+      reply: { _id: id(21), text: "via enter", replyToUsername: "alice", userId: author("me", "u-me"), createdAt: new Date().toISOString() },
+      repliesCount: 1,
+      commentsCount: 1,
+    });
+    renderPanel();
+    await screen.findByText("comment 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /Reply$/ }));
+    const input = screen.getByPlaceholderText(/replying to @alice/i);
+    fireEvent.change(input, { target: { value: "via enter" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    fireEvent.keyDown(input, { key: "Enter" }); // a double press must not post twice
+
+    expect(await screen.findByText("via enter")).toBeInTheDocument();
+    expect(postApi.addReply).toHaveBeenCalledTimes(1);
+  });
+
+  it("pressing Escape in the reply box cancels the reply", async () => {
+    postApi.getPostComments.mockResolvedValueOnce({ data: [comment(1)], hasMore: false, nextCursor: null });
+    renderPanel();
+    await screen.findByText("comment 1");
+
+    fireEvent.click(screen.getByRole("button", { name: /Reply$/ }));
+    fireEvent.keyDown(screen.getByPlaceholderText(/replying to @alice/i), { key: "Escape" });
+
+    expect(screen.queryByPlaceholderText(/replying to @alice/i)).not.toBeInTheDocument();
+    expect(postApi.addReply).not.toHaveBeenCalled();
+  });
+
   it("replying to a reply nests the new reply under it (not under the top-level comment)", async () => {
     console.log("TRACE [PostCommentsPanel.test]: reply-to-a-reply nests one level deeper");
     postApi.getPostComments.mockResolvedValueOnce({
@@ -261,15 +292,16 @@ describe("PostCommentsPanel", () => {
     await screen.findByText("comment 1");
 
     fireEvent.click(screen.getByRole("button", { name: /delete comment by/i }));
+    // In-app confirmation dialog, not window.confirm
+    expect(screen.getByRole("dialog")).toHaveTextContent("Delete comment?");
+    fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
 
     await waitFor(() => expect(screen.queryByText("comment 1")).not.toBeInTheDocument());
-    expect(window.confirm).toHaveBeenCalled();
     expect(onCountChange).toHaveBeenCalledWith(1);
     expect(screen.getByText("comment 2")).toBeInTheDocument();
   });
 
   it("does nothing when the user cancels the delete confirmation", async () => {
-    window.confirm = vi.fn(() => false);
     postApi.getPostComments.mockResolvedValueOnce({
       data: [comment(1, { userId: author("me", "u-me") })],
       hasMore: false,
@@ -279,7 +311,9 @@ describe("PostCommentsPanel", () => {
     await screen.findByText("comment 1");
 
     fireEvent.click(screen.getByRole("button", { name: /delete comment by/i }));
+    fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(postApi.deletePostComment).not.toHaveBeenCalled();
     expect(screen.getByText("comment 1")).toBeInTheDocument();
   });

@@ -26,12 +26,24 @@ export const getContactIds = async (userId) => {
   }
 };
 
-/** Which of `userIds` currently have at least one live socket, cluster-wide. */
-export const filterOnlineUsers = async (io, userIds) => {
+/**
+ * A socket whose tab/app is in the background marks itself `data.away`
+ * (the "presence" event in socket.js). It still receives messages — so it
+ * counts for delivery ticks — but it doesn't make its user show as "online".
+ */
+const isActive = (s) => !s.data?.away;
+
+/**
+ * Which of `userIds` currently have at least one live socket, cluster-wide.
+ * `activeOnly`: only count sockets in the foreground — what "online" in the
+ * UI means. Delivery checks leave it off (a background tab still gets messages).
+ */
+export const filterOnlineUsers = async (io, userIds, { activeOnly = false } = {}) => {
   if (!io || !Array.isArray(userIds) || userIds.length === 0) return [];
   try {
     const sockets = await io.in(userIds).fetchSockets();
-    return [...new Set(sockets.map((s) => s.data?.userId).filter(Boolean))];
+    const counted = activeOnly ? sockets.filter(isActive) : sockets;
+    return [...new Set(counted.map((s) => s.data?.userId).filter(Boolean))];
   } catch (err) {
     // A slow/unreachable peer instance must not break connecting or messaging.
     logger.warn(`Presence: online lookup failed: ${err.message}`);
@@ -39,15 +51,11 @@ export const filterOnlineUsers = async (io, userIds) => {
   }
 };
 
-export const isUserOnline = async (io, userId) => {
-  if (!userId) return false;
-  return (await filterOnlineUsers(io, [userId.toString()])).length > 0;
-};
-
 /** Number of live sockets (tabs/devices, on any instance) a user currently has. */
-export const countUserSockets = async (io, userId) => {
+export const countUserSockets = async (io, userId, { activeOnly = false } = {}) => {
   try {
-    return (await io.in(userId.toString()).fetchSockets()).length;
+    const sockets = await io.in(userId.toString()).fetchSockets();
+    return (activeOnly ? sockets.filter(isActive) : sockets).length;
   } catch (err) {
     logger.warn(`Presence: socket count failed for ${userId}: ${err.message}`);
     return null; // unknown — callers decide the safe default

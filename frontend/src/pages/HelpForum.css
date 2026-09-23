@@ -670,11 +670,13 @@
   align-self: center;
 }
 
+/* The view count is the only in-flow child, so it centres under the vote box;
+   the delete button hangs off its left edge without shifting it. */
 .hf-side-meta {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
   padding-top: 0.5rem;
   font-size: 0.78rem;
   color: rgb(var(--fg-muted));
@@ -694,6 +696,14 @@
   color: rgb(var(--fg-muted));
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+.hf-side-meta .hf-del-btn {
+  position: absolute;
+  right: calc(100% + 0.5rem);
+  /* padding-top shifts the content box down, so its centre is 0.25rem below 50% */
+  top: calc(50% + 0.25rem);
+  transform: translateY(-50%);
 }
 
 .hf-del-btn .material-icons {

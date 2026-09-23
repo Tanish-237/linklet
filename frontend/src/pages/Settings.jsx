@@ -187,7 +187,7 @@ export default function Settings() {
           {/* Account Overview Card */}
           <div className="settings-card">
             <div className="settings-card-header">
-              <span className="material-icons text-violet-400 text-2xl">verified_user</span>
+              <span className="material-icons icon-filled text-violet-400 text-2xl">verified_user</span>
               <div>
                 <h3>MNNIT Institutional Credentials</h3>
                 <p>Verified institutional identity details associated with your Linklet account.</p>

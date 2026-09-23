@@ -1,14 +1,15 @@
 {
   "name": "linklet",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build && vite build --ssr ssr/entry-server.jsx --outDir dist-ssr && node scripts/prerender.mjs",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "icons:sync": "node scripts/sync-icon-names.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.4",

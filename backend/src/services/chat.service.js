@@ -117,7 +117,7 @@ export const accessOrCreateChat = async (userId, targetUserId) => {
 /**
  * Helper to check if a user is an admin of the group.
  */
-export const isUserGroupAdmin = (chat, userId) => {
+const isUserGroupAdmin = (chat, userId) => {
   if (!chat || !userId) return false;
   const uid = (userId._id || userId).toString();
   if (chat.groupAdmin && (chat.groupAdmin._id || chat.groupAdmin).toString() === uid) {
@@ -571,6 +571,8 @@ export const getMessages = async (chatId, userId, query = {}) => {
     // history (and its populated sender/reactions/replyTo) into memory at once.
     limit: Math.min(100, Math.max(1, parseInt(query.limit) || 25)),
     after: setting?.clearedAt || null,
+    // "Go to message": reach back to this message (bounded in the repository).
+    untilId: typeof query.until === "string" ? query.until : null,
   });
 };
 
@@ -694,7 +696,6 @@ export const toggleMessageReaction = async (userId, { chatId, messageId, emoji }
   return chatRepo.toggleReaction(messageId, userId, emoji);
 };
 
-export const toggleReaction = toggleMessageReaction;
 
 // ─── Pinned Messages ────────────────────────────────────────────────────────
 

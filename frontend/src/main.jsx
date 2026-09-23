@@ -2,17 +2,8 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.jsx";
 import { preloadPrerenderedPage } from "./pages/lazyPages";
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false, // Don't refetch on tab switch
-      retry: 1,
-      staleTime: 5 * 60 * 1000, // Data is fresh for 5 minutes
-    },
-  },
-});
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from "./utlis/queryClient";
 
 const rootElement = document.getElementById("root");
 const mount = () =>

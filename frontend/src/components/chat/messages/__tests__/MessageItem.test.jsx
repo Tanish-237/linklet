@@ -1,6 +1,6 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import MessageItem from "../MessageItem";
 
 describe("MessageItem Component", () => {
@@ -97,5 +97,51 @@ describe("MessageItem Component", () => {
 
     expect(screen.queryByText("sakshi_patil")).toBeNull();
     console.log("TRACE [MessageItem.test.jsx]: Confirmed foreign chat message does not display group sender name");
+  });
+
+  describe("reply quote", () => {
+    const me = { _id: "me" };
+    const dm = { _id: "c1", isGroup: false };
+    const reply = {
+      _id: "m9",
+      chat: "c1",
+      content: "True bhai",
+      sender: { _id: "me", username: "me" },
+      replyTo: { _id: "orig-1", content: "whatapp ki mkc", sender: { username: "shankkyvibe" } },
+      createdAt: new Date().toISOString(),
+    };
+
+    it("tapping the quoted message jumps to the original", () => {
+      const onJumpToMessage = vi.fn();
+      render(<MessageItem msg={reply} currentUser={me} chat={dm} onJumpToMessage={onJumpToMessage} />);
+      fireEvent.click(screen.getByRole("button", { name: /go to the original message/i }));
+      expect(onJumpToMessage).toHaveBeenCalledWith("orig-1");
+    });
+
+    it("is keyboard accessible (Enter jumps too)", () => {
+      const onJumpToMessage = vi.fn();
+      render(<MessageItem msg={reply} currentUser={me} chat={dm} onJumpToMessage={onJumpToMessage} />);
+      fireEvent.keyDown(screen.getByRole("button", { name: /go to the original message/i }), { key: "Enter" });
+      expect(onJumpToMessage).toHaveBeenCalledWith("orig-1");
+    });
+
+    it("in selection mode, tapping selects the message instead of jumping", () => {
+      const onJumpToMessage = vi.fn();
+      const onToggleSelect = vi.fn();
+      render(
+        <MessageItem
+          msg={reply}
+          currentUser={me}
+          chat={dm}
+          isSelectionActive
+          onToggleSelect={onToggleSelect}
+          onJumpToMessage={onJumpToMessage}
+        />
+      );
+      expect(screen.queryByRole("button", { name: /go to the original message/i })).toBeNull();
+      fireEvent.click(screen.getByText("whatapp ki mkc"));
+      expect(onJumpToMessage).not.toHaveBeenCalled();
+      expect(onToggleSelect).toHaveBeenCalledWith("m9");
+    });
   });
 });

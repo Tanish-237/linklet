@@ -44,7 +44,7 @@ export const applyIncomingMessage = (message) => {
 };
 
 /** Warm the cache for a chat the user is about to open (sidebar hover). */
-export const prefetchChat = (chatId) => {
+const prefetchChat = (chatId) => {
   if (!chatId) return Promise.resolve();
   const key = String(chatId);
   const entry = cache.get(key);

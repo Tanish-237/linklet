@@ -1,19 +1,17 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useQuery, useInfiniteQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from "sonner";
 import useAuthStore from '../store/useAuthStore';
 import defaultAvatar from '../assets/default-avatar.webp';
 import './HelpForum.css';
 import {
-  getQuestions,
-  getQuestionMetadata,
-  getTagCloud,
-  getForumStats,
   createQuestion,
   voteQuestion as apiVoteQuestion,
   deleteQuestion as apiDeleteQuestion,
 } from '../api/question.api';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
+import { forumMetaQuery, forumQuestionsQuery } from '../api/pageQueries';
 import { optimizeAvatar } from "../utlis/cloudinary";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -301,7 +299,7 @@ const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, o
           <div className="hf-badge-group">
             {hasAccepted && (
               <span className="hf-solved-badge">
-                <span className="material-icons" style={{ fontSize: '0.85rem' }}>check_circle</span>
+                <span className="material-icons icon-filled" style={{ fontSize: '0.85rem' }}>check_circle</span>
                 Solved
               </span>
             )}
@@ -415,15 +413,11 @@ const STATUS_FILTERS = [
   { id: 'answered', label: 'Answered' },
 ];
 
+const EMPTY = [];
+const DEFAULT_CATEGORIES = ['General'];
+
 const HelpForum = () => {
   const { user } = useAuthStore();
-
-  // Data state
-  const [questions, setQuestions] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
 
   // Filter / search state
   const [search, setSearch] = useState('');
@@ -436,11 +430,14 @@ const HelpForum = () => {
   const [selectedTag, setSelectedTag] = useState('');
   const sortRef = useRef(null);
 
-  // Metadata
-  const [categories, setCategories] = useState(['General']);
-  const [suggestedTags, setSuggestedTags] = useState([]);
-  const [tagCloud, setTagCloud] = useState([]);
-  const [categoryStats, setCategoryStats] = useState([]);
+  const queryClient = useQueryClient();
+
+  // ─── Metadata (categories, tag cloud, per-category counts) ─────────────────
+  const { data: meta } = useQuery(forumMetaQuery());
+  const categories = meta?.categories ?? DEFAULT_CATEGORIES;
+  const suggestedTags = meta?.suggestedTags ?? EMPTY;
+  const tagCloud = meta?.tagCloud ?? EMPTY;
+  const categoryStats = meta?.categoryStats ?? EMPTY;
 
   // UI state
   const [showAskModal, setShowAskModal] = useState(false);
@@ -465,27 +462,6 @@ const HelpForum = () => {
 
   const searchDebounceRef = useRef(null);
 
-  // ─── Load Metadata ───────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    const loadMeta = async () => {
-      try {
-        const [meta, tags, stats] = await Promise.all([
-          getQuestionMetadata(),
-          getTagCloud(),
-          getForumStats(),
-        ]);
-        setCategories(meta.categories || []);
-        setSuggestedTags(meta.suggestedTags || []);
-        setTagCloud(tags || []);
-        setCategoryStats(stats || []);
-      } catch (err) {
-        console.error('[HelpForum] Failed to load metadata:', err);
-      }
-    };
-    loadMeta();
-  }, []);
-
   // ─── Debounce Search ─────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -498,58 +474,27 @@ const HelpForum = () => {
 
   // ─── Fetch Questions ─────────────────────────────────────────────────────────
 
-  // Stamp every request; a response that is no longer the latest (the user changed
-  // the filter/search/category while it was in flight) is dropped instead of being
-  // appended to — or replacing — the list for the *new* view.
-  const questionsRequestRef = useRef(0);
-
-  const fetchQuestions = useCallback(
-    async (cursor = null) => {
-      const stamp = ++questionsRequestRef.current;
-      if (cursor) setLoadingMore(true);
-      else setLoading(true);
-
-      try {
-        const params = {
-          search: debouncedSearch,
-          filter: sort,
-          status,
-          category: selectedCategory,
-          tag: selectedTag,
-          limit: 15,
-        };
-        if (cursor) params.cursor = cursor;
-        if (mineOnly && user?._id) params.userId = user._id;
-
-        const res = await getQuestions(params);
-        if (stamp !== questionsRequestRef.current) return;
-        const newQuestions = res.data || [];
-
-        if (cursor) {
-          setQuestions((prev) => [...prev, ...newQuestions]);
-        } else {
-          setQuestions(newQuestions);
-        }
-        setNextCursor(res.nextCursor || null);
-        setHasMore(res.hasMore || false);
-      } catch (err) {
-        if (stamp !== questionsRequestRef.current) return;
-        console.error('[HelpForum] Failed to load questions:', err);
-        toast.error('Failed to load questions. Please try again.');
-      } finally {
-        if (stamp === questionsRequestRef.current) {
-          setLoading(false);
-          setLoadingMore(false);
-        }
-      }
-    },
-    [debouncedSearch, sort, status, mineOnly, selectedCategory, selectedTag, user?._id]
-  );
+  // Cached per filter combination, so returning to the forum (or to a filter
+  // you already looked at) renders instantly instead of re-fetching.
+  const questionsOptions = forumQuestionsQuery(user?._id, {
+    debouncedSearch, sort, status, selectedCategory, selectedTag, mineOnly,
+  });
+  const questionsKey = questionsOptions.queryKey;
+  const questionsQuery = useInfiniteQuery({ ...questionsOptions, placeholderData: keepPreviousData });
+  const questionPages = questionsQuery.data?.pages;
+  const questions = useMemo(() => questionPages?.flatMap((p) => p.data || []) ?? EMPTY, [questionPages]);
+  const loading = questionsQuery.isPending || questionsQuery.isPlaceholderData;
+  const loadingMore = questionsQuery.isFetchingNextPage;
+  const hasMore = questionsQuery.hasNextPage;
+  // Applies a list-level edit (filter/map) to every cached page of this view.
+  const setQuestions = (update) =>
+    queryClient.setQueryData(questionsKey, (old) =>
+      old && { ...old, pages: old.pages.map((p) => ({ ...p, data: update(p.data || []) })) }
+    );
 
   useEffect(() => {
-    setNextCursor(null);
-    fetchQuestions(null);
-  }, [fetchQuestions]);
+    if (questionsQuery.isError) toast.error('Failed to load questions. Please try again.');
+  }, [questionsQuery.isError]);
 
   // Close the sort dropdown on outside click
   useEffect(() => {
@@ -577,7 +522,7 @@ const HelpForum = () => {
       return;
     }
 
-    const prevQuestions = questions;
+    const snapshot = queryClient.getQueryData(questionsKey);
 
     // Optimistic update
     setQuestions((prev) =>
@@ -612,7 +557,7 @@ const HelpForum = () => {
     try {
       await apiVoteQuestion(questionId, voteType);
     } catch (err) {
-      setQuestions(prevQuestions); // Rollback cleanly without re-fetching feed
+      queryClient.setQueryData(questionsKey, snapshot); // Rollback cleanly without re-fetching feed
       const msg = err?.response?.data?.message;
       if (msg) toast.error(msg);
     }
@@ -628,9 +573,8 @@ const HelpForum = () => {
 
   const handleAskSuccess = () => {
     setShowAskModal(false);
-    // Refresh list
-    setNextCursor(null);
-    fetchQuestions(null);
+    // Refresh list (and the per-category counts in the sidebar)
+    queryClient.invalidateQueries({ queryKey: ['forum'] });
   };
 
   const activeSort = SORT_OPTIONS.find((o) => o.id === sort);
@@ -861,7 +805,7 @@ const HelpForum = () => {
               <button
                 id="hf-load-more-btn"
                 className="hf-load-more-btn"
-                onClick={() => fetchQuestions(nextCursor)}
+                onClick={() => questionsQuery.fetchNextPage()}
                 disabled={loadingMore}
               >
                 {loadingMore ? (

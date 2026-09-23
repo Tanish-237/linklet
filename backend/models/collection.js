@@ -27,4 +27,8 @@ const collectionSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Every query is scoped to the owner (list sorted newest-first, plus
+// findOne({ _id, userId })), so index userId instead of scanning the collection.
+collectionSchema.index({ userId: 1, createdAt: -1 });
+
 export const Collection = mongoose.model("Collection", collectionSchema);

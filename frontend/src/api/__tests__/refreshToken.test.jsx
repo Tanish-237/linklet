@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import axios from "axios";
-import { refreshAccessToken, readAccessToken, isAuthHandshakeError } from "../refreshToken";
+import { refreshAccessToken, isAuthHandshakeError } from "../refreshToken";
 
 vi.mock("axios");
 
@@ -21,19 +21,6 @@ describe("refreshToken utilities", () => {
     localStorage.clear();
   });
 
-  describe("readAccessToken", () => {
-    it("returns the token currently in storage", () => {
-      console.log("[TEST] readAccessToken › reads whatever is currently stored");
-      localStorage.setItem("accessToken", "abc123");
-      expect(readAccessToken()).toBe("abc123");
-    });
-
-    it("returns null when nothing is stored", () => {
-      console.log("[TEST] readAccessToken › returns null when unset");
-      expect(readAccessToken()).toBeNull();
-    });
-  });
-
   describe("refreshAccessToken", () => {
     it("shares a single in-flight request across concurrent callers (no duplicate refresh-token rotation)", async () => {
       console.log("\n──────────────────────────────────────────────");
@@ -48,30 +35,30 @@ describe("refreshToken utilities", () => {
 
       expect(axios.post).toHaveBeenCalledTimes(1);
 
-      resolvePost({ data: { accessToken: "new-token" } });
+      resolvePost({ data: { success: true } });
       const [result1, result2] = await Promise.all([call1, call2]);
 
-      expect(result1).toBe("new-token");
-      expect(result2).toBe("new-token");
-      expect(localStorage.getItem("accessToken")).toBe("new-token");
+      expect(result1).toBe(true);
+      expect(result2).toBe(true);
+      // Tokens are cookie-only: nothing is ever written to JS-readable storage.
+      expect(localStorage.getItem("accessToken")).toBeNull();
       console.log("[TEST] Verified: only one POST /auth/refresh fired for two concurrent callers");
     });
 
     it("issues a new request after the previous one settles", async () => {
       console.log("[TEST] refreshAccessToken › a second call after settling triggers a fresh request");
-      axios.post.mockResolvedValueOnce({ data: { accessToken: "token-1" } });
+      axios.post.mockResolvedValueOnce({ data: { success: true } });
       await refreshAccessToken();
 
-      axios.post.mockResolvedValueOnce({ data: { accessToken: "token-2" } });
+      axios.post.mockResolvedValueOnce({ data: { success: true } });
       const result = await refreshAccessToken();
 
       expect(axios.post).toHaveBeenCalledTimes(2);
-      expect(result).toBe("token-2");
+      expect(result).toBe(true);
     });
 
-    it("clears the stored token and fires auth-expired when the refresh request fails", async () => {
-      console.log("[TEST] refreshAccessToken › failure clears token and dispatches auth-expired");
-      localStorage.setItem("accessToken", "stale-token");
+    it("fires auth-expired when the refresh request fails", async () => {
+      console.log("[TEST] refreshAccessToken › failure dispatches auth-expired");
       axios.post.mockRejectedValueOnce(new Error("refresh token invalid"));
 
       const listener = vi.fn();
@@ -79,7 +66,6 @@ describe("refreshToken utilities", () => {
 
       await expect(refreshAccessToken()).rejects.toThrow("refresh token invalid");
 
-      expect(localStorage.getItem("accessToken")).toBeNull();
       expect(listener).toHaveBeenCalledTimes(1);
       window.removeEventListener("auth-expired", listener);
     });

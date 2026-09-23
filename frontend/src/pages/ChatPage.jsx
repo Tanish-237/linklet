@@ -123,7 +123,7 @@ const ChatPage = () => {
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [lastSeenMap, setLastSeenMap] = useState({}); // userId -> lastSeen Date/string
-  const [typingMap, setTypingMap] = useState({}); // chatId -> username
+  const [typingMap, setTypingMap] = useState({}); // chatId -> [{ userId, username }]
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> count
   // What a chat's unread state was at the moment it was opened, taken before
   // its badge is cleared. ChatWindow uses it to place the "N unread messages"
@@ -143,6 +143,7 @@ const ChatPage = () => {
     });
     setActiveChat(chat);
     setUnreadCounts((prev) => (prev[chat._id] ? { ...prev, [chat._id]: 0 } : prev));
+    clearCachedUnreadRef.current(chat._id);
   }, []);
 
   const activeChatRef = useRef(activeChat);
@@ -218,6 +219,10 @@ const ChatPage = () => {
       setUnreadCounts((prev) => ({ ...prev, ...initialCounts }));
       setLastSeenMap((prev) => ({ ...initialLastSeen, ...prev }));
     }
+    // Deliberately keyed to the chat list / user / URL only: re-running when the
+    // active chat or unread state changes would reset badges the user just
+    // cleared and re-open the ?chatId= chat. Live values are read via refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cachedChats, user?._id, searchParams]);
 
   // Handle URL query param navigation (e.g. from Saved section or notifications)
@@ -243,6 +248,21 @@ const ChatPage = () => {
       return next;
     });
   };
+
+  // The chat list cache (react-query + localStorage) carries each chat's
+  // server-computed `unreadCount`, and the badges are recomputed from it
+  // whenever the list changes — so it must be kept in step locally: zeroed
+  // when a chat is opened/read, bumped when a message lands in another chat.
+  // Otherwise a stale count comes back as a phantom "unread" on reopening.
+  const clearCachedUnread = (chatId) => {
+    updateChats((prev) =>
+      prev.map((c) => (c._id === chatId && c.unreadCount ? { ...c, unreadCount: 0, lastReadAt: new Date().toISOString() } : c))
+    );
+  };
+  const clearCachedUnreadRef = useRef(clearCachedUnread);
+  useEffect(() => {
+    clearCachedUnreadRef.current = clearCachedUnread;
+  });
 
   // Setup Socket connection & status listeners
   useEffect(() => {
@@ -272,42 +292,56 @@ const ChatPage = () => {
     on("user_disconnected", ({ userId, lastSeen }) => {
       if (userId) {
         setOnlineUsers((prev) => prev.filter((id) => id !== userId));
+        // Someone who went offline can't still be typing anywhere
+        setTypingMap((prev) => {
+          let changed = false;
+          const next = {};
+          for (const [chatId, list] of Object.entries(prev)) {
+            const rest = list.filter((t) => t.userId !== userId);
+            if (rest.length !== list.length) changed = true;
+            if (rest.length) next[chatId] = rest;
+          }
+          return changed ? next : prev;
+        });
         if (lastSeen) {
           setLastSeenMap((prev) => ({ ...prev, [userId]: lastSeen }));
         }
       }
     });
 
-    on("typing", ({ chatId, username }) => {
-      if (chatId && username) {
-        setTypingMap((prev) => ({ ...prev, [chatId]: username }));
+    // Sidebar typing indicators: chatId -> [{ userId, username }], one entry
+    // per person, each with its own expiry, so one person stopping doesn't
+    // hide another who is still typing. Our own other tabs/devices are ignored.
+    const removeTyper = (chatId, userId) => {
+      const key = `${chatId}:${userId}`;
+      clearTimeout(typingTimeoutsRef.current[key]);
+      delete typingTimeoutsRef.current[key];
+      setTypingMap((prev) => {
+        const list = prev[chatId];
+        if (!list?.some((t) => t.userId === userId)) return prev;
+        const rest = list.filter((t) => t.userId !== userId);
+        const next = { ...prev };
+        if (rest.length) next[chatId] = rest;
+        else delete next[chatId];
+        return next;
+      });
+    };
 
-        // Auto-clear fallback after 4 seconds to prevent stuck typing indicator
-        if (typingTimeoutsRef.current[chatId]) {
-          clearTimeout(typingTimeoutsRef.current[chatId]);
-        }
-        typingTimeoutsRef.current[chatId] = setTimeout(() => {
-          setTypingMap((prev) => {
-            const next = { ...prev };
-            delete next[chatId];
-            return next;
-          });
-        }, 4000);
-      }
+    on("typing", ({ chatId, userId, username }) => {
+      if (!chatId || !userId || !username || userId === user?._id?.toString()) return;
+      setTypingMap((prev) => {
+        const list = prev[chatId] || [];
+        if (list.some((t) => t.userId === userId)) return prev;
+        return { ...prev, [chatId]: [...list, { userId, username }] };
+      });
+      // Auto-clear fallback in case the "stop typing" never arrives
+      const key = `${chatId}:${userId}`;
+      clearTimeout(typingTimeoutsRef.current[key]);
+      typingTimeoutsRef.current[key] = setTimeout(() => removeTyper(chatId, userId), 5000);
     });
 
-    on("stop typing", ({ chatId }) => {
-      if (chatId) {
-        if (typingTimeoutsRef.current[chatId]) {
-          clearTimeout(typingTimeoutsRef.current[chatId]);
-          delete typingTimeoutsRef.current[chatId];
-        }
-        setTypingMap((prev) => {
-          const next = { ...prev };
-          delete next[chatId];
-          return next;
-        });
-      }
+    on("stop typing", ({ chatId, userId }) => {
+      if (chatId && userId) removeTyper(chatId, userId);
     });
 
     on("message received", (newMessage) => {
@@ -318,8 +352,15 @@ const ChatPage = () => {
       // so switching to them is instant and already up to date.
       applyIncomingMessage(newMessage);
 
-      // Increment unread count if not in the active chat
-      if (activeChatRef.current?._id !== msgChatId) {
+      // The message they were typing has arrived
+      const senderId = (newMessage.sender?._id || newMessage.sender)?.toString();
+      if (msgChatId && senderId) removeTyper(msgChatId, senderId);
+
+      // Increment unread count if not in the active chat (and not our own
+      // message, e.g. sent from another device)
+      const fromMe = senderId && senderId === user?._id?.toString();
+      const countsAsUnread = activeChatRef.current?._id !== msgChatId && !fromMe;
+      if (countsAsUnread) {
         setUnreadCounts((prev) => ({
           ...prev,
           [msgChatId]: (prev[msgChatId] || 0) + 1,
@@ -368,6 +409,7 @@ const ChatPage = () => {
               ...chat,
               lastMessage: newMessage,
               updatedAt: newMessage.createdAt || chat.updatedAt,
+              unreadCount: countsAsUnread ? (chat.unreadCount || 0) + 1 : chat.unreadCount,
             };
           }
           return chat;
@@ -427,6 +469,7 @@ const ChatPage = () => {
     on("chat read", ({ chatId, userId }) => {
       if (!chatId || userId?.toString() !== user?._id?.toString()) return;
       setUnreadCounts((prev) => (prev[chatId] ? { ...prev, [chatId]: 0 } : prev));
+      clearCachedUnreadRef.current(chatId);
     });
 
     // The chat's newest message was deleted — show the new latest one.
@@ -437,10 +480,15 @@ const ChatPage = () => {
       );
     });
 
+    const typingTimeouts = typingTimeoutsRef.current;
     return () => {
       Object.entries(handlers).forEach(([event, fn]) => socket.off(event, fn));
-      Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
+      Object.values(typingTimeouts).forEach(clearTimeout);
     };
+    // Socket listeners are bound once per socket/user; updateChats and user are
+    // only read through stable setters and the user id, so rebinding on every
+    // render would just churn the subscriptions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [socket, user?._id]);
 
   const handleSelectChat = (chat) => {

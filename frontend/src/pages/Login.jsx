@@ -38,9 +38,6 @@ export default function Login() {
       
       if (res.status === 200) {
         toast.success("Welcome back!");
-        if (res.data?.accessToken) {
-          localStorage.setItem("accessToken", res.data.accessToken);
-        }
         if (res.data?.user) {
           setUser(res.data.user);
         }

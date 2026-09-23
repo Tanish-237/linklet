@@ -1,7 +1,9 @@
 import { createContext, useEffect, useState, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { API_BASE_URL } from "../config";
-import { readAccessToken, refreshAccessToken, isAuthHandshakeError } from "../api/refreshToken";
+import { refreshAccessToken, isAuthHandshakeError } from "../api/refreshToken";
+
+const AWAY_GRACE_MS = 10_000;
 
 export const SocketContext = createContext();
 
@@ -34,14 +36,10 @@ export const SocketProvider = ({ children }) => {
       // The user may have logged out / the provider unmounted while the chunk loaded.
       if (cancelled) return;
 
-      // `auth` as a function (rather than a static object) is re-invoked by
-      // socket.io-client on every connection AND reconnection attempt, so a
-      // token refreshed by the axios interceptor mid-session is picked up
-      // automatically instead of the socket being stuck with the token it
-      // had when it first connected.
+      // The handshake authenticates with the httpOnly access cookie
+      // (withCredentials), which the refresh flow keeps current.
       newSocket = io(API_BASE_URL, {
         withCredentials: true,
-        auth: (cb) => cb({ token: readAccessToken() }),
       });
 
       let retriedAuthRefresh = false;
@@ -50,6 +48,9 @@ export const SocketProvider = ({ children }) => {
         const handleSetup = () => {
           retriedAuthRefresh = false;
           if (typeof newSocket.emit === "function") {
+            // A socket opened in a background tab is connected but not
+            // "online"; say so before registering so it's never announced.
+            if (document.hidden) newSocket.emit("presence", { active: false });
             newSocket.emit("setup", userRef.current || user);
           }
         };
@@ -58,8 +59,8 @@ export const SocketProvider = ({ children }) => {
         newSocket.on("reconnect", handleSetup);
 
         // A handshake rejected for an expired/invalid token means the access
-        // token in localStorage is stale — the automatic reconnect backoff
-        // would eventually retry with the same stale token and fail again.
+        // cookie is stale — the automatic reconnect backoff would eventually
+        // retry with the same stale cookie and fail again.
         // Refresh once immediately and force a reconnect so chat/presence
         // recover within a second instead of sitting disconnected.
         newSocket.on("connect_error", async (err) => {
@@ -71,8 +72,8 @@ export const SocketProvider = ({ children }) => {
               newSocket.connect();
             }
           } catch {
-            // refreshAccessToken already cleared the token and fired
-            // "auth-expired" — nothing more to do here.
+            // refreshAccessToken already fired "auth-expired" — nothing
+            // more to do here.
           }
         });
       }
@@ -80,8 +81,24 @@ export const SocketProvider = ({ children }) => {
       setSocket(newSocket);
     });
 
+    // Online = this tab is in the foreground. Going to the background is
+    // reported after a grace period, so a quick tab switch doesn't flicker
+    // "offline" for contacts; coming back is reported immediately.
+    let awayTimer = null;
+    const handleVisibility = () => {
+      clearTimeout(awayTimer);
+      if (document.hidden) {
+        awayTimer = setTimeout(() => newSocket?.emit?.("presence", { active: false }), AWAY_GRACE_MS);
+      } else {
+        newSocket?.emit?.("presence", { active: true });
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       cancelled = true;
+      clearTimeout(awayTimer);
+      document.removeEventListener("visibilitychange", handleVisibility);
       if (newSocket) newSocket.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

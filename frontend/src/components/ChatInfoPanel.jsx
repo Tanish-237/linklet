@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import useConfirm from "../hooks/useConfirm";
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/apiClient";
 import { toast } from "sonner";
@@ -9,6 +10,7 @@ import ContactDetails from "./chat/info/ContactDetails";
 import ChatMediaGallery from "./chat/info/ChatMediaGallery";
 
 const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessage }) => {
+  const [confirm, confirmDialog] = useConfirm();
   const [addSearchQuery, setAddSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isEditingName, setIsEditingName] = useState(false);
@@ -100,6 +102,15 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessa
   };
 
   const handleRemoveMember = async (userId) => {
+    const member = chat.participants?.find((p) => (p._id || p)?.toString() === userId?.toString());
+    const ok = await confirm({
+      title: "Remove member?",
+      message: `${member?.username || "This member"} will be removed from the group and stop receiving its messages.`,
+      confirmText: "Remove",
+      icon: "person_remove",
+      confirmIcon: "person_remove",
+    });
+    if (!ok) return;
     try {
       const res = await apiClient.put("/chat/group/remove", {
         chatId: chat._id,
@@ -148,7 +159,14 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessa
   };
 
   const handleLeaveGroup = async () => {
-    if (!window.confirm("Are you sure you want to leave this group?")) return;
+    const ok = await confirm({
+      title: "Leave group?",
+      message: "You'll stop receiving messages from this group. An admin will need to add you back to rejoin.",
+      confirmText: "Leave",
+      icon: "logout",
+      confirmIcon: "logout",
+    });
+    if (!ok) return;
     try {
       const res = await apiClient.put("/chat/group/leave", {
         chatId: chat._id,
@@ -214,6 +232,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessa
     : null;
 
   return (
+    <>
     <div className="info-panel flex flex-col h-full text-fg">
       {/* Panel Header */}
       <div className="flex justify-between items-center pb-3 border-b border-violet-500/15">
@@ -563,6 +582,8 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessa
         </div>
       )}
     </div>
+    {confirmDialog}
+    </>
   );
 };
 

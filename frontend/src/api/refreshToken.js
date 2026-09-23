@@ -1,18 +1,12 @@
 import axios from 'axios';
 import { API_BASE_URL } from '../config.js';
 
-export const readAccessToken = () => {
-  try {
-    return localStorage.getItem('accessToken');
-  } catch {
-    return null;
-  }
-};
-
 let inFlight = null;
 
 /**
- * Renew the access token using the httpOnly refresh cookie.
+ * Renew the session using the httpOnly refresh cookie. Both tokens live only
+ * in httpOnly cookies (never in JS-readable storage), so on success the new
+ * access cookie is already set and callers just retry their request.
  *
  * The backend rotates the refresh token on every call, so two concurrent
  * refreshes would hand out competing tokens and invalidate each other. Both
@@ -24,23 +18,8 @@ export const refreshAccessToken = () => {
 
   inFlight = axios
     .post(`${API_BASE_URL}/api/v1/auth/refresh`, {}, { withCredentials: true })
-    .then((response) => {
-      const token = response.data?.accessToken;
-      if (token) {
-        try {
-          localStorage.setItem('accessToken', token);
-        } catch {
-          // Private-mode/storage-blocked browsers still work via the cookie.
-        }
-      }
-      return token || null;
-    })
+    .then(() => true)
     .catch((error) => {
-      try {
-        localStorage.removeItem('accessToken');
-      } catch {
-        // Nothing to clear if storage is unavailable.
-      }
       window.dispatchEvent(new Event('auth-expired'));
       throw error;
     })

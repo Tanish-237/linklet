@@ -214,7 +214,7 @@ const ChatMediaGallery = ({ chatId, onJumpToMessage }) => {
                         )}
                         {isVideo && (
                           <span className="chat-media-video-badge" aria-hidden="true">
-                            <span className="material-icons">play_arrow</span>
+                            <span className="material-icons icon-filled">play_arrow</span>
                           </span>
                         )}
                       </button>

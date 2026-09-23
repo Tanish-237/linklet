@@ -1,5 +1,6 @@
 import React from "react";
 import { formatLastSeen } from "../../../utlis/chatDateUtils";
+import { formatTypingText } from "../typingText";
 import defaultAvatar from "../../../assets/default-avatar.webp";
 import defaultGroupAvatar from "../../../assets/default-group.svg";
 
@@ -69,9 +70,7 @@ const ChatHeader = ({
               {typingUsers.length > 0 ? (
                 <span className="text-emerald-400 font-medium italic flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  {chat.isGroup
-                    ? `${typingUsers[0]} is typing...`
-                    : "typing..."}
+                  {formatTypingText(typingUsers, chat.isGroup)}
                 </span>
               ) : chat.isGroup ? (
                 <span className="text-gray-400">

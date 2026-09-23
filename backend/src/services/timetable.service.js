@@ -237,7 +237,7 @@ Return ONLY valid JSON, no markdown fences, in this exact structure:
 const MAX_RETRIES = 3;
 const USER_TIMETABLE_TTL = 300; // seconds
 const userTimetableKey = (userId) => `timetable:user:${userId}`;
-export const invalidateUserTimetableCache = (userId) => cacheDel(userTimetableKey(userId));
+const invalidateUserTimetableCache = (userId) => cacheDel(userTimetableKey(userId));
 const PARSE_CACHE_TTL = 14 * 24 * 60 * 60; // 14 days — a semester's timetable barely changes
 
 /**
@@ -583,5 +583,3 @@ export const abandonTimetable = async (userId) => {
   return { message: "Timetable removed successfully" };
 };
 
-export const parseTimetableImage = parseTimetablePdf;
-export const parseTimetableFile = parseTimetablePdf;

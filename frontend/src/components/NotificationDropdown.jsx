@@ -12,6 +12,7 @@ import {
   clearReadNotifications,
 } from "../api/notification.api";
 import TimeAgo from "./TimeAgo";
+import useConfirm from "../hooks/useConfirm";
 
 const getNotificationBadgeMeta = (type) => {
   switch (type) {
@@ -43,8 +44,11 @@ export default function NotificationDropdown({
   isOpen: controlledIsOpen,
   onToggle: controlledOnToggle,
   onClose: controlledOnClose,
-  expanded = false,
+  // Extra classes for the bell — e.g. hide it on mobile, where the panel is
+  // opened from the Explore drawer instead.
+  triggerClassName = "",
 } = {}) {
+  const [confirm, confirmDialog] = useConfirm();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isControlled = typeof controlledIsOpen === "boolean";
   const isOpen = isControlled ? controlledIsOpen : internalIsOpen;
@@ -193,6 +197,8 @@ export default function NotificationDropdown({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
+    // Listeners only need re-binding when the dropdown opens or closes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   const handleNotificationClick = (notif) => {
@@ -217,11 +223,7 @@ export default function NotificationDropdown({
         aria-label="Notifications"
         aria-expanded={isOpen}
         onClick={handleToggle}
-        className={
-          expanded
-            ? "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-fg-secondary hover:text-fg hover:bg-surface-2 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 group"
-            : "relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full border border-line bg-surface-2 hover:bg-surface-3 text-fg-secondary hover:text-fg transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 group"
-        }
+        className={`relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full border border-line bg-surface-2 hover:bg-surface-3 text-fg-secondary hover:text-fg transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 group ${triggerClassName}`}
       >
         <span className="relative flex items-center justify-center w-5 h-5 shrink-0">
           <svg
@@ -238,7 +240,7 @@ export default function NotificationDropdown({
             <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
           </svg>
 
-          {unreadCount > 0 && !expanded && (
+          {unreadCount > 0 && (
             <span
               className={`absolute -top-1.5 -right-1.5 bg-accent text-on-accent font-bold text-[10px] min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-md transition-transform ${
                 pulse ? "scale-125 ring-2 ring-accent/50 animate-pulse" : "scale-100"
@@ -248,16 +250,6 @@ export default function NotificationDropdown({
             </span>
           )}
         </span>
-        {expanded && (
-          <>
-            <span className="text-[14.5px] font-medium">Notifications</span>
-            {unreadCount > 0 && (
-              <span className="ml-auto min-w-[20px] h-5 px-1.5 flex items-center justify-center text-[11px] font-bold bg-accent text-on-accent rounded-full shrink-0">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </span>
-            )}
-          </>
-        )}
       </button>
 
       {/* Dropdown Overlay */}
@@ -265,10 +257,10 @@ export default function NotificationDropdown({
         <div
           role="dialog"
           aria-label="Notifications panel"
-          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70vh] bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70vh] bg-popover rounded-2xl shadow-popover border border-line-strong transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
         >
           {/* Header */}
-          <div className="p-4 border-b border-gray-800/80 flex items-center justify-between gap-3 bg-gray-950/50">
+          <div className="p-4 border-b border-line flex items-center justify-between gap-3 bg-surface-2/70">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-gray-100 text-base">Notifications</h3>
               {unreadCount > 0 && (
@@ -295,8 +287,8 @@ export default function NotificationDropdown({
           </div>
 
           {/* Filter Bar */}
-          <div className="px-4 py-2 bg-gray-950/30 border-b border-gray-800/50 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-1 bg-gray-900 p-0.5 rounded-lg border border-gray-800">
+          <div className="px-4 py-2 bg-popover border-b border-line flex items-center justify-between text-xs">
+            <div className="flex items-center gap-1 bg-surface-2 p-0.5 rounded-lg border border-line">
               <button
                 type="button"
                 onClick={() => setFilter("all")}
@@ -329,7 +321,7 @@ export default function NotificationDropdown({
           </div>
 
           {/* Notifications List */}
-          <div className="max-h-[380px] overflow-y-auto divide-y divide-gray-800/40">
+          <div className="max-h-[380px] overflow-y-auto divide-y divide-line">
             {isLoading ? (
               <div className="py-12 flex flex-col items-center justify-center gap-2 text-gray-500">
                 <div className="w-6 h-6 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
@@ -366,7 +358,7 @@ export default function NotificationDropdown({
                     onClick={() => handleNotificationClick(notif)}
                     className={`group relative p-3.5 flex items-start gap-3 transition-all cursor-pointer ${
                       notif.isRead
-                        ? "bg-transparent hover:bg-gray-800/40 opacity-85"
+                        ? "bg-transparent hover:bg-surface-2 opacity-85"
                         : "bg-violet-950/20 hover:bg-violet-900/30 border-l-2 border-violet-500"
                     }`}
                   >
@@ -420,7 +412,7 @@ export default function NotificationDropdown({
                           e.stopPropagation();
                           deleteMutation.mutate(notif._id);
                         }}
-                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-rose-400 p-1 rounded-md hover:bg-gray-800/80 transition-all cursor-pointer"
+                        className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-rose-400 p-1 rounded-md hover:bg-surface-3 transition-all cursor-pointer"
                         title="Delete notification"
                       >
                         <span className="material-icons text-sm leading-none">close</span>
@@ -434,12 +426,21 @@ export default function NotificationDropdown({
 
           {/* Footer */}
           {hasReadNotifications && (
-            <div className="p-2.5 bg-gray-950/60 border-t border-gray-800/80 flex items-center justify-center">
+            <div className="p-2.5 bg-surface-2/70 border-t border-line flex items-center justify-center">
               <button
                 type="button"
-                onClick={() => clearReadMutation.mutate()}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Clear read notifications?",
+                    message: "All notifications you've already read will be permanently removed.",
+                    confirmText: "Clear",
+                    icon: "notifications_off",
+                    confirmIcon: "delete_sweep",
+                  });
+                  if (ok) clearReadMutation.mutate();
+                }}
                 disabled={clearReadMutation.isPending}
-                className="text-xs text-gray-400 hover:text-gray-200 transition-colors py-1 px-3 rounded-lg hover:bg-gray-800/40 cursor-pointer disabled:opacity-50"
+                className="text-xs text-gray-400 hover:text-gray-200 transition-colors py-1 px-3 rounded-lg hover:bg-surface-3 cursor-pointer disabled:opacity-50"
               >
                 Clear read notifications
               </button>
@@ -447,6 +448,7 @@ export default function NotificationDropdown({
           )}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 }

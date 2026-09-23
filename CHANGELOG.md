@@ -5,6 +5,39 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-09-23
+
+### Deploy notes
+- Deploy backend and frontend together: login responses no longer include tokens, `GET /posts/user/:userId` is now paginated, and presence uses a new `presence` socket event.
+- Auth cookies are now `SameSite=Lax` (the site and API share `linklet.org`). Signing in on `*.vercel.app` preview deployments against the production API no longer works; use a local backend for previews.
+- Backend requires Node.js 22 or newer (Node 18 and 20 are end-of-life); CI runs on Node 22.
+
+### Added
+- Navigation drawer: on desktop the rail's menu button opens a drawer that slides over the page; on phones the bottom bar has **Explore**, which holds every page plus account, notifications, What's New, settings and log out.
+- Paginated profile posts (`GET /posts/user/:userId?cursor=&limit=`, keyset on `createdAt, _id`, with `total` on the first page).
+- "Go to message" in one request (`?until=<messageId>` on chat history): tapping a reply's quote, a pin or a search result jumps straight to the original, however far back.
+- Group typing indicators name who is typing ("Asha and 2 others are typing..."), per person, in the chat header and sidebar.
+- In-app confirmation dialogs (`useConfirm`) replace the browser's `window.confirm`.
+- Post grid cards on profiles and Saved show the caption and stats without hover, so they work on touch screens.
+- Circular reveal animation when switching light/dark theme (skipped with reduced motion).
+
+### Changed
+- **Online status means "in the foreground"**: a tab or app in the background no longer shows the user online, and going away is reported after a short grace period so quick tab switches don't flicker. Background tabs still receive messages and delivery ticks.
+- Login tokens live only in httpOnly cookies; they are no longer returned in response bodies, and any old copy in `localStorage` is cleared.
+- Page data is kept in the React Query cache: revisiting a page renders instantly and refreshes in the background, writes mark the affected pages stale, hovering a nav link prefetches its data, and signing out clears the cache.
+- Icons moved from Material Icons to a subset of Material Symbols Rounded (~26 KB); `npm run icons:sync` regenerates the list.
+- Signed-in users read About, Contact, Privacy and Terms inside the app shell.
+- The phone keyboard stays open between chat messages, and starting a reply or edit focuses the message box.
+- Read receipts still queued when you leave a chat are sent instead of dropped.
+
+### Security
+- Socket.io events are rate limited per connection (10/s, burst 40); excess events are dropped.
+- Typing indicators are relayed only from members of a chat's room, only to recipients in that chat, and only with server-set fields.
+
+### Performance
+- Index on saved collections (`userId`, `createdAt`).
+- Other nav pages' code loads when the browser is idle.
+
 ## [2.0.0] - 2026-09-23
 
 ### Breaking

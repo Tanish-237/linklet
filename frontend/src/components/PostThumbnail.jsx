@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { getVideoThumbnail } from "../utlis/cloudinary";
+import "./PostThumbnail.css";
 
 // A video post's media URL lives in the same `post.image` field as an image
 // post (mediaType is what distinguishes them) — rendering it straight into
@@ -11,44 +12,38 @@ const PostThumbnail = ({ post }) => {
 
   if (!post.image) {
     return (
-      <div className="profile-post-text-placeholder">
+      <div className="pt-text">
         <p>{post.caption}</p>
       </div>
     );
   }
 
   if (post.mediaType !== "video") {
-    return (
-      <img
-        src={post.image}
-        alt={post.caption || "Post"}
-        className="profile-post-image"
-        loading="lazy"
-      />
-    );
+    return <img src={post.image} alt={post.caption || "Post"} className="pt-image" loading="lazy" />;
   }
 
   const videoThumb = getVideoThumbnail(post.image);
 
   return (
-    <div className="profile-post-video-thumb">
+    <div className="pt-video">
       {videoThumb && !thumbFailed ? (
         <img
           src={videoThumb}
           alt={post.caption || "Post"}
-          className="profile-post-image"
+          className="pt-image"
           loading="lazy"
           onError={() => setThumbFailed(true)}
         />
       ) : (
         // Default preview when there's no Cloudinary-derived thumbnail (a
         // non-Cloudinary URL) or it failed to load.
-        <div className="profile-post-video-placeholder">
+        <div className="pt-video-placeholder">
           <span className="material-icons">movie</span>
         </div>
       )}
-      <span className="profile-post-play-icon">
-        <span className="material-icons">play_arrow</span>
+      <span className="pt-video-badge">
+        <span className="material-icons icon-filled">play_arrow</span>
+        Video
       </span>
     </div>
   );

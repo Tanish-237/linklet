@@ -104,7 +104,6 @@ describe("GoogleAuthButton Component Tests", () => {
       status: 200,
       data: {
         success: true,
-        accessToken: "test_access_token_xyz",
         user: { _id: "u_google_1", fullName: "Google Student", email: "student@mnnit.ac.in" },
       },
     });

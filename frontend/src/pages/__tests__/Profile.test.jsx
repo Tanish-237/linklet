@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import Profile from "../Profile";
@@ -47,14 +48,17 @@ describe("Profile Component", () => {
   });
 
   const renderComponent = (initialPath = "/dashboard/profile/jordan") => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
-      <HelmetProvider>
-        <MemoryRouter initialEntries={[initialPath]}>
-          <Routes>
-            <Route path="/dashboard/profile/:username" element={<Profile />} />
-          </Routes>
-        </MemoryRouter>
-      </HelmetProvider>
+      <QueryClientProvider client={client}>
+        <HelmetProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Routes>
+              <Route path="/dashboard/profile/:username" element={<Profile />} />
+            </Routes>
+          </MemoryRouter>
+        </HelmetProvider>
+      </QueryClientProvider>
     );
   };
 

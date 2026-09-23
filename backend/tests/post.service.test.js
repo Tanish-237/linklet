@@ -7,6 +7,7 @@ const mockDeletePostRepo = jest.fn();
 const mockCreatePostRepo = jest.fn();
 const mockUpdatePostRepo = jest.fn();
 const mockToggleUpvoteRepo = jest.fn();
+const mockGetPostsByUserId = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/post.repository.js', () => ({
   getPostsFeed: mockGetPostsFeed,
@@ -16,7 +17,7 @@ jest.unstable_mockModule('../src/repositories/post.repository.js', () => ({
   updatePost: mockUpdatePostRepo,
   toggleUpvote: mockToggleUpvoteRepo,
   toggleDownvote: jest.fn(),
-  getPostsByUserId: jest.fn(),
+  getPostsByUserId: mockGetPostsByUserId,
 }));
 
 const mockCreateReport = jest.fn();
@@ -410,5 +411,19 @@ describe('post.service — reporting posts', () => {
   test('updatePostReportStatus 404s when the report does not exist', async () => {
     mockUpdateReportStatus.mockResolvedValueOnce(null);
     await expect(postService.updatePostReportStatus(REPORT_ID, 'reviewed')).rejects.toMatchObject({ statusCode: 404 });
+  });
+});
+
+describe('getUserPosts pagination', () => {
+  test.each([
+    [undefined, 12],
+    ['5', 5],
+    ['0', 1],
+    ['9999', 50],
+    ['abc', 12],
+  ])('limit %p is clamped to %p and the cursor is passed through', async (limit, expected) => {
+    mockGetPostsByUserId.mockResolvedValue({ posts: [], nextCursor: null, total: 0 });
+    await postService.getUserPosts('u1', { limit, cursor: 'c' });
+    expect(mockGetPostsByUserId).toHaveBeenLastCalledWith('u1', { limit: expected, cursor: 'c' });
   });
 });

@@ -8,7 +8,7 @@
 // Institutional email domain enforced on registration, login, password reset,
 // and Google OAuth. Previously duplicated as the literal "@mnnit.ac.in" in
 // auth.service.js (6 call sites) and models/users.js.
-export const ALLOWED_EMAIL_DOMAIN = "@mnnit.ac.in";
+const ALLOWED_EMAIL_DOMAIN = "@mnnit.ac.in";
 
 export const isAllowedInstitutionalEmail = (email) =>
   typeof email === "string" && email.toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN);

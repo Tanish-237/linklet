@@ -20,7 +20,7 @@ const OFFSET_PREFIX = "o:";
 
 // Deep offsets get expensive (skip/sort work grows with the offset), and nobody
 // scrolls a forum search 1000 results deep.
-export const MAX_OFFSET = 1000;
+const MAX_OFFSET = 1000;
 
 export const makeOffsetCursor = (offset) => `${OFFSET_PREFIX}${offset}`;
 

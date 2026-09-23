@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import GlobalSearch from "../Resource";
@@ -49,12 +50,15 @@ describe("GlobalSearch / Resource Page", () => {
   });
 
   const renderComponent = () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
-      <HelmetProvider>
-        <BrowserRouter>
-          <GlobalSearch />
-        </BrowserRouter>
-      </HelmetProvider>
+      <QueryClientProvider client={client}>
+        <HelmetProvider>
+          <BrowserRouter>
+            <GlobalSearch />
+          </BrowserRouter>
+        </HelmetProvider>
+      </QueryClientProvider>
     );
   };
 

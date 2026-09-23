@@ -521,14 +521,21 @@ const ChatWindow = ({
     const timer = setTimeout(() => {
       const el = document.getElementById(`msg-${targetMessageId}`);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        // Instant, not smooth: a smooth scroll over a long distance gets
+        // cancelled by the scroll-anchor corrections that run as the older
+        // page settles and its images load, stopping short of the message.
+        const container = chatContainerRef.current;
+        if (container) container.style.scrollBehavior = "auto";
+        el.scrollIntoView({ behavior: "auto", block: "center" });
+        stickToBottomRef.current = false;
+        captureScrollAnchor();
         el.classList.add("highlight-target-msg");
         setTimeout(() => el.classList.remove("highlight-target-msg"), 2500);
         clearTarget();
       }
     }, 50);
     return () => clearTimeout(timer);
-  }, [targetMessageId, messages, chat?._id, clearTarget]);
+  }, [targetMessageId, messages, chat?._id, clearTarget, captureScrollAnchor]);
 
   // Only the latest page is fetched up front. For a target older than that,
   // keep paginating backward until it's loaded or history runs out.
@@ -540,7 +547,7 @@ const ChatWindow = ({
     if (messages.some((m) => m._id === targetMessageId)) return;
 
     if (hasMore) {
-      if (!loadingOlder) loadOlderMessages();
+      if (!loadingOlder) loadOlderMessages(targetMessageId);
       return;
     }
 
@@ -778,6 +785,9 @@ const ChatWindow = ({
 
     // Send new message flow
     sendInFlightRef.current = true;
+    // Replying means you've caught up — drop the "N unread messages" divider,
+    // as WhatsApp does, instead of leaving it wedged mid-conversation.
+    setUnreadAnchor(null);
     const payload = {
       kind: "message",
       content: newMessage.trim(),
@@ -880,6 +890,10 @@ const ChatWindow = ({
     sendPayloadRef.current = sendPayload;
     handleSendAudioFileRef.current = handleSendAudioFile;
   });
+
+  // Tapping a reply's quote: same load-older-until-found jump as the pinned
+  // banner and search. Stable identity so memoized rows don't re-render.
+  const handleJumpToReply = useCallback((messageId) => setJumpTargetId(messageId), []);
 
   const handleDiscardFailed = useCallback(
     (msg) => {
@@ -1159,6 +1173,7 @@ const ChatWindow = ({
         onOpenLightbox={setLightboxMedia}
         onRetryFailed={handleRetryFailed}
         onDiscardFailed={handleDiscardFailed}
+        onJumpToMessage={handleJumpToReply}
       />
 
       {/* Floating Scroll-to-Bottom Button */}

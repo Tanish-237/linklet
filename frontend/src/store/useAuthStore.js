@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { apiClient } from '../api/apiClient';
+import { refreshAccessToken } from '../api/refreshToken';
 
 const dummyStorage = {
   getItem: () => null,
@@ -59,9 +60,6 @@ const useAuthStore = create(
         } catch (error) {
           console.error('Logout failed:', error);
         } finally {
-          if (typeof window !== "undefined" && window.localStorage) {
-            window.localStorage.removeItem("accessToken");
-          }
           clearUserCaches();
           set({ user: null, isAuthenticated: false, isLoading: false });
           if (typeof window !== "undefined") {
@@ -71,14 +69,22 @@ const useAuthStore = create(
       },
 
       checkAuth: async () => {
-        // Only trigger loading state if we have a token but no hydrated user yet
-        const hasToken = typeof window !== "undefined" && window.localStorage && Boolean(window.localStorage.getItem("accessToken"));
-        if (!get().user && hasToken) {
-          set({ isLoading: true });
-        }
 
         try {
-          const response = await apiClient.get('/auth/check');
+          let response = await apiClient.get('/auth/check');
+          // /auth/check answers 200 { user: null } once the 15-minute access
+          // cookie has expired, even though the 7-day refresh cookie is still
+          // good. If this browser had a signed-in user, renew the session and
+          // ask again instead of signing them out on every reload after 15 min.
+          if (!response.data?.user && get().user) {
+            try {
+              await refreshAccessToken();
+              response = await apiClient.get('/auth/check');
+            } catch {
+              // Refresh failed: the session is really over ("auth-expired"
+              // has already cleared local state).
+            }
+          }
           const user = response.data?.user || null;
           set({ user, isAuthenticated: !!user, isLoading: false });
         } catch (error) {
@@ -103,9 +109,6 @@ const useAuthStore = create(
 // Listen for global auth-expired event emitted by apiClient on refresh failure
 if (typeof window !== 'undefined') {
   window.addEventListener('auth-expired', () => {
-    if (window.localStorage) {
-      window.localStorage.removeItem('accessToken');
-    }
     clearUserCaches();
     useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
     if (

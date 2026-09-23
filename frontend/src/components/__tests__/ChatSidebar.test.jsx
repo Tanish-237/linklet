@@ -86,7 +86,7 @@ describe("ChatSidebar Component", () => {
         onOpenCreateGroup={vi.fn()}
         currentUser={{ _id: "user1" }}
         unreadCounts={{ c1: 4 }}
-        typingMap={{ c2: "alice" }}
+        typingMap={{ c2: [{ userId: "u-alice", username: "alice" }] }}
       />
     );
 
@@ -280,6 +280,12 @@ describe("ChatSidebar Component", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Delete chat"));
     });
+    // Nothing is deleted until the in-app confirmation is accepted
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toHaveTextContent("Delete chat?");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+    });
 
     expect(apiClient.delete).toHaveBeenCalledWith("/chat/c1");
     expect(onDeleteChat).toHaveBeenCalledWith("c1");
@@ -305,9 +311,38 @@ describe("ChatSidebar Component", () => {
     await act(async () => {
       fireEvent.click(screen.getByText("Leave group"));
     });
+    expect(screen.getByRole("dialog")).toHaveTextContent("Leave group?");
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /^leave$/i }));
+    });
 
     expect(apiClient.delete).toHaveBeenCalledWith("/chat/c2");
     expect(onDeleteChat).toHaveBeenCalledWith("c2");
+  });
+
+  it("cancelling the delete confirmation keeps the chat", async () => {
+    const onDeleteChat = vi.fn();
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        onDeleteChat={onDeleteChat}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Delete chat"));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+    });
+
+    expect(apiClient.delete).not.toHaveBeenCalled();
+    expect(onDeleteChat).not.toHaveBeenCalled();
   });
 
   it("hydrates pinned/muted/archived state from the server-merged chat flags, not only localStorage", () => {

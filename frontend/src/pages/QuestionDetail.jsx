@@ -110,7 +110,7 @@ export const ThreadedCommentItem = ({
     : null;
 
   const handlePostReply = async () => {
-    if (!replyText.trim()) return;
+    if (!replyText.trim() || submitting) return;
     setSubmitting(true);
     try {
       await onAddComment(questionId, answerId, replyText.trim(), comment._id || comment.id);
@@ -217,6 +217,16 @@ export const ThreadedCommentItem = ({
                   placeholder={`Replying to @${comment.userId?.username || 'user'}...`}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing) return;
+                    // Enter sends, Shift+Enter adds a new line
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (replyText.trim() && !submitting) handlePostReply();
+                    } else if (e.key === 'Escape') {
+                      setIsReplying(false);
+                    }
+                  }}
                   rows={2}
                   maxLength={1000}
                   autoFocus
@@ -290,7 +300,7 @@ const ThreadedCommentList = ({
   const topLevelComments = comments.filter((c) => !c.parentId);
 
   const handlePostTopComment = async () => {
-    if (!topText.trim()) return;
+    if (!topText.trim() || submitting) return;
     setSubmitting(true);
     try {
       await onAddComment(questionId, answerId, topText.trim(), null);
@@ -325,7 +335,7 @@ const ThreadedCommentList = ({
                 placeholder="Write a top-level comment..."
                 value={topText}
                 onChange={(e) => setTopText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handlePostTopComment()}
+                onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && handlePostTopComment()}
                 maxLength={1000}
               />
               <button
@@ -398,7 +408,7 @@ const AnswerCard = ({
     <div className={`qd-answer-card ${isAccepted ? 'accepted' : ''}`}>
       {/* Accepted badge */}
       <div className="qd-accepted-badge">
-        <span className="material-icons" style={{ fontSize: '0.85rem' }}>check_circle</span>
+        <span className="material-icons icon-filled" style={{ fontSize: '0.85rem' }}>check_circle</span>
         Accepted Answer
       </div>
 
@@ -453,7 +463,7 @@ const AnswerCard = ({
                   onClick={() => onAccept(answer._id)}
                   title={isAccepted ? 'Unaccept answer' : 'Accept as answer'}
                 >
-                  <span className="material-icons" style={{ fontSize: '0.9rem' }}>
+                  <span className={`material-icons ${isAccepted ? 'icon-filled' : ''}`} style={{ fontSize: '0.9rem' }}>
                     {isAccepted ? 'check_circle' : 'radio_button_unchecked'}
                   </span>
                   {isAccepted ? 'Accepted' : 'Accept'}
@@ -812,7 +822,7 @@ const QuestionDetail = () => {
     return (
       <div className="qd-root">
         <div className="hf-empty" style={{ paddingTop: '5rem' }}>
-          <span className="material-icons" style={{ fontSize: '4rem', opacity: 0.3 }}>help_off</span>
+          <span className="material-icons" style={{ fontSize: '4rem', opacity: 0.3 }}>search_off</span>
           <h3>Question not found</h3>
           <p>This question may have been deleted.</p>
           <Link to="/help" className="qd-back-link" style={{ marginTop: '1rem', display: 'inline-flex' }}>
@@ -857,7 +867,7 @@ const QuestionDetail = () => {
         <div className="hf-tags-row" style={{ marginBottom: '1rem' }}>
           {hasQuestionAccepted && (
             <span className="hf-solved-badge">
-              <span className="material-icons" style={{ fontSize: '0.85rem' }}>check_circle</span>
+              <span className="material-icons icon-filled" style={{ fontSize: '0.85rem' }}>check_circle</span>
               Solved
             </span>
           )}

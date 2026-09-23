@@ -18,6 +18,9 @@ export let io;
  * Extract the JWT access token from a socket handshake (auth payload, Authorization
  * header, or the httpOnly cookie), matching the precedence used by the REST middleware.
  */
+const SOCKET_EVENTS_PER_SECOND = 10;
+const SOCKET_EVENT_BURST = 40;
+
 const extractHandshakeToken = (socket) => {
   let token =
     socket.handshake.auth?.token ||
@@ -127,6 +130,20 @@ export const initializeSocket = async (server) => {
   io.on("connection", (socket) => {
     logger.info(`A user connected: ${socket.id} (user ${socket.userId})`);
 
+    // Per-socket flood guard (token bucket): normal use — typing pings every 2s,
+    // read receipts, game moves — stays far below this; a script spamming events
+    // just has the excess silently dropped instead of hitting Mongo/Redis.
+    let tokens = SOCKET_EVENT_BURST;
+    let lastRefill = Date.now();
+    socket.use((packet, next) => {
+      const now = Date.now();
+      tokens = Math.min(SOCKET_EVENT_BURST, tokens + ((now - lastRefill) / 1000) * SOCKET_EVENTS_PER_SECOND);
+      lastRefill = now;
+      if (tokens < 1) return; // drop the event
+      tokens -= 1;
+      next();
+    });
+
     // Setup user session. The socket is already authenticated at this point (the
     // handshake middleware rejects unauthenticated connections), so the identity
     // used to join rooms and populate presence always comes from the verified JWT,
@@ -150,20 +167,50 @@ export const initializeSocket = async (server) => {
 
       // 1. Tell ONLY the connecting socket which of its contacts are online.
       //    (The list includes the user themself, as it always has.)
-      const onlineContacts = await filterOnlineUsers(io, contactIds);
+      const onlineContacts = await filterOnlineUsers(io, contactIds, { activeOnly: true });
       socket.emit("user online status", { onlineUsers: [...onlineContacts, uid] });
 
       // 2. Announce "came online" to contacts — but only for this user's FIRST
-      //    live socket. A second tab/device (or another server instance) must
-      //    not re-announce someone who is already online.
-      const liveSockets = await countUserSockets(io, uid);
-      const isFirstSocket = liveSockets === null || liveSockets <= 1;
+      //    active socket. A second tab/device (or another server instance) must
+      //    not re-announce someone who is already online, and a socket opened
+      //    in a background tab doesn't make them online at all.
+      if (socket.data.away) return;
+      const activeSockets = await countUserSockets(io, uid, { activeOnly: true });
+      const isFirstSocket = activeSockets === null || activeSockets <= 1;
       if (isFirstSocket && contactIds.length > 0) {
         // Guard on length: an emit with an empty room list would reach EVERYONE.
         socket.to(contactIds).emit("user_connected", { userId: uid });
       }
 
       logger.info(`User ${uid} registered on socket ${socket.id}`);
+    });
+
+    // Foreground/background ("online" vs merely connected). A client reports
+    // when its tab/app goes to the background and comes back; the user shows
+    // online while ANY of their sockets is active, and "last seen" is the
+    // moment the last one went away.
+    socket.on("presence", async ({ active } = {}) => {
+      const away = !active;
+      if (Boolean(socket.data.away) === away) return;
+      socket.data.away = away;
+      if (!socket.data.presenceRegistered) return; // setup announces it
+
+      const uid = socket.userId;
+      const otherActive = await countUserSockets(io, uid, { activeOnly: true });
+      // Now active: announce only if this is the user's only active socket.
+      // Now away: go offline only if no other socket is still active.
+      if (otherActive === null || otherActive > (away ? 0 : 1)) return;
+      const contactIds = await getContactIds(uid);
+      if (contactIds.length === 0) return;
+      if (away) {
+        const lastSeen = new Date();
+        Promise.resolve(User.findByIdAndUpdate(uid, { lastSeen })).catch((err) =>
+          logger.warn(`Failed to update lastSeen for user ${uid}: ${err.message}`)
+        );
+        io.to(contactIds).emit("user_disconnected", { userId: uid, lastSeen });
+      } else {
+        io.to(contactIds).emit("user_connected", { userId: uid });
+      }
     });
 
     // Chat room events. Membership is always re-verified server-side; the client
@@ -190,29 +237,40 @@ export const initializeSocket = async (server) => {
       logger.info(`User ${socket.id} left room: ${room}`);
     });
 
-    // Ephemeral, non-persisted signals. These never mutate stored data, so relaying
-    // the client's own payload verbatim (scoped to the room(s) it names) carries no
-    // authorization risk beyond spamming — the sender identity itself already comes
-    // from the verified socket.
-    socket.on("typing", (data) => {
-      if (data && data.chatId) {
-        const payload = { ...data, userId: socket.userId };
-        socket.to(data.chatId).emit("typing", payload);
-        if (data.recipientId) {
-          socket.to(data.recipientId.toString()).emit("typing", payload);
-        }
+    // Ephemeral, non-persisted typing signals. The sender must have joined the
+    // chat's room (membership is verified in "join chat" above), and a direct
+    // recipient is only notified if they are actually in that chat — otherwise
+    // any user could push typing indicators at arbitrary chats or people.
+    // Only known fields are relayed, with identity taken from the socket.
+    const verifiedRecipients = new Map();
+    const isRecipientInChat = async (chatId, recipientId) => {
+      const key = `${chatId}:${recipientId}`;
+      if (!verifiedRecipients.has(key)) {
+        if (verifiedRecipients.size > 200) verifiedRecipients.clear();
+        verifiedRecipients.set(key, await chatRepo.isParticipant(chatId, recipientId).catch(() => false));
       }
-    });
-
-    socket.on("stop typing", (data) => {
-      if (data && data.chatId) {
-        const payload = { ...data, userId: socket.userId };
-        socket.to(data.chatId).emit("stop typing", payload);
-        if (data.recipientId) {
-          socket.to(data.recipientId.toString()).emit("stop typing", payload);
-        }
+      return verifiedRecipients.get(key);
+    };
+    let cachedUsername;
+    const getUsername = async () => {
+      if (cachedUsername === undefined) {
+        const user = await User.findById(socket.userId).select("username").lean().catch(() => null);
+        cachedUsername = user?.username || null;
       }
-    });
+      return cachedUsername;
+    };
+    const relayTyping = (event) => async (data) => {
+      const chatId = data?.chatId?.toString();
+      if (!chatId || !socket.rooms.has(chatId)) return;
+      const payload = { chatId, userId: socket.userId, username: await getUsername() };
+      socket.to(chatId).emit(event, payload);
+      const recipientId = data.recipientId?.toString();
+      if (recipientId && recipientId !== socket.userId && (await isRecipientInChat(chatId, recipientId))) {
+        socket.to(recipientId).emit(event, payload);
+      }
+    };
+    socket.on("typing", relayTyping("typing"));
+    socket.on("stop typing", relayTyping("stop typing"));
 
     // Sent by a client that has a chat open and visible when messages arrive.
     // Persisted (readBy + the user's read cursor), not just relayed — otherwise
@@ -319,7 +377,10 @@ export const initializeSocket = async (server) => {
       // or server instance still has a live socket for them. By the time this
       // handler runs, this socket has already left its rooms, so any socket
       // still in the user's room belongs to a different connection.
-      const remaining = await countUserSockets(io, uid);
+      // A socket that was already in the background announced "offline" (and
+      // set lastSeen) when it went away; closing it now changes nothing.
+      if (socket.data.away) return;
+      const remaining = await countUserSockets(io, uid, { activeOnly: true });
       if (remaining !== null && remaining > 0) return;
 
       const lastSeen = new Date();
@@ -358,7 +419,7 @@ export const refreshPresence = async (userIds) => {
   await Promise.all(
     unique.map(async (uid) => {
       const contactIds = await getContactIds(uid);
-      const online = await filterOnlineUsers(io, contactIds);
+      const online = await filterOnlineUsers(io, contactIds, { activeOnly: true });
       io.to(uid).emit("user online status", { onlineUsers: [...online, uid] });
     })
   );

@@ -13,6 +13,9 @@ const ConfirmDeleteModal = ({
   onConfirm,
   onCancel,
   loading = false,
+  icon = 'delete_forever',
+  confirmIcon = 'delete',
+  loadingText = 'Deleting...',
 }) => {
   if (!isOpen) return null;
 
@@ -21,7 +24,7 @@ const ConfirmDeleteModal = ({
       <div className="cd-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         {/* Warning Icon Badge */}
         <div className="cd-icon-badge">
-          <span className="material-icons cd-icon">delete_forever</span>
+          <span className="material-icons cd-icon" aria-hidden="true">{icon}</span>
         </div>
 
         {/* Header Content */}
@@ -37,11 +40,11 @@ const ConfirmDeleteModal = ({
             {loading ? (
               <>
                 <span className="cd-spinner" />
-                <span>Deleting...</span>
+                <span>{loadingText}</span>
               </>
             ) : (
               <>
-                <span className="material-icons" style={{ fontSize: '1.1rem' }}>delete</span>
+                <span className="material-icons" style={{ fontSize: '1.1rem' }} aria-hidden="true">{confirmIcon}</span>
                 <span>{confirmText}</span>
               </>
             )}

@@ -1,0 +1,111 @@
+/* Square-ish post thumbnail, filling whatever box it's placed in. */
+.pt-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pt-video {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+}
+
+/* Shown when there's no Cloudinary-derived poster frame (a non-Cloudinary
+   video URL, or the thumbnail failed to load). */
+.pt-video-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #312e81, #1e1b4b);
+}
+
+.pt-video-placeholder .material-icons {
+  font-size: 2rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* "Video" label: fixed dark glass + white text, since it sits on a frame of
+   any colour. */
+.pt-video-badge {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 8px 0 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.pt-video-badge .material-icons {
+  font-size: 16px;
+}
+
+/* Text-only post: the caption itself is the thumbnail. */
+.pt-text {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 18px 18px 18px 20px;
+  background:
+    radial-gradient(120% 90% at 0% 0%, rgb(var(--accent) / 0.22), transparent 60%),
+    linear-gradient(135deg, rgb(var(--accent) / 0.12), rgb(var(--accent) / 0.04));
+}
+
+/* Oversized opening quote mark — marks the tile as a written post. */
+.pt-text::before {
+  content: "\201C";
+  position: absolute;
+  top: -6px;
+  left: 12px;
+  font-size: 4.5rem;
+  line-height: 1;
+  font-weight: 800;
+  color: rgb(var(--accent) / 0.28);
+  pointer-events: none;
+}
+
+.pt-text p {
+  position: relative;
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: rgb(var(--fg));
+  line-height: 1.45;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .pt-text {
+    padding: 12px;
+  }
+
+  .pt-text::before {
+    font-size: 3.5rem;
+    left: 8px;
+  }
+
+  .pt-text p {
+    font-size: 0.8rem;
+    -webkit-line-clamp: 4;
+  }
+}

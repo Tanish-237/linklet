@@ -58,7 +58,7 @@ const PinnedMessageBanner = ({ pinnedMessages = [], onJumpToPinned, onUnpin }) =
         </div>
       )}
       <button type="button" className="pinned-msg-content" onClick={handleClick} title="Go to pinned message">
-        <span className="material-icons pinned-icon" aria-hidden="true">push_pin</span>
+        <span className="material-icons icon-filled pinned-icon" aria-hidden="true">push_pin</span>
         <span className="min-w-0 flex flex-col text-left">
           <span className="pinned-label">
             {count > 1 ? `Pinned message ${position} of ${count}` : "Pinned message"}

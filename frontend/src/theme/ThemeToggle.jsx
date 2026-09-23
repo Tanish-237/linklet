@@ -1,5 +1,6 @@
 import React from "react";
 import useThemeStore from "./useThemeStore";
+import { originFromEvent } from "./themeTransition";
 
 /**
  * Compact icon toggle for the rail's bottom cluster. Cycles light <-> dark.
@@ -9,7 +10,7 @@ import useThemeStore from "./useThemeStore";
  * `expanded` renders it as a full-width labelled row instead of a bare
  * icon circle, matching the other rail items when the sidebar is extended.
  */
-export default function ThemeToggle({ className = "", expanded = false }) {
+export default function ThemeToggle({ className = "", expanded = false, id = "theme-toggle-btn" }) {
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const isDark = theme === "dark";
@@ -40,8 +41,8 @@ export default function ThemeToggle({ className = "", expanded = false }) {
     return (
       <button
         type="button"
-        id="theme-toggle-btn"
-        onClick={toggleTheme}
+        id={id}
+        onClick={(e) => toggleTheme(originFromEvent(e))}
         aria-label={label}
         title={label}
         className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-fg-secondary hover:text-fg hover:bg-surface-2 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${className}`}
@@ -55,8 +56,8 @@ export default function ThemeToggle({ className = "", expanded = false }) {
   return (
     <button
       type="button"
-      id="theme-toggle-btn"
-      onClick={toggleTheme}
+      id={id}
+      onClick={(e) => toggleTheme(originFromEvent(e))}
       aria-label={label}
       title={label}
       className={`flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full border border-line bg-surface-2 hover:bg-surface-3 text-fg-secondary hover:text-fg transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${className}`}
@@ -93,7 +94,7 @@ export function ThemeSegmentedControl({ className = "" }) {
             type="button"
             role="radio"
             aria-checked={active}
-            onClick={() => setPreference(opt.value)}
+            onClick={(e) => setPreference(opt.value, originFromEvent(e))}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
               active
                 ? "bg-accent text-on-accent shadow-soft"

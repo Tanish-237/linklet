@@ -12,8 +12,6 @@ export const uploadTimetablePdf = async (formData) => {
   return response.data;
 };
 
-export const uploadTimetableFile = uploadTimetablePdf;
-
 /**
  * Confirm verified timetable classes to save to Schedule and Attendance Guardian.
  */
@@ -30,10 +28,3 @@ export const fetchTimetable = async () => {
   return response.data?.data || null;
 };
 
-/**
- * Abandon (delete) the active weekly timetable.
- */
-export const deleteTimetable = async () => {
-  const response = await apiClient.delete("/timetable");
-  return response.data;
-};

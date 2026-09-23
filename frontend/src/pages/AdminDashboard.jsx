@@ -1388,7 +1388,7 @@ export default function AdminDashboard() {
                     <tr>
                       <td colSpan={7} className="text-center py-12 text-gray-400">
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <span className="material-icons text-3xl text-gray-500">check_circle</span>
+                          <span className="material-icons icon-filled text-3xl text-gray-500">check_circle</span>
                           <span className="text-sm font-medium">
                             No {reportsStatusFilter} {isPostReports ? 'post' : 'message'} reports
                           </span>

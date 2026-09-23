@@ -60,6 +60,7 @@
 
 .cd-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -72,6 +73,11 @@
   gap: 0.45rem;
   padding: 0.65rem 1.25rem;
   border-radius: 10px;
+  /* Labels like "Delete Collection" are wider than half the modal; with both
+     buttons at flex: 1 they wrapped onto two lines. Keep them on one line —
+     the buttons grow to fit, and on a very narrow screen .cd-actions wraps
+     them onto separate rows instead. */
+  white-space: nowrap;
   font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;

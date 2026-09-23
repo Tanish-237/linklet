@@ -72,8 +72,8 @@ const MessageContextMenu = ({
           }}
           className="msg-menu-item"
         >
-          <span className={`material-icons ${isStarred ? "text-amber-400" : ""}`}>
-            {isStarred ? "star" : "star_outline"}
+          <span className={`material-icons ${isStarred ? "text-amber-400 icon-filled" : ""}`}>
+            star
           </span>{" "}
           <span>{isStarred ? "Unstar" : "Star"}</span>
         </button>
@@ -89,7 +89,7 @@ const MessageContextMenu = ({
         }}
         className="msg-menu-item"
       >
-        <span className="material-icons">push_pin</span>{" "}
+        <span className="material-icons icon-filled">push_pin</span>{" "}
         <span>{isPinned ? "Unpin" : "Pin"}</span>
       </button>
 

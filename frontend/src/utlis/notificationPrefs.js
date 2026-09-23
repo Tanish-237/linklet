@@ -2,7 +2,7 @@ import useAuthStore from "../store/useAuthStore";
 
 // Mirrors the `notificationPrefs` defaults on the backend User schema: every
 // category is on until the user switches it off in Settings.
-export const DEFAULT_NOTIFICATION_PREFS = {
+const DEFAULT_NOTIFICATION_PREFS = {
   chatAlerts: true,
   forumAlerts: true,
   postAlerts: true,

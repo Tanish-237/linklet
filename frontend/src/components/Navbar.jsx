@@ -34,11 +34,6 @@ export const Navbar = () => {
   const handleLogout = async () => {
     try {
       await apiClient.post(`/auth/logout`);
-      try {
-        window.localStorage.removeItem("accessToken");
-      } catch {
-        // Storage unavailable — nothing to remove
-      }
       clearUserCaches();
       toast.success("Logged out successfully");
       setUser(null);

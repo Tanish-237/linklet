@@ -49,13 +49,14 @@ describe('Auth Cookie Configuration Unit Tests', () => {
     process.env = originalEnv;
   });
 
-  test('configures cross-site friendly cookieOptions in production (SameSite=none, Secure=true)', async () => {
+  test('auth cookies are httpOnly and SameSite=Lax (site and API share linklet.org; blocks CSRF)', async () => {
     console.log('\n──────────────────────────────────────');
     console.log('[TEST] auth.controller › verifies production cookie options');
 
     process.env.NODE_ENV = 'production';
     console.log('[TEST] Production cookieOptions:', cookieOptions);
     expect(cookieOptions.httpOnly).toBe(true);
+    expect(cookieOptions.sameSite).toBe('lax');
     expect(typeof cookieOptions.secure).toBe('boolean');
   });
 });

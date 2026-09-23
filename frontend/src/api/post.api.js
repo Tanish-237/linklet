@@ -1,6 +1,6 @@
 import { apiClient } from "./apiClient";
 
-export const FEED_PAGE_SIZE = 15;
+const FEED_PAGE_SIZE = 15;
 
 /** One page of the campus feed. Shape: { data: Post[], nextCursor, hasMore } */
 export const getFeed = async ({ pageParam = null } = {}) => {
@@ -8,11 +8,6 @@ export const getFeed = async ({ pageParam = null } = {}) => {
   if (pageParam) params.cursor = pageParam;
   const response = await apiClient.get("/posts/feed", { params });
   return response.data;
-};
-
-export const createPost = async (postData) => {
-  const response = await apiClient.post("/posts", postData);
-  return response.data.data;
 };
 
 export const deletePost = async (postId) => {
@@ -27,11 +22,6 @@ export const updatePost = async (postId, caption) => {
 
 export const reportPost = async (postId, reason) => {
   const response = await apiClient.post(`/posts/${postId}/report`, { reason });
-  return response.data.data;
-};
-
-export const toggleUpvote = async (postId) => {
-  const response = await apiClient.post(`/posts/${postId}/upvote`);
   return response.data.data;
 };
 

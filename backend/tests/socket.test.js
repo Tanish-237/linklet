@@ -39,6 +39,15 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   findContactIds: mockFindContactIds,
 }));
 
+// Mock User model (typing relays look up the sender's username once per socket)
+const mockUserLean = jest.fn().mockResolvedValue({ username: 'real_name' });
+jest.unstable_mockModule('../models/users.js', () => ({
+  User: {
+    findById: jest.fn(() => ({ select: () => ({ lean: mockUserLean }) })),
+    findByIdAndUpdate: jest.fn().mockResolvedValue(null),
+  },
+}));
+
 // Mock socket.io Server
 const mockAdapter = jest.fn();
 const mockOn = jest.fn();
@@ -238,6 +247,7 @@ describe('Socket Initialization Unit Tests', () => {
       data: { userId: 'user-456' },
       authenticated: true,
       join: jest.fn(),
+      use: jest.fn(),
       emit: jest.fn(),
       to: jest.fn(() => ({ emit: toEmit })),
       broadcast: { emit: jest.fn() },
@@ -349,6 +359,7 @@ describe('Socket Initialization Unit Tests', () => {
       authenticated: true,
       userId: 'legit-user-001',
       join: jest.fn(),
+      use: jest.fn(),
       emit: jest.fn(),
       broadcast: { emit: jest.fn() },
       on: jest.fn((event, handler) => {
@@ -394,6 +405,7 @@ describe('Socket Initialization Unit Tests', () => {
       userId: 'attacker_user',
       authenticated: true,
       join: jest.fn(),
+      use: jest.fn(),
       emit: jest.fn(),
       on: jest.fn((event, handler) => {
         registeredHandlers[event] = handler;
@@ -432,6 +444,7 @@ describe('Socket Initialization Unit Tests', () => {
       userId: 'user-1',
       authenticated: true,
       join: jest.fn(),
+      use: jest.fn(),
       emit: jest.fn(),
       broadcast: { emit: jest.fn() },
       on: jest.fn((event, handler) => {
@@ -455,6 +468,115 @@ describe('Socket Initialization Unit Tests', () => {
       'group updated',
     ].forEach((event) => {
       expect(registeredHandlers[event]).toBeUndefined();
+    });
+  });
+
+  const connectForTyping = async (rooms = []) => {
+    mockGetRedisClient.mockReturnValue(null);
+    const { initializeSocket } = await import('../socket.js');
+    await initializeSocket(http.createServer());
+    const connectionHandler = mockOn.mock.calls.find((call) => call[0] === 'connection')[1];
+    const registeredHandlers = {};
+    const toEmit = jest.fn();
+    let packetMiddleware;
+    const mockSocket = {
+      id: 'socket-typing',
+      userId: 'sender-1',
+      data: { userId: 'sender-1' },
+      rooms: new Set(['socket-typing', ...rooms]),
+      join: jest.fn(),
+      use: jest.fn((fn) => { packetMiddleware = fn; }),
+      emit: jest.fn(),
+      to: jest.fn(() => ({ emit: toEmit })),
+      on: jest.fn((event, handler) => { registeredHandlers[event] = handler; }),
+    };
+    connectionHandler(mockSocket);
+    return { mockSocket, registeredHandlers, toEmit, packetMiddleware: () => packetMiddleware };
+  };
+
+  test('typing is only relayed for a chat room the sender has joined', async () => {
+    const { mockSocket, registeredHandlers, toEmit } = await connectForTyping([]);
+    await registeredHandlers['typing']({ chatId: 'someone-elses-chat', recipientId: 'victim' });
+    expect(mockSocket.to).not.toHaveBeenCalled();
+    expect(toEmit).not.toHaveBeenCalled();
+  });
+
+  test('typing relays only known fields, with identity from the socket, not the client', async () => {
+    mockIsParticipant.mockResolvedValue(true);
+    const { mockSocket, registeredHandlers, toEmit } = await connectForTyping(['chat-1']);
+    await registeredHandlers['typing']({
+      chatId: 'chat-1', recipientId: 'friend-1', userId: 'forged', username: 'forged', html: '<b>x</b>',
+    });
+    expect(mockSocket.to).toHaveBeenCalledWith('chat-1');
+    expect(mockSocket.to).toHaveBeenCalledWith('friend-1');
+    expect(toEmit).toHaveBeenCalledWith('typing', { chatId: 'chat-1', userId: 'sender-1', username: 'real_name' });
+  });
+
+  test('typing is not pushed to a recipient who is not in that chat', async () => {
+    mockIsParticipant.mockResolvedValue(false);
+    const { mockSocket, registeredHandlers } = await connectForTyping(['chat-1']);
+    await registeredHandlers['stop typing']({ chatId: 'chat-1', recipientId: 'stranger' });
+    expect(mockSocket.to).toHaveBeenCalledWith('chat-1');
+    expect(mockSocket.to).not.toHaveBeenCalledWith('stranger');
+  });
+
+  test('flood guard drops events beyond the per-socket burst', async () => {
+    const { packetMiddleware } = await connectForTyping();
+    const middleware = packetMiddleware();
+    const next = jest.fn();
+    for (let i = 0; i < 100; i++) middleware(['typing', {}], next);
+    expect(next.mock.calls.length).toBeGreaterThanOrEqual(40);
+    expect(next.mock.calls.length).toBeLessThan(45);
+  });
+
+  describe('foreground/background presence', () => {
+    const connectRegistered = async () => {
+      const ctx = await connectSocket();
+      ctx.mockSocket.data.presenceRegistered = true;
+      mockFindContactIds.mockResolvedValue(['friend-1']);
+      return ctx;
+    };
+
+    test('backgrounding the only active tab shows the user offline with a lastSeen', async () => {
+      const { registeredHandlers } = await connectRegistered();
+      mockRoomQuery.mockResolvedValue([]); // no other active socket
+      await registeredHandlers['presence']({ active: false });
+      expect(mockIoTo).toHaveBeenCalledWith(['friend-1']);
+      expect(mockIoEmit).toHaveBeenCalledWith('user_disconnected', expect.objectContaining({ userId: 'user-456', lastSeen: expect.any(Date) }));
+    });
+
+    test('backgrounding one tab while another is still active keeps the user online', async () => {
+      const { registeredHandlers } = await connectRegistered();
+      mockRoomQuery.mockResolvedValue([{ data: { userId: 'user-456' } }]); // other tab, active
+      await registeredHandlers['presence']({ active: false });
+      expect(mockIoEmit).not.toHaveBeenCalled();
+    });
+
+    test('coming back to the foreground announces the user online again', async () => {
+      const { mockSocket, registeredHandlers } = await connectRegistered();
+      mockSocket.data.away = true;
+      mockRoomQuery.mockResolvedValue([{ data: { userId: 'user-456' } }]); // just this socket
+      await registeredHandlers['presence']({ active: true });
+      expect(mockIoEmit).toHaveBeenCalledWith('user_connected', { userId: 'user-456' });
+    });
+
+    test('closing a tab that was already in the background announces nothing new', async () => {
+      const { mockSocket, registeredHandlers } = await connectRegistered();
+      mockSocket.data.away = true;
+      await registeredHandlers['disconnect']();
+      expect(mockIoEmit).not.toHaveBeenCalled();
+    });
+
+    test('background sockets do not count as online contacts', async () => {
+      const { registeredHandlers, mockSocket } = await connectSocket();
+      mockFindContactIds.mockResolvedValue(['friend-1', 'friend-2']);
+      mockRoomQuery.mockImplementation(async (rooms) =>
+        Array.isArray(rooms)
+          ? [{ data: { userId: 'friend-1', away: true } }, { data: { userId: 'friend-2' } }]
+          : [{ id: 'socket-123' }]
+      );
+      await registeredHandlers['setup']({ _id: 'user-456' });
+      expect(mockSocket.emit).toHaveBeenCalledWith('user online status', { onlineUsers: ['friend-2', 'user-456'] });
     });
   });
 });

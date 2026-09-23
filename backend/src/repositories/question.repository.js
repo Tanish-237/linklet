@@ -7,7 +7,7 @@ import { parseFeedCursor, makeOffsetCursor } from "../utils/feedCursor.js";
 // Upper bound on how many search matches are ranked per query. Ranking happens
 // in memory over this fixed candidate set, so page 1, 2, 3... of one search are
 // slices of the SAME ordered list (stable, no duplicates or gaps).
-export const SEARCH_CANDIDATE_CAP = 200;
+const SEARCH_CANDIDATE_CAP = 200;
 // Unanchored regex scans can be slow on a big collection; never let one run away.
 const SEARCH_MAX_TIME_MS = 4000;
 

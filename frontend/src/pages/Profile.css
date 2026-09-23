@@ -691,6 +691,13 @@
   min-height: 180px;
 }
 
+/* 2rem each side left phone post cards ~110px wide */
+@media (max-width: 640px) {
+  .profile-tab-content {
+    padding: 1rem 0.75rem;
+  }
+}
+
 /* Empty state */
 .profile-empty-state {
   display: flex;
@@ -1071,217 +1078,6 @@
 
 
 /* ═══════════════════════════════════════════════════════════════
-   PROFILE POSTS GRID
-   ═══════════════════════════════════════════════════════════════ */
-.profile-posts-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-  animation: profileFadeIn 0.4s ease both;
-}
-
-/* Each post card */
-.profile-post-card {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  border-radius: 6px;
-  background: rgb(var(--accent) / 0.06);
-  border: 1px solid rgb(var(--accent) / 0.08);
-  cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.profile-post-card:hover {
-  transform: scale(1.01);
-  z-index: 2;
-}
-
-/* Post image */
-.profile-post-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.profile-post-card:hover .profile-post-image {
-  transform: scale(1.05);
-}
-
-/* Video post thumbnail */
-.profile-post-video-thumb {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-/* Shown when there's no Cloudinary-derived poster frame to display (a
-   non-Cloudinary video URL, or the thumbnail failed to load) — a themed
-   block with a movie icon instead of empty space or a broken-image icon. */
-.profile-post-video-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgb(var(--surface-2));
-}
-
-.profile-post-video-placeholder .material-icons {
-  font-size: 2rem;
-  color: rgb(var(--fg-subtle));
-}
-
-/* Fixed dark circle + white icon regardless of theme — sits on top of the
-   actual thumbnail frame, which can be any color. */
-.profile-post-play-icon {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.profile-post-play-icon .material-icons {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 9999px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  font-size: 18px;
-}
-
-/* Text-only post placeholder */
-.profile-post-text-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px;
-  background: linear-gradient(135deg, rgb(var(--accent) / 0.10), rgb(var(--accent) / 0.08));
-}
-
-.profile-post-text-placeholder p {
-  font-size: 0.78rem;
-  color: rgb(var(--accent-fg));
-  text-align: center;
-  line-height: 1.5;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-}
-
-/* Hover overlay with stats */
-.profile-post-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.35) 50%, transparent 100%);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  padding: 10px;
-  opacity: 0;
-  transition: opacity 0.25s ease;
-}
-
-.profile-post-card:hover .profile-post-overlay {
-  opacity: 1;
-}
-
-.profile-post-stats {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.profile-post-stat {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  color: rgb(var(--fg));
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.profile-post-stat .material-icons {
-  font-size: 0.95rem;
-}
-
-.profile-post-caption-preview {
-  font-size: 0.72rem;
-  color: rgb(var(--fg) / 0.7);
-  margin-top: 4px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* Delete button on post card (owner only) */
-.profile-post-delete-btn {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 10;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: rgba(239, 68, 68, 0.85);
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: scale(0.8);
-  transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
-  backdrop-filter: blur(4px);
-}
-
-.profile-post-card:hover .profile-post-delete-btn {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.profile-post-delete-btn:hover {
-  background: rgba(220, 38, 38, 1);
-  transform: scale(1.1) !important;
-}
-
-.profile-post-delete-btn .material-icons {
-  font-size: 0.9rem;
-  color: white;
-}
-
-/* Posts loading skeleton */
-.profile-posts-skeleton {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
-}
-
-.profile-posts-skeleton-item {
-  aspect-ratio: 1 / 1;
-  border-radius: 6px;
-  background: linear-gradient(
-    90deg,
-    rgb(var(--accent) / 0.04) 25%,
-    rgb(var(--accent) / 0.09) 50%,
-    rgb(var(--accent) / 0.04) 75%
-  );
-  background-size: 200% 100%;
-  animation: skeletonShimmer 1.8s ease-in-out infinite;
-}
-
-
-/* ═══════════════════════════════════════════════════════════════
    DELETE CONFIRMATION MODAL
    ═══════════════════════════════════════════════════════════════ */
 .profile-delete-modal-backdrop {
@@ -1496,26 +1292,6 @@
 .profile-delete-modal-confirm .material-icons {
   font-size: 1rem;
 }
-
-/* Responsive posts grid */
-@media (max-width: 640px) {
-  .profile-posts-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
-  }
-
-  .profile-posts-skeleton {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 3px;
-  }
-}
-
-@media (max-width: 400px) {
-  .profile-posts-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
 
 /* Light mode: the badge and chip text/icon colours above are pale tints
    authored for a dark canvas and are close to invisible on white. */

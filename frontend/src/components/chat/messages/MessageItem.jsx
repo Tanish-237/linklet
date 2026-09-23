@@ -28,6 +28,7 @@ const MessageItem = ({
   onOpenLightbox,
   onRetryFailed,
   onDiscardFailed,
+  onJumpToMessage,
 }) => {
   const isSent =
     (msg.sender?._id || msg.sender)?.toString() === currentUser?._id?.toString();
@@ -93,6 +94,7 @@ const MessageItem = ({
               onOpenLightbox={onOpenLightbox}
               onRetryFailed={onRetryFailed}
               onDiscardFailed={onDiscardFailed}
+              onJumpToMessage={isSelectionActive ? undefined : onJumpToMessage}
             />
 
             {/* Standalone Circular WhatsApp Reaction Button */}

@@ -291,12 +291,15 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
   useEffect(() => {
     loadSchedule(true);
-  }, [selectedDate]);
+  }, [loadSchedule]);
 
+  // Only an explicit refresh re-fetches silently; a date change is already
+  // handled (with the spinner) by the effect above.
   useEffect(() => {
     if (refreshTrigger) {
       loadSchedule(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshTrigger]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────

@@ -16,7 +16,7 @@ const AboutPage = () => {
   }, []);
 
   return (
-    <div className="about-page min-h-screen bg-canvas text-fg no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+    <div className="about-page static-page bg-canvas text-fg no-scrollbar">
       <SEO title="About Linklet | MNNIT Allahabad Campus Platform" ogTitle="About Linklet" description={ABOUT_DESCRIPTION} path="/about" />
       <div className="max-w-4xl mx-auto">
         {/* Header Badge & Title */}

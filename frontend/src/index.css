@@ -24,6 +24,7 @@
   --color-canvas: rgb(var(--canvas));
   --color-surface: rgb(var(--surface));
   --color-surface-2: rgb(var(--surface-2));
+  --color-popover: rgb(var(--popover));
   --color-surface-3: rgb(var(--surface-3));
   --color-line: rgb(var(--line));
   --color-line-strong: rgb(var(--line-strong));
@@ -67,6 +68,10 @@
   --surface: 255 255 255;
   --surface-2: 243 243 245;
   --surface-3: 231 231 235;
+  /* Floating panels (dropdowns, popovers): pure white plus a heavier
+     shadow, so they lift clearly off the white panels they overlap. */
+  --popover: 255 255 255;
+  --popover-shadow-strength: 1;
   --line: 223 223 229;
   --line-strong: 204 204 212;
   --fg: 24 24 27;
@@ -132,6 +137,10 @@
   --surface: 24 24 28;
   --surface-2: 34 34 39;
   --surface-3: 46 46 52;
+  /* A step above surface-2, so a dropdown over a card still reads as the
+     top layer; dark shadows need more opacity to show at all. */
+  --popover: 38 38 44;
+  --popover-shadow-strength: 2.2;
   --line: 50 50 57;
   --line-strong: 70 70 78;
   --fg: 237 237 240;
@@ -273,6 +282,35 @@ body {
    after `base`) correctly overrides this default, so elements that opt into
    their own focus ring show only that ring, and everything else still gets
    this as its fallback focus indicator. */
+/* Icons: Material Symbols Rounded (index.html loads a subset — see
+   scripts/sync-icon-names.mjs). The long-standing `material-icons` class is
+   kept as the hook and simply points at the newer font, so every existing
+   <span className="material-icons">name</span> picks it up. Outlined by
+   default; add `icon-filled` for solid (active/on states). In `base` so
+   component CSS and utilities still size and colour icons as before. */
+@layer base {
+  .material-icons {
+    font-family: "Material Symbols Rounded";
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
+    transition: font-variation-settings 150ms ease;
+    user-select: none;
+  }
+}
+
 @layer base {
   :focus-visible {
     outline: 2px solid rgb(var(--accent));
@@ -280,7 +318,45 @@ body {
   }
 }
 
+/* Theme toggle reveal (src/theme/themeTransition.js): the new theme is
+   clipped to a growing circle via JS, so drop the default cross-fade, and
+   freeze per-element colour transitions while the snapshots are taken. */
+@layer base {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  .theme-switching,
+  .theme-switching * {
+    transition: none !important;
+  }
+}
+
 @layer components {
+  /* About / Contact / Privacy / Terms. Signed out they sit under the fixed
+     public Navbar, so they clear it themselves; signed in they render inside
+     the app shell's <main>, which already pads its content and has no
+     navbar to clear. */
+  .static-page {
+    min-height: 100vh;
+    padding: 5rem 1rem 6rem;
+  }
+  @media (min-width: 640px) {
+    .static-page {
+      padding-inline: 1.5rem;
+    }
+  }
+  @media (min-width: 1024px) {
+    .static-page {
+      padding-inline: 2rem;
+    }
+  }
+  #app-main-scroll .static-page {
+    min-height: 0;
+    padding: 0.5rem 0 3rem;
+  }
+
   /* Page scaffolding shared by every in-app route */
   .page-title {
     font-weight: 600;
@@ -387,11 +463,21 @@ body {
 }
 
 @layer utilities {
+  .icon-filled {
+    font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+  }
   .shadow-soft {
     box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.04), 0 1px 1px rgb(var(--shadow-color) / 0.02);
   }
   .shadow-pop {
     box-shadow: 0 12px 32px -8px rgb(var(--shadow-color) / 0.18), 0 2px 6px rgb(var(--shadow-color) / 0.06);
+  }
+  /* Floating panels: a wide soft drop plus a tight contact shadow. */
+  .shadow-popover {
+    box-shadow:
+      0 24px 56px -12px rgb(var(--shadow-color) / calc(0.22 * var(--popover-shadow-strength))),
+      0 8px 20px -6px rgb(var(--shadow-color) / calc(0.12 * var(--popover-shadow-strength))),
+      0 0 0 1px rgb(var(--shadow-color) / calc(0.03 * var(--popover-shadow-strength)));
   }
 }
 

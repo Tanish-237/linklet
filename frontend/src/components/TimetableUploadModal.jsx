@@ -348,7 +348,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               {previewData.attendanceSubjects?.length > 0 && (
                 <div className="p-3 bg-emerald-950/20 border border-emerald-500/20 rounded-xl">
                   <div className="flex items-center gap-2 text-xs font-semibold text-emerald-300">
-                    <span className="material-icons text-sm">verified</span>
+                    <span className="material-icons icon-filled text-sm">verified</span>
                     {previewData.attendanceSubjects.length} subjects will be auto-registered in Attendance Guardian
                   </div>
                   <div className="flex flex-wrap gap-1.5 mt-2">
@@ -534,7 +534,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                   </>
                 ) : (
                   <>
-                    <span className="material-icons text-base">check_circle</span>
+                    <span className="material-icons icon-filled text-base">check_circle</span>
                     Confirm & Sync
                   </>
                 )}

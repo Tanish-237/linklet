@@ -4,10 +4,13 @@ import Minesweeper from "../games/Minesweeper";
 import SimonSays from "../games/SimonSays";
 import "./GamesAndVideos.css";
 import { io } from "socket.io-client";
+import { toast } from "sonner";
 import { API_BASE_URL } from "../config";
-import { readAccessToken, refreshAccessToken, isAuthHandshakeError } from "../api/refreshToken";
+import { refreshAccessToken, isAuthHandshakeError } from "../api/refreshToken";
+import useAuthStore from "../store/useAuthStore";
 
 const GamesAndVideos = () => {
+  const userId = useAuthStore((s) => s.user?._id);
   const [activeTab, setActiveTab] = useState("games");
   const [selectedGame, setSelectedGame] = useState(null);
   const [videoUrl, setVideoUrl] = useState("");
@@ -63,20 +66,16 @@ const GamesAndVideos = () => {
     // access token at handshake time (see backend/socket.js) — without this,
     // the connection is rejected outright and none of the room/game events
     // below would ever fire. /games is a public route, so signed-out visitors
-    // land here with no token: skip connecting rather than opening a socket
+    // land here signed out: skip connecting rather than opening a socket
     // we know the server will reject, which used to surface a misleading
     // "check if the server is running" alert on page load. They can still
     // play the single-player games below; multiplayer prompts them to log in.
-    if (!readAccessToken()) {
+    if (!userId) {
       return;
     }
 
-    // `auth` as a function is re-invoked by socket.io-client on every
-    // (re)connection attempt, so a token refreshed elsewhere in the app
-    // mid-session is picked up automatically instead of this socket being
-    // stuck retrying with the token it had when the effect first ran.
+    // Authenticates with the httpOnly access cookie (withCredentials).
     const newSocket = io(socketUrl, {
-      auth: (cb) => cb({ token: readAccessToken() }),
       withCredentials: true,
       reconnectionAttempts: 3,
       reconnectionDelay: 1000,
@@ -102,14 +101,12 @@ const GamesAndVideos = () => {
           newSocket.connect();
           return;
         } catch {
-          // Refresh failed (session truly expired) — fall through to alert.
+          // Refresh failed (session truly expired) — fall through to the error toast.
         }
       }
       console.error("Socket connection error:", error);
       setIsCreatingRoom(false);
-      alert(
-        `Connection error: ${error.message}. Please check if the server is running.`
-      );
+      toast.error(`Couldn't connect to the game server: ${error.message}`);
     });
 
     newSocket.on("error", (error) => {
@@ -156,7 +153,7 @@ const GamesAndVideos = () => {
         newSocket.close();
       }
     };
-  }, []);
+  }, [userId]);
 
   const convertToEmbedUrl = (url) => {
     if (!url) return "";
@@ -179,14 +176,8 @@ const GamesAndVideos = () => {
   const createRoom = async () => {
 
     if (!socket) {
-      const loggedIn = typeof window !== "undefined" && window.localStorage
-        ? localStorage.getItem("accessToken")
-        : null;
-      alert(
-        loggedIn
-          ? "Not connected to server. Please refresh the page."
-          : "Please log in to play multiplayer games."
-      );
+      if (userId) toast.error("Not connected to the game server. Please refresh the page.");
+      else toast.info("Please log in to play multiplayer games.");
       return;
     }
 
@@ -195,7 +186,7 @@ const GamesAndVideos = () => {
         "Socket is not connected. Connection state:",
         socket.connected
       );
-      alert("Not connected to server. Please check if the server is running.");
+      toast.error("Not connected to the game server. Please try again in a moment.");
       return;
     }
 
@@ -227,7 +218,7 @@ const GamesAndVideos = () => {
       setIsHost(true);
     } catch (error) {
       console.error("Error in createRoom:", error);
-      alert("Failed to create room: " + error.message);
+      toast.error(`Failed to create room: ${error.message}`);
     } finally {
       setIsCreatingRoom(false);
     }
@@ -246,7 +237,7 @@ const GamesAndVideos = () => {
   const joinRoom = () => {
     if (!joinRoomId) return;
     if (!socket) {
-      alert("Please log in to play multiplayer games.");
+      toast.info("Please log in to play multiplayer games.");
       return;
     }
     socket.emit("join-room", joinRoomId);

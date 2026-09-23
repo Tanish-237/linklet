@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useInfiniteQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
@@ -8,6 +9,8 @@ import useThemeStore from "../theme/useThemeStore";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
+import useCachedState from "../hooks/useCachedState";
+import { savedBookmarksQuery, resourceLibraryQuery } from "../api/pageQueries";
 import "./Resource.css";
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -149,7 +152,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
               onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFile(e.dataTransfer.files[0]); }}
               onClick={() => document.getElementById("gs-file-input").click()}
             >
-              <span className="material-icons gs-dropzone-icon">{selectedFile ? "check_circle" : "cloud_upload"}</span>
+              <span className={`material-icons gs-dropzone-icon ${selectedFile ? "icon-filled" : ""}`}>{selectedFile ? "check_circle" : "cloud_upload"}</span>
               {selectedFile ? (
                 <p className="gs-dropzone-text selected">{formData.title || selectedFile.name}</p>
               ) : (
@@ -246,7 +249,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
 
         <div className="gs-list-actions" onClick={(e) => e.stopPropagation()}>
           <button className={`gs-icon-btn ${saved ? "saved" : ""}`} title={saved ? "Remove from Saved" : "Save"} onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}>
-            <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
+            <span className={`material-icons ${saved ? "icon-filled" : ""}`}>bookmark</span>
           </button>
           <button className="gs-icon-btn" title={copying ? "Copied!" : "Copy link"} onClick={copyLink}>
             <span className="material-icons">{copying ? "check" : "link"}</span>
@@ -299,7 +302,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
             title={saved ? "Remove from Saved" : "Save"}
             onClick={(e) => { e.stopPropagation(); onToggleSave(resource._id); }}
           >
-            <span className="material-icons">{saved ? "bookmark" : "bookmark_border"}</span>
+            <span className={`material-icons ${saved ? "icon-filled" : ""}`}>bookmark</span>
           </button>
         </div>
       </div>
@@ -364,7 +367,6 @@ const SORT_OPTIONS = [
   { id: "za",              label: "Z – A",            icon: "sort_by_alpha" },
 ];
 
-const PAGE_SIZE = 12;
 
 /* ─────────────────────── deleted notice modal ───────────────────────── */
 const DeletedNoticeModal = ({ onClose }) => (
@@ -392,27 +394,25 @@ const DeletedNoticeModal = ({ onClose }) => (
   </div>
 );
 
+const EMPTY = [];
+const EMPTY_STATS = { total: 0, categories: { all: 0, notes: 0, assignments: 0, papers: 0, books: 0, lectures: 0, other: 0 } };
+const EMPTY_PAGINATION = { page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false };
+
 /* ─────────────────────── main component ─────────────────────────── */
 export default function GlobalSearch() {
   const { user } = useAuthStore();
   const [searchTerm, setSearchTerm]         = useState("");
   const [debouncedTerm, setDebouncedTerm]   = useState("");
-  const [resources, setResources]           = useState([]);
-  const [loading, setLoading]               = useState(false);
-  const [loadingMore, setLoadingMore]       = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedSort, setSelectedSort]     = useState("most_downloaded");
   const [isSortOpen, setIsSortOpen]         = useState(false);
   const view = "grid";
-  const [bookmarks, setBookmarks]           = useState(new Set());
+  const [bookmarks, setBookmarks]           = useState(() => new Set());
   const [previewResource, setPreviewResource] = useState(null);
   const [showDeletedNotice, setShowDeletedNotice] = useState(false);
   const [showUpload, setShowUpload]         = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [showMyResourcesOnly, setShowMyResourcesOnly] = useState(false);
-  const [savedResources, setBookmarkedResources] = useState([]);
-  const [stats, setStats]                   = useState({ total: 0, categories: { all:0, notes:0, assignments:0, papers:0, books:0, lectures:0, other:0 } });
-  const [pagination, setPagination]         = useState({ page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false });
   const [searchParams, setSearchParams]     = useSearchParams();
   const [collectionModalResourceId, setCollectionModalResourceId] = useState(null);
 
@@ -427,10 +427,48 @@ export default function GlobalSearch() {
     return () => clearTimeout(debounceRef.current);
   }, [searchTerm]);
 
-  // Fetch bookmarks from backend on mount
+  const queryClient = useQueryClient();
+
+  // Same cache entry as the Saved page, so the two never disagree and neither
+  // has to re-fetch when you move between them.
+  const [savedResources, , savedQuery] = useCachedState({
+    ...savedBookmarksQuery(user?._id),
+    initialValue: EMPTY,
+  });
+  const fetchMySaved = () => queryClient.invalidateQueries({ queryKey: ["saved"] });
+  // The bookmark icons flip optimistically on click; re-sync them with the
+  // server's list whenever that list (re)loads.
   useEffect(() => {
-    fetchMySaved();
-    
+    if (savedQuery.data) setBookmarks(new Set(savedQuery.data.map((r) => r._id?.toString())));
+  }, [savedQuery.data]);
+
+  // Library pages, cached per filter combination: switching back to a filter
+  // (or back to this page) shows its results instantly.
+  const libraryOptions = resourceLibraryQuery(user?._id, { debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly });
+  const libraryKey = libraryOptions.queryKey;
+  const libraryQuery = useInfiniteQuery({ ...libraryOptions, placeholderData: keepPreviousData });
+  const libraryPages = libraryQuery.data?.pages;
+  const resources = useMemo(() => libraryPages?.flatMap((p) => p.data || []) ?? EMPTY, [libraryPages]);
+  const lastPage = libraryPages?.[libraryPages.length - 1];
+  const stats = lastPage?.stats || EMPTY_STATS;
+  const pagination = lastPage?.pagination || EMPTY_PAGINATION;
+  const loading = libraryQuery.isPending || libraryQuery.isPlaceholderData;
+  const loadingMore = libraryQuery.isFetchingNextPage;
+  // Applies a list-level edit (filter/map) to every cached page of this view.
+  const setResources = (update) =>
+    queryClient.setQueryData(libraryKey, (old) =>
+      old && { ...old, pages: old.pages.map((p) => ({ ...p, data: update(p.data || []) })) }
+    );
+  const fetchResources = () => queryClient.invalidateQueries({ queryKey: ["resources", "library"] });
+
+  useEffect(() => {
+    if (!libraryQuery.isError) return;
+    if (libraryQuery.error?.response?.status === 401) toast.error("Please log in to view resources");
+    else toast.error("Failed to load resources.");
+  }, [libraryQuery.isError, libraryQuery.error]);
+
+  // Open a resource linked via ?preview=
+  useEffect(() => {
     // Check for preview parameter in URL to auto-open modal
     const previewId = searchParams.get("preview");
     if (previewId) {
@@ -467,12 +505,6 @@ export default function GlobalSearch() {
     }
   };
 
-  // Fetch resources when filters change
-  useEffect(() => {
-    fetchResources(1, false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly]);
-
   // Close sort dropdown on outside click
   useEffect(() => {
     const handler = (e) => { if (sortRef.current && !sortRef.current.contains(e.target)) setIsSortOpen(false); };
@@ -480,54 +512,7 @@ export default function GlobalSearch() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const fetchMySaved = async () => {
-    try {
-      const res = await apiClient.get("/profile/me/bookmarks");
-      const bms = res.data.data || [];
-      setBookmarks(new Set(bms.map((r) => r._id?.toString())));
-      setBookmarkedResources(bms);
-    } catch {
-      // Not logged in or error — silently ignore
-    }
-  };
-
-  // Latest-request-wins: typing in search or switching filters fires overlapping
-  // requests, and a slow older response must not overwrite (or be appended to) the
-  // list for the newer view.
-  const resourcesRequestRef = useRef(0);
-
-  const fetchResources = async (page = 1, append = false) => {
-    const stamp = ++resourcesRequestRef.current;
-    if (append) setLoadingMore(true); else setLoading(true);
-    try {
-      const res = await apiClient.get("/resources/library", {
-        params: {
-          search: debouncedTerm || undefined,
-          category: selectedCategory !== "all" ? selectedCategory : undefined,
-          sort: selectedSort,
-          page,
-          limit: PAGE_SIZE,
-          onlyMe: showMyResourcesOnly || undefined,
-        },
-      });
-      if (stamp !== resourcesRequestRef.current) return;
-      const data = res.data.data || [];
-      setResources((prev) => append ? [...prev, ...data] : data);
-      setStats(res.data.stats || stats);
-      setPagination(res.data.pagination || { page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false });
-    } catch (err) {
-      if (stamp !== resourcesRequestRef.current) return;
-      if (err.response?.status === 401) toast.error("Please log in to view resources");
-      else toast.error("Failed to load resources.");
-    } finally {
-      if (stamp === resourcesRequestRef.current) {
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    }
-  };
-
-  const handleLoadMore = () => fetchResources(pagination.page + 1, true);
+  const handleLoadMore = () => libraryQuery.fetchNextPage();
 
   // Infinite scroll observer for smooth automatic resource loading
   useEffect(() => {
@@ -538,7 +523,7 @@ export default function GlobalSearch() {
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && pagination.hasNextPage && !loadingMore && !loading) {
-          fetchResources(pagination.page + 1, true);
+          libraryQuery.fetchNextPage();
         }
       },
       { rootMargin: "250px" }
@@ -546,6 +531,7 @@ export default function GlobalSearch() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly]);
 
   const handleResourceAction = async (resource, actionType) => {
@@ -647,7 +633,7 @@ export default function GlobalSearch() {
               title="Saved Items"
               onClick={() => setShowSavedOnly((p) => !p)}
             >
-              <span className="material-icons">bookmark</span>
+              <span className="material-icons icon-filled">bookmark</span>
             </button>
 
             {/* My uploads toggle */}
@@ -788,7 +774,7 @@ export default function GlobalSearch() {
         />
       )}
       {showDeletedNotice && <DeletedNoticeModal onClose={() => setShowDeletedNotice(false)} />}
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onSuccess={() => fetchResources(1, false)} />}
+      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onSuccess={fetchResources} />}
       {collectionModalResourceId && (
         <SaveToCollectionModal
           resourceId={collectionModalResourceId}

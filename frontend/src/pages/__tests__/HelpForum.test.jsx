@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import HelpForum from "../HelpForum";
 import * as questionApi from "../../api/question.api";
@@ -41,10 +42,13 @@ describe("HelpForum Component", () => {
   });
 
   const renderComponent = () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
-      <BrowserRouter>
-        <HelpForum />
-      </BrowserRouter>
+      <QueryClientProvider client={client}>
+        <BrowserRouter>
+          <HelpForum />
+        </BrowserRouter>
+      </QueryClientProvider>
     );
   };
 
@@ -89,7 +93,9 @@ describe("HelpForum Component", () => {
       expect(allCatBtn).toHaveClass("active");
     });
 
-    // Check category pills from metadata (General, Academic, Tech)
+    // Check category pills from metadata (General, Academic, Tech) — these
+    // arrive with the metadata query, a tick after the "All" pill renders.
+    await waitFor(() => expect(document.getElementById("hf-mobile-cat-academic")).toBeInTheDocument());
     const academicBtn = document.getElementById("hf-mobile-cat-academic");
     console.log("TRACE [HelpForum.test.jsx]: Found Academic category pill:", Boolean(academicBtn));
     expect(academicBtn).toBeInTheDocument();

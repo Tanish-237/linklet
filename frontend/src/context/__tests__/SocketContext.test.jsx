@@ -171,9 +171,9 @@ describe("SocketProvider Component Tests", () => {
     console.log("[TEST] Verified setup was emitted on both connect and reconnect events");
   });
 
-  it("reads the token fresh on every connection attempt via an auth function, not a static object", async () => {
+  it("authenticates with the httpOnly cookie, never a JS-readable token", async () => {
     console.log("\n──────────────────────────────────────────────");
-    console.log("[TEST] SocketProvider › auth option is a function so a refreshed token is picked up on reconnect");
+    console.log("[TEST] SocketProvider › handshake sends credentials (cookie), no auth token");
 
     useAuth.mockReturnValue({
       user: { _id: "user-123", username: "tester" },
@@ -186,9 +186,10 @@ describe("SocketProvider Component Tests", () => {
     );
 
     await waitFor(() => expect(io).toHaveBeenCalled());
-    const authOption = io.mock.calls[0][1].auth;
-    expect(typeof authOption).toBe("function");
-    console.log("[TEST] Verified auth is a callback, avoiding the stale-token-after-refresh bug");
+    const options = io.mock.calls[0][1];
+    expect(options.withCredentials).toBe(true);
+    expect(options.auth).toBeUndefined();
+    console.log("[TEST] Verified: cookie-based handshake, no token in JS");
   });
 
   it("recovers from an expired-token handshake rejection by refreshing and forcing a reconnect", async () => {

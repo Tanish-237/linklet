@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
@@ -6,56 +7,19 @@ import { apiClient } from "../api/apiClient";
 import defaultAvatar from "../assets/default-avatar.webp";
 import defaultBanner from "../assets/mnnit-banner.webp";
 import { Helmet } from "react-helmet-async";
-import Saved from "./Saved";
 import { calculateAcademicYear } from "../utlis/academicYear";
 import PostDetailModal from "../components/PostDetailModal";
 import { MNNIT_DEPARTMENTS } from "../components/AcademicOnboardingModal";
 import "./Profile.css";
 import { optimizeAvatar } from "../utlis/cloudinary";
-import PostThumbnail from "../components/PostThumbnail";
+import { PostGrid, PostGridCard, PostGridSkeleton } from "../components/PostGridCard";
+import useCachedState from "../hooks/useCachedState";
+
+const POSTS_PAGE_SIZE = 12;
 
 const formatSectionInput = (val) => {
   if (!val) return "";
   return val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
-};
-
-const ProfilePostCard = ({ post, isOwnProfile, currentUser, onOpen, onPromptDelete }) => {
-  return (
-    <div className="profile-post-card cursor-pointer" onClick={() => onOpen(post)}>
-      <PostThumbnail post={post} />
-
-      {/* Hover overlay: stats + caption */}
-      <div className="profile-post-overlay">
-        <div className="profile-post-stats">
-          <span className="profile-post-stat">
-            <span className="material-icons">arrow_upward</span>
-            {post.upvotes?.length || 0}
-          </span>
-          <span className="profile-post-stat">
-            <span className="material-icons">chat_bubble_outline</span>
-            {post.commentsCount || 0}
-          </span>
-        </div>
-        {post.caption && (
-          <p className="profile-post-caption-preview">{post.caption}</p>
-        )}
-      </div>
-
-      {/* Delete button (owner / admin only) */}
-      {(isOwnProfile || currentUser?.role === "admin") && (
-        <button
-          className="profile-post-delete-btn"
-          aria-label="Delete post"
-          onClick={(e) => {
-            e.stopPropagation();
-            onPromptDelete(post);
-          }}
-        >
-          <span className="material-icons">delete</span>
-        </button>
-      )}
-    </div>
-  );
 };
 
 const Profile = () => {
@@ -63,14 +27,56 @@ const Profile = () => {
   const { user: currentUser, fetchUser } = useAuth();
   const navigate = useNavigate();
 
-  const [profileUser, setProfileUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("posts");
 
-  // Posts state
-  const [userPosts, setUserPosts] = useState([]);
-  const [postsLoading, setPostsLoading] = useState(false);
+  // Cached per username (the same entry the chat info panel reads), so
+  // revisiting a profile renders instantly and refreshes in the background.
+  const [profileUser, setProfileUser, profileQuery] = useCachedState({
+    queryKey: ["profile", username],
+    queryFn: async () => (await apiClient.get(`/profile/${encodeURIComponent(username)}`)).data.data,
+    initialValue: null,
+    enabled: Boolean(username),
+    staleTime: 60 * 1000,
+  });
+  const loading = !username || profileQuery.isPending;
+
+  // This user's posts, paginated by cursor.
+  const postsKey = ["userPosts", profileUser?._id];
+  const postsQuery = useInfiniteQuery({
+    queryKey: postsKey,
+    queryFn: async ({ pageParam }) =>
+      (await apiClient.get(`/posts/user/${profileUser._id}`, {
+        params: { limit: POSTS_PAGE_SIZE, ...(pageParam && { cursor: pageParam }) },
+      })).data,
+    initialPageParam: null,
+    getNextPageParam: (last) => last.nextCursor || undefined,
+    enabled: Boolean(profileUser?._id),
+    staleTime: 60 * 1000,
+  });
+  const postPages = postsQuery.data?.pages;
+  const userPosts = useMemo(() => {
+    const seen = new Set();
+    return (postPages || []).flatMap((p) => p.data || []).filter((p) => !seen.has(p._id) && seen.add(p._id));
+  }, [postPages]);
+  const postsLoading = postsQuery.isPending && Boolean(profileUser?._id);
+  const postsCursor = postsQuery.hasNextPage;
+  const postsTotal = postPages?.[0]?.total ?? userPosts.length;
+  const loadingMorePosts = postsQuery.isFetchingNextPage;
+  // Applies a list-level edit (filter/map) to every cached page; `totalDelta`
+  // keeps the post count in step with deletions.
+  const setUserPosts = (update, totalDelta = 0) =>
+    queryClient.setQueryData(postsKey, (old) =>
+      old && {
+        ...old,
+        pages: old.pages.map((p, i) => ({
+          ...p,
+          data: update(p.data || []),
+          ...(i === 0 && p.total != null && { total: Math.max(0, p.total + totalDelta) }),
+        })),
+      }
+    );
   const [selectedPost, setSelectedPost] = useState(null);
   const [showPostModal, setShowPostModal] = useState(false);
 
@@ -123,66 +129,48 @@ const Profile = () => {
     `https://api.dicebear.com/7.x/pixel-art/svg?seed=Omega&backgroundColor=transparent`,
     `https://api.dicebear.com/7.x/bottts/svg?seed=RobotX&backgroundColor=transparent`,
   ];
+  // Bare /profile → the signed-in user's own profile URL.
   useEffect(() => {
-    // `cancelled` flips when the user navigates to another profile (or leaves)
-    // mid-request, so a slow response can't overwrite the profile now on screen.
-    let cancelled = false;
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        setActiveTab("posts"); // Always reset to posts tab when switching profiles
-        // If no username provided, use current user's username
-        const targetUsername = username || currentUser?.username;
-        if (!targetUsername) {
-          navigate("/login");
-          return;
-        }
-        // If on bare /profile, redirect to include username
-        if (!username && currentUser) {
-          navigate(`/profile/${currentUser.username}`, { replace: true });
-          return;
-        }
+    if (username) return;
+    if (currentUser?.username) navigate(`/profile/${currentUser.username}`, { replace: true });
+    else navigate("/login");
+  }, [username, currentUser?.username, navigate]);
 
-        const res = await apiClient.get(`/profile/${targetUsername}`);
-        if (cancelled) return;
-        setProfileUser(res.data.data);
+  // Always reset to the posts tab when switching profiles
+  useEffect(() => {
+    setActiveTab("posts");
+  }, [username]);
 
-        // Initialize edit states
-        setEditBio(res.data.data.bio || "");
-        setEditSkills(res.data.data.skills?.join(", ") || "");
-        setEditUsername(res.data.data.username || "");
-        setEditPhone(res.data.data.phoneNumber || "");
-        setEditSection(res.data.data.section || "");
-        setEditSubSection(res.data.data.subSection || "");
-        setEditSemester(res.data.data.semester ?? "");
-        setEditDepartment(res.data.data.department || "");
+  useEffect(() => {
+    if (!profileQuery.isError) return;
+    toast.error("Profile not found");
+    navigate("/dashboard");
+  }, [profileQuery.isError, navigate]);
 
-        // Fetch this user's posts
-        setPostsLoading(true);
-        try {
-          const postsRes = await apiClient.get(`/posts/user/${res.data.data._id}`);
-          if (!cancelled) setUserPosts(postsRes.data.data || []);
-        } catch {
-          if (!cancelled) setUserPosts([]);
-        } finally {
-          if (!cancelled) setPostsLoading(false);
-        }
-      } catch {
-        if (cancelled) return;
-        toast.error("Profile not found");
-        navigate("/dashboard");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-
-    fetchProfile();
-    return () => {
-      cancelled = true;
-    };
-  }, [username, currentUser, navigate]);
+  // Seed the edit form from the loaded profile (never while mid-edit, so a
+  // background refresh can't wipe what's being typed).
+  useEffect(() => {
+    if (!profileUser || isEditing) return;
+    setEditBio(profileUser.bio || "");
+    setEditSkills(profileUser.skills?.join(", ") || "");
+    setEditUsername(profileUser.username || "");
+    setEditPhone(profileUser.phoneNumber || "");
+    setEditSection(profileUser.section || "");
+    setEditSubSection(profileUser.subSection || "");
+    setEditSemester(profileUser.semester ?? "");
+    setEditDepartment(profileUser.department || "");
+  }, [profileUser, isEditing]);
 
   const isOwnProfile = currentUser && profileUser && currentUser._id === profileUser._id;
+
+  const loadMorePosts = async () => {
+    if (!postsQuery.hasNextPage || loadingMorePosts) return;
+    try {
+      await postsQuery.fetchNextPage({ throwOnError: true });
+    } catch {
+      toast.error("Couldn't load more posts");
+    }
+  };
 
   const [isFollowing, setIsFollowing] = useState(false);
 
@@ -330,7 +318,7 @@ const Profile = () => {
     setIsDeletingPost(true);
     try {
       await apiClient.delete(`/posts/${postToDelete._id}`);
-      setUserPosts((prev) => prev.filter((p) => p._id !== postToDelete._id));
+      setUserPosts((prev) => prev.filter((p) => p._id !== postToDelete._id), -1);
       toast.success("Post deleted successfully");
       setPostToDelete(null);
     } catch (err) {
@@ -354,7 +342,7 @@ const Profile = () => {
   return (
     <div className="profile-page">
       <Helmet>
-        <title>{profileUser.fullName} (@{profileUser.username}) | Linklet</title>
+        <title>{`${profileUser.fullName} (@${profileUser.username}) | Linklet`}</title>
         <meta name="description" content={`${profileUser.fullName}'s profile on Linklet — ${profileUser.bio || "College community platform"}`} />
       </Helmet>
 
@@ -381,8 +369,13 @@ const Profile = () => {
                 <div className="profile-avatar-glow"></div>
                 <div className="profile-avatar-ring">
                   <img
-                    src={avatarPreview || profileUser.avatar || defaultAvatar}
+                    src={avatarPreview || optimizeAvatar(profileUser.avatar, 128) || defaultAvatar}
                     alt={profileUser.fullName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = defaultAvatar;
+                    }}
                   />
                 </div>
                 {isOwnProfile && isEditing && (
@@ -795,7 +788,7 @@ const Profile = () => {
             <div className="stat-icon-bg">
               <span className="material-icons">article</span>
             </div>
-            <div className="stat-value">{userPosts.length}</div>
+            <div className="stat-value">{postsTotal}</div>
             <div className="stat-label">Posts</div>
           </div>
         </div>
@@ -808,7 +801,8 @@ const Profile = () => {
               className={`profile-tab-btn ${activeTab === "posts" ? "active" : ""}`}
             >
               <span className="material-icons">article</span>
-              Recent Posts
+              Posts
+              <span className="profile-tab-count-badge">{postsTotal}</span>
             </button>
             <button
               onClick={() => handleTabChange("followers")}
@@ -830,15 +824,6 @@ const Profile = () => {
                 {profileUser.following?.length || 0}
               </span>
             </button>
-            {isOwnProfile && (
-              <button
-                onClick={() => handleTabChange("resources")}
-                className={`profile-tab-btn ${activeTab === "resources" ? "active" : ""}`}
-              >
-                <span className="material-icons">bookmark</span>
-                Saved Resources
-              </button>
-            )}
           </div>
 
           <div className="profile-tab-content">
@@ -906,13 +891,9 @@ const Profile = () => {
                   })}
                 </div>
               )
-            ) : activeTab === "posts" ? (
+            ) : (
               postsLoading ? (
-                <div className="profile-posts-skeleton">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="profile-posts-skeleton-item" />
-                  ))}
-                </div>
+                <PostGridSkeleton />
               ) : userPosts.length === 0 ? (
                 <div className="profile-empty-state">
                   <div className="profile-empty-icon">
@@ -926,24 +907,38 @@ const Profile = () => {
                   </p>
                 </div>
               ) : (
-                <div className="profile-posts-grid">
+                <>
+                <PostGrid>
                   {userPosts.map((post) => (
-                    <ProfilePostCard
+                    <PostGridCard
                       key={post._id}
                       post={post}
-                      isOwnProfile={isOwnProfile}
-                      currentUser={currentUser}
                       onOpen={(p) => {
                         setSelectedPost(p);
                         setShowPostModal(true);
                       }}
-                      onPromptDelete={setPostToDelete}
+                      action={
+                        isOwnProfile || currentUser?.role === "admin"
+                          ? { icon: "delete", label: "Delete post", danger: true, onClick: (_e, p) => setPostToDelete(p) }
+                          : undefined
+                      }
                     />
                   ))}
-                </div>
+                </PostGrid>
+                  {postsCursor && (
+                    <div className="flex justify-center pt-5">
+                      <button
+                        type="button"
+                        onClick={loadMorePosts}
+                        disabled={loadingMorePosts}
+                        className="px-4 py-2 rounded-xl border border-line bg-surface-2 hover:bg-surface-3 text-sm font-medium text-fg-secondary hover:text-fg transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-default focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+                      >
+                        {loadingMorePosts ? "Loading..." : "Load more posts"}
+                      </button>
+                    </div>
+                  )}
+                </>
               )
-            ) : (
-              <Saved username={profileUser.username} />
             )}
           </div>
         </div>

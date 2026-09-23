@@ -27,7 +27,6 @@ vi.mock("../../api/timetable.api", () => ({
   fetchTimetable: vi.fn(),
   uploadTimetablePdf: vi.fn(),
   confirmTimetable: vi.fn(),
-  deleteTimetable: vi.fn(),
 }));
 
 // Mock dashboard API methods

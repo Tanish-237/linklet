@@ -41,7 +41,7 @@ export const getFileIcon = (fileName, fileType, theme = "dark") => {
   return { icon: entry.icon, color: theme === "light" ? entry.light : entry.dark };
 };
 
-export const getPreviewUrl = (resource) => {
+const getPreviewUrl = (resource) => {
   const ext = (resource.fileName?.split(".").pop() || resource.fileType || "").toLowerCase();
 
   // The backend now rejects non-http(s) fileUrl/linkUrl values at write time,

@@ -62,7 +62,7 @@ const ContactPage = () => {
   };
 
   return (
-    <div className="contact-page min-h-screen bg-canvas text-fg no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+    <div className="contact-page static-page bg-canvas text-fg no-scrollbar">
       <SEO title="Contact Linklet | Support & Feedback" ogTitle="Contact Linklet" description={CONTACT_DESCRIPTION} path="/contact" />
       <div className="max-w-5xl mx-auto">
         {/* Header Hero Section */}
@@ -133,7 +133,7 @@ const ContactPage = () => {
 
             {submitted ? (
               <div className="p-8 text-center bg-zinc-900 border border-zinc-800 rounded-xl my-4">
-                <span className="material-icons text-4xl text-violet-400 mb-3">check_circle</span>
+                <span className="material-icons icon-filled text-4xl text-violet-400 mb-3">check_circle</span>
                 <h3 className="text-lg font-semibold text-fg mb-2">Thank you!</h3>
                 <p className="text-zinc-400 text-sm mb-6">
                   Your message has been received. Our support team will respond shortly.

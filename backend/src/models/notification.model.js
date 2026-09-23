@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-export const NOTIFICATION_TYPES = [
+const NOTIFICATION_TYPES = [
   "FORUM_ANSWER",
   "FORUM_ACCEPT",
   "FORUM_COMMENT",
@@ -13,7 +13,7 @@ export const NOTIFICATION_TYPES = [
   "USER_FOLLOW",
 ];
 
-export const ENTITY_TYPES = ["Question", "Post", "Resource", "User", "System"];
+const ENTITY_TYPES = ["Question", "Post", "Resource", "User", "System"];
 
 const notificationSchema = new mongoose.Schema(
   {

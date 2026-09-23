@@ -21,7 +21,7 @@ const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * recipient), every participant in a group — blue ticks once everyone has
  * read it, not as soon as the first member does.
  */
-export const renderDeliveryTicks = (msg, isSent, isRecipientOnline = false, readTarget = 2) => {
+const renderDeliveryTicks = (msg, isSent, isRecipientOnline = false, readTarget = 2) => {
   if (!isSent) return null;
   if (msg.status === "sending") {
     return <span className="material-icons tick-sending">schedule</span>;
@@ -81,8 +81,10 @@ const MessageBubble = ({
   onOpenLightbox,
   onRetryFailed,
   onDiscardFailed,
+  onJumpToMessage,
 }) => {
   const renderTicks = (m, sent, online) => renderDeliveryTicks(m, sent, online, readTarget);
+  const replyTargetId = (msg.replyTo?._id || msg.replyTo)?.toString?.() || null;
   const hasSearchMatch =
     searchQuery &&
     msg.content &&
@@ -115,8 +117,31 @@ const MessageBubble = ({
           quote needs its own contrast per case rather than one fixed
           dark-on-dark styling that only worked on a dark canvas. */}
       {msg.replyTo && (
+        // Tapping the quote jumps to the original message (same flow as
+        // "go to message": loads older history if needed, then highlights it).
         <div
+          role={replyTargetId && onJumpToMessage ? "button" : undefined}
+          tabIndex={replyTargetId && onJumpToMessage ? 0 : undefined}
+          aria-label={replyTargetId && onJumpToMessage ? "Go to the original message" : undefined}
+          onClick={(e) => {
+            if (!replyTargetId || !onJumpToMessage) return;
+            e.stopPropagation();
+            onJumpToMessage(replyTargetId);
+          }}
+          onKeyDown={(e) => {
+            if (!replyTargetId || !onJumpToMessage) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onJumpToMessage(replyTargetId);
+            }
+          }}
           className={`p-2 mb-1.5 rounded border-l-2 text-xs ${
+            replyTargetId && onJumpToMessage
+              ? `cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 ${
+                  isSent ? "hover:bg-white/25 focus-visible:ring-white/60" : "hover:bg-fg/10 focus-visible:ring-accent/50"
+                }`
+              : ""
+          } ${
             isSent
               ? "bg-white/15 border-white/70 text-white/90"
               : "bg-fg/6 border-accent text-fg-secondary"
@@ -172,7 +197,7 @@ const MessageBubble = ({
           {/* Message Metadata & Delivery Ticks (Directly at right, zero trailing space) */}
           <div className="message-meta inline-flex items-center ml-auto flex-shrink-0 select-none self-end">
             {isPinned && (
-              <span className="material-icons msg-pin-icon" title="Pinned message" aria-label="Pinned">
+              <span className="material-icons icon-filled msg-pin-icon" title="Pinned message" aria-label="Pinned">
                 push_pin
               </span>
             )}

@@ -31,6 +31,23 @@ const ChatComposer = ({
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const emojiBtnRef = useRef(null);
+  const inputRef = useRef(null);
+
+  // Starting a reply or an edit puts the cursor straight in the box.
+  useEffect(() => {
+    if (replyingTo || editingMessage) inputRef.current?.focus({ preventScroll: true });
+  }, [replyingTo, editingMessage]);
+
+  // Keep the keyboard up across sends (phones): tapping Send would otherwise
+  // move focus to the button — which is then swapped for the mic button — and
+  // the on-screen keyboard closes after every single message.
+  const handleSubmit = (e) => {
+    const inputHadFocus = document.activeElement === inputRef.current;
+    onSendMessage(e);
+    if (inputHadFocus) {
+      requestAnimationFrame(() => inputRef.current?.focus({ preventScroll: true }));
+    }
+  };
   const theme = useThemeStore((s) => s.theme);
 
   // Close emoji picker on click outside
@@ -82,7 +99,7 @@ const ChatComposer = ({
           onStopAndSend={onStopAndSendAudio}
         />
       ) : (
-        <form onSubmit={onSendMessage} className="chat-input-form relative">
+        <form onSubmit={handleSubmit} className="chat-input-form relative">
           <input
             type="file"
             ref={fileInputRef}
@@ -130,14 +147,19 @@ const ChatComposer = ({
                 ? "Add a caption..."
                 : "Type a message..."
             }
+            ref={inputRef}
             value={newMessage}
             onChange={onTyping}
+            enterKeyHint="send"
             className="chat-input"
           />
 
           {newMessage.trim() || selectedFiles.length > 0 ? (
             <button
               type="submit"
+              // Don't take focus from the text box (keeps the phone keyboard open)
+              onMouseDown={(e) => e.preventDefault()}
+              onPointerDown={(e) => e.preventDefault()}
               className="send-btn"
               title="Send message"
               disabled={isSending}

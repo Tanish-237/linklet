@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import useConfirm from "../hooks/useConfirm";
 import { apiClient } from "../api/apiClient";
 import { useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ import { optimizeAvatar, optimizeImage, buildSrcSet } from "../utlis/cloudinary"
 import "./Posts.css";
 
 const PostDetail = () => {
+  const [confirm, confirmDialog] = useConfirm();
   const { postId } = useParams();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -93,7 +95,7 @@ const PostDetail = () => {
   };
 
   const handleDeletePost = async () => {
-    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    if (!(await confirm({ title: "Delete post?", message: "This post and its comments will be permanently removed." }))) return;
     try {
       await apiDeletePost(postId);
       toast.success("Post deleted successfully");
@@ -140,6 +142,7 @@ const PostDetail = () => {
   const isSaved = savedPosts.has(post._id?.toString());
 
   return (
+    <>
     <div style={{ minHeight: "100%", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "1.5rem 1rem" }}>
       <div className="feed-detail-modal" style={{ margin: "0 auto", position: "relative" }}>
         {/* Close Button */}
@@ -180,7 +183,7 @@ const PostDetail = () => {
                 onClick={() => setCollectionPostId(post._id)}
                 title="Save to Collection"
               >
-                <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
+                <span className={`material-icons ${isSaved ? "icon-filled" : ""}`}>bookmark</span>
               </button>
             </div>
           </div>
@@ -279,6 +282,8 @@ const PostDetail = () => {
         <ReportPostModal postId={reportingPostId} onClose={() => setReportingPostId(null)} />
       )}
     </div>
+    {confirmDialog}
+    </>
   );
 };
 

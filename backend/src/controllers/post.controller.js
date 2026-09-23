@@ -104,8 +104,12 @@ export const deletePost = async (req, res, next) => {
 
 export const getUserPosts = async (req, res, next) => {
   try {
-    const posts = await postService.getUserPosts(req.params.userId);
-    res.status(200).json({ success: true, data: posts });
+    const { posts, nextCursor, total } = await postService.getUserPosts(req.params.userId, {
+      limit: req.query.limit,
+      cursor: req.query.cursor,
+    });
+    // `total` is only computed for the first page (no cursor); it's null after.
+    res.status(200).json({ success: true, data: posts, nextCursor, total });
   } catch (error) {
     next(error);
   }

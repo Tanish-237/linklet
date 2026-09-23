@@ -60,11 +60,11 @@ describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () =>
     const dialog = screen.getByRole("dialog", { name: /What's New release notes/i });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
-    expect(screen.getByText(/Chats open where you left off:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Search the whole conversation:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Pins, media & contact info:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Faster, smoother chat:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Light & dark, polished:/i)).toBeInTheDocument();
+    expect(screen.getByText(/New navigation:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pages open instantly:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Truer online status:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Jump to any message:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Cleaner look:/i)).toBeInTheDocument();
     expect(screen.getByText("GitHub release").closest("a")).toHaveAttribute(
       "href",
       `https://github.com/Tanish-237/linklet/releases/tag/${RELEASE_VERSION}`

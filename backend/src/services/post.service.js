@@ -69,8 +69,10 @@ export const getPost = async (postId) => {
   return post;
 };
 
-export const getUserPosts = async (userId) => {
-  return await postRepository.getPostsByUserId(userId);
+export const getUserPosts = async (userId, { limit, cursor } = {}) => {
+  const parsed = parseInt(limit, 10);
+  const safeLimit = Number.isFinite(parsed) ? Math.min(50, Math.max(1, parsed)) : 12;
+  return await postRepository.getPostsByUserId(userId, { limit: safeLimit, cursor });
 };
 
 export const deletePost = async (postId, userId, userRole) => {

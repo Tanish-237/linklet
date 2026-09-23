@@ -1,6 +1,7 @@
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import Saved from "../Saved";
@@ -47,12 +48,15 @@ describe("Saved Page", () => {
   });
 
   const renderComponent = (props = {}) => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     return render(
-      <HelmetProvider>
-        <BrowserRouter>
-          <Saved {...props} />
-        </BrowserRouter>
-      </HelmetProvider>
+      <QueryClientProvider client={client}>
+        <HelmetProvider>
+          <BrowserRouter>
+            <Saved {...props} />
+          </BrowserRouter>
+        </HelmetProvider>
+      </QueryClientProvider>
     );
   };
 
@@ -103,13 +107,11 @@ describe("Saved Page", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Angel")).toBeInTheDocument();
-      expect(screen.getByText("Go to message")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Go to message" })).toBeInTheDocument();
     });
 
-    // Clicking on the media card opens the preview lightbox
-    const mediaCard = screen.getByText("Angel").closest(".bm-chat-media-card");
-    expect(mediaCard).toBeInTheDocument();
-    fireEvent.click(mediaCard);
+    // Clicking the media preview opens the lightbox
+    fireEvent.click(screen.getByRole("button", { name: /Open photo from Angel/ }));
 
     await waitFor(() => {
       // Lightbox preview modal should now be rendered

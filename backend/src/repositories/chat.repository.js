@@ -7,9 +7,9 @@ import { escapeRegex } from "../utils/search.utils.js";
 // Opaque "<ISO date>_<ObjectId>" cursors. The _id half breaks ties between
 // documents sharing a timestamp (e.g. messages from one insertMany), which a
 // date-only cursor would silently skip at page boundaries.
-export const encodeCursor = (date, id) => `${new Date(date).toISOString()}_${id}`;
+const encodeCursor = (date, id) => `${new Date(date).toISOString()}_${id}`;
 
-export const decodeCursor = (cursor) => {
+const decodeCursor = (cursor) => {
   if (!cursor || typeof cursor !== "string") return null;
   const sep = cursor.lastIndexOf("_");
   // Legacy date-only cursors (issued before the tie-breaker existed).
@@ -311,32 +311,80 @@ export const createMessage = async (messageData) => {
  * Returns `limit` messages older than the cursor, ordered chronologically.
  * `after` hides everything at or before that instant (the viewer's "delete chat").
  */
-export const getMessages = async (chatId, { cursor, limit = 25, after = null, viewerId = null }) => {
+const MESSAGE_POPULATES = [
+  { path: "sender", select: "username fullName avatar" },
+  { path: "replyTo", populate: { path: "sender", select: "username fullName avatar" } },
+  { path: "reactions.user", select: "username fullName avatar" },
+];
+
+// "Go to message": how far back one request may reach, and how many older
+// messages to include above the target so it isn't pinned to the very top.
+const JUMP_MAX_MESSAGES = 1000;
+const JUMP_CONTEXT_BEFORE = 10;
+
+/**
+ * One page of a chat's history, newest first from `cursor`, returned in
+ * chronological order.
+ *
+ * With `untilId` ("go to message"), the page instead reaches back far enough to
+ * include that message plus a little context before it — so the client can jump
+ * straight to it in one request, and the list it holds stays contiguous. If the
+ * target is more than JUMP_MAX_MESSAGES back, the newest JUMP_MAX_MESSAGES are
+ * returned (hasMore stays true) and the client simply asks again.
+ */
+export const getMessages = async (chatId, { cursor, limit = 25, after = null, viewerId = null, untilId = null }) => {
   const conditions = [{ chat: chatId }];
   if (viewerId) conditions.push({ hiddenFor: { $ne: viewerId } });
   if (after) conditions.push({ createdAt: { $gt: after } });
   const decoded = decodeCursor(cursor);
   if (decoded) conditions.push(olderThanCursor("createdAt", decoded));
-  const query = conditions.length === 1 ? conditions[0] : { $and: conditions };
+  const baseQuery = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
-  const messages = await Message.find(query)
-    .populate("sender", "username fullName avatar")
-    .populate({
-      path: "replyTo",
-      populate: { path: "sender", select: "username fullName avatar" },
-    })
-    .populate({
-      path: "reactions.user",
-      select: "username fullName avatar",
-    })
-    .sort({ createdAt: -1, _id: -1 })
-    .limit(limit + 1)
-    .lean();
+  const target =
+    untilId && mongoose.Types.ObjectId.isValid(untilId)
+      ? await Message.findOne({ $and: [...conditions, { _id: untilId }] }).select("_id createdAt").lean()
+      : null;
 
-  const hasMore = messages.length > limit;
-  const result = hasMore ? messages.slice(0, limit) : messages;
+  let result;
+  let hasMore;
+  if (target) {
+    // Everything from the cursor back to (and including) the target...
+    const newerThanOrTarget = {
+      $or: [
+        { createdAt: { $gt: target.createdAt } },
+        { createdAt: target.createdAt, _id: { $gte: target._id } },
+      ],
+    };
+    const upToTarget = await Message.find({ $and: [...conditions, newerThanOrTarget] })
+      .populate(MESSAGE_POPULATES)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(JUMP_MAX_MESSAGES)
+      .lean();
+    const reachedTarget = upToTarget.some((m) => String(m._id) === String(target._id));
+    if (!reachedTarget) {
+      result = upToTarget;
+      hasMore = true;
+    } else {
+      // ...plus a little context from before it.
+      const before = await Message.find({ $and: [...conditions, olderThanCursor("createdAt", { date: target.createdAt, id: target._id })] })
+        .populate(MESSAGE_POPULATES)
+        .sort({ createdAt: -1, _id: -1 })
+        .limit(JUMP_CONTEXT_BEFORE + 1)
+        .lean();
+      hasMore = before.length > JUMP_CONTEXT_BEFORE;
+      result = [...upToTarget, ...before.slice(0, JUMP_CONTEXT_BEFORE)];
+    }
+  } else {
+    const messages = await Message.find(baseQuery)
+      .populate(MESSAGE_POPULATES)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .lean();
+    hasMore = messages.length > limit;
+    result = hasMore ? messages.slice(0, limit) : messages;
+  }
+
   const oldest = result[result.length - 1];
-
   return {
     messages: result.reverse(), // Return in chronological order
     hasMore,

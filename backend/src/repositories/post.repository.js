@@ -97,15 +97,37 @@ export const toggleUpvote = (postId, userId) => toggleVote(postId, userId, "upvo
 
 export const toggleDownvote = (postId, userId) => toggleVote(postId, userId, "downvotes", "upvotes");
 
-export const getPostsByUserId = async (userId) => {
-  if (!isValidId(userId)) return [];
-  // This endpoint has no pagination yet (see profile page "posts" tab) — a
-  // hard cap at least stops a prolific user's profile from ever loading their
-  // entire post history in one query.
-  return await Post.find({ userId })
-    .select(LEGACY_EMBEDDED_FIELDS)
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .populate("userId", AUTHOR_FIELDS)
-    .lean();
+// Profile "posts" tab, newest first, keyset-paginated on (createdAt, _id) so
+// pages never skip or repeat a post even when two share a timestamp. The cursor
+// is opaque to clients: `<createdAt ISO>_<_id>` of the last post on the page.
+export const getPostsByUserId = async (userId, { limit = 12, cursor } = {}) => {
+  if (!isValidId(userId)) return { posts: [], nextCursor: null, total: 0 };
+
+  const query = { userId };
+  if (cursor) {
+    const [iso, lastId] = String(cursor).split("_");
+    const date = new Date(iso);
+    if (!Number.isNaN(date.getTime()) && isValidId(lastId)) {
+      query.$or = [
+        { createdAt: { $lt: date } },
+        { createdAt: date, _id: { $lt: new mongoose.Types.ObjectId(lastId) } },
+      ];
+    }
+  }
+
+  const [rows, total] = await Promise.all([
+    Post.find(query)
+      .select(LEGACY_EMBEDDED_FIELDS)
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(limit + 1)
+      .populate("userId", AUTHOR_FIELDS)
+      .lean(),
+    cursor ? null : Post.countDocuments({ userId }),
+  ]);
+
+  const hasMore = rows.length > limit;
+  const posts = hasMore ? rows.slice(0, limit) : rows;
+  const last = posts[posts.length - 1];
+  const nextCursor = hasMore && last ? `${new Date(last.createdAt).toISOString()}_${last._id}` : null;
+  return { posts, nextCursor, total };
 };

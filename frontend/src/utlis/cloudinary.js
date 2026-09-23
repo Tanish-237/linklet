@@ -50,7 +50,7 @@ export const buildSrcSet = (url, widths = [480, 800, 1200]) => {
 
 const VIDEO_UPLOAD_MARKER = "/video/upload/";
 
-export const isCloudinaryVideo = (url) =>
+const isCloudinaryVideo = (url) =>
   typeof url === "string" && url.includes("res.cloudinary.com") && url.includes(VIDEO_UPLOAD_MARKER);
 
 /**

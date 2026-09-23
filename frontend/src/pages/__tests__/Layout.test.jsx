@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, describe, beforeEach, it, expect } from "vitest";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
@@ -256,19 +256,16 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     console.log("Passed: Only one dropdown opens at a time (mutually exclusive)");
   });
 
-  it("verifies avatar dropdown shadow, border outline, and backdrop blur match notifications", async () => {
-    console.log("TRACE [Layout.test.jsx]: Verifying avatar dropdown styles match notification dropdown");
+  it("styles the avatar dropdown as a floating panel, same as the notifications dropdown", async () => {
     const user = userEvent.setup();
     renderComponent();
 
-    const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
-    await user.click(avatarBtn);
+    await user.click(document.getElementById("layout-avatar-dropdown-btn"));
 
-    const avatarDropdown = screen.getByText("Settings").closest(".shadow-2xl");
-    expect(avatarDropdown.className).toContain("shadow-2xl");
-    expect(avatarDropdown.className).toContain("border-gray-800");
-    expect(avatarDropdown.className).toContain("backdrop-blur-xl");
-    console.log("Passed: Avatar dropdown styling strictly matches notification dropdown");
+    const avatarDropdown = screen.getByText("Settings").closest(".shadow-popover");
+    expect(avatarDropdown).not.toBeNull();
+    expect(avatarDropdown.className).toContain("bg-popover");
+    expect(avatarDropdown.className).toContain("border-line-strong");
   });
 
   it("renders What's New trigger button to the left of notifications in the header and opens dropdown", async () => {
@@ -353,22 +350,17 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
       console.log("Passed: clicking a nav item navigates immediately");
     });
 
-    it("hides the logo while collapsed, and navigates home from it once the rail is expanded", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing rail logo visibility and click");
+    it("navigates home from the drawer's logo", async () => {
       const user = userEvent.setup();
       renderComponent();
 
-      // Collapsed by default — no room for a logo next to the toggle, so it
-      // isn't rendered at all (not just visually hidden).
+      // The rail itself never shows the logo; the drawer does.
       expect(screen.queryByAltText("Linklet Logo")).not.toBeInTheDocument();
-
       await user.click(document.getElementById("rail-expand-toggle-btn"));
+      await user.click(await screen.findByAltText("Linklet Logo"));
 
-      const logo = screen.getByAltText("Linklet Logo");
-      await user.click(logo);
-
-      expect(mockNavigate).toHaveBeenCalledWith("/home");
-      console.log("Passed: logo only appears once expanded, and navigates to /home");
+      // Navigation waits a frame so the drawer's slide-out can start first.
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/home"));
     });
 
     it("renders the theme toggle inside the rail's bottom cluster", () => {
@@ -382,45 +374,81 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
       console.log("Passed: theme toggle is part of the rail");
     });
 
-    it("starts collapsed (icon rail) and extends into a full sidebar when the toggle is clicked", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing rail expand/collapse toggle");
+    it("opens a drawer OVER the page instead of widening the rail (nothing reflows)", async () => {
       const user = userEvent.setup();
       renderComponent();
 
       const sidebar = document.getElementById("app-sidebar");
       const toggleBtn = document.getElementById("rail-expand-toggle-btn");
-      expect(toggleBtn).toBeInTheDocument();
       expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
-      expect(sidebar.className).toContain("md:w-20");
-      // Wordmark is only rendered once expanded.
-      expect(screen.queryByText("Linklet")).not.toBeInTheDocument();
+      expect(document.getElementById("app-nav-drawer")).toBeNull();
 
       await user.click(toggleBtn);
 
+      const drawer = await screen.findByRole("dialog", { name: "Main menu" });
       expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
-      expect(sidebar.className).toContain("md:w-60");
-      expect(screen.getByText("Linklet")).toBeInTheDocument();
-      expect(localStorage.getItem("linklet_rail_expanded")).toBe("true");
-
-      await user.click(toggleBtn);
-
-      expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+      expect(drawer.className).toContain("fixed");
+      // The rail keeps its width — the drawer overlays it
       expect(sidebar.className).toContain("md:w-20");
-      expect(screen.queryByText("Linklet")).not.toBeInTheDocument();
-      expect(localStorage.getItem("linklet_rail_expanded")).toBe("false");
-
-      console.log("Passed: rail toggles between collapsed icon rail and expanded sidebar, persisting the choice");
+      expect(sidebar.className).not.toContain("md:w-60");
     });
 
-    it("remembers an expanded rail across remounts via localStorage", () => {
-      console.log("TRACE [Layout.test.jsx]: Verifying rail expand preference persists");
-      localStorage.setItem("linklet_rail_expanded", "true");
+    it("closes the drawer with Escape and after navigating from it", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      const toggleBtn = document.getElementById("rail-expand-toggle-btn");
+
+      await user.click(toggleBtn);
+      const drawer = await screen.findByRole("dialog", { name: "Main menu" });
+      await waitFor(() => expect(drawer.hasAttribute("inert")).toBe(false));
+      await user.keyboard("{Escape}");
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+
+      await user.click(toggleBtn);
+      const reopened = await screen.findByRole("dialog", { name: "Main menu" });
+      await waitFor(() => expect(reopened.hasAttribute("inert")).toBe(false));
+      await user.click(within(reopened).getByRole("button", { name: /Saved/ }));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/saved"));
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+    });
+  });
+
+  describe("Phone bottom bar (Explore + three pages)", () => {
+    it("shows only Explore, Feed, Dashboard and Chat on phones; the rest live in the drawer", () => {
+      renderComponent();
+      expect(document.getElementById("mobile-explore-btn").closest("li").className).toContain("md:hidden");
+      const phoneVisible = (label) => !screen.getByTitle(label).className.includes("hidden md:flex");
+      expect(["Feed", "Dashboard", "Chat"].every(phoneVisible)).toBe(true);
+      expect(["Resource Hub", "Saved", "Help Forum"].some(phoneVisible)).toBe(false);
+      // Bell and avatar are desktop-only triggers now
+      expect(document.getElementById("notification-bell-btn").className).toContain("max-md:hidden");
+      expect(document.getElementById("layout-avatar-dropdown-btn").className).toContain("max-md:hidden");
+    });
+
+    it("Explore opens the drawer with account rows, and Notifications opens the notifications panel", async () => {
+      const user = userEvent.setup();
       renderComponent();
 
-      const sidebar = document.getElementById("app-sidebar");
-      expect(sidebar.className).toContain("md:w-60");
-      expect(screen.getByText("Linklet")).toBeInTheDocument();
-      console.log("Passed: previously expanded rail stays expanded on next render");
+      await user.click(document.getElementById("mobile-explore-btn"));
+      const drawer = await screen.findByRole("dialog", { name: "Main menu" });
+      await waitFor(() => expect(drawer.hasAttribute("inert")).toBe(false));
+      expect(within(drawer).getByRole("button", { name: /Settings/ })).toBeInTheDocument();
+      expect(within(drawer).getByRole("button", { name: /Log out/ })).toBeInTheDocument();
+
+      await user.click(within(drawer).getByRole("button", { name: /Notifications/ }));
+      expect(document.getElementById("mobile-explore-btn")).toHaveAttribute("aria-expanded", "false");
+      expect(document.getElementById("notification-bell-btn")).toHaveAttribute("aria-expanded", "true");
+    });
+
+    it("Settings in the drawer navigates and closes it", async () => {
+      const user = userEvent.setup();
+      renderComponent();
+      await user.click(document.getElementById("mobile-explore-btn"));
+      const drawer = await screen.findByRole("dialog", { name: "Main menu" });
+      await waitFor(() => expect(drawer.hasAttribute("inert")).toBe(false));
+      await user.click(within(drawer).getByRole("button", { name: /Settings/ }));
+      await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith("/settings"));
+      expect(document.getElementById("mobile-explore-btn")).toHaveAttribute("aria-expanded", "false");
     });
   });
 

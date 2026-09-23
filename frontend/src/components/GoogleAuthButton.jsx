@@ -31,13 +31,6 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
       });
 
       if (res.status === 200 || res.status === 201) {
-        if (
-          res.data?.accessToken &&
-          typeof window !== "undefined" &&
-          window.localStorage
-        ) {
-          window.localStorage.setItem("accessToken", res.data.accessToken);
-        }
         if (res.data?.user) {
           setUser(res.data.user);
         }
@@ -111,6 +104,10 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
     return () => {
       cancelled = true;
     };
+    // Initialise Google Identity once per client/mode; re-running it on every
+    // render (handleCredentialResponse is recreated each time) would re-render
+    // Google's button over and over.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientId, mode]);
 
   const handleManualPrompt = () => {
