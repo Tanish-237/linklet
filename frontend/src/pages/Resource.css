@@ -310,6 +310,237 @@
 .gs-sort-item.selected .material-icons { color: rgb(var(--accent-fg)); }
 .gs-check { margin-left: auto !important; font-size: 16px !important; }
 
+/* ── Branch / semester / subject filters ─────────────────────────── */
+.gs-academic-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.gs-academic-select {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 12px;
+  background: rgb(var(--fg) / 0.04);
+  border: 1px solid rgb(var(--accent) / 0.2);
+  border-radius: 10px;
+  color: rgb(var(--fg-muted));
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.gs-academic-select option { background: rgb(var(--surface)); color: rgb(var(--fg)); }
+
+.gs-academic-select.active {
+  background: rgb(var(--accent) / 0.14);
+  border-color: rgb(var(--accent) / 0.5);
+  color: rgb(var(--accent-fg));
+}
+
+.gs-academic-select:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.gs-academic-select:focus-visible {
+  border-color: rgb(var(--accent) / 0.6);
+  box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15);
+}
+
+@media (hover: hover) {
+  .gs-academic-select:not(:disabled):hover { border-color: rgb(var(--accent) / 0.4); }
+}
+
+/* "CSE · Sem 5" and subject labels on resource cards */
+.gs-academic-chip {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 9px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 99px;
+  background: rgb(var(--fg) / 0.04);
+  color: rgb(var(--fg-muted));
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gs-subject-chip { max-width: 180px; }
+
+.gs-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.gs-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 22px;
+  background: rgb(var(--fg) / 0.05);
+  border: 1px solid rgb(var(--accent) / 0.25);
+  border-radius: 12px;
+  color: rgb(var(--accent-fg));
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+@media (hover: hover) {
+  .gs-btn-secondary:hover { background: rgb(var(--accent) / 0.12); border-color: rgb(var(--accent) / 0.45); }
+}
+
+.gs-btn-secondary:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+/* Upload form: subject picker (list opens inline; the modal would clip a floating one) */
+.gs-subject-picker { display: flex; flex-direction: column; gap: 6px; }
+
+/* Resource Hub filter: the list floats over the results instead of pushing them down */
+.gs-subject-picker.is-floating { position: relative; }
+
+.gs-subject-picker.is-floating .gs-subject-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.35);
+}
+
+.gs-subject-filter { min-width: 0; }
+
+/* Same look as the branch / semester selects beside it */
+.gs-subject-filter input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 36px 8px 12px;
+  background: rgb(var(--fg) / 0.04);
+  border: 1px solid rgb(var(--accent) / 0.2);
+  border-radius: 10px;
+  color: rgb(var(--fg));
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.gs-subject-filter input::placeholder { color: rgb(var(--fg-muted)); }
+
+.gs-subject-filter input:focus {
+  border-color: rgb(var(--accent) / 0.6);
+  box-shadow: 0 0 0 3px rgb(var(--accent) / 0.15);
+}
+
+.gs-subject-filter.active input {
+  background: rgb(var(--accent) / 0.14);
+  border-color: rgb(var(--accent) / 0.5);
+  color: rgb(var(--accent-fg));
+}
+
+.gs-subject-input-wrap { position: relative; }
+
+.gs-form-group .gs-subject-input-wrap input {
+  width: 100%;
+  padding-right: 40px;
+}
+
+.gs-form-group .gs-subject-input-wrap input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.gs-subject-chevron,
+.gs-subject-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgb(var(--fg-muted));
+}
+
+.gs-subject-chevron { font-size: 20px !important; pointer-events: none; }
+
+.gs-subject-clear {
+  display: flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.gs-subject-clear .material-icons { font-size: 18px; }
+
+@media (hover: hover) {
+  .gs-subject-clear:hover { color: rgb(var(--fg)); background: rgb(var(--fg) / 0.06); }
+}
+
+.gs-subject-clear:focus-visible { outline: 2px solid rgb(var(--accent)); outline-offset: 1px; }
+
+.gs-subject-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 208px;
+  overflow-y: auto;
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--accent) / 0.25);
+  border-radius: 10px;
+}
+
+.gs-subject-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: rgb(var(--fg));
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+.gs-subject-option.active { background: rgb(var(--accent) / 0.14); }
+
+.gs-subject-option.is-new { color: rgb(var(--accent-fg)); font-weight: 600; }
+
+.gs-subject-option .material-icons { font-size: 18px; }
+
+.gs-subject-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.gs-subject-count {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border: 1px solid rgb(var(--line));
+  border-radius: 99px;
+  color: rgb(var(--fg-muted));
+  font-size: 11px;
+}
+
+.gs-subject-check { color: rgb(var(--accent-fg)); }
+
+.gs-subject-empty {
+  padding: 10px;
+  color: rgb(var(--fg-muted));
+  font-size: 13px;
+}
+
+/* Upload form: branch + semester side by side */
+.gs-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px;
+  gap: 12px;
+}
+
 /* ── Stats bar ──────────────────────────────────────────────────── */
 .gs-stats-bar {
   display: flex;
@@ -467,35 +698,6 @@
   text-align: left;
 }
 
-/* Tags */
-.gs-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-}
-
-.gs-tag {
-  padding: 2px 8px;
-  background: rgb(var(--accent-hover) / 0.1);
-  border: 1px solid rgb(var(--accent-hover) / 0.2);
-  border-radius: 6px;
-  color: rgb(var(--accent-fg));
-  font-size: 11.5px;
-  font-weight: 500;
-}
-
-/* Card footer */
-.gs-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-top: 10px;
-  border-top: 1px solid rgb(var(--fg) / 0.05);
-  position: relative;
-  z-index: 1;
-}
-
 .gs-card-user {
   display: flex;
   align-items: center;
@@ -557,6 +759,58 @@
 .gs-stat-chip .material-icons { font-size: 14px; }
 
 /* File size + download count, side by side at the end of a grid card. */
+.gs-card-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+/* Card footer: avatar | name / date | size + downloads (in line with the date).
+   margin-top: auto pins it to the bottom so footers line up across a grid row. */
+.gs-card-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid rgb(var(--line));
+  position: relative;
+  z-index: 1;
+}
+
+.gs-footer-avatar {
+  grid-row: 1 / span 2;
+  width: 34px;
+  height: 34px;
+}
+
+.gs-footer-avatar.gs-avatar-placeholder .material-icons { font-size: 18px; }
+
+.gs-footer-name {
+  grid-column: 2;
+  grid-row: 1;
+  justify-self: start;
+  max-width: 100%;
+  line-height: 1.3;
+}
+
+.gs-footer-time {
+  grid-column: 2;
+  grid-row: 2;
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.gs-footer-stats {
+  grid-column: 3;
+  grid-row: 2;
+  gap: 10px;
+}
+
 .gs-card-stats {
   display: flex;
   align-items: center;
@@ -729,6 +983,13 @@
   font-size: 12.5px;
   color: rgb(var(--fg-muted));
   flex-wrap: wrap;
+}
+
+.gs-upload-time {
+  font-size: 12px;
+  color: rgb(var(--fg-muted));
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .gs-dot { width: 3px; height: 3px; background: rgb(var(--fg-secondary)); border-radius: 50%; flex-shrink: 0; }
@@ -1323,6 +1584,23 @@
     gap: 8px;
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* Branch on its own row; semester + subject share the next */
+  .gs-academic-filters {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    margin-top: 12px;
+  }
+
+  .gs-academic-branch {
+    grid-column: 1 / -1;
+  }
+
+  .gs-academic-select,
+  .gs-subject-filter input {
+    font-size: 16px; /* under 16px, iOS zooms the page when the field is tapped */
+    padding-top: 9px;
+    padding-bottom: 9px;
   }
 
   .gs-filter-scroll {

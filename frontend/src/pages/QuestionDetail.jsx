@@ -18,6 +18,7 @@ import {
 } from '../api/question.api';
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import { optimizeAvatar } from "../utlis/cloudinary";
+import LinkifiedText from "../components/LinkifiedText";
 
 // Each nesting level adds its own margin-left + padding-left (see .qd-nested
 // in HelpForum.css) — with no cap, a long reply chain pushes content further
@@ -39,33 +40,7 @@ const timeAgo = (dateStr) => {
   return new Date(dateStr).toLocaleDateString();
 };
 
-/**
- * Helper function to parse plain text and render URLs as clickable links.
- */
-const renderTextWithLinks = (text) => {
-  if (!text) return null;
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
-  const parts = text.split(urlRegex);
-
-  return parts.map((part, index) => {
-    if (part.match(/^https?:\/\//) || part.match(/^www\./)) {
-      const href = part.startsWith('www.') ? `http://${part}` : part;
-      return (
-        <a
-          key={index}
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hf-text-link"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
-};
+const renderTextWithLinks = (text) => <LinkifiedText text={text} linkClassName="hf-text-link" />;
 
 // ─── Reddit-Style Threaded Comment Single Node ─────────────────────────────────
 

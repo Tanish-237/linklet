@@ -1,6 +1,7 @@
 import React from "react";
 import MessageMedia from "./MessageMedia";
 import useLongPress from "../../../hooks/useLongPress";
+import LinkifiedText from "../../LinkifiedText";
 
 export const formatMessageClock = (dateStr) => {
   if (!dateStr) return "";
@@ -12,10 +13,6 @@ export const formatMessageClock = (dateStr) => {
     return "";
   }
 };
-
-// Search terms are user input — escape them before building a RegExp, or
-// typing "(" or "?" into in-chat search throws and takes the chat down.
-const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * `readTarget` is how many readBy entries mean "read": 2 in a DM (sender +
@@ -188,23 +185,11 @@ const MessageBubble = ({
         <div className={`message-content-row flex flex-wrap items-end justify-between gap-x-2.5 ${msg.media ? "pt-1.5 px-0.5" : ""}`}>
           {msg.content && (
             <div className="break-words flex-1 min-w-[50px] leading-[1.35] select-text">
-              {hasSearchMatch ? (
-                <span>
-                  {msg.content
-                    .split(new RegExp(`(${escapeRegExp(searchQuery)})`, "gi"))
-                    .map((part, pIdx) =>
-                      part.toLowerCase() === searchQuery.toLowerCase() ? (
-                        <mark key={pIdx} className="search-match-highlight">
-                          {part}
-                        </mark>
-                      ) : (
-                        part
-                      )
-                    )}
-                </span>
-              ) : (
-                msg.content
-              )}
+              <LinkifiedText
+                text={msg.content}
+                linkClassName="chat-text-link"
+                highlightQuery={hasSearchMatch ? searchQuery : ""}
+              />
             </div>
           )}
 

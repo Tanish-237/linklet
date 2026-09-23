@@ -3,6 +3,8 @@ import { apiClient } from "./apiClient";
 import { getCollections } from "./collection.api";
 import { getQuestions, getQuestionMetadata, getTagCloud, getForumStats } from "./question.api";
 import { queryClient } from "../utlis/queryClient";
+import { userAcademicDefaults } from "../utlis/academics";
+import useAuthStore from "../store/useAuthStore";
 
 /**
  * Query definitions for the app-shell pages, shared by the pages themselves
@@ -33,7 +35,13 @@ export const DEFAULT_RESOURCE_FILTERS = {
   selectedCategory: "all",
   selectedSort: "most_downloaded",
   showMyResourcesOnly: false,
+  department: "",
+  semester: "",
+  subject: "",
 };
+
+// The Resource Hub opens on the student's own branch + semester.
+export const defaultResourceFilters = (user) => ({ ...DEFAULT_RESOURCE_FILTERS, ...userAcademicDefaults(user) });
 
 export const resourceLibraryQuery = (userId, filters) =>
   infiniteQueryOptions({
@@ -48,12 +56,29 @@ export const resourceLibraryQuery = (userId, filters) =>
             page: pageParam,
             limit: RESOURCE_PAGE_SIZE,
             onlyMe: filters.showMyResourcesOnly || undefined,
+            department: filters.department || undefined,
+            semester: filters.semester || undefined,
+            subject: filters.subject || undefined,
           },
         })
       ).data,
     initialPageParam: 1,
     getNextPageParam: (last) => (last.pagination?.hasNextPage ? last.pagination.page + 1 : undefined),
     staleTime: 60 * 1000,
+  });
+
+// Subjects that have resources, most-used first, within the branch and/or
+// semester when given (filter search and upload suggestions).
+export const resourceSubjectsQuery = (department, semester) =>
+  queryOptions({
+    queryKey: ["resources", "subjects", department || "", semester || ""],
+    queryFn: async () =>
+      (
+        await apiClient.get("/resources/subjects", {
+          params: { department: department || undefined, semester: semester || undefined },
+        })
+      ).data.data || [],
+    staleTime: 5 * 60 * 1000,
   });
 
 export const forumMetaQuery = () =>
@@ -115,7 +140,9 @@ export const prefetchPageData = (path, userId) => {
       queryClient.prefetchQuery(savedCollectionsQuery(userId)).catch(ignore);
       break;
     case "/resource-hub":
-      queryClient.prefetchInfiniteQuery(resourceLibraryQuery(userId, DEFAULT_RESOURCE_FILTERS)).catch(ignore);
+      queryClient
+        .prefetchInfiniteQuery(resourceLibraryQuery(userId, defaultResourceFilters(useAuthStore.getState().user)))
+        .catch(ignore);
       queryClient.prefetchQuery(savedBookmarksQuery(userId)).catch(ignore);
       break;
     case "/help":

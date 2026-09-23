@@ -9,7 +9,7 @@ import defaultBanner from "../assets/mnnit-banner.webp";
 import { Helmet } from "react-helmet-async";
 import { calculateAcademicYear } from "../utlis/academicYear";
 import PostDetailModal from "../components/PostDetailModal";
-import { MNNIT_DEPARTMENTS } from "../components/AcademicOnboardingModal";
+import { MNNIT_DEPARTMENTS } from "../utlis/academics";
 import "./Profile.css";
 import { optimizeAvatar } from "../utlis/cloudinary";
 import { PostGrid, PostGridCard, PostGridSkeleton } from "../components/PostGridCard";

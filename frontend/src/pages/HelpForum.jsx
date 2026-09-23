@@ -13,6 +13,7 @@ import {
 import ConfirmDeleteModal from '../components/ConfirmDeleteModal';
 import { forumMetaQuery, forumQuestionsQuery } from '../api/pageQueries';
 import { optimizeAvatar } from "../utlis/cloudinary";
+import LinkifiedText from "../components/LinkifiedText";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -233,33 +234,7 @@ const AskQuestionModal = ({ onClose, onSuccess, categories, suggestedTags }) => 
   );
 };
 
-/**
- * Helper function to parse plain text and render URLs as clickable links.
- */
-const renderTextWithLinks = (text) => {
-  if (!text) return null;
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
-  const parts = text.split(urlRegex);
-
-  return parts.map((part, index) => {
-    if (part.match(/^https?:\/\//) || part.match(/^www\./)) {
-      const href = part.startsWith('www.') ? `http://${part}` : part;
-      return (
-        <a
-          key={index}
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hf-text-link"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
-      );
-    }
-    return part;
-  });
-};
+const renderTextWithLinks = (text) => <LinkifiedText text={text} linkClassName="hf-text-link" />;
 
 // ─── Question Card ─────────────────────────────────────────────────────────────
 

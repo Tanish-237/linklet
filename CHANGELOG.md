@@ -5,6 +5,23 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-09-24
+
+### Added
+- **Resource Hub filters for branch, semester and subject.** The Hub opens on the student's own branch and semester (from their profile); "All branches" / "All semesters" show everything. Subject is a search box: type to see matching subjects (with counts) across the Hub, or within the chosen branch/semester, and pick one.
+- **General resources:** a resource with no branch or semester (including everything uploaded before this release) shows under every branch and semester filter, labelled "General" on its card.
+- **Upload form:** optional Branch and Semester (pre-filled from your profile) and Subject. The subject picker lists existing subjects — this branch/semester's first, then the rest — or lets you add a new one; an existing subject typed in different capitals reuses its spelling.
+- Resource cards show when they were uploaded ("3h ago"; exact date and time on hover and in the preview).
+- **Clickable links in chat messages** (http, https and www.), opening in a new tab. Sentence punctuation and wrapping brackets aren't swallowed into the link; only http(s) links are ever made clickable. In-chat search still highlights inside links. The Help Forum and question pages use the same link handling.
+
+### Changed
+- Description is optional when sharing a resource.
+- Resource cards: labels (category, branch/semester, subject) above the description; the uploader, upload time, file size and downloads are one aligned block pinned to the bottom so cards in a row line up.
+- Old tags are no longer shown on resource cards (the tag field was removed in 2.0.0); they still count in search.
+
+### Removed
+- The unused `branch` filter on the library API (resources never had it set). Filtering uses `department`, `semester` and `subject`; `GET /api/v1/resources/subjects` lists subjects.
+
 ## [2.1.4] - 2026-09-23
 
 ### Security

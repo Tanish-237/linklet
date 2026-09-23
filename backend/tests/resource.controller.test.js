@@ -26,7 +26,7 @@ describe('createResource file size', () => {
   });
 
   const upload = {
-    body: { title: 'Notes', description: 'd', category: 'notes' },
+    body: { title: 'Notes', description: 'd', category: 'notes', department: 'Civil Engineering', semester: '3' },
     file: { path: '/tmp/x.pdf', originalname: 'x.pdf', mimetype: 'application/pdf', size: 999 },
   };
 
@@ -42,7 +42,7 @@ describe('createResource file size', () => {
     await run(upload);
     expect(mockUploadResource.mock.calls[0][1]).toMatchObject({ fileSize: 999 });
 
-    await run({ body: { title: 'Site', description: 'd', linkUrl: 'https://example.com' } });
+    await run({ body: { title: 'Site', description: 'd', linkUrl: 'https://example.com', department: 'Civil Engineering', semester: '3' } });
     expect(mockUploadResource.mock.calls[1][1].fileSize).toBeUndefined();
   });
 });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
-import { useInfiniteQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
@@ -11,8 +11,16 @@ import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import { downloadFile } from "../utlis/download";
 import { formatFileSize } from "../utlis/fileSize";
+import { formatDateTime } from "../utlis/formatTime";
 import useCachedState from "../hooks/useCachedState";
-import { savedBookmarksQuery, resourceLibraryQuery } from "../api/pageQueries";
+import { savedBookmarksQuery, resourceLibraryQuery, resourceSubjectsQuery } from "../api/pageQueries";
+import {
+  MNNIT_DEPARTMENTS,
+  RESOURCE_SEMESTERS,
+  SUBJECT_MAX_LENGTH,
+  branchShort,
+  userAcademicDefaults,
+} from "../utlis/academics";
 import "./Resource.css";
 
 /* ─────────────────────────── helpers ─────────────────────────── */
@@ -22,6 +30,14 @@ const FileSizeChip = ({ bytes }) => {
   const size = formatFileSize(bytes);
   return size ? <span className="gs-stat-chip" title="File size">{size}</span> : null;
 };
+
+// "3d ago" on the card; the exact date and time on hover.
+const UploadTime = ({ date }) =>
+  date ? (
+    <time className="gs-upload-time" dateTime={new Date(date).toISOString()} title={`Uploaded ${formatDateTime(date)}`}>
+      {timeAgo(date)}
+    </time>
+  ) : null;
 
 const timeAgo = (dateStr) => {
   const diff = (Date.now() - new Date(dateStr)) / 1000;
@@ -41,6 +57,7 @@ const SkeletonCard = ({ view }) => (
 
 /* ─────────────────────── upload modal ─────────────────────────── */
 import SaveToCollectionModal from "../components/SaveToCollectionModal";
+import SubjectPicker from "../components/SubjectPicker";
 
 const CATEGORIES = [
   { id: "all",         label: "All",         icon: "folder" },
@@ -52,8 +69,22 @@ const CATEGORIES = [
   { id: "other",       label: "Other",       icon: "more_horiz" },
 ];
 
-const UploadModal = ({ onClose, onSuccess }) => {
-  const [formData, setFormData] = useState({ title: "", description: "", category: "notes" });
+const UploadModal = ({ onClose, onSuccess, user }) => {
+  const [formData, setFormData] = useState(() => ({
+    title: "",
+    description: "",
+    category: "notes",
+    ...userAcademicDefaults(user), // pre-filled from the uploader's profile
+    subject: "",
+  }));
+  // Subjects for the chosen branch/semester first, then every other subject, so
+  // one already used elsewhere is picked rather than typed a second way.
+  const { data: scopedSubjects = EMPTY } = useQuery(resourceSubjectsQuery(formData.department, formData.semester));
+  const { data: allSubjects = EMPTY } = useQuery(resourceSubjectsQuery("", ""));
+  const subjectSuggestions = useMemo(() => {
+    const seen = new Set(scopedSubjects.map((s) => s.name.toLowerCase()));
+    return [...scopedSubjects, ...allSubjects.filter((s) => !seen.has(s.name.toLowerCase()))];
+  }, [scopedSubjects, allSubjects]);
   const [uploadType, setUploadType] = useState("file");
   const [linkUrl, setLinkUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
@@ -85,6 +116,9 @@ const UploadModal = ({ onClose, onSuccess }) => {
       fd.append("title", finalTitle);
       fd.append("description", formData.description);
       fd.append("category", formData.category);
+      fd.append("department", formData.department);
+      fd.append("semester", formData.semester);
+      fd.append("subject", formData.subject.trim());
       if (uploadType === "file") {
         fd.append("document", selectedFile);
       } else {
@@ -142,12 +176,46 @@ const UploadModal = ({ onClose, onSuccess }) => {
               ))}
             </select>
           </div>
+          <div className="gs-form-row">
+            <div className="gs-form-group">
+              <label htmlFor="gs-upload-branch">Branch</label>
+              <select
+                id="gs-upload-branch"
+                value={formData.department}
+                onChange={(e) => setFormData((p) => ({ ...p, department: e.target.value }))}
+              >
+                <option value="">Not branch-specific</option>
+                {MNNIT_DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div className="gs-form-group gs-form-group-sem">
+              <label htmlFor="gs-upload-sem">Semester</label>
+              <select
+                id="gs-upload-sem"
+                value={formData.semester}
+                onChange={(e) => setFormData((p) => ({ ...p, semester: e.target.value }))}
+              >
+                <option value="">Any</option>
+                {RESOURCE_SEMESTERS.map((s) => <option key={s} value={String(s)}>Semester {s}</option>)}
+              </select>
+            </div>
+          </div>
           <div className="gs-form-group">
-            <label>Description *</label>
+            <label htmlFor="gs-upload-subject">Subject</label>
+            <SubjectPicker
+              id="gs-upload-subject"
+              value={formData.subject}
+              onChange={(subject) => setFormData((p) => ({ ...p, subject }))}
+              subjects={subjectSuggestions}
+              maxLength={SUBJECT_MAX_LENGTH}
+            />
+          </div>
+          <div className="gs-form-group">
+            <label>Description</label>
             <textarea
               value={formData.description}
               onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
-              placeholder="Describe what's in this resource…" rows={3} required
+              placeholder="What's in this resource? (optional)" rows={3}
             />
           </div>
 
@@ -193,6 +261,26 @@ const UploadModal = ({ onClose, onSuccess }) => {
 };
 
 /* ──────────────────────── resource card ──────────────────────── */
+// "CSE · Sem 5" and the subject. A resource with no branch or semester is
+// "General" — it shows under every branch/semester filter.
+const AcademicChips = ({ resource }) => {
+  const scope =
+    [resource.department && branchShort(resource.department), resource.semester && `Sem ${resource.semester}`]
+      .filter(Boolean)
+      .join(" · ") || "General";
+  return (
+    <>
+      <span
+        className="gs-academic-chip"
+        title={resource.department || (scope === "General" ? "Not specific to a branch or semester" : undefined)}
+      >
+        {scope}
+      </span>
+      {resource.subject && <span className="gs-academic-chip gs-subject-chip" title={resource.subject}>{resource.subject}</span>}
+    </>
+  );
+};
+
 const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, onPromptDelete, currentUser }) => {
   const theme = useThemeStore((s) => s.theme);
   const { icon, color } = getFileIcon(resource.fileName, resource.fileType, theme);
@@ -226,13 +314,6 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
             {resource.description && (
               <p className="gs-list-desc">{resource.description}</p>
             )}
-            {resource.resourcetags?.length > 0 && (
-              <div className="gs-tags">
-                {resource.resourcetags.slice(0, 5).map((t, i) => (
-                  <span key={i} className="gs-tag">#{t}</span>
-                ))}
-              </div>
-            )}
             <div className="gs-list-meta">
               {resource.userId?.avatar
                 ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
@@ -242,9 +323,10 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
                 {resource.userId?.username || "Anonymous"}
               </Link>
               <span className="gs-dot" />
-              <span>{timeAgo(resource.createdAt)}</span>
+              <UploadTime date={resource.createdAt} />
               <span className="gs-dot" />
               <span className="gs-category-badge">{resource.category}</span>
+              <AcademicChips resource={resource} />
               <span className="gs-dot" />
               {formatFileSize(resource.fileSize) && (
                 <>
@@ -324,32 +406,27 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
         {resource.title || resource.fileName}
       </h3>
 
+      <div className="gs-card-badges">
+        <span className="gs-category-badge">{resource.category}</span>
+        <AcademicChips resource={resource} />
+      </div>
+
       {resource.description && (
         <p className="gs-card-desc">{resource.description}</p>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", margin: "6px 0" }}>
-        <span className="gs-category-badge">{resource.category}</span>
-        {resource.resourcetags?.length > 0 && (
-          <div className="gs-tags">
-            {resource.resourcetags.slice(0, 3).map((t, i) => (
-              <span key={i} className="gs-tag">#{t}</span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="gs-card-user-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", margin: "8px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          {resource.userId?.avatar
-            ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
-            : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
-          }
-          <Link to={`/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
-            {resource.userId?.username || "Anonymous"}
-          </Link>
-        </div>
-        <div className="gs-card-stats">
+      {/* Uploader, when, size and downloads: avatar spans both lines; name over
+          date on the left, size + downloads on the right in line with the date. */}
+      <div className="gs-card-footer">
+        {resource.userId?.avatar
+          ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm gs-footer-avatar" />
+          : <div className="gs-avatar-sm gs-avatar-placeholder gs-footer-avatar"><span className="material-icons">person</span></div>
+        }
+        <Link to={`/profile/${resource.userId?.username}`} className="gs-username gs-footer-name" onClick={(e) => e.stopPropagation()}>
+          {resource.userId?.username || "Anonymous"}
+        </Link>
+        <span className="gs-footer-time"><UploadTime date={resource.createdAt} /></span>
+        <div className="gs-card-stats gs-footer-stats">
           <FileSizeChip bytes={resource.fileSize} />
           <span className="gs-stat-chip">
             <span className="material-icons">download</span>
@@ -429,6 +506,12 @@ export default function GlobalSearch() {
   const [showUpload, setShowUpload]         = useState(false);
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [showMyResourcesOnly, setShowMyResourcesOnly] = useState(false);
+  // Branch / semester / subject filters, opening on the student's own branch + semester.
+  const [department, setDepartment] = useState(() => userAcademicDefaults(user).department);
+  const [semester, setSemester]     = useState(() => userAcademicDefaults(user).semester);
+  const [subject, setSubject]       = useState("");
+  const [subjectText, setSubjectText] = useState(""); // what's typed in the subject search
+  const { data: subjectOptions = EMPTY } = useQuery(resourceSubjectsQuery(department, semester));
   const [searchParams, setSearchParams]     = useSearchParams();
   const [collectionModalResourceId, setCollectionModalResourceId] = useState(null);
 
@@ -460,7 +543,9 @@ export default function GlobalSearch() {
 
   // Library pages, cached per filter combination: switching back to a filter
   // (or back to this page) shows its results instantly.
-  const libraryOptions = resourceLibraryQuery(user?._id, { debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly });
+  const libraryOptions = resourceLibraryQuery(user?._id, {
+    debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly, department, semester, subject,
+  });
   const libraryKey = libraryOptions.queryKey;
   const libraryQuery = useInfiniteQuery({ ...libraryOptions, placeholderData: keepPreviousData });
   const libraryPages = libraryQuery.data?.pages;
@@ -548,7 +633,7 @@ export default function GlobalSearch() {
     observer.observe(sentinel);
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly]);
+  }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly, department, semester, subject]);
 
   const handleResourceAction = (resource, actionType) => {
     if (!isSafeHttpUrl(resource.fileUrl)) {
@@ -601,9 +686,21 @@ export default function GlobalSearch() {
     setSelectedCategory("all");
     setSelectedSort("most_downloaded");
     setShowSavedOnly(false);
+    clearAcademicFilters();
   };
 
-  const hasFilters = searchTerm || selectedCategory !== "all" || showSavedOnly;
+  const clearAcademicFilters = () => {
+    setDepartment(""); setSemester(""); setSubject(""); setSubjectText("");
+  };
+
+  const hasAcademicFilters = Boolean(department || semester || subject);
+  const hasFilters = searchTerm || selectedCategory !== "all" || showSavedOnly || hasAcademicFilters;
+  // "CSE · Sem 5 · Operating Systems"
+  const scopeLabel = [
+    department && branchShort(department),
+    semester && `Sem ${semester}`,
+    subject,
+  ].filter(Boolean).join(" · ");
 
   const displayedResources = showSavedOnly ? savedResources : resources;
   const activeSort = SORT_OPTIONS.find((o) => o.id === selectedSort);
@@ -707,13 +804,55 @@ export default function GlobalSearch() {
         </div>
       </div>
 
+      {/* ── Branch / semester / subject ── */}
+      {!showSavedOnly && (
+        <div className="gs-academic-filters">
+          <select
+            aria-label="Branch"
+            className={`gs-academic-select gs-academic-branch ${department ? "active" : ""}`}
+            value={department}
+            onChange={(e) => setDepartment(e.target.value)}
+          >
+            <option value="">All branches</option>
+            {MNNIT_DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select
+            aria-label="Semester"
+            className={`gs-academic-select ${semester ? "active" : ""}`}
+            value={semester}
+            onChange={(e) => setSemester(e.target.value)}
+          >
+            <option value="">All semesters</option>
+            {RESOURCE_SEMESTERS.map((s) => <option key={s} value={String(s)}>Semester {s}</option>)}
+          </select>
+          <div className={`gs-subject-filter ${subject ? "active" : ""}`}>
+            <SubjectPicker
+              ariaLabel="Search subjects"
+              value={subjectText}
+              onChange={(text) => {
+                setSubjectText(text);
+                if (!text.trim()) setSubject(""); // emptied the box → all subjects
+              }}
+              onSelect={(name) => { setSubject(name); setSubjectText(name); }}
+              onDismiss={() => setSubjectText(subject)} // typed but didn't pick → show the active filter again
+              subjects={subjectOptions}
+              maxLength={SUBJECT_MAX_LENGTH}
+              allowCreate={false}
+              floating
+              placeholder="Search subjects…"
+              emptyText={subjectText.trim() ? "No subjects match" : "No subjects yet"}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Stats bar ── */}
       <div className="gs-stats-bar">
         <span className="gs-stats-text">
           {loading ? "Searching…" : (
             showSavedOnly
               ? `${displayedResources.length} saved item${displayedResources.length !== 1 ? "s" : ""}`
-              : `${pagination.totalDocs} result${pagination.totalDocs !== 1 ? "s" : ""}${debouncedTerm ? ` for "${debouncedTerm}"` : ""}`
+              : `${pagination.totalDocs} result${pagination.totalDocs !== 1 ? "s" : ""}${debouncedTerm ? ` for "${debouncedTerm}"` : ""}${scopeLabel ? ` in ${scopeLabel}` : ""}`
           )}
         </span>
         {hasFilters && (
@@ -762,14 +901,27 @@ export default function GlobalSearch() {
               <span className="material-icons">manage_search</span>
             </div>
             <h3 className="gs-empty-title">
-              {showSavedOnly ? "No saved items yet" : "Nothing found"}
+              {showSavedOnly
+                ? "No saved items yet"
+                : hasAcademicFilters && !debouncedTerm
+                  ? `No resources for ${scopeLabel} yet`
+                  : "Nothing found"}
             </h3>
             <p className="gs-empty-sub">
               {showSavedOnly
                 ? "Save resources to find them quickly later."
-                : hasFilters ? "Try adjusting your filters or search term." : "Be the first to share a resource!"}
+                : hasAcademicFilters
+                  ? "Share notes or papers for this branch and semester, or look through every branch."
+                  : hasFilters ? "Try adjusting your filters or search term." : "Be the first to share a resource!"}
             </p>
-            {hasFilters && <button className="gs-btn-primary" onClick={clearFilters}>Clear Filters</button>}
+            {!showSavedOnly && hasAcademicFilters ? (
+              <div className="gs-empty-actions">
+                <button className="gs-btn-primary" onClick={clearAcademicFilters}>Show all branches</button>
+                <button className="gs-btn-secondary" onClick={() => setShowUpload(true)}>Share a resource</button>
+              </div>
+            ) : (
+              hasFilters && <button className="gs-btn-primary" onClick={clearFilters}>Clear Filters</button>
+            )}
           </div>
         )}
       </div>
@@ -783,7 +935,7 @@ export default function GlobalSearch() {
         />
       )}
       {showDeletedNotice && <DeletedNoticeModal onClose={() => setShowDeletedNotice(false)} />}
-      {showUpload && <UploadModal onClose={() => setShowUpload(false)} onSuccess={fetchResources} />}
+      {showUpload && <UploadModal user={user} onClose={() => setShowUpload(false)} onSuccess={fetchResources} />}
       {collectionModalResourceId && (
         <SaveToCollectionModal
           resourceId={collectionModalResourceId}

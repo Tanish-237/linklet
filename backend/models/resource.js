@@ -8,7 +8,7 @@ const resourceSchema = new mongoose.Schema({
     required: true,
   },
   title: { type: String, required: true },
-  description: { type: String, required: true },
+  description: { type: String, default: "" }, // optional
   resourcetags: [{ type: String }], // e.g., ["End sem", "Mid sem", "maths"]
   category: {
     type: String,
@@ -20,7 +20,12 @@ const resourceSchema = new mongoose.Schema({
   fileType: { type: String }, // e.g., "pdf", "doc", "docx"
   fileName: { type: String }, // Original file name
   fileSize: { type: Number }, // Bytes; unset for links (and until `migrate:resource-sizes` backfills older uploads)
-  branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" },
+  branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch" }, // legacy, never set; filtering uses `department`
+  // Academic tagging for the Resource Hub filters. Resources uploaded before
+  // these existed have none of them and only appear with the filters cleared.
+  department: { type: String, trim: true }, // one of MNNIT_DEPARTMENTS
+  semester: { type: Number, min: 1, max: 8 },
+  subject: { type: String, trim: true, maxlength: 80 },
   publicId: { type: String }, // Cloudinary public ID for deletion purposes
   downloadsCount: { type: Number, default: 0 },
   // Auto-approved on upload (so the resource hub isn't gated on admin response
@@ -41,6 +46,7 @@ resourceSchema.index({ category: 1 });
 resourceSchema.index({ downloadsCount: -1 });
 resourceSchema.index({ branch: 1 });
 resourceSchema.index({ isVerified: 1 });
+resourceSchema.index({ department: 1, semester: 1, subject: 1 });
 
 resourceSchema.plugin(aggregatePaginate);
 

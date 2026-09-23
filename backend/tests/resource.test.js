@@ -56,7 +56,8 @@ describe('Resource Service — Unit Tests', () => {
         fileType: 'pdf',
         fileName: 'test.pdf',
         publicId: 'pub123',
-        branch: 'branch1',
+        department: 'Computer Science and Engineering',
+        semester: 5,
       };
       const saved = { ...data, _id: 'res1', resourcetags: ['test', 'notes', 'mid-term'] };
       mockCreateResource.mockResolvedValue(saved);
@@ -103,15 +104,13 @@ describe('Resource Service — Unit Tests', () => {
       ).rejects.toThrow(AppError);
     });
 
-    it('should throw a clean AppError (not a raw Mongoose validation error) when description is missing', async () => {
-      console.log('[TEST] uploadResource › missing description → clean 400 AppError');
-      await expect(
-        resourceService.uploadResource('user1', {
-          title: 'No description',
-          fileUrl: 'https://cloudinary.com/x.pdf',
-        })
-      ).rejects.toThrow('Description is required');
-      expect(mockCreateResource).not.toHaveBeenCalled();
+    it('accepts a resource without a description (it is optional)', async () => {
+      mockCreateResource.mockResolvedValue({ _id: 'r1' });
+      await resourceService.uploadResource('user1', {
+        title: 'No description',
+        fileUrl: 'https://cloudinary.com/x.pdf',
+      });
+      expect(mockCreateResource.mock.calls[0][0].description).toBe('');
     });
 
     it('should default category to "notes" when not provided', async () => {
@@ -129,7 +128,7 @@ describe('Resource Service — Unit Tests', () => {
   describe('getVerifiedResourcesFeed', () => {
     it('should call repository with parsed page and limit and attach cached category stats', async () => {
       console.log('[TEST] getVerifiedResourcesFeed › parses page & limit, stats come from the (cached) stats query');
-      const filters = { search: 'algo', category: 'notes', sort: 'newest', branchId: 'b1' };
+      const filters = { search: 'algo', category: 'notes', sort: 'newest', department: 'Civil Engineering', semester: 3 };
       const stats = { total: 1, categories: { all: 1, notes: 1, assignments: 0, papers: 0, books: 0, lectures: 0, other: 0 } };
       const page = { resources: [{ _id: 'r1', title: 'Algo Notes' }], totalPages: 1, totalDocs: 1, page: 2, hasNextPage: false };
       mockGetVerifiedResources.mockResolvedValue(page);
@@ -138,7 +137,7 @@ describe('Resource Service — Unit Tests', () => {
       const result = await resourceService.getVerifiedResourcesFeed(filters, '2', '12');
 
       expect(mockGetVerifiedResources).toHaveBeenCalledWith(filters, 2, 12);
-      expect(mockCached.mock.calls[0][0]).toBe('resources:stats:v3:b1'); // versioned, per-branch key
+      expect(mockCached.mock.calls[0][0]).toBe('resources:stats:v3:Civil Engineering|3|all'); // versioned, per branch/sem/subject
       expect(result).toEqual({ ...page, stats });
     });
 

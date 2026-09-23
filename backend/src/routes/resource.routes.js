@@ -9,6 +9,7 @@ const router = express.Router();
 router.use(isLoggedIn);
 
 router.get("/library", resourceController.getLibrary);
+router.get("/subjects", resourceController.getSubjects);
 router.get("/:id", resourceController.getResourceById);
 router.patch("/:id/download", resourceController.incrementDownload);
 router.post("/", documentUploadMiddleware.single("document"), resourceController.createResource);

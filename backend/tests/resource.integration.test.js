@@ -149,10 +149,34 @@ describe('Resource API & Resource Hub Guest Gate Tests', () => {
       title: 'Useful link',
       description: 'test',
       linkUrl: 'https://example.com/notes.pdf',
+      department: 'Computer Science and Engineering',
+      semester: 5,
     });
 
     console.log(`[TEST RESULT] Status: ${res.status}`);
     expect(res.status).toBe(201);
     expect(mockUploadResource).toHaveBeenCalled();
+  });
+
+  test('accepts an upload without a branch or semester', async () => {
+    isAuthenticated = true;
+    mockUploadResource.mockResolvedValueOnce({ _id: 'res_link_2', fileType: 'link' });
+    const res = await request.post('/api/v1/resources').send({
+      title: 'Useful link',
+      linkUrl: 'https://example.com/notes.pdf',
+    });
+    expect(res.status).toBe(201);
+  });
+
+  test('rejects an unknown branch before touching Cloudinary', async () => {
+    isAuthenticated = true;
+    const res = await request.post('/api/v1/resources').send({
+      title: 'Useful link',
+      linkUrl: 'https://example.com/notes.pdf',
+      department: 'Rocket Science',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/branch/);
+    expect(mockUploadResource).not.toHaveBeenCalled();
   });
 });

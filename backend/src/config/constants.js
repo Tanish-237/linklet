@@ -49,3 +49,23 @@ export const NOTIFICATION_TYPE_PREF = {
   POST_LIKE: "postAlerts",
   SYSTEM_ALERT: "systemAlerts",
 };
+
+// MNNIT branches, exactly as the frontend's branch pickers (signup, onboarding,
+// profile) store them in user.department. Resources are tagged with one of
+// these so the Resource Hub can filter by branch.
+export const MNNIT_DEPARTMENTS = [
+  "Computer Science and Engineering",
+  "Mathematics and Computing",
+  "Electronics and Communication Engineering",
+  "Electrical Engineering",
+  "Mechanical Engineering",
+  "Engineering and Computational Mechanics",
+  "Civil Engineering",
+  "Chemical Engineering",
+  "Biotechnology",
+  "Production and Industrial Engineering",
+];
+
+// Semesters a resource can be tagged with (B.Tech runs 8; MCA/M.Tech fewer).
+export const RESOURCE_MAX_SEMESTER = 8;
+export const RESOURCE_SUBJECT_MAX_LENGTH = 80;

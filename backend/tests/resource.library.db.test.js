@@ -5,6 +5,9 @@ const { User } = await import("../models/users.js");
 const repo = await import("../src/repositories/resource.repository.js");
 const service = await import("../src/services/resource.service.js");
 
+const CSE = "Computer Science and Engineering";
+const ECE = "Electronics and Communication Engineering";
+
 const insertUser = async (username) => {
   const _id = oid();
   await User.collection.insertOne({
@@ -119,24 +122,126 @@ describe("Resource library (real MongoDB)", () => {
     expect(result.hasNextPage).toBe(false);
   });
 
-  test("getCategoryStats counts per category, honours branch and ignores hidden resources", async () => {
-    console.log("[TEST] stats › per-category counts scoped by branch");
-    const branchA = oid();
-    const branchB = oid();
+  test("getCategoryStats counts per category, honours branch/semester and ignores hidden resources", async () => {
+    console.log("[TEST] stats › per-category counts scoped by branch + semester");
     await seed(uploader, 6, (i) => ({
-      branch: i < 4 ? branchA : branchB,
+      department: i < 4 ? CSE : ECE,
+      semester: i < 4 ? 5 : 3,
       category: ["notes", "notes", "papers", "assignments", "other", "notes"][i],
       isVerified: i !== 5,
     }));
 
     const all = await repo.getCategoryStats();
-    const a = await repo.getCategoryStats(String(branchA));
+    const a = await repo.getCategoryStats({ department: CSE, semester: 5 });
 
-    console.log(`[TEST RESULT] all=${JSON.stringify(all.categories)}, branchA total=${a.total}`);
+    console.log(`[TEST RESULT] all=${JSON.stringify(all.categories)}, CSE sem 5 total=${a.total}`);
     expect(all.total).toBe(5); // the hidden one is excluded
     expect(all.categories).toMatchObject({ all: 5, notes: 2, papers: 1, assignments: 1, other: 1 });
     expect(a.total).toBe(4);
     expect(a.categories.notes).toBe(2);
+  });
+
+  test("filters by branch, semester and subject; General resources (no branch/semester) show under every filter", async () => {
+    await seed(uploader, 5, (i) => [
+      { department: CSE, semester: 5, subject: "Operating Systems" },
+      { department: CSE, semester: 5, subject: "Computer Networks" },
+      { department: CSE, semester: 3 },
+      { department: ECE, semester: 5, subject: "Operating Systems" },
+      {}, // General: no branch or semester (or uploaded before tagging existed)
+    ][i]);
+
+    const titles = async (filters) =>
+      (await repo.getVerifiedResources(filters, 1, 50)).resources.map((r) => r.title).sort();
+
+    expect(await titles({})).toHaveLength(5);
+    expect(await titles({ department: CSE })).toEqual(["resource 01", "resource 02", "resource 03", "resource 05"]);
+    expect(await titles({ department: CSE, semester: 5 })).toEqual(["resource 01", "resource 02", "resource 05"]);
+    expect(await titles({ department: CSE, semester: 5, subject: "Operating Systems" })).toEqual(["resource 01"]);
+    expect(await titles({ semester: 5 })).toEqual(["resource 01", "resource 02", "resource 04", "resource 05"]);
+    expect(await titles({ department: ECE, semester: 3 })).toEqual(["resource 05"]);
+
+    const page = await repo.getVerifiedResources({ department: CSE, semester: 5, sort: "oldest" }, 1, 50);
+    expect(page.resources[0]).toMatchObject({ department: CSE, semester: 5 });
+    // A branch-only resource shows for every semester of that branch.
+    await seed(uploader, 1, () => ({ title: "cse any sem", department: CSE }));
+    expect(await titles({ department: CSE, semester: 7 })).toEqual(["cse any sem", "resource 05"]);
+    expect(await titles({ department: ECE, semester: 7 })).toEqual(["resource 05"]);
+  });
+
+  test("subjects are listed per branch + semester, most-used first, hidden ones excluded", async () => {
+    await seed(uploader, 6, (i) => ({
+      department: CSE,
+      semester: i < 5 ? 5 : 6,
+      subject: ["Operating Systems", "Computer Networks", "Operating Systems", undefined, "Compilers", "DBMS"][i],
+      isVerified: i !== 4,
+    }));
+    expect(await service.getSubjects({ department: CSE, semester: 5 })).toEqual([
+      { name: "Operating Systems", count: 2 },
+      { name: "Computer Networks", count: 1 },
+    ]);
+  });
+
+  test("subjects can be listed across all branches/semesters, merging capitalisations", async () => {
+    await seed(uploader, 5, (i) => [
+      { department: CSE, semester: 5, subject: "Operating Systems" },
+      { department: ECE, semester: 6, subject: "operating systems" },
+      { subject: "Operating Systems" }, // no branch or semester
+      { department: CSE, semester: 3, subject: "Data Structures" },
+      { department: ECE, semester: 3, subject: "Signals" },
+    ][i]);
+    expect(await service.getSubjects({})).toEqual([
+      { name: "Operating Systems", count: 3 },
+      { name: "Data Structures", count: 1 },
+      { name: "Signals", count: 1 },
+    ]);
+    // General resources (no branch/semester) count under every branch and semester.
+    expect(await service.getSubjects({ semester: 3 })).toEqual([
+      { name: "Data Structures", count: 1 },
+      { name: "Operating Systems", count: 1 },
+      { name: "Signals", count: 1 },
+    ]);
+    expect(await service.getSubjects({ department: CSE })).toEqual([
+      { name: "Operating Systems", count: 2 },
+      { name: "Data Structures", count: 1 },
+    ]);
+
+    // Filtering by subject ignores case and needs no branch or semester.
+    const page = await repo.getVerifiedResources({ subject: "OPERATING SYSTEMS" }, 1, 50);
+    expect(page.totalDocs).toBe(3);
+  });
+
+  test("an upload with no branch reuses a spelling from any branch", async () => {
+    await seed(uploader, 1, () => ({ department: ECE, semester: 6, subject: "Operating Systems" }));
+    const created = await service.uploadResource(uploader, {
+      title: "OS book", fileUrl: "https://x.test/os.pdf", subject: "OPERATING systems",
+    });
+    expect(created.subject).toBe("Operating Systems");
+  });
+
+  test("an upload reuses the existing spelling of a subject", async () => {
+    await seed(uploader, 1, () => ({ department: CSE, semester: 5, subject: "Operating Systems" }));
+    const created = await service.uploadResource(uploader, {
+      title: "OS notes", description: "unit 1", fileUrl: "https://x.test/os.pdf",
+      department: CSE, semester: 5, subject: "operating systems",
+    });
+    expect(created.subject).toBe("Operating Systems");
+  });
+
+  test("upload validation: everything optional, but sent values must be valid", () => {
+    expect(service.parseAcademicFields({})).toEqual({ department: undefined, semester: undefined, subject: undefined });
+    expect(service.parseAcademicFields({ department: "", semester: "", subject: "" }))
+      .toEqual({ department: undefined, semester: undefined, subject: undefined });
+    expect(service.parseAcademicFields({ semester: "5" })).toEqual({ department: undefined, semester: 5, subject: undefined });
+    expect(service.parseAcademicFields({ department: CSE })).toEqual({ department: CSE, semester: undefined, subject: undefined });
+    expect(service.parseAcademicFields({ subject: "Operating Systems" }))
+      .toEqual({ department: undefined, semester: undefined, subject: "Operating Systems" });
+    expect(() => service.parseAcademicFields({ department: "Rocket Science", semester: "5" })).toThrow(/branch/);
+    expect(() => service.parseAcademicFields({ department: CSE, semester: "9" })).toThrow(/Semester/);
+    expect(() => service.parseAcademicFields({ department: CSE, semester: "5", subject: "x".repeat(81) })).toThrow(/Subject/);
+    expect(service.parseAcademicFields({ department: CSE, semester: "5", subject: "  Operating   Systems " }))
+      .toEqual({ department: CSE, semester: 5, subject: "Operating Systems" });
+    expect(service.parseAcademicFields({ department: CSE, semester: 5, subject: "" }))
+      .toEqual({ department: CSE, semester: 5, subject: undefined });
   });
 
   test("service composes the page with stats and ignores search when computing stats", async () => {

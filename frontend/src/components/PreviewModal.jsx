@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import { downloadFile } from "../utlis/download";
 import useThemeStore from "../theme/useThemeStore";
+import { formatDateTime } from "../utlis/formatTime";
 import "./PreviewModal.css";
 
 // Each type has a lighter/brighter `dark` shade (reads well on the app's
@@ -136,7 +137,15 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
             <span className="material-icons" style={{ color, fontSize: 28 }}>{icon}</span>
             <div>
               <h2 className="gs-preview-title">{resource.title || resource.fileName}</h2>
-              <p className="gs-preview-sub">by {resource.userId?.username || "Anonymous"}</p>
+              <p className="gs-preview-sub">
+                by {resource.userId?.username || "Anonymous"}
+                {resource.createdAt && (
+                  <>
+                    {" · "}
+                    <time dateTime={new Date(resource.createdAt).toISOString()}>{formatDateTime(resource.createdAt)}</time>
+                  </>
+                )}
+              </p>
             </div>
           </div>
           <div className="gs-preview-header-actions">

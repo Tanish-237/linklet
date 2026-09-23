@@ -3,19 +3,8 @@ import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import useAuthStore from "../store/useAuthStore";
 import { useAuth } from "../context/AuthContext";
+import { MNNIT_DEPARTMENTS } from "../utlis/academics";
 
-export const MNNIT_DEPARTMENTS = [
-  "Computer Science and Engineering",
-  "Mathematics and Computing",
-  "Electronics and Communication Engineering",
-  "Electrical Engineering",
-  "Mechanical Engineering",
-  "Engineering and Computational Mechanics",
-  "Civil Engineering",
-  "Chemical Engineering",
-  "Biotechnology",
-  "Production and Industrial Engineering",
-];
 
 const formatSectionInput = (val) => {
   if (!val) return "";

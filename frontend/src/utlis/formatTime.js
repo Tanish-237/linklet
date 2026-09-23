@@ -15,3 +15,15 @@ export const formatTime = (dateString) => {
     day: "numeric",
   });
 };
+
+/** Full date and time, e.g. "24 Sep 2026, 1:45 pm" (in the viewer's locale). */
+export const formatDateTime = (dateString) =>
+  dateString
+    ? new Date(dateString).toLocaleString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";

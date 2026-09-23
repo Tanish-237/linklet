@@ -1612,6 +1612,26 @@
   box-shadow: 0 0 0 2px rgb(var(--warning-fg) / 0.9);
 }
 
+/* Links inside chat messages: the bubble's own text colour (readable on both
+   sent and received bubbles), underlined so they read as links. */
+.chat-text-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  overflow-wrap: anywhere;
+}
+
+@media (hover: hover) {
+  .chat-text-link:hover { text-decoration-thickness: 2px; }
+}
+
+.chat-text-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 .search-match-highlight {
   background: rgba(234, 179, 8, 0.45);
   color: #fef08a;

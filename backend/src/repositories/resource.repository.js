@@ -13,6 +13,17 @@ export const findResourceById = async (id) => {
     .populate("branch");
 };
 
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+// Subjects are matched ignoring case: the same subject can be typed as
+// "Operating Systems" in one branch and "operating systems" in another.
+const subjectMatch = (subject) => ({ $regex: `^${escapeRegex(subject)}$`, $options: "i" });
+
+// A branch or semester filter also includes resources without one ("General":
+// placement prep, books, anything uploaded before tagging existed). `null` in
+// $in matches both a missing field and an explicit null.
+const orGeneral = (value) => ({ $in: [value, null] });
+
 /**
  * Get paginated, filtered, sorted resources.
  * Falls back to a case-insensitive $regex search when $text returns no results.
@@ -48,9 +59,9 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
       }
     }
 
-    if (filters.branchId && mongoose.Types.ObjectId.isValid(filters.branchId)) {
-      query.branch = new mongoose.Types.ObjectId(filters.branchId);
-    }
+    if (filters.department) query.department = orGeneral(filters.department);
+    if (filters.semester) query.semester = orGeneral(filters.semester);
+    if (filters.subject) query.subject = subjectMatch(filters.subject);
     if (filters.category && filters.category !== "all") query.category = filters.category;
     if (filters.tags && filters.tags.length > 0) query.resourcetags = { $in: filters.tags };
     if (filters.onlyMe && mongoose.Types.ObjectId.isValid(filters.onlyMe)) {
@@ -134,7 +145,9 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
         fileType: 1,
         fileName: 1,
         fileSize: 1,
-        branch: 1,
+        department: 1,
+        semester: 1,
+        subject: 1,
         publicId: 1,
         downloadsCount: 1,
         createdAt: 1,
@@ -178,18 +191,18 @@ export const getVerifiedResources = async (filters, page = 1, limit = 12) => {
 };
 
 /**
- * Per-category counts for the library header. Deliberately independent of the
- * current search/filter (so the numbers stay stable while browsing) — which
- * also makes it ideal to cache: it depends only on the branch.
+ * Per-category counts for the library header, within the selected branch /
+ * semester / subject. Independent of search, sort and category (so the numbers
+ * stay stable while browsing), which also keeps them cacheable.
  */
-export const getCategoryStats = async (branchId) => {
+export const getCategoryStats = async ({ department, semester, subject } = {}) => {
   const statsAggregate = await Resource.aggregate([
     {
       $match: {
         isVerified: { $ne: false },
-        ...(branchId && mongoose.Types.ObjectId.isValid(branchId)
-          ? { branch: new mongoose.Types.ObjectId(branchId) }
-          : {}),
+        ...(department ? { department: orGeneral(department) } : {}),
+        ...(semester ? { semester: orGeneral(semester) } : {}),
+        ...(subject ? { subject: subjectMatch(subject) } : {}),
       },
     },
     { $group: { _id: "$category", count: { $sum: 1 } } },
@@ -209,6 +222,46 @@ export const getCategoryStats = async (branchId) => {
   stats.categories.all = stats.total;
 
   return stats;
+};
+
+/**
+ * Distinct subjects with resources, most-used first, optionally within a
+ * branch and/or semester (General resources included, matching the library
+ * results). Different capitalisations count as one subject,
+ * listed under the spelling that was used first.
+ */
+export const getSubjects = async ({ department, semester } = {}) => {
+  const rows = await Resource.aggregate([
+    {
+      $match: {
+        isVerified: { $ne: false },
+        ...(department ? { department: orGeneral(department) } : {}),
+        ...(semester ? { semester: orGeneral(semester) } : {}),
+        subject: { $exists: true, $nin: [null, ""] },
+      },
+    },
+    { $sort: { createdAt: 1 } },
+    { $group: { _id: { $toLower: "$subject" }, name: { $first: "$subject" }, count: { $sum: 1 } } },
+    { $sort: { count: -1, name: 1 } },
+    { $limit: 500 },
+  ]);
+  return rows.map((r) => ({ name: r.name, count: r.count }));
+};
+
+/**
+ * An already-used spelling of `subject`, ignoring case: first within the same
+ * branch + semester, then anywhere, so one subject keeps one name.
+ */
+export const findSubjectSpelling = async (department, semester, subject) => {
+  const scoped =
+    department && semester
+      ? await Resource.findOne({ department, semester, subject: subjectMatch(subject) }, { subject: 1 }).lean()
+      : null;
+  if (scoped) return scoped.subject;
+  const anywhere = await Resource.findOne({ subject: subjectMatch(subject) }, { subject: 1 })
+    .sort({ createdAt: 1 })
+    .lean();
+  return anywhere?.subject || null;
 };
 
 export const deleteResource = async (id) => {

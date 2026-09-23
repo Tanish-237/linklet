@@ -3,9 +3,12 @@ import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 import { deleteFromCloudinary } from "../utils/cloudinary.js";
 import { cached, getCacheVersion, bumpCacheVersion } from "../utils/cache.js";
+export { parseAcademicFields, parseAcademicFilters } from "../utils/resourceAcademics.js";
 
 const RESOURCE_VERSION_KEY = "resources";
 const STATS_CACHE_TTL = 120; // seconds
+const SUBJECTS_CACHE_TTL = 300; // seconds
+
 
 /** Uploads, deletions and admin hide/approve all change the category counts. */
 export const invalidateResourceCache = () => bumpCacheVersion(RESOURCE_VERSION_KEY);
@@ -13,13 +16,6 @@ export const invalidateResourceCache = () => bumpCacheVersion(RESOURCE_VERSION_K
 export const uploadResource = async (userId, resourceData) => {
   if (!resourceData.title || !resourceData.fileUrl) {
     throw new AppError("Title and file are required", 400);
-  }
-  // The Resource schema requires a non-empty description. The upload form
-  // enforces this client-side, but a direct API call bypassing the form used
-  // to fall through to `description: ""`, which Mongoose then rejected with a
-  // raw ValidationError (surfaced to the user as an unhelpful 500).
-  if (!resourceData.description || !resourceData.description.trim()) {
-    throw new AppError("Description is required", 400);
   }
 
   // Parse tags if it is a comma-separated string
@@ -33,10 +29,20 @@ export const uploadResource = async (userId, resourceData) => {
     tagsArray = resourceData.tags;
   }
 
+  // Reuse an existing spelling of the subject for this branch + semester
+  // ("operating systems" → "Operating Systems"), so the filter doesn't list
+  // the same subject twice.
+  let subject = resourceData.subject;
+  if (subject) {
+    subject =
+      (await resourceRepository.findSubjectSpelling(resourceData.department, resourceData.semester, subject)) ||
+      subject;
+  }
+
   const created = await resourceRepository.createResource({
     userId,
     title: resourceData.title,
-    description: resourceData.description || "",
+    description: typeof resourceData.description === "string" ? resourceData.description.trim() : "",
     category: resourceData.category || "notes",
     resourcetags: tagsArray,
     fileUrl: resourceData.fileUrl,
@@ -44,7 +50,9 @@ export const uploadResource = async (userId, resourceData) => {
     fileName: resourceData.fileName,
     fileSize: resourceData.fileSize,
     publicId: resourceData.publicId,
-    branch: resourceData.branch,
+    department: resourceData.department,
+    semester: resourceData.semester,
+    subject,
   });
   await invalidateResourceCache();
   return created;
@@ -54,19 +62,34 @@ export const getVerifiedResourcesFeed = async (filters, page, limit) => {
   const safePage = Math.max(1, parseInt(page) || 1);
   const safeLimit = Math.min(50, Math.max(1, parseInt(limit) || 12));
 
-  const branchKey = filters?.branchId ? String(filters.branchId) : "all";
+  const scope = {
+    department: filters?.department || null,
+    semester: filters?.semester || null,
+    subject: filters?.subject || null,
+  };
+  const scopeKey = [scope.department || "all", scope.semester || "all", scope.subject || "all"].join("|");
   const version = await getCacheVersion(RESOURCE_VERSION_KEY);
 
-  // The page of resources depends on the search/filters; the category counts
-  // only depend on the branch, so they're shared (and cached) across all of them.
+  // The page of resources depends on every filter; the category counts only on
+  // branch/semester/subject (so the pills show what's in the selected
+  // branch/semester), so they're shared and cached across searches and sorts.
   const [result, stats] = await Promise.all([
     resourceRepository.getVerifiedResources(filters, safePage, safeLimit),
-    cached(`resources:stats:v${version}:${branchKey}`, STATS_CACHE_TTL, () =>
-      resourceRepository.getCategoryStats(filters?.branchId)
+    cached(`resources:stats:v${version}:${scopeKey}`, STATS_CACHE_TTL, () =>
+      resourceRepository.getCategoryStats(scope)
     ),
   ]);
 
   return { ...result, stats };
+};
+
+/** Subjects that have resources, most-used first; branch and semester are optional. */
+export const getSubjects = async ({ department, semester } = {}) => {
+  const version = await getCacheVersion(RESOURCE_VERSION_KEY);
+  const scopeKey = `${department || "all"}|${semester || "all"}`;
+  return cached(`resources:subjects:v${version}:${scopeKey}`, SUBJECTS_CACHE_TTL, () =>
+    resourceRepository.getSubjects({ department, semester })
+  );
 };
 
 export const getResourceById = async (id) => {

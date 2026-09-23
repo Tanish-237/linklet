@@ -3,6 +3,7 @@ import logger from "../utils/logger.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { AppError } from "../utils/error.js";
 import { isSafeHttpUrl } from "../utils/url.utils.js";
+import { parseAcademicFields, parseAcademicFilters } from "../utils/resourceAcademics.js";
 
 export const createResource = async (req, res, next) => {
   try {
@@ -18,6 +19,9 @@ export const createResource = async (req, res, next) => {
     if (!req.file && linkUrl && !isSafeHttpUrl(linkUrl)) {
       throw new AppError("Link must be a valid http(s) URL", 400);
     }
+
+    // Before the Cloudinary upload, so an invalid form doesn't waste one.
+    const academic = parseAcademicFields(req.body);
 
     let fileUrl = "";
     let fileType = "link";
@@ -53,7 +57,7 @@ export const createResource = async (req, res, next) => {
       fileName,
       fileSize,
       publicId,
-      branch: req.user.branch,
+      ...academic,
     };
 
     const resource = await resourceService.uploadResource(req.user._id, resourceData);
@@ -74,7 +78,7 @@ export const createResource = async (req, res, next) => {
 
 export const getLibrary = async (req, res, next) => {
   try {
-    const { search, category, sort, tags, page, limit, branchId, fileType, onlyMe } = req.query;
+    const { search, category, sort, tags, page, limit, fileType, onlyMe } = req.query;
 
     const filters = {
       search,
@@ -82,7 +86,7 @@ export const getLibrary = async (req, res, next) => {
       sort,
       tags: tags ? tags.split(",") : [],
       fileType,
-      branchId: branchId || (req.user ? req.user.branch : null),
+      ...parseAcademicFilters(req.query),
       onlyMe: onlyMe === "true" ? req.user?._id : null,
     };
 
@@ -101,6 +105,16 @@ export const getLibrary = async (req, res, next) => {
     });
   } catch (error) {
     logger.error(`Error fetching library: ${error.message}`);
+    next(error);
+  }
+};
+
+export const getSubjects = async (req, res, next) => {
+  try {
+    const { department, semester } = parseAcademicFilters(req.query);
+    const subjects = await resourceService.getSubjects({ department, semester });
+    res.status(200).json({ success: true, data: subjects });
+  } catch (error) {
     next(error);
   }
 };
