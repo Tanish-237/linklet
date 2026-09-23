@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
@@ -11,6 +11,10 @@ import GoogleAuthButton from "../components/GoogleAuthButton";
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
 import SEO from "../components/SEO";
 import ThemeToggle from "../theme/ThemeToggle";
+
+// Seconds before "Resend code" unlocks. The backend allows 5 codes per email
+// per 15 minutes, so rapid resends would lock the student out.
+const RESEND_COOLDOWN = 60;
 
 const formatSectionInput = (val) => {
   if (!val) return "";
@@ -28,8 +32,34 @@ export default function Register() {
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const navigate = useNavigate();
   const { fetchUser } = useAuth();
+
+  useEffect(() => {
+    if (resendIn <= 0) return undefined;
+    const id = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [resendIn]);
+
+  const sendOtp = async () => {
+    const res = await apiClient.post("/auth/send-otp", { email });
+    toast.success(res.data?.message || "OTP sent to your email!");
+    setResendIn(RESEND_COOLDOWN);
+  };
+
+  const handleResend = async () => {
+    if (resendIn > 0 || loading) return;
+    setLoading(true);
+    try {
+      await sendOtp();
+      setOtp("");
+    } catch (error) {
+      handleApiError(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -47,22 +77,19 @@ export default function Register() {
         toast.error("Please select your branch");
         return;
       }
+      // Checked here, before the OTP goes out: the password field is locked on step 2.
+      if (!isStrongPassword(password)) {
+        toast.error(PASSWORD_POLICY_MESSAGE);
+        return;
+      }
     }
 
     setLoading(true);
     try {
       if (step === 1) {
-        const res = await apiClient.post("/auth/send-otp", { email });
-        if (res.status === 200) {
-          toast.success(res.data.message || "OTP sent to your email!");
-          setStep(2);
-        }
+        await sendOtp();
+        setStep(2);
       } else {
-        if (!isStrongPassword(password)) {
-          toast.error(PASSWORD_POLICY_MESSAGE);
-          setLoading(false);
-          return;
-        }
         const payload = {
           email,
           password,
@@ -75,9 +102,10 @@ export default function Register() {
         const res = await apiClient.post(`/auth/register`, payload);
 
         if (res.status === 201) {
-          toast.success("Registration successful! Please login.");
+          // Register sets the auth cookies, so the user is already signed in.
+          toast.success("Welcome to Linklet! Your account is ready.");
           await fetchUser();
-          navigate("/login");
+          navigate("/home");
         }
       }
     } catch (error) {
@@ -299,7 +327,17 @@ export default function Register() {
                       required
                       className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg tracking-widest text-center text-lg font-bold"
                     />
-                    <p className="text-xs text-fg-muted mt-1">Please check your email inbox ({email}).</p>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <p className="text-xs text-fg-muted">Sent to {email}. Check spam if it's not in your inbox.</p>
+                      <button
+                        type="button"
+                        onClick={handleResend}
+                        disabled={resendIn > 0 || loading}
+                        className="shrink-0 text-xs font-medium text-accent-fg hover:underline disabled:text-fg-muted disabled:no-underline disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend code"}
+                      </button>
+                    </div>
                   </div>
                 )}
 

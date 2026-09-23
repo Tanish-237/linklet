@@ -38,7 +38,9 @@ const limiter = rateLimit({
   store: createRateLimitStore("api"),
   standardHeaders: true,
   legacyHeaders: false,
-  message: "Too many requests from this IP, please try again later"
+  // JSON like every other API error, so the frontend shows this text instead
+  // of a generic "Error 429: Something went wrong".
+  message: { success: false, message: "Too many requests from your network. Please wait a few minutes and try again." },
 });
 app.use("/api", limiter); // Apply rate limiting to all /api routes
 
@@ -53,8 +55,10 @@ app.use(
   })
 );
 
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
-app.use(express.json({ limit: "10mb" }));
+// File uploads are multipart and go through multer (with its own 25 MB/file
+// limit), so these only cover JSON/form bodies, none of which come close to 1 MB.
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 // Multer's scratch directory for uploads on their way to Cloudinary. It is
@@ -103,7 +107,10 @@ app.use((err, req, res, next) => {
   const exposeMessage = statusCode < 500 || process.env.NODE_ENV !== "production";
   res.status(statusCode).json({
     success: false,
-    message: exposeMessage ? err.message || "Internal Server Error" : "Internal Server Error",
+    message:
+      err.type === "entity.too.large"
+        ? "That request is too large." // body-parser's default is "request entity too large"
+        : exposeMessage ? err.message || "Internal Server Error" : "Internal Server Error",
     stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
 });

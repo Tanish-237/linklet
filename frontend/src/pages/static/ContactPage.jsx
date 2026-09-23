@@ -156,6 +156,7 @@ const ContactPage = () => {
                       type="text"
                       id="name"
                       name="name"
+                      maxLength={100}
                       placeholder="e.g. Tanish Sharma"
                       value={formData.name}
                       onChange={handleChange}
@@ -209,6 +210,7 @@ const ContactPage = () => {
                       type="text"
                       id="subject"
                       name="subject"
+                      maxLength={200}
                       placeholder="Brief topic..."
                       value={formData.subject}
                       onChange={handleChange}
@@ -224,6 +226,7 @@ const ContactPage = () => {
                   <textarea
                     id="message"
                     name="message"
+                    maxLength={3000}
                     placeholder="Tell us what you need help with..."
                     value={formData.message}
                     onChange={handleChange}

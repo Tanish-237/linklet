@@ -46,8 +46,11 @@ const getTransporter = () => {
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
  * @param {string} text - Email body text
+ * @param {{ intro?: string }} [options] - `intro` is the trusted HTML line shown
+ *   above the code in the Brevo template (it used to always say "registering",
+ *   even on password-reset emails).
  */
-export const sendEmail = async (to, subject, text) => {
+export const sendEmail = async (to, subject, text, { intro = "Your <strong>Linklet</strong> verification code is:" } = {}) => {
   const brevoApiKey = (
     process.env.BREVO_API_KEY ||
     process.env.BRAVO_API_KEY ||
@@ -81,7 +84,7 @@ export const sendEmail = async (to, subject, text) => {
             <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
               <h2 style="color: #7c3aed; margin-top: 0; margin-bottom: 12px; font-size: 22px;">Linklet Verification</h2>
               <p style="color: #374151; font-size: 15px; margin-bottom: 8px;">Hello,</p>
-              <p style="color: #374151; font-size: 15px; margin-bottom: 20px;">Your OTP for registering on <strong>Linklet</strong> is:</p>
+              <p style="color: #374151; font-size: 15px; margin-bottom: 20px;">${intro}</p>
               <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #111827; margin: 24px 0;">
                 ${otpCode || text}
               </div>
@@ -268,7 +271,9 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
     const mailOptions = {
       from: `"Linklet Contact Form" <${senderEmail}>`,
       to: receiverEmail,
-      replyTo: `"${name}" <${email}>`,
+      // Object form lets nodemailer encode the name, so quotes or commas in a
+      // submitted name can't break the Reply-To header.
+      replyTo: { name, address: email },
       subject: emailSubject,
       text: textContent,
       html: htmlContent,

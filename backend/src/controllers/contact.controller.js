@@ -5,6 +5,12 @@ import logger from "../utils/logger.js";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Same limits as the ContactMessage schema. Checked up front so an over-long
+// field gets a clear 400 instead of a Mongoose ValidationError (a generic 500).
+const MAX_NAME = 100;
+const MAX_SUBJECT = 200;
+const MAX_MESSAGE = 3000;
+
 /**
  * POST /api/v1/contact
  * Handles contact form submissions, saves to MongoDB, and dispatches an email to founders via Brevo/SMTP.
@@ -34,6 +40,16 @@ export const submitContactMessage = async (req, res, next) => {
     const trimmedName = name.trim();
     const trimmedSubject = subject && typeof subject === "string" ? subject.trim() : "";
     const trimmedMessage = message.trim();
+
+    if (trimmedName.length > MAX_NAME) {
+      throw new AppError(`Name cannot exceed ${MAX_NAME} characters.`, 400);
+    }
+    if (trimmedSubject.length > MAX_SUBJECT) {
+      throw new AppError(`Subject cannot exceed ${MAX_SUBJECT} characters.`, 400);
+    }
+    if (trimmedMessage.length > MAX_MESSAGE) {
+      throw new AppError(`Message cannot exceed ${MAX_MESSAGE} characters.`, 400);
+    }
     const validCategory = [
       "General Inquiry",
       "Contribute to Linklet",

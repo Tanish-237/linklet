@@ -16,6 +16,11 @@ import { isStrongPassword, PASSWORD_POLICY_MESSAGE } from "../utils/password.uti
 // already a unique, human-readable identifier per student — use it as-is for the
 // default username instead of always tacking on a random suffix. Only fall back
 // to a suffix on an actual collision (e.g. a prior user freed up that exact name).
+// Redis keys for OTPs use the normalised email, so a code sent to
+// "Foo@mnnit.ac.in" still matches when the user retypes it in lowercase.
+const otpKey = (email) => `otp:${String(email).trim().toLowerCase()}`;
+const resetOtpKey = (email) => `otp:reset:${String(email).trim().toLowerCase()}`;
+
 const USERNAME_CHARSET = /[^a-zA-Z0-9_.]/g;
 
 export const generateUniqueUsername = async (email) => {
@@ -61,7 +66,7 @@ export const generateAndSendOtp = async (email) => {
   } catch (err) {
     throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
   }
-  await redisClient.setEx(`otp:${email}`, OTP_TTL_SECONDS, otp);
+  await redisClient.setEx(otpKey(email), OTP_TTL_SECONDS, otp);
 
   // Never log the OTP itself — anyone with log access (Render dashboard, a
   // teammate, a misconfigured log drain) could otherwise reset any account.
@@ -69,7 +74,9 @@ export const generateAndSendOtp = async (email) => {
 
   // Send Email via Brevo HTTPS API or fallback SMTP
   const text = `Hello,\n\nYour OTP for registering on Linklet is: ${otp}\nThis OTP is valid for 10 minutes.\n\nWelcome to the community!`;
-  await sendEmail(email, "Linklet Registration OTP", text);
+  await sendEmail(email, "Linklet Registration OTP", text, {
+    intro: "Your code to finish creating your <strong>Linklet</strong> account is:",
+  });
 
   return { message: "OTP sent to your email" };
 };
@@ -104,8 +111,8 @@ export const register = async (userData) => {
   } catch (err) {
     throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
   }
-  const storedOtp = await redisClient.get(`otp:${email}`);
-  if (!storedOtp || storedOtp !== otp) {
+  const storedOtp = await redisClient.get(otpKey(email));
+  if (!storedOtp || storedOtp !== String(otp).trim()) {
     throw new AppError("Invalid or expired OTP", 400);
   }
 
@@ -153,7 +160,7 @@ export const register = async (userData) => {
   const user = await userRepository.createUser(enrichedUserData);
 
   // Delete OTP after successful registration
-  await redisClient.del(`otp:${email}`);
+  await redisClient.del(otpKey(email));
 
 
   const accessToken = user.generateAccessToken();
@@ -284,13 +291,15 @@ export const forgotPasswordSendOtp = async (email) => {
   } catch (err) {
     throw new AppError("OTP service is temporarily unavailable. Please try again later.", 503);
   }
-  await redisClient.setEx(`otp:reset:${email}`, OTP_TTL_SECONDS, otp);
+  await redisClient.setEx(resetOtpKey(email), OTP_TTL_SECONDS, otp);
 
   // Never log the OTP itself — see generateAndSendOtp for why.
   logger.info(`[PASSWORD RESET OTP] Generated OTP for ${email}`);
 
   const text = `Hello,\n\nYour OTP for resetting your Linklet password is: ${otp}\nThis OTP is valid for 10 minutes.\n\nIf you did not request this, please ignore this email.`;
-  await sendEmail(email, "Linklet Password Reset Code", text);
+  await sendEmail(email, "Linklet Password Reset Code", text, {
+    intro: "Your code to reset your <strong>Linklet</strong> password is:",
+  });
 
   return genericResult;
 };
@@ -315,7 +324,7 @@ export const resetPassword = async (email, otp, newPassword) => {
     throw new AppError("Service temporarily unavailable. Please try again later.", 503);
   }
 
-  const storedOtp = await redisClient.get(`otp:reset:${email}`);
+  const storedOtp = await redisClient.get(resetOtpKey(email));
   if (!storedOtp || storedOtp !== String(otp).trim()) {
     throw new AppError("Invalid or expired OTP", 400);
   }
@@ -329,7 +338,7 @@ export const resetPassword = async (email, otp, newPassword) => {
   user.refreshToken = null; // sign out every existing session on reset
   await user.save();
 
-  await redisClient.del(`otp:reset:${email}`);
+  await redisClient.del(resetOtpKey(email));
   await invalidateUserCache(user._id);
 
   return { message: "Password has been successfully reset" };

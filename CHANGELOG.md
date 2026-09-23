@@ -5,6 +5,26 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.4] - 2026-09-23
+
+### Security
+- **Login and OTP limits are per account as well as per IP.** Per email: 5 codes requested, 5 wrong codes and 10 failed logins per 15 minutes, however many IPs they come from. Per IP the limits are looser (60 OTP actions, 100 logins per 15 minutes) so students sharing hostel Wi-Fi aren't locked out together. Successful logins and verifications don't count.
+- Change password allows 5 wrong current passwords per user per 15 minutes.
+- JSON and form request bodies are capped at 1 MB (was 10 MB). File uploads are unaffected.
+
+### Added
+- **Resend code** on the signup OTP step, with a 60-second countdown.
+
+### Changed
+- Signup checks the password before sending the OTP (the password field is locked on the OTP step, so a weak password used to mean starting over).
+- After signing up you land on Home with "Welcome to Linklet!" instead of being told to log in (you're already signed in).
+- The site-wide rate limit returns a readable message instead of "Error 429: Something went wrong".
+
+### Fixed
+- Password-reset emails sent through Brevo said "Your OTP for registering on Linklet"; each email now has its own wording.
+- An OTP sent to an email typed with capitals is accepted when the email is retyped in lowercase.
+- Contact form: an over-long name, subject or message gets a clear error instead of a server error, and the fields stop at the limit. A name with quotes or commas can no longer break the Reply-To header.
+
 ## [2.1.3] - 2026-09-23
 
 ### Added
