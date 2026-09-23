@@ -12,7 +12,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "lint": "eslint .",
     "migrate:comments": "node scripts/migrate-post-comments.js",
-    "migrate:usernames": "node scripts/migrate-usernames.js"
+    "migrate:usernames": "node scripts/migrate-usernames.js",
+    "migrate:resource-categories": "node scripts/migrate-resource-categories.js"
   },
   "keywords": [],
   "author": "",

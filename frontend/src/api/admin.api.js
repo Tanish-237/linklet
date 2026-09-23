@@ -86,3 +86,14 @@ export const updateReportStatus = async (reportId, status) => {
   const response = await apiClient.put("/chat/message/reports", { reportId, status });
   return response.data;
 };
+
+export const getReportedPosts = async ({ page = 1, limit = 20, status = "pending" } = {}) => {
+  const params = new URLSearchParams({ page, limit, status });
+  const response = await apiClient.get(`/posts/reports?${params.toString()}`);
+  return response.data;
+};
+
+export const updatePostReportStatus = async (reportId, status) => {
+  const response = await apiClient.put("/posts/reports", { reportId, status });
+  return response.data;
+};

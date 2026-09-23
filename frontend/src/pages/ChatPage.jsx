@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../api/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../hooks/useSocket";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import ChatSidebar from "../components/ChatSidebar";
-import ChatWindow from "../components/ChatWindow";
+import ChatWindow from "../components/chat/ChatWindow";
 import ChatInfoPanel from "../components/ChatInfoPanel";
 import linkletLogo from "../assets/linklet-logo.webp";
+import { applyIncomingMessage, prefetchChatOnIntent } from "../components/chat/hooks/chatMessageCache";
 import "./ChatPage.css";
+import { chatAlertsEnabled } from "../utlis/notificationPrefs";
 
 const ChatPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -17,13 +19,17 @@ const ChatPage = () => {
   const { user } = useAuth();
   const socket = useSocket();
 
-  const handleClearHighlightMessage = () => {
-    if (searchParams.get("messageId")) {
-      const newParams = new URLSearchParams(searchParams);
-      newParams.delete("messageId");
-      setSearchParams(newParams, { replace: true });
-    }
-  };
+  const handleClearHighlightMessage = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        if (!prev.get("messageId")) return prev;
+        const next = new URLSearchParams(prev);
+        next.delete("messageId");
+        return next;
+      },
+      { replace: true }
+    );
+  }, [setSearchParams]);
 
   const userChatsCacheKey = `linklet_cached_chats_${user?._id}`;
   const typingTimeoutsRef = useRef({});
@@ -92,6 +98,9 @@ const ChatPage = () => {
         } catch {
           // safe fallback
         }
+        chatsHasMoreRef.current = Boolean(res.data.hasMore);
+        chatsNextCursorRef.current = res.data.nextCursor || null;
+        setHasMoreChats(chatsHasMoreRef.current);
         return res.data.data;
       }
       return [];
@@ -102,12 +111,39 @@ const ChatPage = () => {
   });
 
   const [chats, setChats] = useState(cachedChats);
+  // Chat list pagination. Page 1 arrives via the `chats` query above; deeper
+  // pages are fetched on demand as the sidebar scrolls and appended in place —
+  // there's no reason to hold the user's entire chat history in memory just to
+  // show the 30 most recent conversations.
+  const [hasMoreChats, setHasMoreChats] = useState(false);
+  const [isLoadingMoreChats, setIsLoadingMoreChats] = useState(false);
+  const chatsHasMoreRef = useRef(false);
+  const chatsNextCursorRef = useRef(null);
   const [activeChat, setActiveChat] = useState(null);
   const [showInfoPanel, setShowInfoPanel] = useState(false);
   const [onlineUsers, setOnlineUsers] = useState([]);
   const [lastSeenMap, setLastSeenMap] = useState({}); // userId -> lastSeen Date/string
   const [typingMap, setTypingMap] = useState({}); // chatId -> username
   const [unreadCounts, setUnreadCounts] = useState({}); // chatId -> count
+  // What a chat's unread state was at the moment it was opened, taken before
+  // its badge is cleared. ChatWindow uses it to place the "N unread messages"
+  // divider and open the chat there (or at the latest message if 0).
+  const [openedUnread, setOpenedUnread] = useState(null); // { chatId, count, lastReadAt }
+  const unreadCountsRef = useRef(unreadCounts);
+  useEffect(() => {
+    unreadCountsRef.current = unreadCounts;
+  }, [unreadCounts]);
+
+  const openChat = useCallback((chat) => {
+    if (!chat) return;
+    setOpenedUnread({
+      chatId: chat._id,
+      count: unreadCountsRef.current[chat._id] ?? chat.unreadCount ?? 0,
+      lastReadAt: chat.lastReadAt || null,
+    });
+    setActiveChat(chat);
+    setUnreadCounts((prev) => (prev[chat._id] ? { ...prev, [chat._id]: 0 } : prev));
+  }, []);
 
   const activeChatRef = useRef(activeChat);
   useEffect(() => {
@@ -148,10 +184,13 @@ const ChatPage = () => {
         // - Current user sent the last message
         // - Chat has no last message
         // - Current user has already read the last message
-        if (!currentUserId || isSentByMe || !c.lastMessage || isReadByMe) {
+        if (typeof c.unreadCount === "number") {
+          // Server-computed from the user's read cursor
+          initialCounts[c._id] = c.unreadCount;
+        } else if (!currentUserId || isSentByMe || !c.lastMessage || isReadByMe) {
           initialCounts[c._id] = 0;
         } else {
-          initialCounts[c._id] = c.unreadCount || 1;
+          initialCounts[c._id] = 1;
         }
 
         if (Array.isArray(c.participants)) {
@@ -167,10 +206,11 @@ const ChatPage = () => {
       const targetChatId = searchParams.get("chatId");
       if (targetChatId) {
         const found = cachedChats.find((c) => c._id === targetChatId);
-        if (found) {
-          setActiveChat(found);
-          initialCounts[found._id] = 0;
+        if (found && activeChatRef.current?._id !== found._id) {
+          unreadCountsRef.current = { ...unreadCountsRef.current, [found._id]: initialCounts[found._id] };
+          openChat(found);
         }
+        if (found) initialCounts[found._id] = 0;
       } else if (activeChat?._id) {
         initialCounts[activeChat._id] = 0;
       }
@@ -186,10 +226,10 @@ const ChatPage = () => {
     if (targetChatId && chats.length > 0) {
       const target = chats.find((c) => c._id === targetChatId);
       if (target && (!activeChat || activeChat._id !== targetChatId)) {
-        setActiveChat(target);
+        openChat(target);
       }
     }
-  }, [searchParams, chats, activeChat]);
+  }, [searchParams, chats, activeChat, openChat]);
 
   const updateChats = (updater) => {
     setChats((prev) => {
@@ -210,17 +250,26 @@ const ChatPage = () => {
 
     socket.emit("setup", user);
 
-    socket.on("user online status", ({ onlineUsers }) => {
+    // Registered by reference so cleanup removes only THESE listeners —
+    // socket.off("event") with no handler also strips every other
+    // component's listener for that event (the chat window's, Layout's).
+    const handlers = {};
+    const on = (event, fn) => {
+      handlers[event] = fn;
+      socket.on(event, fn);
+    };
+
+    on("user online status", ({ onlineUsers }) => {
       setOnlineUsers(onlineUsers || []);
     });
 
-    socket.on("user_connected", ({ userId }) => {
+    on("user_connected", ({ userId }) => {
       if (userId) {
         setOnlineUsers((prev) => (prev.includes(userId) ? prev : [...prev, userId]));
       }
     });
 
-    socket.on("user_disconnected", ({ userId, lastSeen }) => {
+    on("user_disconnected", ({ userId, lastSeen }) => {
       if (userId) {
         setOnlineUsers((prev) => prev.filter((id) => id !== userId));
         if (lastSeen) {
@@ -229,7 +278,7 @@ const ChatPage = () => {
       }
     });
 
-    socket.on("typing", ({ chatId, username }) => {
+    on("typing", ({ chatId, username }) => {
       if (chatId && username) {
         setTypingMap((prev) => ({ ...prev, [chatId]: username }));
 
@@ -247,7 +296,7 @@ const ChatPage = () => {
       }
     });
 
-    socket.on("stop typing", ({ chatId }) => {
+    on("stop typing", ({ chatId }) => {
       if (chatId) {
         if (typingTimeoutsRef.current[chatId]) {
           clearTimeout(typingTimeoutsRef.current[chatId]);
@@ -261,9 +310,13 @@ const ChatPage = () => {
       }
     });
 
-    socket.on("message received", (newMessage) => {
+    on("message received", (newMessage) => {
       const msgChatId =
         typeof newMessage.chat === "object" ? newMessage.chat._id : newMessage.chat;
+
+      // Keep the in-memory message cache current for chats that aren't open,
+      // so switching to them is instant and already up to date.
+      applyIncomingMessage(newMessage);
 
       // Increment unread count if not in the active chat
       if (activeChatRef.current?._id !== msgChatId) {
@@ -280,9 +333,7 @@ const ChatPage = () => {
           ) {
             // Muted or Archived — no toast or alert
           } else {
-            const rawPrefs = localStorage.getItem("linklet_notif_prefs");
-            const notifPrefs = rawPrefs ? JSON.parse(rawPrefs) : { chatAlerts: true };
-            if (notifPrefs.chatAlerts !== false) {
+            if (chatAlertsEnabled()) {
               const senderId = (newMessage.sender?._id || newMessage.sender)?.toString();
               const senderName =
                 newMessage.sender?.fullName || newMessage.sender?.username || "New message";
@@ -300,8 +351,8 @@ const ChatPage = () => {
                   : `${senderName}: ${previewText}`;
 
               toast.info(notifMsg, {
-                toastId: `chat_sender_${senderId}`,
-                autoClose: 4000,
+                id: `chat_sender_${senderId}`,
+                duration: 4000,
               });
             }
           }
@@ -334,7 +385,7 @@ const ChatPage = () => {
       });
     });
 
-    socket.on("group updated", (updatedChat) => {
+    on("group updated", (updatedChat) => {
       const stillAMember = (updatedChat.participants || []).some(
         (p) => (p._id || p)?.toString() === user?._id?.toString()
       );
@@ -363,7 +414,7 @@ const ChatPage = () => {
       }
     });
 
-    socket.on("removed from group", ({ chatId }) => {
+    on("removed from group", ({ chatId }) => {
       if (!chatId) return;
       updateChats((prev) => prev.filter((c) => c._id !== chatId));
       if (activeChatRef.current?._id === chatId) {
@@ -371,21 +422,29 @@ const ChatPage = () => {
       }
     });
 
+    // Read on another tab/device (or via this chat window's receipts):
+    // clear the badge everywhere.
+    on("chat read", ({ chatId, userId }) => {
+      if (!chatId || userId?.toString() !== user?._id?.toString()) return;
+      setUnreadCounts((prev) => (prev[chatId] ? { ...prev, [chatId]: 0 } : prev));
+    });
+
+    // The chat's newest message was deleted — show the new latest one.
+    on("chat preview updated", ({ chatId, lastMessage }) => {
+      if (!chatId) return;
+      updateChats((prev) =>
+        prev.map((c) => (c._id === chatId ? { ...c, lastMessage: lastMessage || null } : c))
+      );
+    });
+
     return () => {
-      socket.off("user online status");
-      socket.off("user_connected");
-      socket.off("user_disconnected");
-      socket.off("typing");
-      socket.off("stop typing");
-      socket.off("message received");
-      socket.off("group updated");
-      socket.off("removed from group");
+      Object.entries(handlers).forEach(([event, fn]) => socket.off(event, fn));
       Object.values(typingTimeoutsRef.current).forEach(clearTimeout);
     };
   }, [socket, user?._id]);
 
   const handleSelectChat = (chat) => {
-    setActiveChat(chat);
+    openChat(chat);
     // Clear manual unread status if marked
     setManualUnreadIds((prev) => {
       if (!prev.includes(chat._id)) return prev;
@@ -397,8 +456,6 @@ const ChatPage = () => {
       } catch {}
       return next;
     });
-    // Clear unread count for selected chat
-    setUnreadCounts((prev) => ({ ...prev, [chat._id]: 0 }));
 
     // Reset notification count for this sender
     const otherUser = chat.isGroup
@@ -456,6 +513,44 @@ const ChatPage = () => {
     setActiveChat(newGroup);
   };
 
+  const handleLoadMoreChats = async () => {
+    if (!chatsHasMoreRef.current || !chatsNextCursorRef.current || isLoadingMoreChats) return;
+    setIsLoadingMoreChats(true);
+    try {
+      const res = await apiClient.get("/chat", { params: { cursor: chatsNextCursorRef.current } });
+      if (res.data.success) {
+        const existingIds = new Set(chats.map((c) => c._id));
+        const newChats = res.data.data.filter((c) => !existingIds.has(c._id));
+        updateChats((prev) => [...prev, ...newChats]);
+        chatsHasMoreRef.current = Boolean(res.data.hasMore);
+        chatsNextCursorRef.current = res.data.nextCursor || null;
+        setHasMoreChats(chatsHasMoreRef.current);
+      }
+    } catch {
+      toast.error("Failed to load more chats");
+    } finally {
+      setIsLoadingMoreChats(false);
+    }
+  };
+
+  const handlePinnedMessagesChange = useCallback((chatId, pinnedMessages) => {
+    updateChats((prev) => prev.map((c) => (c._id === chatId ? { ...c, pinnedMessages } : c)));
+    setActiveChat((prev) => (prev && prev._id === chatId ? { ...prev, pinnedMessages } : prev));
+    // updateChats is recreated every render but only closes over stable setters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // "Show in chat" from the details panel: same URL-driven jump the Saved
+  // page and notifications use.
+  const handleJumpToMessage = useCallback(
+    (messageId) => {
+      if (!activeChat?._id || !messageId) return;
+      setSearchParams({ chatId: activeChat._id, messageId }, { replace: true });
+      if (window.innerWidth < 1024) setShowInfoPanel(false);
+    },
+    [activeChat?._id, setSearchParams]
+  );
+
   const handleUpdateChat = (updatedChat) => {
     updateChats((prev) =>
       prev.map((c) => (c._id === updatedChat._id ? updatedChat : c))
@@ -493,6 +588,10 @@ const ChatPage = () => {
         onBlockedUserIdsChange={setBlockedUserIds}
         onArchivedChatIdsChange={(ids) => { archivedChatIdsRef.current = ids; }}
         onGroupCreated={handleGroupCreated}
+        hasMoreChats={hasMoreChats}
+        isLoadingMoreChats={isLoadingMoreChats}
+        onLoadMoreChats={handleLoadMoreChats}
+        onPrefetchChat={prefetchChatOnIntent}
       />
 
       {/* Main Window */}
@@ -510,6 +609,8 @@ const ChatPage = () => {
           isBlocked={isCurrentChatBlocked}
           highlightMessageId={searchParams.get("messageId")}
           onClearHighlight={handleClearHighlightMessage}
+          unreadSnapshot={openedUnread?.chatId === activeChat._id ? openedUnread : null}
+          onPinnedMessagesChange={handlePinnedMessagesChange}
         />
       ) : (
         <div className="flex-1 hidden md:flex flex-col items-center justify-center p-8 select-none text-center bg-gray-950/40">
@@ -534,6 +635,7 @@ const ChatPage = () => {
           currentUser={user}
           onClose={() => setShowInfoPanel(false)}
           onUpdateChat={handleUpdateChat}
+          onJumpToMessage={handleJumpToMessage}
         />
       )}
     </div>

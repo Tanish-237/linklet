@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import defaultAvatar from "../assets/default-avatar.webp";
 import defaultBanner from "../assets/mnnit-banner.webp";
@@ -12,10 +12,50 @@ import PostDetailModal from "../components/PostDetailModal";
 import { MNNIT_DEPARTMENTS } from "../components/AcademicOnboardingModal";
 import "./Profile.css";
 import { optimizeAvatar } from "../utlis/cloudinary";
+import PostThumbnail from "../components/PostThumbnail";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
   return val.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 10);
+};
+
+const ProfilePostCard = ({ post, isOwnProfile, currentUser, onOpen, onPromptDelete }) => {
+  return (
+    <div className="profile-post-card cursor-pointer" onClick={() => onOpen(post)}>
+      <PostThumbnail post={post} />
+
+      {/* Hover overlay: stats + caption */}
+      <div className="profile-post-overlay">
+        <div className="profile-post-stats">
+          <span className="profile-post-stat">
+            <span className="material-icons">arrow_upward</span>
+            {post.upvotes?.length || 0}
+          </span>
+          <span className="profile-post-stat">
+            <span className="material-icons">chat_bubble_outline</span>
+            {post.commentsCount || 0}
+          </span>
+        </div>
+        {post.caption && (
+          <p className="profile-post-caption-preview">{post.caption}</p>
+        )}
+      </div>
+
+      {/* Delete button (owner / admin only) */}
+      {(isOwnProfile || currentUser?.role === "admin") && (
+        <button
+          className="profile-post-delete-btn"
+          aria-label="Delete post"
+          onClick={(e) => {
+            e.stopPropagation();
+            onPromptDelete(post);
+          }}
+        >
+          <span className="material-icons">delete</span>
+        </button>
+      )}
+    </div>
+  );
 };
 
 const Profile = () => {
@@ -38,10 +78,7 @@ const Profile = () => {
   const [postToDelete, setPostToDelete] = useState(null);
   const [isDeletingPost, setIsDeletingPost] = useState(false);
 
-  // Followers / Following Modal & Tab state
-  const [followModalType, setFollowModalType] = useState(null); // 'followers' | 'following' | null
-  const [followList, setFollowList] = useState([]);
-  const [followListLoading, setFollowListLoading] = useState(false);
+  // Followers / Following Tab state
   const [tabFollowList, setTabFollowList] = useState([]);
   const [tabFollowLoading, setTabFollowLoading] = useState(false);
 
@@ -100,9 +137,9 @@ const Profile = () => {
           navigate("/login");
           return;
         }
-        // If on bare /dashboard/profile, redirect to include username
+        // If on bare /profile, redirect to include username
         if (!username && currentUser) {
-          navigate(`/dashboard/profile/${currentUser.username}`, { replace: true });
+          navigate(`/profile/${currentUser.username}`, { replace: true });
           return;
         }
 
@@ -192,16 +229,6 @@ const Profile = () => {
     return [];
   };
 
-  const openFollowModal = async (type) => {
-    if (!profileUser?.username) return;
-    setFollowModalType(type);
-    setFollowListLoading(true);
-    setFollowList([]);
-    const data = await fetchFollowData(type);
-    setFollowList(data);
-    setFollowListLoading(false);
-  };
-
   const handleTabChange = async (tab) => {
     setActiveTab(tab);
     if (tab === "followers" || tab === "following") {
@@ -218,7 +245,7 @@ const Profile = () => {
     try {
       const res = await apiClient.post("/chat", { userId: profileUser._id });
       if (res.data.success) {
-        navigate("/dashboard/chat", { state: { selectedChat: res.data.data } });
+        navigate("/chat", { state: { selectedChat: res.data.data } });
       }
     } catch {
       toast.error("Failed to open conversation");
@@ -272,7 +299,7 @@ const Profile = () => {
       await fetchUser();
 
       if (editUsername !== profileUser.username) {
-        navigate(`/dashboard/profile/${editUsername}`, { replace: true });
+        navigate(`/profile/${editUsername}`, { replace: true });
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update profile");
@@ -378,9 +405,9 @@ const Profile = () => {
               </div>
               
               {isOwnProfile && isEditing && (
-                <div className="flex flex-col bg-[#0c0a1a]/90 backdrop-blur-md border border-white/10 rounded-2xl p-4 gap-4 shadow-xl shadow-black/60 z-20 w-full sm:max-w-md mt-2">
+                <div className="flex flex-col bg-surface/95 backdrop-blur-md border border-line rounded-2xl p-4 gap-4 shadow-pop z-20 w-full sm:max-w-md mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-300 font-medium">Choose an Avatar</span>
+                    <span className="text-sm text-fg-secondary font-medium">Choose an Avatar</span>
                     <button 
                       className="text-xs bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all"
                       onClick={() => document.getElementById("avatar-upload").click()}
@@ -403,8 +430,8 @@ const Profile = () => {
                               key={idx}
                               type="button"
                               aria-label={`Select avatar preset ${idx + 1}`}
-                              className={`w-12 h-12 rounded-full cursor-pointer border-2 transition-all hover:scale-110 flex-shrink-0 bg-white/5 p-0 overflow-hidden outline-none focus:ring-2 focus:ring-purple-500 ${
-                                selectedAvatarUrl === preset ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.5)] opacity-100" : "border-transparent opacity-60 hover:opacity-100 hover:bg-white/10"
+                              className={`w-12 h-12 rounded-full cursor-pointer border-2 transition-all hover:scale-110 flex-shrink-0 bg-surface-2 p-0 overflow-hidden outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                                selectedAvatarUrl === preset ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.5)] opacity-100" : "border-transparent opacity-60 hover:opacity-100 hover:bg-surface-3"
                               }`}
                               onClick={() => {
                                 setSelectedAvatarUrl(preset);
@@ -416,7 +443,7 @@ const Profile = () => {
                             </button>
                           ))}
                         </div>
-                        {catIdx < 2 && <div className="w-full h-[1px] bg-white/10"></div>}
+                        {catIdx < 2 && <div className="w-full h-[1px] bg-line"></div>}
                       </React.Fragment>
                     ))}
                   </div>
@@ -471,11 +498,11 @@ const Profile = () => {
               <div className="profile-follow-counts-bar">
                 <button
                   type="button"
-                  onClick={() => openFollowModal("followers")}
+                  onClick={() => handleTabChange("followers")}
                   className="profile-follow-header-btn group"
                   aria-label="Followers count"
                 >
-                  <span className="font-bold text-white text-base group-hover:text-violet-300 transition-colors mr-1.5">
+                  <span className="font-bold text-fg text-base group-hover:text-violet-300 transition-colors mr-1.5">
                     {profileUser.followers?.length || 0}
                   </span>
                   <span className="text-gray-400 text-xs sm:text-sm group-hover:text-gray-300 transition-colors">
@@ -487,11 +514,11 @@ const Profile = () => {
 
                 <button
                   type="button"
-                  onClick={() => openFollowModal("following")}
+                  onClick={() => handleTabChange("following")}
                   className="profile-follow-header-btn group"
                   aria-label="Following count"
                 >
-                  <span className="font-bold text-white text-base group-hover:text-violet-300 transition-colors mr-1.5">
+                  <span className="font-bold text-fg text-base group-hover:text-violet-300 transition-colors mr-1.5">
                     {profileUser.following?.length || 0}
                   </span>
                   <span className="text-gray-400 text-xs sm:text-sm group-hover:text-gray-300 transition-colors">
@@ -736,12 +763,12 @@ const Profile = () => {
         <div className="profile-stats-row mt-6 profile-section-fade">
           <div
             className="profile-stat-card cursor-pointer hover:border-violet-500/40"
-            onClick={() => openFollowModal("followers")}
+            onClick={() => handleTabChange("followers")}
             title="View Followers"
             aria-label="View Followers"
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFollowModal("followers"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleTabChange("followers"); }}
           >
             <div className="stat-icon-bg">
               <span className="material-icons">group</span>
@@ -751,12 +778,12 @@ const Profile = () => {
           </div>
           <div
             className="profile-stat-card cursor-pointer hover:border-violet-500/40"
-            onClick={() => openFollowModal("following")}
+            onClick={() => handleTabChange("following")}
             title="View Following"
             aria-label="View Following"
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") openFollowModal("following"); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleTabChange("following"); }}
           >
             <div className="stat-icon-bg">
               <span className="material-icons">person_add</span>
@@ -821,12 +848,12 @@ const Profile = () => {
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div
                       key={i}
-                      className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 animate-pulse flex items-center gap-3.5"
+                      className="p-4 rounded-xl bg-surface border border-line animate-pulse flex items-center gap-3.5"
                     >
-                      <div className="w-12 h-12 rounded-full bg-gray-800 shrink-0" />
+                      <div className="w-12 h-12 rounded-full bg-surface-2 shrink-0" />
                       <div className="flex-1 space-y-2 min-w-0">
-                        <div className="w-28 h-3.5 bg-gray-800 rounded" />
-                        <div className="w-20 h-2.5 bg-gray-800/60 rounded" />
+                        <div className="w-28 h-3.5 bg-surface-2 rounded" />
+                        <div className="w-20 h-2.5 bg-surface-2/60 rounded" />
                       </div>
                     </div>
                   ))}
@@ -852,31 +879,26 @@ const Profile = () => {
                     return (
                       <div
                         key={uId}
-                        onClick={() => navigate(`/dashboard/profile/${u.username}`)}
-                        className="p-4 rounded-xl bg-gray-900/60 border border-gray-800 hover:border-violet-500/40 hover:bg-gray-900/90 transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 shadow-sm hover:shadow-violet-500/10 group"
+                        onClick={() => navigate(`/profile/${u.username}`)}
+                        className="p-4 rounded-xl bg-surface border border-line hover:border-accent/40 hover:bg-surface-2 transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 shadow-sm hover:shadow-accent/10 group"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <img
                             src={optimizeAvatar(u.avatar, 48) || defaultAvatar}
                             alt={u.username}
-                            className="w-12 h-12 rounded-full object-cover border border-violet-500/20 group-hover:border-violet-500/50 transition-colors shrink-0"
+                            className="w-12 h-12 rounded-full object-cover border border-accent/20 group-hover:border-accent/50 transition-colors shrink-0"
                             onError={(e) => {
                               e.target.src = defaultAvatar;
                             }}
                           />
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-white truncate group-hover:text-violet-300 transition-colors">
+                            <p className="text-sm font-semibold text-fg truncate group-hover:text-accent-fg transition-colors">
                               {u.fullName || u.username}
                             </p>
-                            <p className="text-xs text-gray-400 truncate">@{u.username}</p>
-                            {u.department && (
-                              <span className="inline-block text-[11px] text-gray-400 bg-gray-800/80 px-2 py-0.5 rounded border border-gray-700/60 mt-1 truncate max-w-full">
-                                {u.department}
-                              </span>
-                            )}
+                            <p className="text-xs text-fg-muted truncate">@{u.username}</p>
                           </div>
                         </div>
-                        <span className="material-icons text-gray-500 group-hover:text-violet-400 group-hover:translate-x-0.5 transition-all text-xl shrink-0">
+                        <span className="material-icons text-fg-subtle group-hover:text-accent-fg group-hover:translate-x-0.5 transition-all text-xl shrink-0">
                           chevron_right
                         </span>
                       </div>
@@ -906,59 +928,17 @@ const Profile = () => {
               ) : (
                 <div className="profile-posts-grid">
                   {userPosts.map((post) => (
-                    <div
+                    <ProfilePostCard
                       key={post._id}
-                      className="profile-post-card cursor-pointer"
-                      onClick={() => {
-                        setSelectedPost(post);
+                      post={post}
+                      isOwnProfile={isOwnProfile}
+                      currentUser={currentUser}
+                      onOpen={(p) => {
+                        setSelectedPost(p);
                         setShowPostModal(true);
                       }}
-                    >
-                      {/* Image or text placeholder */}
-                      {post.image ? (
-                        <img
-                          src={post.image}
-                          alt={post.caption || "Post"}
-                          className="profile-post-image"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="profile-post-text-placeholder">
-                          <p>{post.caption}</p>
-                        </div>
-                      )}
-
-                      {/* Hover overlay: stats + caption */}
-                      <div className="profile-post-overlay">
-                        <div className="profile-post-stats">
-                          <span className="profile-post-stat">
-                            <span className="material-icons">arrow_upward</span>
-                            {post.upvotes?.length || 0}
-                          </span>
-                          <span className="profile-post-stat">
-                            <span className="material-icons">chat_bubble_outline</span>
-                            {post.commentsCount || 0}
-                          </span>
-                        </div>
-                        {post.caption && (
-                          <p className="profile-post-caption-preview">{post.caption}</p>
-                        )}
-                      </div>
-
-                      {/* Delete button (owner / admin only) */}
-                      {(isOwnProfile || currentUser?.role === "admin") && (
-                        <button
-                          className="profile-post-delete-btn"
-                          aria-label="Delete post"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPostToDelete(post);
-                          }}
-                        >
-                          <span className="material-icons">delete</span>
-                        </button>
-                      )}
-                    </div>
+                      onPromptDelete={setPostToDelete}
+                    />
                   ))}
                 </div>
               )
@@ -1067,111 +1047,6 @@ const Profile = () => {
         }}
       />
 
-      {/* ── Followers / Following Modal ── */}
-      {followModalType && (
-        <div
-          id="follow-modal-backdrop"
-          className="profile-modal-backdrop"
-          onClick={() => setFollowModalType(null)}
-        >
-          <div
-            className="profile-follow-modal"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="follow-modal-title"
-          >
-            <div className="profile-follow-modal-header">
-              <div className="flex items-center gap-2">
-                <span className="material-icons text-violet-400">
-                  {followModalType === "followers" ? "group" : "person_add"}
-                </span>
-                <h3 id="follow-modal-title" className="text-lg font-bold text-white capitalize">
-                  {followModalType}
-                </h3>
-                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-950/80 border border-violet-800/50 text-violet-300">
-                  {followList.length}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setFollowModalType(null)}
-                className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition cursor-pointer"
-                aria-label="Close modal"
-              >
-                <span className="material-icons text-xl">close</span>
-              </button>
-            </div>
-
-            <div className="profile-follow-modal-body">
-              {followListLoading ? (
-                <div className="flex flex-col gap-3 p-4">
-                  {Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 animate-pulse">
-                      <div className="w-10 h-10 rounded-full bg-gray-800" />
-                      <div className="flex-1 space-y-1.5">
-                        <div className="w-24 h-3 rounded bg-gray-800" />
-                        <div className="w-16 h-2.5 rounded bg-gray-800/60" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : followList.length === 0 ? (
-                <div className="text-center py-10 px-4 text-gray-400">
-                  <span className="material-icons text-4xl text-gray-600 mb-2">
-                    {followModalType === "followers" ? "people_outline" : "person_search"}
-                  </span>
-                  <p className="text-sm font-medium">No {followModalType} yet</p>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {followModalType === "followers"
-                      ? "When people follow this profile, they will appear here."
-                      : "This user isn't following anyone yet."}
-                  </p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-800/60">
-                  {followList.map((u) => {
-                    const uId = u._id || u;
-                    const isCurrent = currentUser?._id?.toString() === uId?.toString();
-                    return (
-                      <div
-                        key={uId}
-                        className="flex items-center justify-between p-3.5 hover:bg-violet-950/20 transition-colors cursor-pointer"
-                        onClick={() => {
-                          setFollowModalType(null);
-                          navigate(`/dashboard/profile/${u.username}`);
-                        }}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <img
-                            src={optimizeAvatar(u.avatar, 48) || defaultAvatar}
-                            alt={u.username}
-                            className="w-10 h-10 rounded-full object-cover border border-violet-500/20"
-                            onError={(e) => { e.target.src = defaultAvatar; }}
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-white truncate hover:text-violet-300 transition-colors">
-                              {u.fullName || u.username}
-                              {isCurrent && <span className="ml-1.5 text-xs font-normal text-violet-400">(You)</span>}
-                            </p>
-                            <p className="text-xs text-gray-400 truncate">@{u.username}</p>
-                          </div>
-                        </div>
-
-                        {u.department && (
-                          <span className="text-[11px] text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded border border-gray-800 shrink-0 ml-2 hidden sm:inline-block">
-                            {u.department}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

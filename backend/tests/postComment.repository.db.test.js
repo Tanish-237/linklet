@@ -79,8 +79,8 @@ describe("PostComment repository (real MongoDB)", () => {
     expect(String(result.parentAuthorId)).toBe(String(commenterId));
   });
 
-  test("createReply refuses a parent from a different post or a reply-to-a-reply", async () => {
-    console.log("[TEST] createReply › cross-post parent and nested-reply parent are rejected");
+  test("createReply refuses a parent from a different post, but allows nesting a reply under a reply", async () => {
+    console.log("[TEST] createReply › cross-post parent rejected, reply-to-a-reply now allowed (arbitrary nesting)");
     const otherPost = await Post.create({ userId: authorId, caption: "other" });
     const { comment } = await commentRepo.createComment({ postId: post._id, userId: commenterId, text: "parent" });
     const { reply } = await commentRepo.createReply({ postId: post._id, parentId: comment._id, userId: authorId, text: "r1" });
@@ -89,7 +89,9 @@ describe("PostComment repository (real MongoDB)", () => {
     const nested = await commentRepo.createReply({ postId: post._id, parentId: reply._id, userId: authorId, text: "y" });
 
     expect(crossPost).toBeNull();
-    expect(nested).toBeNull();
+    expect(nested).not.toBeNull();
+    expect(String(nested.reply.parentId)).toBe(String(reply._id));
+    expect(nested.repliesCount).toBe(1);
   });
 
   test("getPostComments paginates oldest-first with an exact hasMore/nextCursor and no duplicates", async () => {
@@ -182,6 +184,25 @@ describe("PostComment repository (real MongoDB)", () => {
     expect(result.deletedIds).toHaveLength(3);
     expect(result.commentsCount).toBe(1);
     expect(await PostComment.countDocuments({ postId: post._id })).toBe(1);
+  });
+
+  test("deleting a reply removes its own nested replies (multi-level cascade) but leaves unrelated comments alone", async () => {
+    console.log("[TEST] deleteComment › deleting a mid-thread reply cascades through every depth beneath it");
+    const { comment } = await commentRepo.createComment({ postId: post._id, userId: commenterId, text: "parent" });
+    const { reply: r1 } = await commentRepo.createReply({ postId: post._id, parentId: comment._id, userId: authorId, text: "r1" });
+    const { reply: r1a } = await commentRepo.createReply({ postId: post._id, parentId: r1._id, userId: commenterId, text: "r1a" });
+    await commentRepo.createReply({ postId: post._id, parentId: r1a._id, userId: authorId, text: "r1a-i" });
+    const { reply: r2 } = await commentRepo.createReply({ postId: post._id, parentId: comment._id, userId: authorId, text: "r2" });
+
+    const result = await commentRepo.deleteComment(await commentRepo.findComment(post._id, r1._id));
+
+    console.log(`[TEST RESULT] deletedIds=${result.deletedIds.length}`);
+    // r1, r1a and r1a-i are gone; comment and the sibling reply r2 survive.
+    expect(result.deletedIds).toHaveLength(3);
+    expect(await PostComment.countDocuments({ postId: post._id })).toBe(2);
+    expect(await PostComment.findById(r2._id).lean()).not.toBeNull();
+    const parent = await PostComment.findById(comment._id).lean();
+    expect(parent.repliesCount).toBe(1);
   });
 
   test("deleting a reply decrements the parent's repliesCount but not the post's commentsCount", async () => {

@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import useAuthStore from '../store/useAuthStore';
 import { createQuestion, getQuestionMetadata } from '../api/question.api';
 import './HelpForum.css';
@@ -79,7 +79,7 @@ const AskQuestion = ({ onCancel, onSuccess }) => {
       if (onSuccess) {
         onSuccess(question);
       } else {
-        navigate(`/dashboard/question/${question._id}`);
+        navigate(`/help/question/${question._id}`);
       }
     } catch (err) {
       console.error('[AskQuestion] Failed to submit:', err);
@@ -94,7 +94,7 @@ const AskQuestion = ({ onCancel, onSuccess }) => {
       {/* Title */}
       <div className="hf-form-group">
         <label className="hf-form-label" htmlFor="aq-title">
-          Title <span style={{ color: '#f87171' }}>*</span>
+          Title <span style={{ color: 'rgb(var(--danger-fg))' }}>*</span>
         </label>
         <input
           id="aq-title"
@@ -127,7 +127,7 @@ const AskQuestion = ({ onCancel, onSuccess }) => {
       {/* Body */}
       <div className="hf-form-group">
         <label className="hf-form-label" htmlFor="aq-body">
-          Description <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>(optional)</span>
+          Description <span style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-muted))', fontWeight: 400 }}>(optional)</span>
         </label>
         <textarea
           id="aq-body"

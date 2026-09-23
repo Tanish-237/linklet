@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import { apiClient } from '../api/apiClient';
 import linkletLogo from '../assets/linklet-logo.webp';
 import defaultAvatar from '../assets/default-avatar.webp';
@@ -10,28 +10,119 @@ import { useSocket } from '../hooks/useSocket';
 import NotificationDropdown from '../components/NotificationDropdown';
 import WhatsNewDropdown, { isReleaseSeen, markReleaseSeen, RELEASE_VERSION } from '../components/WhatsNewDropdown';
 import { optimizeAvatar } from "../utlis/cloudinary";
+import ThemeToggle from "../theme/ThemeToggle";
+import useThemeStore from "../theme/useThemeStore";
+import { chatAlertsEnabled } from "../utlis/notificationPrefs";
+import { clearUserCaches } from "../store/useAuthStore";
 
+// There is no top navbar in the authenticated app shell. Every persistent
+// control — navigation, theme, notifications, release notes, profile —
+// lives in a single rail: a left icon rail on desktop (like YouTube's
+// collapsed sidebar) that reshapes, via responsive classes only, into a
+// bottom tab bar on mobile (like YouTube's own mobile app). It's one DOM
+// tree the whole way — not a separate mobile drawer — so there's nothing
+// to open or close on small screens.
 export default function Layout({ children }) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, setUser } = useAuth();
   const socket = useSocket();
   const [unreadChatCount, setUnreadChatCount] = React.useState(0);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = React.useState(false);
   const [hasSeenRelease, setHasSeenRelease] = React.useState(() => isReleaseSeen(RELEASE_VERSION));
+  // Desktop-only: click the rail's top toggle to extend it into a full
+  // labelled sidebar, like YouTube's own collapsed <-> expanded rail.
+  // Ignored on mobile, where the rail is always the bottom tab bar.
+  const [isRailExpanded, setIsRailExpanded] = React.useState(() => {
+    try {
+      return localStorage.getItem("linklet_rail_expanded") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleRailExpanded = () => {
+    setIsRailExpanded((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("linklet_rail_expanded", String(next));
+      } catch {
+        // Storage unavailable — the toggle still works for this session.
+      }
+      return next;
+    });
+  };
+
+  // The bottom cluster's sub-components (theme/notifications/release notes)
+  // render fully different markup when "expanded" rather than just
+  // switching a few `md:` classes, so track viewport width here and only
+  // treat the rail as expanded when it can actually show as one — otherwise
+  // a desktop session resized narrower than md (with a previously expanded
+  // rail saved) would leak full sidebar rows into the mobile tab bar.
+  const [isDesktopViewport, setIsDesktopViewport] = React.useState(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+    return window.matchMedia("(min-width: 768px)").matches;
+  });
+  React.useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = (e) => setIsDesktopViewport(e.matches);
+    mq.addEventListener?.("change", handler);
+    return () => mq.removeEventListener?.("change", handler);
+  }, []);
+  const showExpandedRail = isRailExpanded && isDesktopViewport;
   const [dropdownStates, setDropdownStates] = React.useState({
     whatsNew: false,
     notifications: false,
     profile: false
   });
+  const theme = useThemeStore((s) => s.theme);
+  const toggleTheme = useThemeStore((s) => s.toggleTheme);
   const dropdownRef = React.useRef(null);
+  const mainRef = React.useRef(null);
+
+  // <main> is a single persistent scroll container across route changes
+  // (it isn't remounted, just re-filled), so without this a page opened
+  // while still scrolled down on the previous one would render already
+  // scrolled down instead of at the top.
+  React.useEffect(() => {
+    if (typeof mainRef.current?.scrollTo === "function") {
+      mainRef.current.scrollTo(0, 0);
+    } else if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
+  }, [location.pathname]);
 
   // Clear unread chat count when user visits chat page
   React.useEffect(() => {
-    if (location.pathname.startsWith("/dashboard/chat")) {
+    if (location.pathname.startsWith("/chat")) {
       setUnreadChatCount(0);
     }
   }, [location.pathname]);
+
+  // Seed the muted-chats cache from the server on every app load. The toast
+  // listener below reads it from localStorage (ChatSidebar keeps it current
+  // when the user mutes/unmutes during the session), but on a new device or
+  // after cleared storage that cache would be empty until /chat is opened —
+  // and muted chats would still toast everywhere else in the app.
+  React.useEffect(() => {
+    const currentUserId = (user?._id || user?.id)?.toString();
+    if (!currentUserId) return;
+    let cancelled = false;
+    apiClient
+      .get("/chat/chat-settings/muted")
+      .then((res) => {
+        if (cancelled || !Array.isArray(res?.data?.data)) return;
+        try {
+          localStorage.setItem(`linklet_muted_chats_${currentUserId}`, JSON.stringify(res.data.data));
+        } catch {
+          // Storage unavailable — fall back to whatever the cache already had
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?._id, user?.id]);
 
   // Global socket listener for chat message notifications across the entire app
   React.useEffect(() => {
@@ -45,38 +136,45 @@ export default function Layout({ children }) {
       if (senderId && senderId === currentUserId) return;
 
       // If user is currently on the chat page, let ChatPage handle in-chat alerts
-      if (location.pathname.startsWith("/dashboard/chat")) return;
+      if (location.pathname.startsWith("/chat")) return;
+
+      // A muted chat should produce neither the badge count nor the toast — this
+      // mirrors ChatPage.jsx's own in-chat alert suppression, which only applies
+      // while the user is actually on /chat. Without this check here too, muting
+      // a chat did nothing for the far more common case of being elsewhere in the app.
+      const msgChatId = (newMessage?.chat?._id || newMessage?.chat)?.toString();
+      try {
+        const rawMuted = localStorage.getItem(`linklet_muted_chats_${currentUserId}`);
+        const mutedChatIds = rawMuted ? JSON.parse(rawMuted) : [];
+        if (msgChatId && mutedChatIds.includes(msgChatId)) return;
+      } catch {
+        // Safe fallback — treat as unmuted if the cache is unreadable
+      }
 
       // Increment sidebar chat badge
       setUnreadChatCount((prev) => prev + 1);
 
       // Show toast notification
       try {
-        const rawPrefs = localStorage.getItem("linklet_notif_prefs");
-        const notifPrefs = rawPrefs ? JSON.parse(rawPrefs) : { chatAlerts: true };
-        if (notifPrefs.chatAlerts !== false) {
+        if (chatAlertsEnabled()) {
           const senderName =
             newMessage?.sender?.fullName || newMessage?.sender?.username || "New message";
           const previewText =
             newMessage?.content ||
             (newMessage?.mediaType ? `sent a ${newMessage.mediaType}` : "sent a message");
 
-          toast.info(
-            <div
-              className="cursor-pointer"
-              onClick={() => {
-                const chatId = (newMessage?.chat?._id || newMessage?.chat)?.toString();
-                navigate(`/dashboard/chat${chatId ? `?chatId=${chatId}` : ""}`);
-              }}
-            >
-              <span className="font-semibold block text-violet-300">{senderName}</span>
-              <span className="text-sm text-gray-200 truncate block">{previewText}</span>
-            </div>,
-            {
-              toastId: `global_chat_${senderId || 'msg'}`,
-              autoClose: 5000,
-            }
-          );
+          const chatId = (newMessage?.chat?._id || newMessage?.chat)?.toString();
+          // Same id per sender: a burst of messages updates one toast in
+          // place instead of stacking a new one per message.
+          toast.message(senderName, {
+            id: `global_chat_${senderId || "msg"}`,
+            description: previewText,
+            duration: 5000,
+            action: {
+              label: "Open",
+              onClick: () => navigate(`/chat${chatId ? `?chatId=${chatId}` : ""}`),
+            },
+          });
         }
       } catch {
         // Safe fallback
@@ -89,11 +187,6 @@ export default function Layout({ children }) {
     };
   }, [socket, user?._id, location.pathname, navigate]);
 
-  // Auto-close mobile sidebar on route change
-  React.useEffect(() => {
-    setIsMobileSidebarOpen(false);
-  }, [location.pathname]);
-
   const handleMarkReleaseSeen = () => {
     markReleaseSeen(RELEASE_VERSION);
     setHasSeenRelease(true);
@@ -102,10 +195,10 @@ export default function Layout({ children }) {
   const menuItems = [
     { icon: "dynamic_feed", label: "Feed", path: "/home" },
     { icon: "dashboard", label: "Dashboard", path: "/dashboard" },
-    { icon: "chat", label: "Chat", path: "/dashboard/chat" },
-    { icon: "search", label: "Global Search", path: "/dashboard/global-search" },
-    { icon: "bookmark", label: "Saved", path: "/dashboard/saved" },
-    { icon: "help", label: "Help Forum", path: "/dashboard/help" }
+    { icon: "chat", label: "Chat", path: "/chat" },
+    { icon: "folder_open", label: "Resource Hub", path: "/resource-hub" },
+    { icon: "bookmark", label: "Saved", path: "/saved" },
+    { icon: "help", label: "Help Forum", path: "/help" }
   ];
 
   const toggleDropdown = (dropdown) => {
@@ -127,6 +220,12 @@ export default function Layout({ children }) {
   const handleLogout = async () => {
     try {
       await apiClient.post(`/auth/logout`);
+      try {
+        window.localStorage.removeItem("accessToken");
+      } catch {
+        // Storage unavailable — nothing to remove
+      }
+      clearUserCaches();
       setUser(null);
       toast.success("Logged out successfully");
       navigate("/");
@@ -135,7 +234,7 @@ export default function Layout({ children }) {
     }
   };
 
-  // Close dropdowns and mobile sidebar when clicking outside or pressing Escape
+  // Close dropdowns when clicking outside or pressing Escape
   React.useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -146,7 +245,6 @@ export default function Layout({ children }) {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         closeDropdowns();
-        setIsMobileSidebarOpen(false);
       }
     };
 
@@ -159,283 +257,274 @@ export default function Layout({ children }) {
   }, []);
 
   return (
-    <div className="fixed inset-0 flex overflow-hidden bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
-      {/* Mobile Sidebar Backdrop Overlay */}
-      {isMobileSidebarOpen && (
-        <div
-          id="mobile-sidebar-backdrop"
-          onClick={() => setIsMobileSidebarOpen(false)}
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden transition-opacity duration-300"
-          aria-hidden="true"
-        />
-      )}
+    <div className="fixed inset-0 flex flex-col md:flex-row bg-canvas text-fg overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 order-1 md:order-2 overflow-hidden">
+        <main id="app-main-scroll" ref={mainRef} className={`flex-1 min-h-0 ${location.pathname === '/chat' ? 'p-0 overflow-hidden' : 'p-3 sm:p-6 md:p-8 overflow-y-auto no-scrollbar bg-canvas'}`}>
+          {children}
+        </main>
+      </div>
 
-      {/* Sidebar (Desktop static, Mobile slide-over drawer) */}
+      {/* The Rail — a left icon rail on desktop, a bottom tab bar on mobile.
+          One nav list, one bottom cluster (theme / release notes /
+          notifications / profile), reshaped purely with responsive classes.
+          A normal flex sibling (not `fixed`) so it reserves its own space —
+          nothing above it needs manual bottom-padding to avoid overlap. */}
       <aside
         id="app-sidebar"
-        className={`fixed md:relative inset-y-0 left-0 z-50 w-72 bg-gray-950/95 md:bg-black/50 backdrop-blur-xl md:backdrop-blur-md text-gray-300 flex flex-col border-r border-gray-800 transform transition-transform duration-300 ease-in-out shadow-2xl md:shadow-none ${
-          isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-        }`}
+        className={`order-2 md:order-1 h-16 md:h-full w-full ${isRailExpanded ? "md:w-60" : "md:w-20"} bg-surface border-t md:border-t-0 md:border-r border-line flex flex-row md:flex-col shrink-0`}
       >
-        <div 
-          className="h-[73px] flex items-center justify-between px-6 border-b border-gray-800 bg-black/50 backdrop-blur-md"
-        >
-          <div
-            className="flex items-center gap-3 cursor-pointer hover:opacity-90 transition-opacity"
-            onClick={() => {
-              setIsMobileSidebarOpen(false);
-              navigate('/home');
-            }}
-          >
-            <img src={linkletLogo} alt="Linklet Logo" className="h-10 w-10 rounded-full object-cover" />
-            <h1 className="text-3xl font-extrabold tracking-wide text-white">
-              Linklet
-            </h1>
-          </div>
-          {/* Mobile drawer close button */}
+        {/* Toggle (desktop rail only — a bottom tab bar has no room for it).
+            Collapsed: just the hamburger, centered. Expanded: the hamburger
+            plus logo + wordmark, properly spaced — the logo only appears
+            once there's room for it, so it's never cramped next to the
+            toggle. Click the toggle to extend the rail into a full
+            labelled sidebar, same as YouTube's own collapsed <-> expanded
+            rail. */}
+        <div className={`hidden md:flex items-center h-16 shrink-0 ${showExpandedRail ? "justify-start px-3 gap-3" : "justify-center px-2"}`}>
           <button
             type="button"
-            id="mobile-sidebar-close-btn"
-            onClick={() => setIsMobileSidebarOpen(false)}
-            className="md:hidden p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-violet-950/40 transition cursor-pointer"
-            aria-label="Close sidebar menu"
+            id="rail-expand-toggle-btn"
+            onClick={toggleRailExpanded}
+            aria-label={isRailExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            aria-expanded={isRailExpanded}
+            className="p-2.5 rounded-full text-fg-secondary hover:text-fg hover:bg-surface-2 transition-colors cursor-pointer shrink-0"
           >
-            <span className="material-icons text-2xl">close</span>
+            <span className="material-icons text-[22px]">menu</span>
           </button>
+          {showExpandedRail && (
+            <div
+              className="flex items-center gap-2 cursor-pointer hover:opacity-85 transition-opacity min-w-0"
+              onClick={() => navigate('/home')}
+            >
+              <img src={linkletLogo} alt="Linklet Logo" className="h-8 w-8 rounded-full object-cover shrink-0" />
+              <span className="text-base font-semibold text-fg truncate">Linklet</span>
+            </div>
+          )}
         </div>
-        <nav className="flex-1 overflow-y-auto no-scrollbar">
-          <ul className="space-y-3 p-4 sm:p-6">
-            {menuItems.map((item) => (
-              <li 
-                key={item.label} 
-                onClick={() => {
-                  setIsMobileSidebarOpen(false);
-                  navigate(item.path);
-                }}
-                className={`p-3.5 sm:p-4 rounded-xl transition-all duration-200 cursor-pointer border border-violet-500/10 hover:border-violet-500/30 group
-                  ${location.pathname === item.path ? 'bg-violet-900/30 border-violet-500/30' : 'bg-gray-800/40 hover:bg-violet-900/20'}`}
-              >
-                <div className="flex items-center justify-between flex-1">
-                  <div className="flex items-center gap-3">
-                    <span className={`material-icons text-2xl transition-colors ${location.pathname === item.path ? 'text-violet-400' : 'text-gray-400 group-hover:text-violet-400'}`}>
+
+        <nav className="flex-1 min-w-0 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto no-scrollbar md:py-2">
+          <ul className="flex flex-row md:flex-col h-full md:h-auto items-stretch md:space-y-1 px-1 md:px-2">
+            {menuItems.map((item) => {
+              const active = location.pathname === item.path;
+              return (
+                <li
+                  key={item.label}
+                  onClick={() => navigate(item.path)}
+                  aria-label={item.label}
+                  title={item.label}
+                  className={`flex-1 md:flex-auto flex flex-col items-center justify-center gap-0.5 px-1.5 py-1.5 my-1 md:my-0 rounded-xl cursor-pointer transition-colors duration-150 group min-w-[56px] ${
+                    showExpandedRail
+                      ? "md:flex-row md:w-full md:justify-start md:gap-3 md:px-3 md:py-2.5"
+                      : "md:flex-col md:justify-start md:gap-1 md:px-1 md:py-2.5 md:rounded-2xl md:min-w-0"
+                  } ${active ? "bg-accent-soft" : "hover:bg-surface-2"}`}
+                >
+                  <span className="relative flex items-center justify-center shrink-0">
+                    <span className={`material-icons text-[23px] md:text-[22px] transition-colors ${active ? "text-accent-fg" : "text-fg-secondary group-hover:text-fg"}`}>
                       {item.icon}
                     </span>
-                    <span className={`font-medium transition-colors ${location.pathname === item.path ? 'text-violet-300 font-semibold' : 'text-gray-300 group-hover:text-white'}`}>
-                      {item.label}
-                    </span>
-                  </div>
-                  {item.path === "/dashboard/chat" && unreadChatCount > 0 && (
-                    <span className="px-2 py-0.5 text-xs font-bold bg-violet-600 text-white rounded-full shadow-sm animate-pulse">
+                    {item.path === "/chat" && unreadChatCount > 0 && !showExpandedRail && (
+                      <span className="absolute -top-1.5 -right-2 md:-top-1 md:-right-2 min-w-[16px] h-4 px-1 flex items-center justify-center text-[10px] font-bold bg-accent text-on-accent rounded-full shadow-sm">
+                        {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                      </span>
+                    )}
+                  </span>
+                  {/* Icon-only on mobile — a bottom tab bar has no room for
+                      six labels plus the notification/profile cluster, and
+                      production apps (Instagram, X, YouTube) all drop labels
+                      at this width. Desktop keeps them (icon rail always
+                      shows a label; the expanded sidebar just grows it). */}
+                  <span className={`hidden md:block leading-tight transition-colors text-center md:text-[10px] ${showExpandedRail ? "md:text-[14.5px] md:text-left" : ""} ${active ? "text-accent-fg font-semibold" : "text-fg-secondary font-medium group-hover:text-fg"}`}>
+                    {item.label}
+                  </span>
+                  {item.path === "/chat" && unreadChatCount > 0 && showExpandedRail && (
+                    <span className="hidden md:flex ml-auto min-w-[20px] h-5 px-1.5 items-center justify-center text-[11px] font-bold bg-accent text-on-accent rounded-full shadow-sm shrink-0">
                       {unreadChatCount > 99 ? "99+" : unreadChatCount}
                     </span>
                   )}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         </nav>
-        <div className="p-4 border-t border-gray-800 flex flex-col gap-2.5">
-          <button
-            onClick={() => {
-              setIsMobileSidebarOpen(false);
-              handleLogout();
-            }}
-            className="w-full p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 text-sm font-semibold cursor-pointer"
-          >
-            <span className="material-icons text-lg">logout</span>
-            Logout
-          </button>
 
-          <div className="flex items-center justify-between text-[11px] text-gray-500 px-1 pt-1">
-            <span>Linklet</span>
-            <button
-              type="button"
-              id="sidebar-version-btn"
-              onClick={() => {
-                setIsMobileSidebarOpen(false);
-                toggleDropdown('whatsNew');
-              }}
-              className="text-gray-500 hover:text-violet-400 font-mono transition-colors cursor-pointer flex items-center gap-1"
-              title={`View ${RELEASE_VERSION} release notes`}
-            >
-              <span>{RELEASE_VERSION}</span>
-              {!hasSeenRelease && (
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
-              )}
-            </button>
-          </div>
-        </div>
-      </aside>
+        {/* Bottom cluster: theme, release notes, notifications, profile+logout.
+            Every item shares the same gap and, on mobile / collapsed
+            desktop, the same fixed circle size, so spacing reads evenly
+            instead of each control sizing itself independently. */}
+        <div
+          className={`flex flex-row md:flex-col items-center gap-1.5 md:gap-2 border-l md:border-l-0 md:border-t border-line px-1.5 md:px-2 py-1.5 md:py-2.5 shrink-0 relative z-50 ${showExpandedRail ? "md:items-stretch md:w-full" : ""}`}
+          ref={dropdownRef}
+        >
+          {/* Mobile's bottom row only has room for the nav icons plus
+              notifications + profile — theme and release notes move into
+              the profile menu below (mobile-only rows there) instead of
+              competing for space here. Desktop keeps its own dedicated
+              buttons, where there's room; wrapping each in a plain
+              `hidden md:contents` span (rather than a new flex container)
+              keeps it a no-op for the existing desktop alignment classes. */}
+          <span className="hidden md:contents">
+            <ThemeToggle expanded={showExpandedRail} />
+          </span>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <header className="h-[73px] bg-black/50 backdrop-blur-md shadow-lg flex justify-between items-center border-b border-gray-800 z-30 relative px-3 sm:px-6">
-          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
-            {/* 3 lines Hamburger Button on Top Left (Mobile only) */}
-            <button
-              type="button"
-              id="mobile-sidebar-toggle-btn"
-              onClick={() => setIsMobileSidebarOpen(true)}
-              className="md:hidden p-2 rounded-xl text-gray-300 hover:text-white hover:bg-violet-950/40 border border-gray-800 hover:border-violet-500/30 transition-all cursor-pointer flex items-center justify-center shrink-0"
-              aria-label="Open sidebar menu"
-              aria-expanded={isMobileSidebarOpen}
-            >
-              <span className="material-icons text-2xl">menu</span>
-            </button>
-
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-white truncate">
-              {(() => {
-                const currentMenuItem = menuItems.find(item => location.pathname === item.path);
-                if (currentMenuItem) return currentMenuItem.label;
-                if (location.pathname.startsWith("/dashboard/profile")) return "Profile";
-                if (location.pathname.startsWith("/dashboard/settings") || location.pathname.startsWith("/settings")) return "Settings";
-                if (location.pathname.startsWith("/dashboard/question/")) return "Question Detail";
-                if (location.pathname === "/posts") return "Feed";
-                if (location.pathname.startsWith("/posts/")) return "Post";
-                return "Dashboard";
-              })()}
-            </h1>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 relative z-50" ref={dropdownRef}>
-            {/* What's New Dropdown (Production-grade: transient announcement trigger until seen, permanent menu access) */}
+          <span className="hidden md:contents">
             <WhatsNewDropdown
               isOpen={dropdownStates.whatsNew}
               onToggle={() => toggleDropdown('whatsNew')}
               onClose={() => setDropdownStates(prev => ({ ...prev, whatsNew: false }))}
               hasSeen={hasSeenRelease}
               onMarkAsSeen={handleMarkReleaseSeen}
+              expanded={showExpandedRail}
             />
+          </span>
 
-            {/* Real-time Notification Dropdown */}
-            <NotificationDropdown
-              isOpen={dropdownStates.notifications}
-              onToggle={() => toggleDropdown('notifications')}
-              onClose={() => setDropdownStates(prev => ({ ...prev, notifications: false }))}
-            />
+          <NotificationDropdown
+            isOpen={dropdownStates.notifications}
+            onToggle={() => toggleDropdown('notifications')}
+            onClose={() => setDropdownStates(prev => ({ ...prev, notifications: false }))}
+            expanded={showExpandedRail}
+          />
 
-            {/* Profile */}
-            <div className="relative">
-              <button
-                id="layout-avatar-dropdown-btn"
-                className="group flex items-center gap-1.5 sm:gap-2 cursor-pointer p-1 rounded-full hover:bg-violet-950/40 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-violet-500/50"
-                onClick={() => toggleDropdown('profile')}
-                aria-expanded={dropdownStates.profile}
-                aria-label="User menu"
-              >
-                <img
-                  src={optimizeAvatar(user?.avatar, 40) || defaultAvatar}
-                  alt="Avatar"
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border-2 border-gray-800 group-hover:border-violet-500 transition-all duration-200 object-cover"
-                />
-                <span className={`material-icons text-gray-400 group-hover:text-violet-400 transition-all duration-200 ${
-                  dropdownStates.profile ? "rotate-180 text-violet-400" : "group-hover:translate-y-0.5"
-                }`}>
-                  expand_more
+          {/* Profile */}
+          <div className={`relative ${showExpandedRail ? "md:w-full" : ""}`}>
+            <button
+              id="layout-avatar-dropdown-btn"
+              className={`group flex items-center cursor-pointer transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 ${
+                showExpandedRail
+                  ? "md:w-full md:gap-2.5 md:px-2 md:py-1.5 md:rounded-xl md:hover:bg-surface-2 p-0.5 rounded-full hover:ring-2 hover:ring-accent/40"
+                  : "p-0.5 rounded-full hover:ring-2 hover:ring-accent/40"
+              }`}
+              onClick={() => toggleDropdown('profile')}
+              aria-expanded={dropdownStates.profile}
+              aria-label="User menu"
+            >
+              <img
+                src={optimizeAvatar(user?.avatar, 40) || defaultAvatar}
+                alt="Avatar"
+                className="w-9 h-9 md:w-10 md:h-10 rounded-full border-2 border-line group-hover:border-accent transition-all duration-200 object-cover shrink-0"
+              />
+              {showExpandedRail && (
+                <span className="hidden md:block text-[13.5px] font-medium text-fg-secondary truncate min-w-0">
+                  {user?.username || "Account"}
                 </span>
-              </button>
-
-              {dropdownStates.profile && (
-                <div className="fixed right-3 left-auto top-[76px] sm:absolute sm:right-0 sm:top-full sm:mt-2 w-64 max-w-[calc(100vw-1.5rem)] bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 overflow-hidden animate-in fade-in zoom-in-95">
-                  <div className="p-4 border-b border-gray-800/80 bg-gray-950/50">
-                    <div className="flex flex-col">
-                      <h4 className="font-medium text-violet-400 truncate text-[15px]">
-                        {user?.username || "User"}
-                      </h4>
-                      <p className="text-sm text-gray-400 truncate mt-0.5" title={user?.email || "email@example.com"}>
-                        {user?.email || "email@example.com"}
-                      </p>
-                    </div>
-                  </div>
-                  <ul className="py-2">
-                    <li>
-                      <button 
-                        id="layout-dropdown-profile-btn"
-                        onClick={() => {
-                          setDropdownStates(prev => ({ ...prev, profile: false }));
-                          navigate('/dashboard/profile');
-                        }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
-                      >
-                        <span className="material-icons text-xl text-violet-400">person</span>
-                        <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">Profile</span>
-                      </button>
-                    </li>
-                    <li>
-                      <button 
-                        id="layout-dropdown-settings-btn"
-                        onClick={() => {
-                          setDropdownStates(prev => ({ ...prev, profile: false }));
-                          navigate('/dashboard/settings');
-                        }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
-                      >
-                        <span className="material-icons text-xl text-violet-400">settings</span>
-                        <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">Settings</span>
-                      </button>
-                    </li>
-                    <li>
-                      <button 
-                        id="layout-dropdown-whats-new-btn"
-                        onClick={() => {
-                          setDropdownStates({ profile: false, notifications: false, whatsNew: true });
-                          if (!hasSeenRelease) {
-                            handleMarkReleaseSeen();
-                          }
-                        }}
-                        className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <span className="material-icons text-xl text-violet-400">new_releases</span>
-                          <span className="text-[15px] font-medium text-gray-200 group-hover:text-white transition-colors">What's New</span>
-                        </div>
-                        {!hasSeenRelease && (
-                          <span className="text-[10px] font-semibold text-violet-300 bg-violet-950/80 border border-violet-800/60 px-1.5 py-0.5 rounded">
-                            New
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                    {user?.role === "admin" && (
-                      <li>
-                        <button 
-                          id="layout-dropdown-admin-btn"
-                          onClick={() => {
-                            setDropdownStates(prev => ({ ...prev, profile: false }));
-                            navigate('/dashboard/admin');
-                          }}
-                          className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-amber-500/10 transition-all duration-200 cursor-pointer group"
-                        >
-                          <span className="material-icons text-xl text-amber-400">admin_panel_settings</span>
-                          <span className="text-[15px] font-medium text-amber-300 group-hover:text-amber-200 transition-colors">Admin Panel</span>
-                        </button>
-                      </li>
-                    )}
-                    <li className="border-t border-gray-800/80 mt-1 pt-1">
-                      <button 
-                        id="layout-dropdown-logout-btn"
-                        onClick={() => {
-                          setDropdownStates(prev => ({ ...prev, profile: false }));
-                          handleLogout();
-                        }}
-                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-violet-900/30 transition-all duration-200 cursor-pointer group"
-                      >
-                        <span className="material-icons text-xl text-red-400">logout</span>
-                        <span className="text-[15px] font-medium text-red-400">Logout</span>
-                      </button>
-                    </li>
-                  </ul>
-                </div>
               )}
-            </div>
-          </div>
-        </header>
+            </button>
 
-        {/* Main Content */}
-        <main className={`flex-1 ${location.pathname === '/dashboard/chat' ? 'p-0 overflow-hidden' : 'p-3 sm:p-6 md:p-8 overflow-y-auto no-scrollbar'}`}>
-          {children}
-        </main>
-      </div>
+            {dropdownStates.profile && (
+              <div className="fixed right-2 left-auto bottom-[72px] md:absolute md:bottom-0 md:left-full md:right-auto md:top-auto md:ml-3 w-64 max-w-[calc(100vw-1rem)] bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="p-4 border-b border-gray-800/80 bg-gray-950/50">
+                  <div className="flex flex-col">
+                    <h4 className="font-medium text-accent-fg truncate text-[15px]">
+                      {user?.username || "User"}
+                    </h4>
+                    <p className="text-sm text-fg-muted truncate mt-0.5" title={user?.email || "email@example.com"}>
+                      {user?.email || "email@example.com"}
+                    </p>
+                  </div>
+                </div>
+                <ul className="py-2">
+                  <li>
+                    <button
+                      id="layout-dropdown-profile-btn"
+                      onClick={() => {
+                        setDropdownStates(prev => ({ ...prev, profile: false }));
+                        navigate('/profile');
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-accent-soft transition-all duration-200 cursor-pointer group"
+                    >
+                      <span className="material-icons text-xl text-accent-fg">person</span>
+                      <span className="text-[15px] font-medium text-fg-secondary group-hover:text-fg transition-colors">Profile</span>
+                    </button>
+                  </li>
+                  {/* Theme has its own dedicated button on desktop (hidden
+                      here via md:hidden below) — on mobile it's only
+                      reachable from this menu since the standalone toggle
+                      is hidden from the bottom row to save space. */}
+                  <li className="md:hidden">
+                    <button
+                      id="layout-dropdown-theme-btn"
+                      onClick={() => {
+                        toggleTheme();
+                        setDropdownStates(prev => ({ ...prev, profile: false }));
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-accent-soft transition-all duration-200 cursor-pointer group"
+                    >
+                      <span className="material-icons text-xl text-accent-fg">
+                        {theme === "dark" ? "dark_mode" : "light_mode"}
+                      </span>
+                      <span className="text-[15px] font-medium text-fg-secondary group-hover:text-fg transition-colors">
+                        {theme === "dark" ? "Dark mode" : "Light mode"}
+                      </span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      id="layout-dropdown-settings-btn"
+                      onClick={() => {
+                        setDropdownStates(prev => ({ ...prev, profile: false }));
+                        navigate('/settings');
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-accent-soft transition-all duration-200 cursor-pointer group"
+                    >
+                      <span className="material-icons text-xl text-accent-fg">settings</span>
+                      <span className="text-[15px] font-medium text-fg-secondary group-hover:text-fg transition-colors">Settings</span>
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      id="layout-dropdown-whats-new-btn"
+                      onClick={() => {
+                        setDropdownStates({ profile: false, notifications: false, whatsNew: true });
+                        if (!hasSeenRelease) {
+                          handleMarkReleaseSeen();
+                        }
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-accent-soft transition-all duration-200 cursor-pointer group"
+                    >
+                      <div className="flex items-center gap-3.5">
+                        <span className="material-icons text-xl text-accent-fg">new_releases</span>
+                        <span className="text-[15px] font-medium text-fg-secondary group-hover:text-fg transition-colors">What's New</span>
+                      </div>
+                      {!hasSeenRelease && (
+                        <span className="text-[10px] font-semibold text-accent-fg bg-accent-soft border border-accent/30 px-1.5 py-0.5 rounded">
+                          New
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                  {user?.role === "admin" && (
+                    <li>
+                      <button
+                        id="layout-dropdown-admin-btn"
+                        onClick={() => {
+                          setDropdownStates(prev => ({ ...prev, profile: false }));
+                          navigate('/admin');
+                        }}
+                        className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-amber-500/10 transition-all duration-200 cursor-pointer group"
+                      >
+                        <span className="material-icons text-xl text-amber-400">admin_panel_settings</span>
+                        <span className="text-[15px] font-medium text-amber-400 group-hover:text-amber-300 transition-colors">Admin Panel</span>
+                      </button>
+                    </li>
+                  )}
+                  <li className="border-t border-line mt-1 pt-1">
+                    <button
+                      id="layout-dropdown-logout-btn"
+                      onClick={() => {
+                        setDropdownStates(prev => ({ ...prev, profile: false }));
+                        handleLogout();
+                      }}
+                      className="w-full px-4 py-2.5 flex items-center gap-3.5 text-left hover:bg-accent-soft transition-all duration-200 cursor-pointer group"
+                    >
+                      <span className="material-icons text-xl text-red-400">logout</span>
+                      <span className="text-[15px] font-medium text-red-400">Logout</span>
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      </aside>
 
       {/* Global Academic Onboarding Modal (for users with unset department) */}
       <AcademicOnboardingModal />

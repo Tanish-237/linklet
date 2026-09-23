@@ -31,7 +31,7 @@ describe("GlobalSearch / Resource Page", () => {
           data: {
             data: {
               total: 5,
-              categories: { all: 5, notes: 3, assignments: 2, papers: 0, presentations: 0, other: 0 },
+              categories: { all: 5, notes: 3, assignments: 2, papers: 0, books: 0, lectures: 0, other: 0 },
             },
           },
         });
@@ -90,7 +90,7 @@ describe("GlobalSearch / Resource Page", () => {
           data: {
             data: {
               total: 20,
-              categories: { all: 20, notes: 10, assignments: 10, papers: 0, presentations: 0, other: 0 },
+              categories: { all: 20, notes: 10, assignments: 10, papers: 0, books: 0, lectures: 0, other: 0 },
             },
           },
         });

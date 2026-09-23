@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Helmet } from 'react-helmet-async';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import { useAuth } from '../context/AuthContext';
 import {
   getBranches,
@@ -19,6 +19,8 @@ import {
   deleteAdminPost,
   getReportedMessages,
   updateReportStatus,
+  getReportedPosts,
+  updatePostReportStatus,
 } from '../api/admin.api';
 import defaultAvatar from '../assets/default-avatar.webp';
 import './AdminDashboard.css';
@@ -54,6 +56,7 @@ export default function AdminDashboard() {
   // Message Reports State
   const [reportsPage, setReportsPage] = useState(1);
   const [reportsStatusFilter, setReportsStatusFilter] = useState('pending'); // 'pending', 'reviewed', 'dismissed'
+  const [reportsSource, setReportsSource] = useState('messages'); // 'messages' | 'posts'
 
   // Debounce search query
   useEffect(() => {
@@ -130,15 +133,21 @@ export default function AdminDashboard() {
     enabled: activeTab === 'audit',
   });
 
-  // 6. Fetch Reported Messages
+  // 6. Fetch Reported Messages / Posts (one table, switched by reportsSource)
+  const isPostReports = reportsSource === 'posts';
   const {
     data: reportsData,
     isLoading: isReportsLoading,
     refetch: refetchReports,
     isRefetching: isReportsRefetching,
   } = useQuery({
-    queryKey: ['adminReportedMessages', reportsPage, reportsStatusFilter],
-    queryFn: () => getReportedMessages({ page: reportsPage, limit: 15, status: reportsStatusFilter }),
+    queryKey: [isPostReports ? 'adminReportedPosts' : 'adminReportedMessages', reportsPage, reportsStatusFilter],
+    queryFn: () =>
+      (isPostReports ? getReportedPosts : getReportedMessages)({
+        page: reportsPage,
+        limit: 15,
+        status: reportsStatusFilter,
+      }),
     staleTime: 15000,
     enabled: activeTab === 'reports',
   });
@@ -147,9 +156,12 @@ export default function AdminDashboard() {
 
   // Update Report Status Mutation
   const updateReportStatusMutation = useMutation({
-    mutationFn: ({ reportId, status }) => updateReportStatus(reportId, status),
+    mutationFn: ({ reportId, status, source }) =>
+      (source === 'posts' ? updatePostReportStatus : updateReportStatus)(reportId, status),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['adminReportedMessages'] });
+      queryClient.invalidateQueries({
+        queryKey: [variables.source === 'posts' ? 'adminReportedPosts' : 'adminReportedMessages'],
+      });
       toast.success(`Report marked as ${variables.status}`);
     },
     onError: (error) => {
@@ -302,7 +314,7 @@ export default function AdminDashboard() {
   const pagination = usersData?.pagination || { totalDocs: 0, totalPages: 1, page: 1, limit: 10 };
   const auditLogs = auditData?.data || [];
   const auditPagination = auditData?.pagination || { totalDocs: 0, totalPages: 1, page: 1, limit: 15 };
-  const reportedMessages = reportsData?.data || [];
+  const reports = reportsData?.data || [];
   const reportsPagination = reportsData?.pagination || { totalDocs: 0, totalPages: 1, page: 1, limit: 15 };
 
   const formatAuditDetails = (log) => {
@@ -343,7 +355,7 @@ export default function AdminDashboard() {
     if (action === 'BRANCH_CREATE') {
       return (
         <span className="text-xs text-gray-300">
-          Created: <strong className="text-white">{details.branchName || details.name}</strong>
+          Created: <strong className="text-fg">{details.branchName || details.name}</strong>
         </span>
       );
     }
@@ -351,7 +363,7 @@ export default function AdminDashboard() {
     if (action === 'BRANCH_DELETE') {
       return (
         <span className="text-xs text-rose-300">
-          Removed: <strong className="text-white">{details.branchName || details.name}</strong>
+          Removed: <strong className="text-fg">{details.branchName || details.name}</strong>
         </span>
       );
     }
@@ -368,7 +380,7 @@ export default function AdminDashboard() {
     if (action && action.includes('DELETE')) {
       return (
         <span className="text-xs text-gray-300">
-          Removed {targetType}: <strong className="text-white truncate max-w-[200px] inline-block align-bottom">{details.title || details.caption || 'Item'}</strong>
+          Removed {targetType}: <strong className="text-fg truncate max-w-[200px] inline-block align-bottom">{details.title || details.caption || 'Item'}</strong>
         </span>
       );
     }
@@ -398,7 +410,7 @@ export default function AdminDashboard() {
               <span className="p-2 rounded-xl bg-violet-600/20 text-violet-400 border border-violet-500/30">
                 <span className="material-icons text-2xl">admin_panel_settings</span>
               </span>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Platform Administration</h1>
+              <h1 className="text-2xl font-bold text-fg tracking-tight">Platform Administration</h1>
             </div>
             <p className="text-sm text-gray-400">
               Manage student permissions, institutional departments, content moderation, and audit logs.
@@ -413,7 +425,7 @@ export default function AdminDashboard() {
             <button
               onClick={handleRefreshAll}
               disabled={isStatsRefetching || isUsersRefetching}
-              className="p-2.5 rounded-xl bg-gray-800/80 hover:bg-violet-900/30 border border-gray-700/60 hover:border-violet-500/40 text-gray-300 hover:text-white transition-all cursor-pointer flex items-center justify-center"
+              className="p-2.5 rounded-xl bg-gray-800/80 hover:bg-violet-900/30 border border-gray-700/60 hover:border-violet-500/40 text-gray-300 hover:text-fg transition-all cursor-pointer flex items-center justify-center"
               title="Refresh platform metrics"
               aria-label="Refresh platform data"
             >
@@ -435,7 +447,7 @@ export default function AdminDashboard() {
               <span className="material-icons text-xl">school</span>
             </span>
           </div>
-          <div className="text-2xl font-black text-white mb-1">
+          <div className="text-2xl font-black text-fg mb-1">
             {isStatsLoading ? <span className="animate-pulse">...</span> : (stats?.users?.students ?? 0)}
           </div>
           <div className="text-xs text-gray-400 flex items-center gap-1">
@@ -451,7 +463,7 @@ export default function AdminDashboard() {
               <span className="material-icons text-xl">folder_shared</span>
             </span>
           </div>
-          <div className="text-2xl font-black text-white mb-1">
+          <div className="text-2xl font-black text-fg mb-1">
             {isStatsLoading ? <span className="animate-pulse">...</span> : (stats?.resources?.total ?? 0)}
           </div>
           <div className="text-xs text-gray-400 flex items-center gap-1">
@@ -467,7 +479,7 @@ export default function AdminDashboard() {
               <span className="material-icons text-xl">forum</span>
             </span>
           </div>
-          <div className="text-2xl font-black text-white mb-1">
+          <div className="text-2xl font-black text-fg mb-1">
             {isStatsLoading ? <span className="animate-pulse">...</span> : (stats?.community?.discussions ?? 0)}
           </div>
           <div className="text-xs text-gray-400 flex items-center gap-1">
@@ -483,7 +495,7 @@ export default function AdminDashboard() {
               <span className="material-icons text-xl">shield</span>
             </span>
           </div>
-          <div className="text-2xl font-black text-white mb-1">
+          <div className="text-2xl font-black text-fg mb-1">
             {isStatsLoading ? <span className="animate-pulse">...</span> : (stats?.users?.admins ?? 0)}
           </div>
           <div className="text-xs text-gray-400 flex items-center gap-1">
@@ -542,7 +554,7 @@ export default function AdminDashboard() {
           aria-selected={activeTab === 'reports'}
         >
           <span className="material-icons text-lg">flag</span>
-          Reported Messages
+          Reports
         </button>
       </div>
 
@@ -612,9 +624,9 @@ export default function AdminDashboard() {
                     onChange={(e) => { setBranchFilter(e.target.value); setCurrentPage(1); }}
                     className="admin-select"
                   >
-                    <option value="" className="bg-gray-900 text-white">All Departments</option>
+                    <option value="" className="bg-gray-900 text-fg">All Departments</option>
                     {branches.map((b) => (
-                      <option key={b._id} value={b._id} className="bg-gray-900 text-white">
+                      <option key={b._id} value={b._id} className="bg-gray-900 text-fg">
                         {b.name}
                       </option>
                     ))}
@@ -654,7 +666,7 @@ export default function AdminDashboard() {
                       <td colSpan={6} className="text-center py-14 text-gray-400">
                         <div className="flex flex-col items-center justify-center gap-2 max-w-sm mx-auto">
                           <span className="material-icons text-4xl text-gray-600">group_off</span>
-                          <span className="text-sm font-semibold text-white">No matching users found</span>
+                          <span className="text-sm font-semibold text-fg">No matching users found</span>
                           <span className="text-xs text-gray-400">
                             {debouncedSearch || roleFilter || branchFilter
                               ? 'Try adjusting your search query or reset active filters.'
@@ -669,7 +681,7 @@ export default function AdminDashboard() {
                                 setBranchFilter('');
                                 setCurrentPage(1);
                               }}
-                              className="mt-3 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-semibold text-gray-300 hover:text-white border border-gray-700/60 transition-colors cursor-pointer"
+                              className="mt-3 px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-xs font-semibold text-gray-300 hover:text-fg border border-gray-700/60 transition-colors cursor-pointer"
                             >
                               Reset Filters
                             </button>
@@ -693,7 +705,7 @@ export default function AdminDashboard() {
                                 className="w-9 h-9 rounded-full border border-gray-700 object-cover"
                               />
                               <div>
-                                <div className="text-sm font-semibold text-white flex items-center gap-1.5">
+                                <div className="text-sm font-semibold text-fg flex items-center gap-1.5">
                                   {targetUser.fullName || targetUser.username}
                                   {isSelf && (
                                     <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-violet-600/30 text-violet-300 border border-violet-500/30">
@@ -824,14 +836,14 @@ export default function AdminDashboard() {
               <div className="p-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-gray-900/30">
                 <div>
                   Showing{' '}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-fg">
                     {(pagination.page - 1) * pagination.limit + 1}
                   </span>{' '}
                   to{' '}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-fg">
                     {Math.min(pagination.page * pagination.limit, pagination.totalDocs)}
                   </span>{' '}
-                  of <span className="font-semibold text-white">{pagination.totalDocs}</span> students
+                  of <span className="font-semibold text-fg">{pagination.totalDocs}</span> students
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -872,7 +884,7 @@ export default function AdminDashboard() {
               <div className="flex items-center gap-3">
                 <span className="material-icons text-violet-400 text-2xl">domain_add</span>
                 <div>
-                  <h3 className="text-base font-semibold text-white">Register Academic Department</h3>
+                  <h3 className="text-base font-semibold text-fg">Register Academic Department</h3>
                   <p className="text-xs text-gray-400">
                     Add new institutional branches or divisions to organize study resources and timetables.
                   </p>
@@ -945,7 +957,7 @@ export default function AdminDashboard() {
             ) : branches.length === 0 ? (
               <div className="col-span-full py-12 text-center text-gray-400 admin-card flex flex-col items-center justify-center">
                 <span className="material-icons text-3xl text-gray-500 mb-2">account_balance</span>
-                <p className="text-sm font-semibold text-white">No academic departments registered yet</p>
+                <p className="text-sm font-semibold text-fg">No academic departments registered yet</p>
                 <p className="text-xs text-gray-400 mt-1 max-w-md">
                   Click below to initialize all 9 standard MNNIT engineering departments in one click, or register them manually above.
                 </p>
@@ -969,7 +981,7 @@ export default function AdminDashboard() {
                       <span className="material-icons text-lg">account_balance</span>
                     </span>
                     <div>
-                      <h4 className="text-sm font-semibold text-white">{b.name}</h4>
+                      <h4 className="text-sm font-semibold text-fg">{b.name}</h4>
                       <span className="text-[11px] text-gray-400">Department ID: {b._id.slice(-6)}</span>
                     </div>
                   </div>
@@ -998,7 +1010,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
                 <div className="flex items-center gap-2 text-emerald-400">
                   <span className="material-icons text-lg">folder</span>
-                  <h3 className="text-sm font-semibold text-white">Recent Resources</h3>
+                  <h3 className="text-sm font-semibold text-fg">Recent Resources</h3>
                 </div>
                 <span className="text-xs text-gray-500">Latest Uploads</span>
               </div>
@@ -1042,7 +1054,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
                 <div className="flex items-center gap-2 text-violet-400">
                   <span className="material-icons text-lg">help_outline</span>
-                  <h3 className="text-sm font-semibold text-white">Recent Questions</h3>
+                  <h3 className="text-sm font-semibold text-fg">Recent Questions</h3>
                 </div>
                 <span className="text-xs text-gray-500">Help Forum</span>
               </div>
@@ -1086,7 +1098,7 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-4 border-b border-gray-800 pb-3">
                 <div className="flex items-center gap-2 text-indigo-400">
                   <span className="material-icons text-lg">dynamic_feed</span>
-                  <h3 className="text-sm font-semibold text-white">Recent Feed Posts</h3>
+                  <h3 className="text-sm font-semibold text-fg">Recent Feed Posts</h3>
                 </div>
                 <span className="text-xs text-gray-500">Community</span>
               </div>
@@ -1134,7 +1146,7 @@ export default function AdminDashboard() {
           <div className="admin-card p-0 overflow-hidden">
             <div className="p-4 border-b border-gray-800 flex items-center justify-between bg-gray-900/40">
               <div>
-                <h3 className="text-base font-semibold text-white">Platform Audit Trail</h3>
+                <h3 className="text-base font-semibold text-fg">Platform Audit Trail</h3>
                 <p className="text-xs text-gray-400">
                   Chronological history of administrative actions, user promotions, suspensions, and content moderation.
                 </p>
@@ -1237,14 +1249,14 @@ export default function AdminDashboard() {
               <div className="p-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-gray-900/30">
                 <div>
                   Showing{' '}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-fg">
                     {(auditPagination.page - 1) * auditPagination.limit + 1}
                   </span>{' '}
                   to{' '}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-fg">
                     {Math.min(auditPagination.page * auditPagination.limit, auditPagination.totalDocs)}
                   </span>{' '}
-                  of <span className="font-semibold text-white">{auditPagination.totalDocs}</span> events
+                  of <span className="font-semibold text-fg">{auditPagination.totalDocs}</span> events
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1282,13 +1294,42 @@ export default function AdminDashboard() {
           <div className="admin-card p-0 overflow-hidden">
             <div className="p-4 border-b border-gray-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gray-900/40">
               <div>
-                <h3 className="text-base font-semibold text-white">Reported Chat Messages</h3>
+                <h3 className="text-base font-semibold text-fg">
+                  {isPostReports ? 'Reported Feed Posts' : 'Reported Chat Messages'}
+                </h3>
                 <p className="text-xs text-gray-400">
-                  User-submitted reports for inappropriate, abusive, or spam chat messages.
+                  {isPostReports
+                    ? 'User-submitted reports for inappropriate, abusive, or spam posts in the campus feed.'
+                    : 'User-submitted reports for inappropriate, abusive, or spam chat messages.'}
                 </p>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Report Source Tabs */}
+                <div className="inline-flex p-1 bg-gray-800/80 rounded-xl border border-gray-700/60 text-xs" role="group" aria-label="Report type">
+                  {[
+                    ['messages', 'Messages'],
+                    ['posts', 'Posts'],
+                  ].map(([source, label]) => (
+                    <button
+                      key={source}
+                      id={`admin-reports-source-${source}`}
+                      aria-pressed={reportsSource === source}
+                      onClick={() => {
+                        setReportsSource(source);
+                        setReportsPage(1);
+                      }}
+                      className={`px-3 py-1 rounded-lg font-medium transition-all cursor-pointer ${
+                        reportsSource === source
+                          ? 'bg-violet-600 text-white shadow'
+                          : 'text-gray-400 hover:text-gray-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Status Filter Tabs */}
                 <div className="inline-flex p-1 bg-gray-800/80 rounded-xl border border-gray-700/60 text-xs">
                   {['pending', 'reviewed', 'dismissed'].map((status) => (
@@ -1326,9 +1367,9 @@ export default function AdminDashboard() {
                   <tr>
                     <th className="text-left">Timestamp</th>
                     <th className="text-left">Reported By</th>
-                    <th className="text-left">Message Sender</th>
+                    <th className="text-left">{isPostReports ? 'Post Author' : 'Message Sender'}</th>
                     <th className="text-left">Report Reason</th>
-                    <th className="text-left">Message Content</th>
+                    <th className="text-left">{isPostReports ? 'Post Caption' : 'Message Content'}</th>
                     <th className="text-left">Status</th>
                     <th className="text-right">Actions</th>
                   </tr>
@@ -1339,23 +1380,25 @@ export default function AdminDashboard() {
                       <td colSpan={7} className="text-center py-12 text-gray-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <span className="material-icons animate-spin text-2xl text-violet-400">refresh</span>
-                          <span className="text-sm">Loading reported messages...</span>
+                          <span className="text-sm">Loading reported {reportsSource}...</span>
                         </div>
                       </td>
                     </tr>
-                  ) : reportedMessages.length === 0 ? (
+                  ) : reports.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-12 text-gray-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <span className="material-icons text-3xl text-gray-500">check_circle</span>
-                          <span className="text-sm font-medium">No {reportsStatusFilter} message reports</span>
+                          <span className="text-sm font-medium">
+                            No {reportsStatusFilter} {isPostReports ? 'post' : 'message'} reports
+                          </span>
                         </div>
                       </td>
                     </tr>
                   ) : (
-                    reportedMessages.map((report) => {
+                    reports.map((report) => {
                       const reporter = report.reportedBy || {};
-                      const sender = report.senderId || {};
+                      const sender = (isPostReports ? report.postAuthorId : report.senderId) || {};
 
                       return (
                         <tr key={report._id} className="hover:bg-gray-800/30 transition-colors">
@@ -1392,9 +1435,27 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="text-xs text-gray-300 max-w-xs">
-                            <div className="truncate px-2 py-1 bg-gray-900/60 rounded border border-gray-800 font-mono text-[11px]" title={report.messageContent}>
-                              {report.messageContent || <span className="italic text-gray-500">No text content / media</span>}
-                            </div>
+                            {isPostReports ? (
+                              <div className="flex items-center gap-2">
+                                <div className="truncate flex-1 min-w-0 px-2 py-1 bg-gray-900/60 rounded border border-gray-800 text-[11px]" title={report.captionSnippet}>
+                                  {report.captionSnippet || <span className="italic text-gray-500">No caption / media only</span>}
+                                </div>
+                                <a
+                                  href={`/posts/${report.postId}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="shrink-0 inline-flex items-center gap-0.5 text-[11px] font-medium text-accent-fg hover:underline"
+                                  title="Open the reported post in a new tab"
+                                >
+                                  View
+                                  <span className="material-icons text-[12px]">open_in_new</span>
+                                </a>
+                              </div>
+                            ) : (
+                              <div className="truncate px-2 py-1 bg-gray-900/60 rounded border border-gray-800 font-mono text-[11px]" title={report.messageContent}>
+                                {report.messageContent || <span className="italic text-gray-500">No text content / media</span>}
+                              </div>
+                            )}
                           </td>
                           <td>
                             <span
@@ -1417,6 +1478,7 @@ export default function AdminDashboard() {
                                     updateReportStatusMutation.mutate({
                                       reportId: report._id,
                                       status: 'reviewed',
+                                      source: reportsSource,
                                     })
                                   }
                                   disabled={updateReportStatusMutation.isPending}
@@ -1433,6 +1495,7 @@ export default function AdminDashboard() {
                                     updateReportStatusMutation.mutate({
                                       reportId: report._id,
                                       status: 'dismissed',
+                                      source: reportsSource,
                                     })
                                   }
                                   disabled={updateReportStatusMutation.isPending}
@@ -1458,14 +1521,14 @@ export default function AdminDashboard() {
               <div className="p-4 border-t border-gray-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-400 bg-gray-900/30">
                 <div>
                   Showing{' '}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-fg">
                     {(reportsPagination.page - 1) * reportsPagination.limit + 1}
                   </span>{' '}
                   to{' '}
-                  <span className="font-semibold text-white">
+                  <span className="font-semibold text-fg">
                     {Math.min(reportsPagination.page * reportsPagination.limit, reportsPagination.totalDocs)}
                   </span>{' '}
-                  of <span className="font-semibold text-white">{reportsPagination.totalDocs}</span> reports
+                  of <span className="font-semibold text-fg">{reportsPagination.totalDocs}</span> reports
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1526,7 +1589,7 @@ export default function AdminDashboard() {
                 </span>
               </span>
               <div>
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-lg font-bold text-fg">
                   {roleModalUser.targetRole === 'admin' ? 'Promote to Administrator' : 'Demote to Standard Student'}
                 </h3>
                 <p className="text-xs text-gray-400">Institutional Role Modification</p>
@@ -1535,7 +1598,7 @@ export default function AdminDashboard() {
 
             <p className="text-sm text-gray-300 mb-6 leading-relaxed">
               Are you sure you want to change permissions for{' '}
-              <strong className="text-white">
+              <strong className="text-fg">
                 {roleModalUser.user.fullName || roleModalUser.user.username}
               </strong>{' '}
               (@{roleModalUser.user.username}) to{' '}
@@ -1589,14 +1652,14 @@ export default function AdminDashboard() {
                 <span className="material-icons text-2xl">block</span>
               </span>
               <div>
-                <h3 className="text-lg font-bold text-white">Suspend Student Account</h3>
+                <h3 className="text-lg font-bold text-fg">Suspend Student Account</h3>
                 <p className="text-xs text-gray-400">Account Deactivation & Restriction</p>
               </div>
             </div>
 
             <p className="text-sm text-gray-300 mb-4 leading-relaxed">
               Suspending{' '}
-              <strong className="text-white">
+              <strong className="text-fg">
                 {banModalTarget.user.fullName || banModalTarget.user.username}
               </strong>{' '}
               (@{banModalTarget.user.username}) will immediately revoke session access and prevent further posts, comments, or downloads.
@@ -1660,7 +1723,7 @@ export default function AdminDashboard() {
                 <span className="material-icons text-2xl">delete_forever</span>
               </span>
               <div>
-                <h3 className="text-lg font-bold text-white">
+                <h3 className="text-lg font-bold text-fg">
                   Remove {deleteContentTarget.type.toUpperCase()}
                 </h3>
                 <p className="text-xs text-gray-400">Platform Moderation Action</p>
@@ -1669,7 +1732,7 @@ export default function AdminDashboard() {
 
             <p className="text-sm text-gray-300 mb-6 leading-relaxed">
               Are you sure you want to permanently delete{' '}
-              <strong className="text-white">"{deleteContentTarget.title}"</strong>? This action cannot be undone and will be logged in the audit trail.
+              <strong className="text-fg">"{deleteContentTarget.title}"</strong>? This action cannot be undone and will be logged in the audit trail.
             </p>
 
             <div className="flex items-center justify-end gap-3">
@@ -1717,14 +1780,14 @@ export default function AdminDashboard() {
                 <span className="material-icons text-2xl">warning</span>
               </span>
               <div>
-                <h3 className="text-lg font-bold text-white">Delete Academic Department</h3>
+                <h3 className="text-lg font-bold text-fg">Delete Academic Department</h3>
                 <p className="text-xs text-gray-400">Institutional Branch Removal</p>
               </div>
             </div>
 
             <p className="text-sm text-gray-300 mb-6 leading-relaxed">
               Are you sure you want to remove the{' '}
-              <strong className="text-white">{deleteBranchTarget.name}</strong> department? Students assigned to this branch may have their profile filters affected.
+              <strong className="text-fg">{deleteBranchTarget.name}</strong> department? Students assigned to this branch may have their profile filters affected.
             </p>
 
             <div className="flex items-center justify-end gap-3">

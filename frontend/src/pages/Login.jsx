@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { handleApiError } from "../utlis/ErrorHandler";
 import { useAuth } from "../context/AuthContext";
 import { Helmet } from 'react-helmet-async';
@@ -9,6 +9,7 @@ import linkletLogo from '../assets/linklet-logo.webp';
 import { apiClient } from "../api/apiClient";
 import GoogleAuthButton from "../components/GoogleAuthButton";
 import SEO from "../components/SEO";
+import ThemeToggle from "../theme/ThemeToggle";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -54,7 +55,7 @@ export default function Login() {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-y-auto bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
+    <div className="fixed inset-0 w-full h-full overflow-y-auto bg-canvas text-fg">
       {/* Sign-in screens have no search value; noindex keeps them out of results. */}
       <SEO title="Log in | Linklet" description="Log in to Linklet with your MNNIT account to access your campus feed, schedule, resources and chats." path="/login" noindex />
       <Helmet>
@@ -62,22 +63,25 @@ export default function Login() {
       </Helmet>
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md shadow-lg">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-surface/80 backdrop-blur-md shadow-soft border-b border-line">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-3">
               <img src={linkletLogo} alt="Linklet Logo" className="h-10 w-10" />
-              <span className="text-2xl font-bold tracking-tight text-white">
+              <span className="text-2xl font-semibold tracking-tight text-fg">
                 Linklet
               </span>
             </Link>
-            
-            <Link 
-              to="/register"
-              className="px-4 py-2 rounded-lg hover:bg-violet-900/30 transition-all border border-violet-500/30 hover:border-violet-500"
-            >
-              Register
-            </Link>
+
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Link
+                to="/register"
+                className="px-4 py-2 rounded-lg hover:bg-accent-soft transition-all border border-accent/30 hover:border-accent text-fg-secondary hover:text-fg"
+              >
+                Register
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -93,23 +97,23 @@ export default function Login() {
 
           <div className="w-full max-w-xl mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight text-white">
+              <h1 className="text-3xl sm:text-4xl font-semibold mb-3 tracking-tight text-fg">
                 Welcome Back
               </h1>
-              <p className="text-xl text-gray-300">
+              <p className="text-xl text-fg-secondary">
                 Log in to continue your learning journey
               </p>
             </div>
 
-            <div className="bg-black/30 backdrop-blur-md rounded-xl border border-violet-500/20 p-8">
+            <div className="bg-surface/70 backdrop-blur-md rounded-xl border border-line shadow-pop p-8">
               <GoogleAuthButton mode="signin" />
 
               <div className="relative mb-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-800"></div>
+                  <div className="w-full border-t border-line"></div>
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="px-3 py-0.5 bg-gray-900 border border-gray-800/80 rounded-full text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <span className="px-3 py-0.5 bg-surface border border-line rounded-full text-xs font-medium text-fg-muted uppercase tracking-wider">
                     Or continue with email
                   </span>
                 </div>
@@ -117,19 +121,19 @@ export default function Login() {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="email">Email</label>
+                  <label className="text-sm font-medium text-fg-secondary" htmlFor="email">Email</label>
                   <input
                     id="email"
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white"
+                    className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="password">Password</label>
+                  <label className="text-sm font-medium text-fg-secondary" htmlFor="password">Password</label>
                   <div className="relative flex items-center">
                     <input
                       id="password"
@@ -137,12 +141,12 @@ export default function Login() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full px-4 py-3 pr-12 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white"
+                      className="w-full px-4 py-3 pr-12 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 flex items-center justify-center w-7 h-7 rounded-md text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all duration-200 cursor-pointer group"
+                      className="absolute right-3 flex items-center justify-center w-7 h-7 rounded-md text-fg-subtle hover:text-accent-fg hover:bg-accent-soft transition-all duration-200 cursor-pointer group"
                       aria-label="Toggle password visibility"
                     >
                       {showPassword ? (
@@ -162,7 +166,7 @@ export default function Login() {
                 </div>
 
                 <div className="flex items-center justify-end">
-                  <Link to="/forgot-password" className="text-sm text-violet-400 hover:text-violet-300 transition-colors">
+                  <Link to="/forgot-password" className="text-sm text-accent-fg hover:text-accent-fg transition-colors">
                     Forgot password?
                   </Link>
                 </div>
@@ -177,9 +181,9 @@ export default function Login() {
               </form>
             </div>
 
-            <p className="mt-6 text-center text-gray-400">
+            <p className="mt-6 text-center text-fg-muted">
               Don't have an account?{' '}
-              <Link to="/register" className="text-violet-400 hover:text-violet-300">
+              <Link to="/register" className="text-accent-fg hover:text-accent-fg">
                 Create one now
               </Link>
             </p>

@@ -1,9 +1,9 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 
@@ -188,6 +188,36 @@ describe("PostCommentsPanel", () => {
 
     expect(await screen.findByText("thanks!")).toBeInTheDocument();
     expect(postApi.addReply).toHaveBeenCalledWith("post1", id(1), "thanks!", "alice");
+  });
+
+  it("replying to a reply nests the new reply under it (not under the top-level comment)", async () => {
+    console.log("TRACE [PostCommentsPanel.test]: reply-to-a-reply nests one level deeper");
+    postApi.getPostComments.mockResolvedValueOnce({
+      data: [
+        comment(1, {
+          replies: [{ _id: id(10), text: "first reply", userId: author("bob", "u-bob"), createdAt: new Date().toISOString(), replies: [], repliesCount: 0 }],
+          repliesCount: 1,
+        }),
+      ],
+      hasMore: false,
+      nextCursor: null,
+    });
+    postApi.addReply.mockResolvedValueOnce({
+      reply: { _id: id(20), text: "nested!", replyToUsername: "bob", userId: author("me", "u-me"), createdAt: new Date().toISOString() },
+      repliesCount: 1,
+      commentsCount: 1,
+    });
+    renderPanel();
+    await screen.findByText("first reply");
+
+    // Reply to the reply itself, not the top-level comment.
+    const replyButtons = screen.getAllByRole("button", { name: /Reply$/ });
+    fireEvent.click(replyButtons[replyButtons.length - 1]);
+    fireEvent.change(screen.getByPlaceholderText(/replying to @bob/i), { target: { value: "nested!" } });
+    fireEvent.click(screen.getByRole("button", { name: "Reply" }));
+
+    expect(await screen.findByText("nested!")).toBeInTheDocument();
+    expect(postApi.addReply).toHaveBeenCalledWith("post1", id(10), "nested!", "bob");
   });
 
   it("likes a comment and shows the returned like count", async () => {

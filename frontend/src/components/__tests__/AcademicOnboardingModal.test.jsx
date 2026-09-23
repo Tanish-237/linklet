@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import AcademicOnboardingModal from "../AcademicOnboardingModal";
 import { apiClient } from "../../api/apiClient";
 import useAuthStore from "../../store/useAuthStore";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
@@ -12,7 +12,7 @@ vi.mock("../../api/apiClient", () => ({
   },
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),

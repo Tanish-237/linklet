@@ -17,10 +17,10 @@ export const POSTS_DESCRIPTION =
  * actual feed the moment the app boots.
  */
 const PostsSeoShell = () => (
-  <main className="min-h-screen bg-[#0a0a0a] text-zinc-100 px-4 pt-24 pb-16">
+  <main className="min-h-screen bg-canvas text-fg px-4 pt-24 pb-16">
     <SEO title={POSTS_TITLE} description={POSTS_DESCRIPTION} path="/posts" />
     <div className="max-w-2xl mx-auto">
-      <h1 className="text-3xl font-bold tracking-tight text-white mb-3">Campus Feed</h1>
+      <h1 className="text-3xl font-bold tracking-tight text-fg mb-3">Campus Feed</h1>
       <p className="text-zinc-400 leading-relaxed mb-6">{POSTS_DESCRIPTION}</p>
       <Link to="/login" className="text-violet-400 hover:text-violet-300 font-medium">
         Log in to join the conversation

@@ -4,6 +4,7 @@ import ReplyingBanner from "./ReplyingBanner";
 import EditingBanner from "./EditingBanner";
 import AttachmentPreviewTray from "./AttachmentPreviewTray";
 import VoiceNoteRecordingTray from "./VoiceNoteRecordingTray";
+import useThemeStore from "../../../theme/useThemeStore";
 
 const ChatComposer = ({
   newMessage,
@@ -30,6 +31,7 @@ const ChatComposer = ({
   const fileInputRef = useRef(null);
   const emojiPickerRef = useRef(null);
   const emojiBtnRef = useRef(null);
+  const theme = useThemeStore((s) => s.theme);
 
   // Close emoji picker on click outside
   useEffect(() => {
@@ -113,7 +115,7 @@ const ChatComposer = ({
           {isEmojiPickerOpen && (
             <div ref={emojiPickerRef} className="emoji-picker-container">
               <EmojiPicker
-                theme="dark"
+                theme={theme}
                 onEmojiClick={(emojiData) => {
                   setNewMessage((prev) => prev + emojiData.emoji);
                 }}

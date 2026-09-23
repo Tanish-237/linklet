@@ -63,6 +63,7 @@ export const getQuestionsFeed = async (queryParams) => {
     limit,
     search,
     filter,
+    status,
     category,
     tag,
     userId: authorId,
@@ -73,6 +74,7 @@ export const getQuestionsFeed = async (queryParams) => {
   const pageSize = Math.min(Math.max(parseInt(limit) || 15, 1), 50);
   const params = {
     filter: filter || "all",
+    status: status || "",
     category: category || "",
     tag: tag || "",
     userId: authorId || null,

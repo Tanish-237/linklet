@@ -126,6 +126,50 @@ describe("Notification Service - Unit Tests", () => {
     console.log("Passed: Notification created, cached, and emitted over socket");
   });
 
+  it("should skip notifications in a category the recipient switched off", async () => {
+    mockRedisGet.mockImplementation(async (key) =>
+      key === "user:cache:user_target"
+        ? JSON.stringify({ _id: "user_target", notificationPrefs: { forumAlerts: false, postAlerts: true } })
+        : null
+    );
+
+    const result = await notificationService.createAndPushNotification({
+      recipient: "user_target",
+      sender: "user_actor",
+      type: "FORUM_ANSWER",
+      title: "New Answer",
+      message: "Actor User answered your question",
+    });
+
+    expect(result).toBeNull();
+    expect(mockCreateNotification).not.toHaveBeenCalled();
+    expect(mockSocketTo).not.toHaveBeenCalled();
+  });
+
+  it("should still deliver categories the recipient left on, and types with no switch", async () => {
+    mockRedisGet.mockImplementation(async (key) =>
+      key === "user:cache:user_target"
+        ? JSON.stringify({ _id: "user_target", notificationPrefs: { forumAlerts: false, postAlerts: true } })
+        : null
+    );
+    mockFindRecentSimilar.mockResolvedValue(null);
+    mockCreateNotification.mockResolvedValue({ _id: "n" });
+    mockGetUnreadCount.mockResolvedValue(1);
+
+    for (const type of ["POST_COMMENT", "USER_FOLLOW"]) {
+      await notificationService.createAndPushNotification({
+        recipient: "user_target",
+        sender: "user_actor",
+        type,
+        title: "t",
+        message: "m",
+      });
+    }
+
+    expect(mockCreateNotification).toHaveBeenCalledTimes(2);
+    mockRedisGet.mockReset();
+  });
+
   it("should de-duplicate rapid events within the time window", async () => {
     console.log("Testing notification throttling / deduplication on rapid likes");
     mockFindRecentSimilar.mockResolvedValue({ _id: "notif_existing" });

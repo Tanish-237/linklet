@@ -6,20 +6,34 @@ import { AppError } from "../utils/error.js";
 export const createPost = async (req, res, next) => {
   try {
     let imageUrl = req.body.image || "";
+    let mediaType = null;
     if (req.file) {
       const uploadResult = await uploadOnCloudinary(req.file.path);
       if (uploadResult) {
         imageUrl = uploadResult.secure_url;
+        mediaType = req.file.mimetype?.startsWith("video/") ? "video" : "image";
       }
     } else if (imageUrl && !isSafeHttpUrl(imageUrl)) {
       throw new AppError("Image must be a valid http(s) URL", 400);
+    } else if (imageUrl) {
+      mediaType = "image";
     }
     const postData = {
       caption: req.body.caption || "",
       image: imageUrl,
+      mediaType,
     };
     const post = await postService.createPost(req.user._id, postData);
     res.status(201).json({ success: true, data: post });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updatePost = async (req, res, next) => {
+  try {
+    const post = await postService.updatePost(req.params.postId, req.user._id, req.user.role, req.body);
+    res.status(200).json({ success: true, data: post });
   } catch (error) {
     next(error);
   }
@@ -45,6 +59,35 @@ export const getPost = async (req, res, next) => {
   try {
     const post = await postService.getPost(req.params.postId);
     res.status(200).json({ success: true, data: post });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const reportPost = async (req, res, next) => {
+  try {
+    const report = await postService.reportPost(req.params.postId, req.user._id, req.body.reason);
+    res.status(201).json({ success: true, data: report });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getReportedPosts = async (req, res, next) => {
+  try {
+    const { status, page, limit } = req.query;
+    const result = await postService.getReportedPosts(status, page, limit);
+    res.status(200).json({ success: true, data: result.reports, pagination: result.pagination });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updatePostReportStatus = async (req, res, next) => {
+  try {
+    const { reportId, status } = req.body;
+    const report = await postService.updatePostReportStatus(reportId, status);
+    res.status(200).json({ success: true, data: report });
   } catch (error) {
     next(error);
   }

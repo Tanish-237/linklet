@@ -5,7 +5,25 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#0a0a0a" />
+    <meta name="theme-color" content="#f1f2f5" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Apply the saved (or OS) theme before first paint to avoid a flash.
+      // Mirrors src/theme/useThemeStore.js.
+      (function () {
+        var theme = "light";
+        try {
+          var pref = localStorage.getItem("linklet_theme");
+          if (pref !== "light" && pref !== "dark") {
+            pref = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          }
+          theme = pref;
+        } catch (e) {}
+        document.documentElement.setAttribute("data-theme", theme);
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", theme === "dark" ? "#0a0a0c" : "#f1f2f5");
+      })();
+    </script>
     <title>Linklet — Your campus, organized</title>
     <!--
       Generic fallback meta — shown to any crawler that doesn't execute JS
@@ -37,21 +55,18 @@
     <meta name="twitter:image" content="https://linklet.org/og-image.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
       link[rel="icon"] {
         border-radius: 50%;
         overflow: hidden;
       }
-      html, body {
-        background-color: #0a0a0a;
-        margin: 0;
-        padding: 0;
-      }
+      html, body { margin: 0; padding: 0; background-color: #f1f2f5; }
+      html[data-theme="dark"], html[data-theme="dark"] body { background-color: #0a0a0c; }
     </style>
   </head>
-  <body style="background-color: #0a0a0a; margin: 0;">
+  <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>

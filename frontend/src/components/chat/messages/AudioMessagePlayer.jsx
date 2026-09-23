@@ -47,7 +47,9 @@ const AudioMessagePlayer = ({
       <button
         type="button"
         onClick={() => onTogglePlay(messageId, audioUrl)}
-        className="flex-shrink-0 p-1 text-gray-300 hover:text-white transition-colors cursor-pointer"
+        className={`flex-shrink-0 p-1 transition-colors cursor-pointer ${
+          isSent ? "text-white/90 hover:text-white" : "text-fg-muted hover:text-fg"
+        }`}
         aria-label={audioState.isPlaying ? "Pause voice note" : "Play voice note"}
       >
         <span className="material-icons text-[32px] leading-none">
@@ -83,7 +85,11 @@ const AudioMessagePlayer = ({
                   className="flex-1 rounded-full transition-colors duration-75"
                   style={{
                     height: `${height}px`,
-                    backgroundColor: isPlayed ? "#53bdeb" : "rgba(255, 255, 255, 0.4)",
+                    backgroundColor: isPlayed
+                      ? "#53bdeb"
+                      : isSent
+                        ? "rgba(255, 255, 255, 0.4)"
+                        : "rgb(var(--line-strong))",
                   }}
                 />
               );
@@ -93,13 +99,13 @@ const AudioMessagePlayer = ({
 
         {/* Bottom Row: Duration on left, Time + noticeable gap + Small Blue ticks on right */}
         <div className="audio-time-label flex items-center justify-between text-[11px] select-none mt-1">
-          <span className="text-gray-300 font-normal">
+          <span className={`font-normal ${isSent ? "text-white/85" : "text-fg-muted"}`}>
             {audioState.isPlaying || audioState.currentTime > 0
               ? formatAudioTime(audioState.currentTime)
               : formatAudioTime(audioState.duration)}
           </span>
           {formatMessageClock && msg?.createdAt && (
-            <div className="flex items-center text-gray-300">
+            <div className={`flex items-center ${isSent ? "text-white/85" : "text-fg-muted"}`}>
               <span>{formatMessageClock(msg.createdAt)}</span>
               <span className="ml-1.5 flex items-center">
                 {renderDeliveryTicks && renderDeliveryTicks(msg, isSent, isRecipientOnline)}

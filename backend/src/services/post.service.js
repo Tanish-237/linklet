@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
 import * as postRepository from "../repositories/post.repository.js";
 import * as commentRepository from "../repositories/postComment.repository.js";
+import * as postReportRepository from "../repositories/postReport.repository.js";
 import { AppError } from "../utils/error.js";
 import logger from "../utils/logger.js";
 import { cached, getCacheVersion, bumpCacheVersion } from "../utils/cache.js";
@@ -29,6 +31,7 @@ export const createPost = async (userId, postData) => {
     userId,
     caption: postData.caption || "",
     image: postData.image || "",
+    mediaType: postData.mediaType || null,
   });
   await invalidateFeedCache();
   return post;
@@ -117,6 +120,81 @@ export const deletePost = async (postId, userId, userRole) => {
   return deleted;
 };
 
+export const updatePost = async (postId, userId, userRole, updateData) => {
+  const post = await postRepository.findPostById(postId);
+  if (!post) {
+    throw new AppError("Post not found", 404);
+  }
+
+  const postAuthorId = (post.userId?._id || post.userId)?.toString();
+  if (postAuthorId !== userId.toString() && userRole !== "admin") {
+    throw new AppError("You do not have permission to edit this post", 403);
+  }
+
+  const caption = typeof updateData.caption === "string" ? updateData.caption.trim() : undefined;
+  if (caption === undefined) {
+    throw new AppError("Nothing to update", 400);
+  }
+  if (!caption && !post.image) {
+    throw new AppError("Please provide a caption or image", 400);
+  }
+
+  const updated = await postRepository.updatePost(postId, { caption, isEdited: true });
+  await invalidateFeedCache();
+  return updated;
+};
+
+export const reportPost = async (postId, userId, reason) => {
+  const post = await postRepository.findPostById(postId);
+  if (!post) {
+    throw new AppError("Post not found", 404);
+  }
+
+  const postAuthorId = (post.userId?._id || post.userId)?.toString();
+  if (postAuthorId === userId.toString()) {
+    throw new AppError("You cannot report your own post", 400);
+  }
+
+  const report = await postReportRepository.createReport({
+    reportedBy: userId,
+    postId,
+    postAuthorId,
+    captionSnippet: (post.caption || "").slice(0, 200),
+    reason: reason || "Reported by user",
+  });
+  return report;
+};
+
+export const getReportedPosts = async (statusFilter, page, limit) => {
+  const safePage = Math.max(1, parseInt(page) || 1);
+  const safeLimit = Math.min(50, parseInt(limit) || 20);
+  const skip = (safePage - 1) * safeLimit;
+  const status = statusFilter || "pending";
+
+  const { reports, totalDocs } = await postReportRepository.getReports(status, skip, safeLimit);
+
+  return {
+    reports,
+    pagination: { totalDocs, totalPages: Math.ceil(totalDocs / safeLimit), page: safePage, limit: safeLimit },
+  };
+};
+
+const POST_REPORT_STATUSES = ["pending", "reviewed", "dismissed"];
+
+export const updatePostReportStatus = async (reportId, status) => {
+  if (!mongoose.isValidObjectId(reportId)) {
+    throw new AppError("Invalid report id", 400);
+  }
+  if (!POST_REPORT_STATUSES.includes(status)) {
+    throw new AppError(`Status must be one of: ${POST_REPORT_STATUSES.join(", ")}`, 400);
+  }
+  const report = await postReportRepository.updateReportStatus(reportId, status);
+  if (!report) {
+    throw new AppError("Report not found", 404);
+  }
+  return report;
+};
+
 export const toggleUpvote = async (postId, userId) => {
   const updatedPost = await postRepository.toggleUpvote(postId, userId);
   if (!updatedPost) {
@@ -182,8 +260,9 @@ export const getComments = async (postId, cursor, limit) => {
 };
 
 export const getReplies = async (postId, commentId, cursor, limit) => {
+  // Any comment or reply can have its own replies fetched (arbitrary nesting).
   const comment = await commentRepository.findComment(postId, commentId);
-  if (!comment || comment.parentId) throw new AppError("Comment not found", 404);
+  if (!comment) throw new AppError("Comment not found", 404);
 
   return commentRepository.getCommentReplies(postId, commentId, {
     cursor,

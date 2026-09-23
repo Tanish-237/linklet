@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { optimizeImage, optimizeAvatar, buildSrcSet, isCloudinaryImage } from "../cloudinary";
+import { optimizeImage, optimizeAvatar, buildSrcSet, isCloudinaryImage, getVideoThumbnail } from "../cloudinary";
 
 const CLD = "https://res.cloudinary.com/demo/image/upload/v1712345678/posts/photo.jpg";
 
@@ -53,5 +53,21 @@ describe("cloudinary helpers", () => {
     expect(isCloudinaryImage(CLD)).toBe(true);
     expect(isCloudinaryImage("https://example.com/image/upload/x.jpg")).toBe(false);
     expect(isCloudinaryImage(null)).toBe(false);
+  });
+
+  it("getVideoThumbnail derives a smart-frame (so_auto) JPG poster from a Cloudinary video URL", () => {
+    console.log("TRACE [cloudinary.test]: getVideoThumbnail -> so_auto, not a fixed timestamp");
+    const video = "https://res.cloudinary.com/demo/video/upload/v1712345678/posts/clip.mp4";
+    const out = getVideoThumbnail(video);
+    // so_auto (not so_0 / a fixed timestamp) — many videos (screen recordings,
+    // fade-ins) open on a blank/black frame, so a fixed t=0 thumbnail looked
+    // like a broken preview. so_auto asks Cloudinary to pick a real frame.
+    expect(out).toBe("https://res.cloudinary.com/demo/video/upload/so_auto/v1712345678/posts/clip.jpg");
+  });
+
+  it("getVideoThumbnail returns undefined for anything that isn't a Cloudinary video URL", () => {
+    expect(getVideoThumbnail(CLD)).toBeUndefined(); // an image upload, not a video
+    expect(getVideoThumbnail("https://example.com/clip.mp4")).toBeUndefined();
+    expect(getVideoThumbnail(undefined)).toBeUndefined();
   });
 });

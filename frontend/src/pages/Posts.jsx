@@ -1,32 +1,55 @@
 // src/pages/Posts.jsx
 import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useInView } from "react-intersection-observer";
 import { apiClient } from "../api/apiClient";
 import { deletePost, getFeed } from "../api/post.api";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.webp";
 import PostDetailModal from "../components/PostDetailModal";
+import SharePostMenu from "../components/SharePostMenu";
+import PostActionsMenu from "../components/PostActionsMenu";
+import EditPostModal from "../components/EditPostModal";
+import ReportPostModal from "../components/ReportPostModal";
 import SEO from "../components/SEO";
 import { POSTS_TITLE, POSTS_DESCRIPTION } from "./static/PostsSeoShell";
 import { formatTime } from "../utlis/formatTime";
-import { optimizeAvatar, optimizeImage, buildSrcSet } from "../utlis/cloudinary";
+import { optimizeAvatar, optimizeImage, buildSrcSet, getVideoThumbnail } from "../utlis/cloudinary";
 import "./Posts.css";
 
 
 
 // ─── Create Post Modal ──────────────────────────────────────────────────────
-const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
+const CreatePostModal = ({ isOpen, onClose, user, onPostCreated, initialMediaFilter = null }) => {
   const [caption, setCaption] = useState("");
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [mediaKind, setMediaKind] = useState(null); // "image" | "video" | null
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
   const modalRef = useRef(null);
+  // "Photo"/"Video" in the "Start a post" prompt open this same modal but
+  // jump straight to the file picker, pre-filtered to that type — that's
+  // what actually makes them two distinct buttons rather than two ways to
+  // do the exact same thing.
+  const acceptAttr =
+    initialMediaFilter === "video" ? "video/*" : initialMediaFilter === "image" ? "image/*" : "image/*,video/*";
+  useEffect(() => {
+    if (isOpen && initialMediaFilter) {
+      fileInputRef.current?.click();
+    }
+    // Only fire on the transition into "open" — not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
   const MAX_CAPTION_LENGTH = 2000;
+  const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+  const MAX_VIDEO_SIZE = 25 * 1024 * 1024;
+  const VALID_IMAGE_TYPES = ["image/jpeg", "image/png", "image/jpg", "image/gif", "image/webp"];
+  const VALID_VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
 
   const handleBackdropClick = (e) => {
     if (modalRef.current && !modalRef.current.contains(e.target)) onClose();
@@ -46,10 +69,19 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
 
   const handleImageChange = (file) => {
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast.error("Image size should be less than 5MB"); return; }
-    const validTypes = ["image/jpeg", "image/png", "image/jpg", "image/gif"];
-    if (!validTypes.includes(file.type)) { toast.error("Please upload an image file (JPEG, PNG, GIF)"); return; }
+    const isVideo = VALID_VIDEO_TYPES.includes(file.type);
+    const isImage = VALID_IMAGE_TYPES.includes(file.type);
+    if (!isVideo && !isImage) {
+      toast.error("Please upload an image (JPEG, PNG, GIF, WEBP) or a video (MP4, WEBM, MOV)");
+      return;
+    }
+    const maxSize = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+    if (file.size > maxSize) {
+      toast.error(`${isVideo ? "Video" : "Image"} size should be less than ${maxSize / (1024 * 1024)}MB`);
+      return;
+    }
     setImage(file);
+    setMediaKind(isVideo ? "video" : "image");
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
@@ -67,7 +99,7 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
   };
 
   const handleRemoveImage = () => {
-    setImage(null); setImagePreview(null);
+    setImage(null); setImagePreview(null); setMediaKind(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -84,7 +116,7 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
       });
       if (response.data.success) {
         toast.success("Post created successfully!");
-        setCaption(""); setImage(null); setImagePreview(null);
+        setCaption(""); setImage(null); setImagePreview(null); setMediaKind(null);
         onPostCreated(); onClose();
       }
     } catch (error) {
@@ -124,7 +156,11 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
           </div>
           {imagePreview && (
             <div className="feed-create-modal__preview">
-              <img src={imagePreview} alt="Preview" />
+              {mediaKind === "video" ? (
+                <video src={imagePreview} controls />
+              ) : (
+                <img src={imagePreview} alt="Preview" />
+              )}
               <button type="button" onClick={handleRemoveImage} className="feed-create-modal__preview-remove">
                 <span className="material-icons">close</span>
               </button>
@@ -137,23 +173,15 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
               onClick={() => fileInputRef.current?.click()}
             >
               <span className="material-icons feed-create-modal__dropzone-icon">cloud_upload</span>
-              <p className="feed-create-modal__dropzone-text">Drag & drop an image or <span>click to browse</span></p>
-              <p className="feed-create-modal__dropzone-hint">JPEG, PNG, GIF • Max 5MB</p>
+              <p className="feed-create-modal__dropzone-text">Drag & drop a photo or video, or <span>click to browse</span></p>
+              <p className="feed-create-modal__dropzone-hint">
+                <span>JPEG, PNG, GIF, WEBP (max 5MB)</span>
+                <span>MP4, WEBM, MOV (max 25MB)</span>
+              </p>
             </div>
           )}
-          <input type="file" ref={fileInputRef} onChange={(e) => handleImageChange(e.target.files[0])} style={{ display: "none" }} accept="image/*" />
+          <input type="file" ref={fileInputRef} onChange={(e) => handleImageChange(e.target.files[0])} style={{ display: "none" }} accept={acceptAttr} />
           <div className="feed-create-modal__footer">
-            <div className="feed-create-modal__tools">
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="feed-create-modal__tool-btn" title="Add Photo">
-                <span className="material-icons" style={{ color: "#60a5fa" }}>image</span>
-              </button>
-              <button type="button" className="feed-create-modal__tool-btn" title="Tag People">
-                <span className="material-icons" style={{ color: "#34d399" }}>tag</span>
-              </button>
-              <button type="button" className="feed-create-modal__tool-btn" title="Mood">
-                <span className="material-icons" style={{ color: "#fbbf24" }}>mood</span>
-              </button>
-            </div>
             <div className="feed-create-modal__actions">
               <button type="button" onClick={onClose} className="feed-create-modal__cancel-btn">Cancel</button>
               <button type="submit" disabled={isSubmitting || (!caption.trim() && !image)} className="feed-create-modal__submit-btn">
@@ -170,10 +198,9 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated }) => {
 // ─── Post Detail Modal is imported from components/PostDetailModal ───────────
 
 // ─── Post Card ──────────────────────────────────────────────────────────────
-const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCollection, isSaved, onDeletePost }) => {
-  const [showShareMenu, setShowShareMenu] = useState(false);
-  const shareRef = useRef(null);
+const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCollection, isSaved, onDeletePost, onEditPost, onReportPost }) => {
   const navigate = useNavigate();
+  const [thumbFailed, setThumbFailed] = useState(false);
 
   const upvoteCount = post.upvotes?.length || 0;
   const downvoteCount = post.downvotes?.length || 0;
@@ -183,40 +210,12 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
   const isDownvoted = post.downvotes?.some((id) => (id._id || id)?.toString() === currentUserId?.toString());
   const commentCount = post.commentsCount || 0;
 
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (shareRef.current && !shareRef.current.contains(e.target)) setShowShareMenu(false);
-    };
-    if (showShareMenu) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showShareMenu]);
-
-  const handleShare = async (platform) => {
-    const url = `${window.location.origin}/posts/${post._id}`;
-    const text = `Check out this post on Linklet: ${post.caption || ""}`;
-    switch (platform) {
-      case "twitter":
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
-        break;
-      case "linkedin":
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
-        break;
-      case "whatsapp":
-        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
-        break;
-      case "copy":
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied to clipboard!");
-        break;
-    }
-    setShowShareMenu(false);
-  };
-
   const author = post.userId || post.user || {};
   const authorId = (author._id || author.id || author)?.toString();
   const canDelete = currentUserId && (authorId === currentUserId?.toString() || user?.role === "admin");
   const username = author.username || "User";
   const avatar = optimizeAvatar(author.avatar, 40) || defaultAvatar;
+  const videoThumb = post.mediaType === "video" ? getVideoThumbnail(post.image) : undefined;
 
   return (
     <div className="feed-card">
@@ -226,27 +225,24 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
         <div className="feed-card__user-info">
           <span
             className="feed-card__username"
-            onClick={() => navigate(`/dashboard/profile/${username}`)}
+            onClick={() => navigate(`/profile/${username}`)}
           >
             {username}
           </span>
-          <span className="feed-card__time">{formatTime(post.createdAt)}</span>
+          <span className="feed-card__time">
+            {formatTime(post.createdAt)}
+            {post.isEdited && <span className="feed-detail__edited-tag"> · edited</span>}
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
-          {canDelete && (
-            <button
-              className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeletePost(post._id);
-              }}
-              title={user?.role === "admin" && authorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
-              aria-label="Delete post"
-            >
-              <span className="material-icons text-base">delete_outline</span>
-            </button>
-          )}
+          <PostActionsMenu
+            canManage={canDelete}
+            onEdit={() => onEditPost(post)}
+            onDelete={() => onDeletePost(post._id)}
+            onReport={user ? () => onReportPost(post._id) : undefined}
+            deleteTitle={user?.role === "admin" && authorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
+          />
 
           {/* ONLY Single Bookmark Button (Triggers Save to Collection Modal like Global Search) */}
           <button
@@ -266,18 +262,50 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
         </div>
       )}
 
-      {/* Media: Image / Video */}
+      {/* Media: Image / Video — the card only ever shows a static thumbnail
+          for video; it never plays here. A <video controls> on the card
+          would fight with this div's own onClick (opening the detail
+          modal), so tapping the native play button both started inline
+          playback AND opened a second, separately-playable video in the
+          modal. Playback only ever happens in the modal now. */}
       {post.image && (
         <div className="feed-card__media" onClick={() => onOpenComments(post)}>
-          <img
-            src={optimizeImage(post.image, { width: 800 })}
-            srcSet={buildSrcSet(post.image, [480, 800, 1200])}
-            sizes="(max-width: 640px) 100vw, 640px"
-            alt=""
-            className="feed-card__image"
-            loading="lazy"
-            decoding="async"
-          />
+          {post.mediaType === "video" ? (
+            <div className="feed-card__video-thumb">
+              {videoThumb && !thumbFailed ? (
+                <img
+                  src={videoThumb}
+                  alt=""
+                  className="feed-card__image"
+                  loading="lazy"
+                  decoding="async"
+                  onError={() => setThumbFailed(true)}
+                />
+              ) : (
+                // Default preview when there's no Cloudinary-derived thumbnail
+                // (a non-Cloudinary URL) or it failed to load — a plain
+                // <video preload="metadata"> here is unreliable (some
+                // browsers paint nothing at all until interacted with), so
+                // this is deterministic instead of hoping a frame renders.
+                <div className="feed-card__video-placeholder">
+                  <span className="material-icons">movie</span>
+                </div>
+              )}
+              <span className="feed-card__video-play-overlay">
+                <span className="material-icons">play_arrow</span>
+              </span>
+            </div>
+          ) : (
+            <img
+              src={optimizeImage(post.image, { width: 800 })}
+              srcSet={buildSrcSet(post.image, [480, 800, 1200])}
+              sizes="(max-width: 640px) 100vw, 640px"
+              alt=""
+              className="feed-card__image"
+              loading="lazy"
+              decoding="async"
+            />
+          )}
         </div>
       )}
 
@@ -311,35 +339,10 @@ const PostCard = ({ post, user, onUpvote, onDownvote, onOpenComments, onSaveToCo
         </button>
 
         {/* Share Button */}
-        <div className="feed-card__share-wrap" ref={shareRef}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowShareMenu(!showShareMenu); }}
-            className="feed-card__share-btn"
-            aria-label="Share"
-          >
-            <span className="material-icons">share</span>
-          </button>
-          {showShareMenu && (
-            <div className="feed-card__share-menu">
-              <button onClick={() => handleShare("copy")} className="feed-card__share-option">
-                <span className="material-icons">link</span>
-                Copy Link
-              </button>
-              <button onClick={() => handleShare("twitter")} className="feed-card__share-option">
-                <span className="material-icons">tag</span>
-                Twitter / X
-              </button>
-              <button onClick={() => handleShare("linkedin")} className="feed-card__share-option">
-                <span className="material-icons">work</span>
-                LinkedIn
-              </button>
-              <button onClick={() => handleShare("whatsapp")} className="feed-card__share-option">
-                <span className="material-icons">chat</span>
-                WhatsApp
-              </button>
-            </div>
-          )}
-        </div>
+        <SharePostMenu
+          getUrl={() => `${window.location.origin}/posts/${post._id}`}
+          shareText={`Check out this post on Linklet: ${post.caption || ""}`}
+        />
       </div>
     </div>
   );
@@ -388,6 +391,25 @@ const Posts = () => {
     if (inView && hasNextPage && !isFetchingNextPage) fetchNextPage();
   }, [inView, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  // A long feed session (hundreds of posts loaded via infinite scroll) would
+  // otherwise keep every card mounted forever — growing DOM/memory
+  // unboundedly. Only nearby cards actually render; the rest are just
+  // reserved space, same as Twitter/Instagram's own timelines. It shares the
+  // app shell's own scroll container (Layout.jsx's <main>, #app-main-scroll)
+  // rather than owning a separate nested scrollable div, since that's the
+  // single surface every page already scrolls in.
+  const rowVirtualizer = useVirtualizer({
+    count: posts.length,
+    getScrollElement: () => document.getElementById("app-main-scroll"),
+    estimateSize: () => 480,
+    overscan: 3,
+    // Keyed by post id rather than array index — deleting a post shifts
+    // every later index by one, and an index-keyed cache would otherwise
+    // hand each shifted post the wrong neighbor's cached (measured) height
+    // until it happened to get remeasured.
+    getItemKey: (index) => posts[index]._id,
+  });
+
   const loading = isFeedLoading && posts.length === 0;
 
   // Bookmark state with in-memory caching
@@ -413,6 +435,9 @@ const Posts = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [reportingPostId, setReportingPostId] = useState(null);
+  const [createModalMediaFilter, setCreateModalMediaFilter] = useState(null);
 
 
   const handleUpvote = async (postId, e) => {
@@ -487,6 +512,13 @@ const Posts = () => {
 
   const handleCreatePost = () => {
     if (!user) { toast.info("Please log in to create a post"); return; }
+    setCreateModalMediaFilter(null);
+    setShowCreateModal(true);
+  };
+
+  const openCreateModal = (mediaFilter) => {
+    if (!user) { toast.info("Please log in to create a post"); return; }
+    setCreateModalMediaFilter(mediaFilter);
     setShowCreateModal(true);
   };
 
@@ -515,11 +547,22 @@ const Posts = () => {
           <span>Start a post...</span>
         </div>
         <div className="feed-create-prompt__actions">
-          <button className="feed-create-prompt__btn" title="Photo">
-            <span className="material-icons" style={{ color: "#60a5fa" }}>image</span>
+          {/* Each jumps straight into the create-post modal's file picker,
+              pre-filtered to that media type — not just two ways to open
+              the same empty modal. */}
+          <button
+            className="feed-create-prompt__btn feed-create-prompt__btn--photo"
+            title="Photo"
+            onClick={(e) => { e.stopPropagation(); openCreateModal("image"); }}
+          >
+            <span className="material-icons">image</span>
           </button>
-          <button className="feed-create-prompt__btn" title="Video">
-            <span className="material-icons" style={{ color: "#34d399" }}>videocam</span>
+          <button
+            className="feed-create-prompt__btn feed-create-prompt__btn--video"
+            title="Video"
+            onClick={(e) => { e.stopPropagation(); openCreateModal("video"); }}
+          >
+            <span className="material-icons">videocam</span>
           </button>
         </div>
       </div>
@@ -545,31 +588,48 @@ const Posts = () => {
           </button>
         </div>
       ) : (
-        <div className="feed-list">
-          {posts.map((post) => (
-            <PostCard
-              key={post._id}
-              post={post}
-              user={user}
-              onUpvote={handleUpvote}
-              onDownvote={handleDownvote}
-              onOpenComments={handleOpenComments}
-              onSaveToCollection={handleSaveToCollection}
-              onDeletePost={handleDeletePost}
-              isSaved={savedPosts.has(post._id?.toString())}
-            />
-          ))}
-          {/* Infinite-scroll sentinel */}
-          <div ref={loadMoreRef} className="feed-load-more" aria-live="polite">
-            {isFetchingNextPage && (
-              <>
-                <div className="feed-loading__spinner"></div>
-                <p>Loading more posts...</p>
-              </>
-            )}
-            {!hasNextPage && posts.length > 0 && <p className="feed-load-more__end">You&apos;re all caught up</p>}
-          </div>
+        <>
+        <div className="feed-list" style={{ height: rowVirtualizer.getTotalSize() }}>
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const post = posts[virtualRow.index];
+            return (
+              <div
+                key={virtualRow.key}
+                ref={rowVirtualizer.measureElement}
+                data-index={virtualRow.index}
+                className="feed-list__row"
+                style={{ transform: `translateY(${virtualRow.start}px)` }}
+              >
+                <PostCard
+                  post={post}
+                  user={user}
+                  onUpvote={handleUpvote}
+                  onDownvote={handleDownvote}
+                  onOpenComments={handleOpenComments}
+                  onSaveToCollection={handleSaveToCollection}
+                  onDeletePost={handleDeletePost}
+                  onEditPost={setEditingPost}
+                  onReportPost={setReportingPostId}
+                  isSaved={savedPosts.has(post._id?.toString())}
+                />
+              </div>
+            );
+          })}
         </div>
+        {/* Infinite-scroll sentinel — a normal-flow sibling below the
+            fixed-height virtualized container (rather than a child of it,
+            where the container's absolutely-positioned rows would leave it
+            pinned at the top instead of the bottom). */}
+        <div ref={loadMoreRef} className="feed-load-more" aria-live="polite">
+          {isFetchingNextPage && (
+            <>
+              <div className="feed-loading__spinner"></div>
+              <p>Loading more posts...</p>
+            </>
+          )}
+          {!hasNextPage && posts.length > 0 && <p className="feed-load-more__end">You&apos;re all caught up</p>}
+        </div>
+        </>
       )}
 
       {/* Create Post Modal */}
@@ -578,6 +638,7 @@ const Posts = () => {
         onClose={() => setShowCreateModal(false)}
         user={user}
         onPostCreated={() => queryClient.resetQueries({ queryKey: ["posts", "feed"] })}
+        initialMediaFilter={createModalMediaFilter}
       />
 
       {/* Post Detail Modal (Large Side-by-Side) */}
@@ -588,7 +649,17 @@ const Posts = () => {
         user={user}
         onPostUpdated={handlePostUpdated}
         onDeletePost={handleDeletePost}
+        onEditPost={setEditingPost}
+        onReportPost={setReportingPostId}
       />
+
+      {editingPost && (
+        <EditPostModal post={editingPost} onClose={() => setEditingPost(null)} onSaved={handlePostUpdated} />
+      )}
+
+      {reportingPostId && (
+        <ReportPostModal postId={reportingPostId} onClose={() => setReportingPostId(null)} />
+      )}
     </div>
   );
 };

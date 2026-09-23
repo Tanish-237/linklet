@@ -18,6 +18,10 @@ export const findUserById = async (id) => {
   return await User.findById(id).select("-password -refreshToken");
 };
 
+export const findNotificationPrefsById = async (id) => {
+  return await User.findById(id).select("notificationPrefs").lean();
+};
+
 export const findUserWithPasswordById = async (id) => {
   return await User.findById(id);
 };

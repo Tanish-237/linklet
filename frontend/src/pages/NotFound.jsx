@@ -7,7 +7,7 @@ const NotFound = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-950 via-gray-900 to-black text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-canvas text-fg flex flex-col items-center justify-center p-6 relative overflow-hidden">
       {/* The SPA host answers unknown URLs with 200, so this tag is what tells crawlers not to index them. */}
       <SEO title="Page not found | Linklet" description="The page you are looking for does not exist on Linklet." path="/404" noindex />
       {/* Background ambient glow */}
@@ -46,7 +46,7 @@ const NotFound = () => {
           </button>
           <button
             onClick={() => navigate("/home")}
-            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-semibold shadow-lg shadow-violet-600/25 transition-all duration-200 cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold shadow-lg shadow-violet-600/25 transition-all duration-200 cursor-pointer"
           >
             Return to Feed
           </button>

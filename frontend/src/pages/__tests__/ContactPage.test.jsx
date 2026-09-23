@@ -3,11 +3,11 @@ import { render, screen, fireEvent, act, waitFor } from "@testing-library/react"
 import { HelmetProvider } from "react-helmet-async";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import ContactPage from "../static/ContactPage";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 const renderContactPage = () => render(<ContactPage />, { wrapper: HelmetProvider });
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),

@@ -22,6 +22,20 @@ vi.mock("../../api/post.api", () => ({
 // The detail modal (and its comments panel) is covered by its own tests.
 vi.mock("../../components/PostDetailModal", () => ({ default: () => null }));
 
+// jsdom can't do real layout (every element measures 0x0), so the real
+// virtualizer would think nothing fits on screen and render an empty list.
+// This stub renders every item, like the library does once it can actually
+// measure a real viewport in a browser — the library's own measurement
+// logic isn't this app's code to test.
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 100, size: 100 })),
+    getTotalSize: () => count * 100,
+    measureElement: () => {},
+  }),
+}));
+
 import { apiClient } from "../../api/apiClient";
 import { getFeed } from "../../api/post.api";
 import Posts from "../Posts";

@@ -9,6 +9,7 @@ import logger from "./src/utils/logger.js";
 
 import { corsOriginHandler } from "./src/utils/cors.js";
 import * as chatRepo from "./src/repositories/chat.repository.js";
+import { markAsRead as markChatAsRead } from "./src/services/chat.service.js";
 import { getContactIds, filterOnlineUsers, countUserSockets } from "./src/utils/presence.js";
 
 export let io;
@@ -213,15 +214,17 @@ export const initializeSocket = async (server) => {
       }
     });
 
-    socket.on("read receipt", async ({ chatId }) => {
-      if (!chatId) return;
+    // Sent by a client that has a chat open and visible when messages arrive.
+    // Persisted (readBy + the user's read cursor), not just relayed — otherwise
+    // anything read while the chat was open came back as unread after a reload.
+    socket.on("read receipt", async ({ chatId } = {}) => {
+      if (!chatId || !socket.userId) return;
       try {
-        const isMember = await chatRepo.isParticipant(chatId, socket.userId);
-        if (!isMember) return;
+        await markChatAsRead(chatId, socket.userId);
       } catch (err) {
-        return;
+        return; // not a member / chat gone
       }
-      socket.to(chatId).emit("read receipt", { chatId, userId: socket.userId });
+      broadcastChatRead(chatId, socket.userId);
     });
 
     // Room / Game / Video events (casual games & watch-together — no persisted or
@@ -377,16 +380,43 @@ export const getIo = () => {
  * way to forge a message, deletion, reaction, pin, or group change for a chat the
  * caller isn't authorized to touch.
  */
+/**
+ * Tell the chat room a user has read it (blue ticks for the senders), and the
+ * user's own personal room so their other tabs/devices clear the unread badge.
+ */
+export const broadcastChatRead = (chatId, userId) => {
+  if (!io || !chatId || !userId) return;
+  const payload = { chatId: chatId.toString(), userId: userId.toString() };
+  io.to(payload.chatId).emit("read receipt", payload);
+  io.to(payload.userId).emit("chat read", payload);
+};
+
+/**
+ * Push a chat's new sidebar preview (after its latest message was deleted) to
+ * every participant's personal room.
+ */
+export const notifyChatPreview = (chatId, preview) => {
+  if (!io || !chatId || !preview) return;
+  const rooms = (preview.participants || [])
+    .map((p) => (p?._id || p)?.toString())
+    .filter(Boolean);
+  if (rooms.length === 0) return;
+  io.to(rooms).emit("chat preview updated", {
+    chatId: chatId.toString(),
+    lastMessage: preview.lastMessage || null,
+  });
+};
+
 export const notifyNewMessage = async (message) => {
   if (!io || !message) return;
   const chatId = (message.chat?._id || message.chat)?.toString();
   if (!chatId) return;
 
-  // 1. Emit to active chat room for users currently in the conversation
-  io.to(chatId).emit("message received", message);
-
-  // 2. Emit to each participant's individual room so notifications/unread counts
-  // update even for users who haven't opened this chat yet.
+  // One emit to the chat room plus every participant's personal room.
+  // Socket.io de-duplicates across the rooms of a single emit, so a recipient
+  // who has the chat open (in both rooms) still gets the message exactly once;
+  // separate emits delivered it twice.
+  let emitted = false;
   try {
     let participants = message.chat?.participants;
     if (!Array.isArray(participants) || participants.length === 0) {
@@ -395,15 +425,12 @@ export const notifyNewMessage = async (message) => {
     }
 
     const senderId = (message.sender?._id || message.sender)?.toString();
-    const recipientIds = [];
+    const recipientIds = participants
+      .map((p) => (p._id || p)?.toString())
+      .filter((pId) => pId && pId !== senderId);
 
-    participants.forEach((p) => {
-      const pId = (p._id || p)?.toString();
-      if (pId && pId !== senderId) {
-        io.to(pId).emit("message received", message);
-        recipientIds.push(pId);
-      }
-    });
+    io.to([chatId, ...recipientIds]).emit("message received", message);
+    emitted = true;
 
     // "Delivered" means at least one recipient has a live socket — on ANY server
     // instance (a per-process map would report users on another instance offline).
@@ -417,6 +444,8 @@ export const notifyNewMessage = async (message) => {
     }
   } catch (err) {
     logger.error(`notifyNewMessage participant fan-out error: ${err.message}`);
+    // Participant lookup failed — still reach everyone who has the chat open.
+    if (!emitted) io.to(chatId).emit("message received", message);
   }
 };
 

@@ -1,5 +1,6 @@
 import React from "react";
 import AudioMessagePlayer from "./AudioMessagePlayer";
+import { optimizeImage, getVideoThumbnail } from "../../../utlis/cloudinary";
 
 const MessageMedia = ({
   msg,
@@ -18,8 +19,10 @@ const MessageMedia = ({
     const hasCaption = Boolean(msg.content);
     return (
       <div className={`relative ${hasCaption ? "rounded-t-xl rounded-b-sm overflow-hidden" : "rounded-xl overflow-hidden"}`}>
+        {/* Bubble-sized rendition (2x for high-DPI) instead of the full
+            original — the lightbox still opens the original. */}
         <img loading="lazy" decoding="async"
-          src={msg.media}
+          src={optimizeImage(msg.media, { width: 640 })}
           alt="Attachment"
           className="message-media-img cursor-pointer hover:opacity-95 transition-opacity block w-full object-cover"
           onClick={() => onOpenLightbox({ url: msg.media, type: "image" })}
@@ -46,7 +49,17 @@ const MessageMedia = ({
           className="relative cursor-pointer group"
           onClick={() => onOpenLightbox({ url: msg.media, type: "video" })}
         >
-          <video src={msg.media} className="message-media-img block w-full object-cover" />
+          {getVideoThumbnail(msg.media) ? (
+            <img
+              loading="lazy"
+              decoding="async"
+              src={getVideoThumbnail(msg.media)}
+              alt="Video"
+              className="message-media-img block w-full object-cover"
+            />
+          ) : (
+            <video src={msg.media} preload="metadata" className="message-media-img block w-full object-cover" />
+          )}
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors rounded-xl">
             <span className="material-icons text-4xl text-white drop-shadow-md">
               play_circle_filled
@@ -101,10 +114,15 @@ const MessageMedia = ({
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs font-semibold text-violet-200 truncate">
-            Attachment Document
+          <div className="text-xs font-semibold text-violet-200 truncate" title={msg.fileName || undefined}>
+            {msg.fileName || "Document"}
           </div>
-          <div className="text-[10px] text-gray-400">Click to download</div>
+          <div className="text-[10px] text-gray-400">
+            {(() => {
+              const ext = (msg.fileName || msg.media || "").split("?")[0].match(/\.([a-z0-9]{1,6})$/i)?.[1];
+              return ext ? `${ext.toUpperCase()} · Open` : "Open";
+            })()}
+          </div>
         </div>
         <span className="material-icons text-sm text-violet-400">download</span>
       </a>

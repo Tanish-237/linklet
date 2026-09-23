@@ -170,6 +170,38 @@ describe("Help Forum feed (real MongoDB)", () => {
       expect(usedQuery.$expr).toBeUndefined();
       expect(usedQuery["answers.0"]).toEqual({ $exists: false });
     });
+
+    test("`status` combines with a `filter` sort — solved questions sorted by most viewed", async () => {
+      console.log("[TEST] status + filter › solved, sorted by views");
+      const answerId = oid();
+      await seedQuestions(author, 4, (i) => ({
+        // Every question is solved, so status:"solved" alone wouldn't narrow anything —
+        // the only way "views" ordering below can be right is if status combined with filter.
+        answers: [answerId],
+        acceptedAnswers: [answerId],
+        views: [30, 10, 40, 20][i],
+      }));
+
+      const page = await questionService.getQuestionsFeed({ status: "solved", filter: "views", limit: 50 });
+
+      console.log(`[TEST RESULT] order: ${titles(page).join(" > ")}`);
+      expect(titles(page)).toEqual(["question 03", "question 01", "question 04", "question 02"]);
+    });
+
+    test("an explicit `status` overrides a status-shaped `filter` value", async () => {
+      console.log("[TEST] status overrides legacy filter when both are status-like");
+      const answerId = oid();
+      await seedQuestions(author, 3, (i) => ({
+        answers: i === 0 ? [] : [answerId],
+        acceptedAnswers: [],
+      }));
+
+      // Legacy caller shape says "unanswered", but the new `status` field says "answered" — status wins.
+      const page = await questionService.getQuestionsFeed({ filter: "unanswered", status: "answered", limit: 50 });
+
+      console.log(`[TEST RESULT] count=${page.questions.length}`);
+      expect(page.questions).toHaveLength(2);
+    });
   });
 
   describe("popular / most-viewed (offset cursor)", () => {

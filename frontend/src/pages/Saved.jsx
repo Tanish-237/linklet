@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import { getCollections, deleteCollection, toggleResourceInCollection, createCollection } from "../api/collection.api";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import PostDetailModal from "../components/PostDetailModal";
+import PostThumbnail from "../components/PostThumbnail";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import { useAuth } from "../context/AuthContext";
+import useThemeStore from "../theme/useThemeStore";
 import "./Saved.css";
 import "./Profile.css";
 
@@ -224,7 +226,7 @@ export default function Saved({ username }) {
           return c;
         }));
       }
-      toast("Removed from collection", { icon: "🗑️", autoClose: 1500 });
+      toast("Removed from collection", { duration: 2000 });
     } catch {
       toast.error("Failed to remove item");
     }
@@ -415,7 +417,7 @@ export default function Saved({ username }) {
 
       <div className="bm-header-row">
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <button className="gs-icon-btn" onClick={() => setActiveCollection(null)}>
+          <button className="bm-back-btn" onClick={() => setActiveCollection(null)}>
             <span className="material-icons">arrow_back</span>
           </button>
           <h2 className="bm-title">
@@ -434,7 +436,7 @@ export default function Saved({ username }) {
       {activeCollection === "chatMedia" ? (
         starredChatMedia.length === 0 ? (
           <div className="bm-empty">
-            <span className="material-icons" style={{ fontSize: "2.5rem", color: "#a78bfa", marginBottom: "10px", display: "block" }}>star_outline</span>
+            <span className="material-icons" style={{ fontSize: "2.5rem", color: "rgb(var(--accent-fg))", marginBottom: "10px", display: "block" }}>star_outline</span>
             No starred chat media yet. Star images, videos, voice notes or documents in a chat to save them here.
           </div>
         ) : (
@@ -445,14 +447,14 @@ export default function Saved({ username }) {
                 item={item}
                 onPreview={(m) => setPreviewChatMedia(m)}
                 onDownload={(m) => handleDownloadChatMedia(m)}
-                onJumpToMessage={(chatId, msgId) => navigate(`/dashboard/chat?chatId=${chatId}&messageId=${msgId}`)}
+                onJumpToMessage={(chatId, msgId) => navigate(`/chat?chatId=${chatId}&messageId=${msgId}`)}
                 onUnstar={() => handleUnstarMedia(item._id)}
               />
             ))}
           </div>
         )
       ) : loading ? (
-        <div className="gs-spinner" style={{ margin: "40px auto" }} />
+        <div className="bm-spinner" style={{ margin: "40px auto" }} />
       ) : collectionResources.length === 0 ? (
         <div className="bm-empty">This collection is empty.</div>
       ) : activeCollection === "posts" ? (
@@ -467,19 +469,7 @@ export default function Saved({ username }) {
                 setShowPostModal(true);
               }}
             >
-              {/* Image or text placeholder */}
-              {post.image ? (
-                <img
-                  src={post.image}
-                  alt={post.caption || "Post"}
-                  className="profile-post-image"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="profile-post-text-placeholder">
-                  <p>{post.caption}</p>
-                </div>
-              )}
+              <PostThumbnail post={post} />
 
               {/* Hover overlay: stats + caption */}
               <div className="profile-post-overlay">
@@ -548,7 +538,7 @@ export default function Saved({ username }) {
       {/* Starred Chat Media Lightbox / Preview Modal */}
       {previewChatMedia && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
           onClick={() => setPreviewChatMedia(null)}
         >
           <div
@@ -558,7 +548,7 @@ export default function Saved({ username }) {
             <div className="flex items-center justify-between w-full pb-2 border-b border-gray-800">
               <div className="flex items-center gap-2">
                 <span className="material-icons text-amber-400">star</span>
-                <span className="text-white font-medium text-sm">
+                <span className="text-fg font-medium text-sm">
                   {previewChatMedia.chatName || "Starred Media"}
                 </span>
                 <span className="text-gray-400 text-xs">
@@ -568,7 +558,7 @@ export default function Saved({ username }) {
               <button
                 type="button"
                 onClick={() => setPreviewChatMedia(null)}
-                className="text-gray-400 hover:text-white transition-colors p-1"
+                className="text-gray-400 hover:text-fg transition-colors p-1"
                 aria-label="Close"
               >
                 <span className="material-icons">close</span>
@@ -637,7 +627,7 @@ export default function Saved({ username }) {
                   onClick={() => {
                     const { chatId, _id } = previewChatMedia;
                     setPreviewChatMedia(null);
-                    navigate(`/dashboard/chat?chatId=${chatId}&messageId=${_id}`);
+                    navigate(`/chat?chatId=${chatId}&messageId=${_id}`);
                   }}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors shadow-lg shadow-violet-600/20"
                 >
@@ -657,14 +647,18 @@ export default function Saved({ username }) {
 function ChatMediaCard({ item, onUnstar, onPreview, onDownload, onJumpToMessage }) {
   const isImage = item.mediaType === "image";
   const isVideo = item.mediaType === "video";
+  const theme = useThemeStore((s) => s.theme);
 
+  // Same pastel-washes-out-on-white issue as getFileIcon — darker, more
+  // saturated shade for light mode instead of the dark-tuned default.
   const iconMap = {
-    video: { icon: "videocam", color: "#6366f1", label: "Video" },
-    audio: { icon: "mic", color: "#a855f7", label: "Voice Note" },
-    document: { icon: "insert_drive_file", color: "#3b82f6", label: "Document" },
+    video: { icon: "videocam", dark: "#6366f1", light: "#4338ca", label: "Video" },
+    audio: { icon: "mic", dark: "#a855f7", light: "#7e22ce", label: "Voice Note" },
+    document: { icon: "insert_drive_file", dark: "#3b82f6", light: "#1d4ed8", label: "Document" },
   };
 
-  const { icon = "attach_file", color = "#8b5cf6", label = "Media" } = iconMap[item.mediaType] || {};
+  const { icon = "attach_file", dark = "#8b5cf6", light = "#6d28d9", label = "Media" } = iconMap[item.mediaType] || {};
+  const color = theme === "light" ? light : dark;
 
   return (
     <div
@@ -750,7 +744,8 @@ function ChatMediaCard({ item, onUnstar, onPreview, onDownload, onJumpToMessage 
 
 // Extracted Resource List Item Component
 function ResourceListItem({ resource, onOpen, onDownload, onRemove }) {
-  const { icon, color } = getFileIcon(resource.fileName, resource.fileType);
+  const theme = useThemeStore((s) => s.theme);
+  const { icon, color } = getFileIcon(resource.fileName, resource.fileType, theme);
   return (
     <div className="bm-item" onClick={() => onOpen(resource)}>
       <div className="bm-left">
@@ -761,7 +756,7 @@ function ResourceListItem({ resource, onOpen, onDownload, onRemove }) {
           <h4>{resource.title || resource.fileName}</h4>
           <div className="bm-meta">
             {resource.userId && (
-              <Link to={`/dashboard/profile/${resource.userId.username}`} className="bm-author" onClick={(e) => e.stopPropagation()}>
+              <Link to={`/profile/${resource.userId.username}`} className="bm-author" onClick={(e) => e.stopPropagation()}>
                 {resource.userId.username}
               </Link>
             )}

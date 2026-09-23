@@ -1,8 +1,9 @@
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
-import ChatWindow from "../ChatWindow";
+import ChatWindow from "../chat/ChatWindow";
 import { apiClient } from "../../api/apiClient";
+import { clearChatMessageCache } from "../chat/hooks/chatMessageCache";
 
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
@@ -34,6 +35,7 @@ describe("ChatWindow Component", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    clearChatMessageCache();
   });
 
   it("fetches and renders messages for active chat", async () => {
@@ -143,9 +145,77 @@ describe("ChatWindow Component", () => {
     expect(searchBtn).toBeInTheDocument();
     searchBtn.click();
 
-    const searchInput = await screen.findByPlaceholderText("Search within this chat...");
+    const searchInput = await screen.findByPlaceholderText("Search in this chat");
     expect(searchInput).toBeInTheDocument();
-    console.log("TRACE [ChatWindow.test.jsx]: In-chat search bar verified successfully");
+  });
+
+  it("searches the whole chat on the server and shows the result count", async () => {
+    const convo = [
+      { _id: "s1", sender: { _id: "u2", username: "alice" }, content: "hello first", createdAt: new Date(Date.now() - 5000).toISOString() },
+      { _id: "s2", sender: { _id: "u2", username: "alice" }, content: "hello again", createdAt: new Date().toISOString() },
+    ];
+    apiClient.get.mockImplementation((url) =>
+      url.includes("/chat/message/search/")
+        ? Promise.resolve({ data: { success: true, data: [{ _id: "s2" }, { _id: "s1" }] } })
+        : Promise.resolve({ data: { success: true, data: { messages: convo, hasMore: false } } })
+    );
+
+    render(<ChatWindow chat={sampleChat} currentUser={{ _id: "u1" }} socket={null} onToggleInfo={vi.fn()} />);
+    (await screen.findByTitle("Search messages")).click();
+    const input = await screen.findByPlaceholderText("Search in this chat");
+    fireEvent.change(input, { target: { value: "hel" } });
+
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument();
+    expect(apiClient.get).toHaveBeenCalledWith(`/chat/message/search/${sampleChat._id}`, { params: { query: "hel" } });
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(await screen.findByText("2 of 2")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(await screen.findByText("1 of 2")).toBeInTheDocument();
+  });
+
+  it("pins instantly (optimistic) and unpins from the banner", async () => {
+    apiClient.get.mockResolvedValue({
+      data: { success: true, data: { messages: sampleMessages, hasMore: false } },
+    });
+    let resolvePin;
+    apiClient.put.mockImplementation(
+      (url, body) =>
+        new Promise((resolve) => {
+          resolvePin = () =>
+            resolve({
+              data: {
+                success: true,
+                data: { _id: sampleChat._id, pinnedMessages: url.endsWith("/pin") ? [sampleMessages[0]] : [] },
+              },
+            });
+          if (url.includes("/message/read/")) resolve({ data: { success: true } });
+          void body;
+        })
+    );
+    const onPinnedMessagesChange = vi.fn();
+    render(
+      <ChatWindow
+        chat={{ ...sampleChat, pinnedMessages: [] }}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+        onPinnedMessagesChange={onPinnedMessagesChange}
+      />
+    );
+    await screen.findByText(sampleMessages[0].content);
+
+    fireEvent.click(document.querySelector(`#msg-${sampleMessages[0]._id} .msg-bubble-chevron-btn`));
+    fireEvent.click(await screen.findByText(/^Pin$/));
+
+    // Shown before the server has answered
+    expect(await screen.findByText("Pinned message")).toBeInTheDocument();
+    expect(onPinnedMessagesChange).toHaveBeenCalled();
+    resolvePin();
+
+    fireEvent.click(await screen.findByTitle("Unpin this message"));
+    await waitFor(() => expect(screen.queryByText("Pinned message")).toBeNull());
+    expect(apiClient.put).toHaveBeenCalledWith("/chat/unpin", { chatId: sampleChat._id, messageId: sampleMessages[0]._id });
   });
 
   it("opens reaction picker, selects emoji, and sends reaction API call", async () => {
@@ -240,6 +310,7 @@ describe("ChatWindow Component", () => {
 
   it("instantly anchors chat to unread separator or bottom without smooth scroll animation", async () => {
     console.log("TRACE [ChatWindow.test.jsx]: Testing instant scroll anchoring on chat open");
+    const lastReadAt = new Date(Date.now() - 30000).toISOString();
     const unreadMessages = [
       {
         _id: "m_read1",
@@ -270,6 +341,7 @@ describe("ChatWindow Component", () => {
         currentUser={{ _id: "u1" }}
         socket={null}
         onToggleInfo={vi.fn()}
+        unreadSnapshot={{ count: 1, lastReadAt }}
       />
     );
 
@@ -280,9 +352,134 @@ describe("ChatWindow Component", () => {
     // Verify scrollBehavior is auto (not smooth) to eliminate up-to-down scroll jump
     expect(messagesContainer.style.scrollBehavior).toBe("auto");
 
-    const unreadSeparator = container.querySelector("#unread-messages-separator");
-    expect(unreadSeparator).toBeInTheDocument();
-    console.log("TRACE [ChatWindow.test.jsx]: Confirmed instant auto-scroll anchoring to unread separator");
+    const unreadSeparator = await waitFor(() => {
+      const el = container.querySelector("#unread-messages-separator");
+      expect(el).toBeInTheDocument();
+      return el;
+    });
+    expect(unreadSeparator.nextElementSibling.id).toBe("msg-m_unread1");
+    expect(screen.getByText("1 Unread Message")).toBeInTheDocument();
+  });
+
+  it("pages back through history when the unread run starts before the first page", async () => {
+    const lastReadAt = new Date(Date.now() - 120000).toISOString();
+    const at = (s) => new Date(Date.now() - s * 1000).toISOString();
+    apiClient.get
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            messages: [{ _id: "new2", sender: { _id: "u2" }, content: "newest", readBy: ["u2"], createdAt: at(10) }],
+            hasMore: true,
+            nextCursor: "c1",
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            messages: [
+              { _id: "old", sender: { _id: "u2" }, content: "already read", readBy: ["u1", "u2"], createdAt: at(300) },
+              { _id: "new1", sender: { _id: "u2" }, content: "first unread", readBy: ["u2"], createdAt: at(60) },
+            ],
+            hasMore: false,
+            nextCursor: null,
+          },
+        },
+      });
+
+    const { container } = render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+        unreadSnapshot={{ count: 2, lastReadAt }}
+      />
+    );
+
+    const separator = await waitFor(() => {
+      const el = container.querySelector("#unread-messages-separator");
+      expect(el).toBeInTheDocument();
+      return el;
+    });
+    expect(separator.nextElementSibling.id).toBe("msg-new1");
+    expect(apiClient.get).toHaveBeenCalledWith(expect.stringContaining("/chat/message/"), {
+      params: { cursor: "c1", limit: 25 },
+    });
+  });
+
+  it("opens an already-read chat at the latest message with no divider", async () => {
+    apiClient.get.mockResolvedValue({
+      data: { success: true, data: { messages: sampleMessages, hasMore: false } },
+    });
+    const { container } = render(
+      <ChatWindow
+        chat={sampleChat}
+        currentUser={{ _id: "u1" }}
+        socket={null}
+        onToggleInfo={vi.fn()}
+        unreadSnapshot={{ count: 0, lastReadAt: null }}
+      />
+    );
+    await screen.findByText(sampleMessages[sampleMessages.length - 1].content);
+    expect(container.querySelector("#unread-messages-separator")).toBeNull();
+  });
+
+  it("keeps the reader's place when older messages load on scrolling up (no jump to bottom)", async () => {
+    const ROW = 100;
+    const VIEWPORT = 300;
+    const msg = (id, secondsAgo) => ({
+      _id: id,
+      sender: { _id: "u2", username: "alice" },
+      content: `message ${id}`,
+      readBy: ["u1", "u2"],
+      createdAt: new Date(Date.now() - secondsAgo * 1000).toISOString(),
+    });
+    apiClient.get
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: { messages: [msg("m1", 50), msg("m2", 40), msg("m3", 30), msg("m4", 20), msg("m5", 10)], hasMore: true, nextCursor: "c1" },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: { success: true, data: { messages: [msg("o1", 70), msg("o2", 60)], hasMore: false, nextCursor: null } },
+      });
+
+    const { container } = render(
+      <ChatWindow chat={sampleChat} currentUser={{ _id: "u1" }} socket={null} onToggleInfo={vi.fn()} unreadSnapshot={{ count: 0 }} />
+    );
+    await screen.findByText("message m5");
+
+    // Simulated layout: every message row is 100px tall, stacked in DOM order.
+    const scroller = container.querySelector(".chat-messages");
+    const rows = () => Array.from(scroller.querySelectorAll('[id^="msg-"]'));
+    Object.defineProperty(scroller, "clientHeight", { configurable: true, get: () => VIEWPORT });
+    Object.defineProperty(scroller, "scrollHeight", { configurable: true, get: () => rows().length * ROW });
+    const realRect = Element.prototype.getBoundingClientRect;
+    const rectSpy = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function () {
+      if (this === scroller) return { top: 0, bottom: VIEWPORT, left: 0, right: 0, width: 0, height: VIEWPORT };
+      const idx = rows().indexOf(this);
+      if (idx === -1) return realRect.call(this);
+      const top = idx * ROW - scroller.scrollTop;
+      return { top, bottom: top + ROW, left: 0, right: 0, width: 0, height: ROW };
+    });
+
+    // Reader scrolls up to the top: m1 is 20px above the top edge.
+    scroller.scrollTop = 20;
+    fireEvent.scroll(scroller);
+
+    await screen.findByText("message o1");
+    // Two 100px rows were added above: m1 must sit exactly where it was
+    // (scrollTop 20 -> 220). The old code applied the shift twice (native +
+    // manual) or snapped to the bottom.
+    await waitFor(() => expect(scroller.scrollTop).toBe(220));
+    const m1 = document.getElementById("msg-m1");
+    expect(m1.getBoundingClientRect().top).toBe(-20);
+
+    rectSpy.mockRestore();
   });
 
   it("renders blocked contact banner and hides composer when isBlocked is true", async () => {

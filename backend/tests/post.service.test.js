@@ -5,6 +5,7 @@ const mockGetPostsFeed = jest.fn();
 const mockFindPostById = jest.fn();
 const mockDeletePostRepo = jest.fn();
 const mockCreatePostRepo = jest.fn();
+const mockUpdatePostRepo = jest.fn();
 const mockToggleUpvoteRepo = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/post.repository.js', () => ({
@@ -12,9 +13,20 @@ jest.unstable_mockModule('../src/repositories/post.repository.js', () => ({
   findPostById: mockFindPostById,
   deletePost: mockDeletePostRepo,
   createPost: mockCreatePostRepo,
+  updatePost: mockUpdatePostRepo,
   toggleUpvote: mockToggleUpvoteRepo,
   toggleDownvote: jest.fn(),
   getPostsByUserId: jest.fn(),
+}));
+
+const mockCreateReport = jest.fn();
+const mockGetReports = jest.fn();
+const mockUpdateReportStatus = jest.fn();
+
+jest.unstable_mockModule('../src/repositories/postReport.repository.js', () => ({
+  createReport: mockCreateReport,
+  getReports: mockGetReports,
+  updateReportStatus: mockUpdateReportStatus,
 }));
 
 const mockCreateComment = jest.fn();
@@ -220,13 +232,14 @@ describe('post.service — comments', () => {
     expect(mockGetPostComments).toHaveBeenCalledWith('p', { cursor: 'cur', limit: 50 });
   });
 
-  test('getReplies rejects a reply-id or unknown comment with 404', async () => {
-    console.log('[TEST] getReplies › only top-level comments have replies');
+  test('getReplies rejects an unknown comment with 404, but allows fetching replies of a reply (nesting)', async () => {
+    console.log('[TEST] getReplies › unknown comment 404s, nested reply-of-a-reply is allowed');
     mockFindComment.mockResolvedValueOnce(null);
     await expect(postService.getReplies('p', 'c')).rejects.toMatchObject({ statusCode: 404 });
 
     mockFindComment.mockResolvedValueOnce({ _id: 'r', parentId: 'c' });
-    await expect(postService.getReplies('p', 'r')).rejects.toMatchObject({ statusCode: 404 });
+    mockGetCommentReplies.mockResolvedValueOnce({ replies: [], hasMore: false, nextCursor: null });
+    await expect(postService.getReplies('p', 'r')).resolves.toEqual({ replies: [], hasMore: false, nextCursor: null });
   });
 
   test('toggleCommentUpvote 404s when the comment is not on that post', async () => {
@@ -292,5 +305,110 @@ describe('post.service — deleting comments & moderation', () => {
     mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' } });
     await expect(postService.deletePost('p', 'stranger', 'user')).rejects.toMatchObject({ statusCode: 403 });
     expect(mockDeletePostRepo).not.toHaveBeenCalled();
+  });
+});
+
+describe('post.service — editing posts', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('the owner can edit their caption; the post is marked edited and the feed cache is invalidated', async () => {
+    console.log('[TEST] updatePost › owner edits caption');
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' }, image: 'pic.jpg' });
+    mockUpdatePostRepo.mockResolvedValueOnce({ _id: 'p', caption: 'edited text', isEdited: true });
+
+    const result = await postService.updatePost('p', 'owner', 'user', { caption: 'edited text' });
+
+    expect(mockUpdatePostRepo).toHaveBeenCalledWith('p', { caption: 'edited text', isEdited: true });
+    expect(mockBumpCacheVersion).toHaveBeenCalledWith('posts-feed');
+    expect(result.isEdited).toBe(true);
+  });
+
+  test('an admin can edit someone else\'s post', async () => {
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' }, image: '' });
+    mockUpdatePostRepo.mockResolvedValueOnce({ _id: 'p', caption: 'moderated' });
+
+    await postService.updatePost('p', 'admin1', 'admin', { caption: 'moderated' });
+    expect(mockUpdatePostRepo).toHaveBeenCalled();
+  });
+
+  test('a stranger cannot edit someone else\'s post (403)', async () => {
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' }, image: '' });
+    await expect(postService.updatePost('p', 'stranger', 'user', { caption: 'x' })).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockUpdatePostRepo).not.toHaveBeenCalled();
+  });
+
+  test('editing a missing post is a 404', async () => {
+    mockFindPostById.mockResolvedValueOnce(null);
+    await expect(postService.updatePost('nope', 'owner', 'user', { caption: 'x' })).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test('clearing the caption on a caption-only post is rejected (post would end up empty)', async () => {
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' }, image: '' });
+    await expect(postService.updatePost('p', 'owner', 'user', { caption: '   ' })).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdatePostRepo).not.toHaveBeenCalled();
+  });
+
+  test('a request with no caption field at all is rejected as "nothing to update"', async () => {
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' }, image: 'pic.jpg' });
+    await expect(postService.updatePost('p', 'owner', 'user', {})).rejects.toMatchObject({ statusCode: 400 });
+  });
+});
+
+describe('post.service — reporting posts', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('a user can report someone else\'s post', async () => {
+    console.log('[TEST] reportPost › creates a report against the post author');
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' }, caption: 'spammy content here' });
+    mockCreateReport.mockResolvedValueOnce({ _id: 'r1', status: 'pending' });
+
+    const result = await postService.reportPost('p', 'reporter1', 'Looks like spam');
+
+    expect(mockCreateReport).toHaveBeenCalledWith({
+      reportedBy: 'reporter1',
+      postId: 'p',
+      postAuthorId: 'owner',
+      captionSnippet: 'spammy content here',
+      reason: 'Looks like spam',
+    });
+    expect(result.status).toBe('pending');
+  });
+
+  test('reporting your own post is rejected', async () => {
+    mockFindPostById.mockResolvedValueOnce({ _id: 'p', userId: { _id: 'owner' } });
+    await expect(postService.reportPost('p', 'owner', 'spam')).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockCreateReport).not.toHaveBeenCalled();
+  });
+
+  test('reporting a missing post is a 404', async () => {
+    mockFindPostById.mockResolvedValueOnce(null);
+    await expect(postService.reportPost('nope', 'u1', 'spam')).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  test('getReportedPosts clamps paging and defaults to the pending status filter', async () => {
+    mockGetReports.mockResolvedValueOnce({ reports: [{ _id: 'r1' }], totalDocs: 1 });
+    const result = await postService.getReportedPosts(undefined, 1, 999);
+    expect(mockGetReports).toHaveBeenCalledWith('pending', 0, 50);
+    expect(result.pagination.totalDocs).toBe(1);
+  });
+
+  const REPORT_ID = '64b7f0c2a1b2c3d4e5f60718';
+
+  test('updatePostReportStatus delegates to the repository', async () => {
+    mockUpdateReportStatus.mockResolvedValueOnce({ _id: REPORT_ID, status: 'dismissed' });
+    const result = await postService.updatePostReportStatus(REPORT_ID, 'dismissed');
+    expect(mockUpdateReportStatus).toHaveBeenCalledWith(REPORT_ID, 'dismissed');
+    expect(result.status).toBe('dismissed');
+  });
+
+  test('updatePostReportStatus rejects unknown statuses and malformed ids', async () => {
+    await expect(postService.updatePostReportStatus(REPORT_ID, 'deleted')).rejects.toMatchObject({ statusCode: 400 });
+    await expect(postService.updatePostReportStatus('not-an-id', 'reviewed')).rejects.toMatchObject({ statusCode: 400 });
+    expect(mockUpdateReportStatus).not.toHaveBeenCalled();
+  });
+
+  test('updatePostReportStatus 404s when the report does not exist', async () => {
+    mockUpdateReportStatus.mockResolvedValueOnce(null);
+    await expect(postService.updatePostReportStatus(REPORT_ID, 'reviewed')).rejects.toMatchObject({ statusCode: 404 });
   });
 });

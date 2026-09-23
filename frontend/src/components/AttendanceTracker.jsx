@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import DonutChart from './DonutChart';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import { fetchAttendance } from '../api/dashboard.api';
 
 const getAttendanceColor = (percentage) => {
@@ -122,47 +122,77 @@ export default function AttendanceTracker({ refreshTrigger }) {
 
   // Chart configuration
   return (
-    <div className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-gray-800 shadow-2xl relative">
+    <div className="bg-surface/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-line shadow-2xl relative h-full flex flex-col">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 border-b border-gray-800/80 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8 border-b border-line/80 pb-6">
         <div className="flex items-center gap-3">
           <span className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400 material-icons">
             how_to_reg
           </span>
           <div>
-            <h2 className="text-2xl font-bold text-white tracking-wide">Attendance Guardian</h2>
-            <p className="text-sm text-gray-400">
+            <h2 className="text-2xl font-bold text-fg tracking-wide">Attendance Guardian</h2>
+            <p className="text-sm text-fg-muted">
               Track course attendance and leave allowances
             </p>
           </div>
         </div>
       </div>
 
+      {/* This card gets stretched to match Daily Schedule's height in
+          Dashboard's grid (default align-items: stretch), which is usually
+          much taller (a scrollable timeline) — without this, the content
+          below just sat at the top, leaving a large dead gap at the
+          bottom instead of using that extra height. */}
+      <div className="flex-1 flex flex-col justify-center">
       {loading ? (
-        <div className="py-16 text-center">
-          <div className="inline-block w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-3 text-sm text-gray-400">Loading attendance data...</p>
+        <div className="space-y-6" aria-busy="true" aria-label="Loading attendance data">
+          {/* Course selector skeleton */}
+          <div className="flex items-center gap-3 bg-surface-2 p-3 rounded-xl border border-line">
+            <div className="h-3 w-24 bg-surface-3 rounded animate-pulse shrink-0" />
+            <div className="flex-1 h-9 bg-surface-3 rounded-lg animate-pulse" />
+          </div>
+
+          {/* Class/Lab segmented control skeleton */}
+          <div className="flex justify-center -mt-2">
+            <div className="inline-flex p-1 bg-canvas border border-line rounded-xl gap-1 shadow-inner">
+              <div className="h-7 w-36 bg-surface-3 rounded-lg animate-pulse" />
+              <div className="h-7 w-20 bg-surface-3 rounded-lg animate-pulse" />
+            </div>
+          </div>
+
+          {/* Donut chart + stats skeleton */}
+          <div className="flex flex-col items-center justify-center space-y-6">
+            <div className="relative h-60 w-60 md:h-64 md:w-64 rounded-full bg-surface-2 animate-pulse" />
+            <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mx-auto w-full">
+              <div className="h-16 bg-surface-2 border border-line rounded-xl animate-pulse" />
+              <div className="h-16 bg-surface-2 border border-line rounded-xl animate-pulse" />
+              <div className="h-16 bg-surface-2 border border-line rounded-xl animate-pulse" />
+            </div>
+          </div>
+
+          {/* Advisory banner skeleton */}
+          <div className="h-10 bg-surface-2 border border-line rounded-xl animate-pulse" />
         </div>
       ) : courses.length === 0 ? (
-        <div className="p-10 rounded-2xl bg-gray-950/40 border border-dashed border-gray-800 text-center">
+        <div className="p-10 rounded-2xl bg-canvas/40 border border-dashed border-line text-center">
           <span className="material-icons text-5xl text-violet-500/40 mb-3">school</span>
-          <h4 className="text-lg font-bold text-gray-300">No courses tracked yet</h4>
-          <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
+          <h4 className="text-lg font-bold text-fg-secondary">No courses tracked yet</h4>
+          <p className="text-sm text-fg-muted mt-1 max-w-md mx-auto">
             Add subjects from Subject Info on the dashboard to track attendance and leave allowances.
           </p>
         </div>
       ) : (
         <div className="space-y-6">
           {/* Controls: Course Selector stretched across */}
-          <div className="flex items-center gap-3 bg-black/40 p-3 rounded-xl border border-gray-800">
-            <span className="text-xs text-gray-400 font-medium whitespace-nowrap shrink-0">
+          <div className="flex items-center gap-3 bg-surface-2 p-3 rounded-xl border border-line">
+            <span className="text-xs text-fg-muted font-medium whitespace-nowrap shrink-0">
               Selected Course:
             </span>
             <div ref={dropdownRef} className="relative flex-1 min-w-0">
               <button
                 type="button"
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="w-full flex items-center justify-between bg-gray-800 hover:bg-gray-750 text-white text-sm font-semibold px-3.5 py-2 rounded-lg border border-gray-700 transition cursor-pointer min-w-0"
+                className="w-full flex items-center justify-between bg-surface-2 hover:bg-surface-3 text-fg text-sm font-semibold px-3.5 py-2 rounded-lg border border-line transition cursor-pointer min-w-0"
               >
                 <div className="flex items-center gap-2 truncate min-w-0">
                   <span className="truncate">{activeCourse.courseName}</span>
@@ -187,7 +217,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
                     {activeStats.percentage || 0}%
                   </span>
                   <span
-                    className={`material-icons text-sm text-gray-400 transition-transform ${
+                    className={`material-icons text-sm text-fg-muted transition-transform ${
                       dropdownOpen ? 'rotate-180' : ''
                     }`}
                   >
@@ -197,8 +227,8 @@ export default function AttendanceTracker({ refreshTrigger }) {
               </button>
 
               {dropdownOpen && (
-                <div className="absolute left-0 right-0 mt-2 bg-gray-900 border border-gray-700/80 rounded-xl shadow-2xl overflow-hidden z-50">
-                  <div className="max-h-[420px] overflow-y-auto overflow-x-hidden py-1.5 divide-y divide-gray-800/70 custom-scrollbar">
+                <div className="absolute left-0 right-0 mt-2 bg-surface border border-line-strong/80 rounded-xl shadow-2xl overflow-hidden z-50">
+                  <div className="max-h-[420px] overflow-y-auto overflow-x-hidden py-1.5 divide-y divide-line/70 custom-scrollbar">
                     {courses.map((c) => {
                       const isSelectedCourse = c._id === selectedCourseId;
                       const hasLab = Boolean(c.hasLab);
@@ -223,13 +253,13 @@ export default function AttendanceTracker({ refreshTrigger }) {
                             className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-xs transition cursor-pointer ${
                               isClassActive
                                 ? 'bg-violet-950/60 border border-violet-500/50 text-violet-200 font-semibold'
-                                : 'text-gray-300 hover:bg-gray-800/70 border border-transparent'
+                                : 'text-fg-secondary hover:bg-surface-3/70 border border-transparent'
                             }`}
                           >
                             <div className="truncate mr-2 min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="material-icons text-sm text-violet-400 shrink-0">menu_book</span>
-                                <span className="font-semibold text-gray-200 truncate">{c.courseName}</span>
+                                <span className="font-semibold text-fg truncate">{c.courseName}</span>
                                 {hasLab && (
                                   <span className="text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30 shrink-0 ml-1">
                                     Has Lab
@@ -237,7 +267,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
                                 )}
                               </div>
                               {c.courseCode && (
-                                <div className="text-[11px] text-gray-400 pl-5 truncate">{c.courseCode}</div>
+                                <div className="text-[11px] text-fg-muted pl-5 truncate">{c.courseCode}</div>
                               )}
                             </div>
                             <span
@@ -263,7 +293,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
                                 className={`w-full text-left px-3 py-1.5 rounded-lg flex items-center justify-between text-xs transition cursor-pointer ${
                                   isLabActive
                                     ? 'bg-pink-950/60 border border-pink-500/50 text-pink-200 font-semibold'
-                                    : 'text-gray-300 hover:bg-gray-800/70 border border-transparent'
+                                    : 'text-fg-secondary hover:bg-surface-3/70 border border-transparent'
                                 }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0 truncate">
@@ -292,14 +322,14 @@ export default function AttendanceTracker({ refreshTrigger }) {
           {/* Segmented Class / Lab Switcher - Strictly for subjects with lab */}
           {activeCourse?.hasLab && (
             <div className="flex justify-center -mt-2">
-              <div className="inline-flex p-1 bg-gray-950/80 border border-gray-800 rounded-xl gap-1 shadow-inner">
+              <div className="inline-flex p-1 bg-canvas border border-line rounded-xl gap-1 shadow-inner">
                 <button
                   type="button"
                   onClick={() => setActiveTrack('class')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     activeTrack === 'class'
-                      ? 'bg-violet-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'bg-violet-600 text-on-accent shadow-sm'
+                      : 'text-fg-muted hover:text-fg-secondary'
                   }`}
                 >
                   <span className="material-icons text-sm">menu_book</span>
@@ -310,8 +340,8 @@ export default function AttendanceTracker({ refreshTrigger }) {
                   onClick={() => setActiveTrack('lab')}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     activeTrack === 'lab'
-                      ? 'bg-pink-600 text-white shadow-sm'
-                      : 'text-gray-400 hover:text-gray-200'
+                      ? 'bg-pink-600 text-on-accent shadow-sm'
+                      : 'text-fg-muted hover:text-fg-secondary'
                   }`}
                 >
                   <span className="material-icons text-sm">science</span>
@@ -330,7 +360,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
                 <div
                   className={`text-4xl font-extrabold font-mono ${
                     activeStats.total === 0
-                      ? 'text-gray-500'
+                      ? 'text-fg-muted'
                       : activeStats.percentage >= 85
                       ? 'text-emerald-400'
                       : activeStats.percentage >= 75
@@ -340,10 +370,10 @@ export default function AttendanceTracker({ refreshTrigger }) {
                 >
                   {activeStats.total > 0 ? `${Math.round(animateValue)}%` : '0%'}
                 </div>
-                <div className="text-xs text-gray-400 mt-1 uppercase tracking-wider font-semibold">
+                <div className="text-xs text-fg-muted mt-1 uppercase tracking-wider font-semibold">
                   {activeTrack === 'lab' ? 'Lab Attendance' : 'Class Attendance'}
                 </div>
-                <div className="text-[11px] text-gray-400 mt-0.5">
+                <div className="text-[11px] text-fg-muted mt-0.5">
                   {activeStats.present} / {activeStats.total} {activeTrack === 'lab' ? 'Labs' : 'Classes'}
                 </div>
               </div>
@@ -351,9 +381,9 @@ export default function AttendanceTracker({ refreshTrigger }) {
 
             {/* 3 Metrics Cards Down the Chart: Total, Attended, Missed */}
             <div className="grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mx-auto w-full">
-              <div className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-2.5 sm:p-3 text-center">
-                <div className="text-[11px] sm:text-xs text-gray-400 font-medium">Total</div>
-                <div className="text-xl sm:text-2xl font-bold text-white mt-1 font-mono">
+              <div className="bg-surface-2/50 border border-line/60 rounded-xl p-2.5 sm:p-3 text-center">
+                <div className="text-[11px] sm:text-xs text-fg-muted font-medium">Total</div>
+                <div className="text-xl sm:text-2xl font-bold text-fg mt-1 font-mono">
                   {activeStats.total}
                 </div>
               </div>
@@ -378,7 +408,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
           <div
             className={`px-4 py-2.5 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all ${
               activeStats.total === 0
-                ? 'bg-gray-800/40 border-gray-700/80 text-gray-300'
+                ? 'bg-surface-2/40 border-line/80 text-fg-secondary'
                 : activeStats.percentage >= 75
                 ? 'bg-emerald-950/20 border-emerald-900/50 text-emerald-300'
                 : activeStats.percentage >= 65
@@ -432,6 +462,7 @@ export default function AttendanceTracker({ refreshTrigger }) {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

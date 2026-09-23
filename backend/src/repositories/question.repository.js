@@ -76,7 +76,15 @@ export const findQuestionById = async (id) => {
  * indexable path check, unlike the old `$expr: { $size }` which forced a full
  * collection scan for the "answered"/"unanswered" tabs.
  */
-const buildBaseQuery = ({ category, tag, userId, filter }) => {
+// `status` (unanswered/answered/solved) and `filter` (the sort key — all/
+// oldest/views/popular) used to be the same single string, so a client could
+// never ask for e.g. "solved, sorted by most viewed" at once. `status` is now
+// the dedicated param for this; `filter` is still accepted as a fallback so
+// existing callers passing e.g. `filter: "solved"` (with no separate sort)
+// keep working exactly as before — an explicit `status` just takes priority.
+const STATUS_VALUES = ["unanswered", "answered", "solved"];
+
+const buildBaseQuery = ({ category, tag, userId, status, filter }) => {
   const base = {};
 
   if (category && category !== "All") base.category = category;
@@ -85,9 +93,10 @@ const buildBaseQuery = ({ category, tag, userId, filter }) => {
     base.userId = new mongoose.Types.ObjectId(userId);
   }
 
-  if (filter === "unanswered") base["answers.0"] = { $exists: false };
-  else if (filter === "answered") base["answers.0"] = { $exists: true };
-  else if (filter === "solved") base["acceptedAnswers.0"] = { $exists: true };
+  const effectiveStatus = status || (STATUS_VALUES.includes(filter) ? filter : "");
+  if (effectiveStatus === "unanswered") base["answers.0"] = { $exists: false };
+  else if (effectiveStatus === "answered") base["answers.0"] = { $exists: true };
+  else if (effectiveStatus === "solved") base["acceptedAnswers.0"] = { $exists: true };
 
   return base;
 };
@@ -108,11 +117,12 @@ export const getQuestionsFeed = async ({
   cursor = null,
   limit = 15,
   filter = "all",
+  status = "",
   category = "",
   tag = "",
   userId = null,
 } = {}) => {
-  const base = buildBaseQuery({ category, tag, userId, filter });
+  const base = buildBaseQuery({ category, tag, userId, status, filter });
   const { offset, date } = parseFeedCursor(cursor);
 
   // ── Ordered by something other than time: offset paging ───────────────────
@@ -179,11 +189,12 @@ export const getQuestionsFeed = async ({
 export const findSearchCandidates = async ({
   search,
   filter = "all",
+  status = "",
   category = "",
   tag = "",
   userId = null,
 }) => {
-  const base = buildBaseQuery({ category, tag, userId, filter });
+  const base = buildBaseQuery({ category, tag, userId, status, filter });
   const rawSearch = String(search).trim();
   const cleanSearchTerm = rawSearch.replace(/^@/, "");
 

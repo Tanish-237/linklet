@@ -21,6 +21,8 @@ import {
   searchMessagesInChat,
   forwardMessages,
   deleteMultipleMessages,
+  hideMessages,
+  getChatMedia,
   toggleReaction,
   pinMessage,
   unpinMessage,
@@ -29,6 +31,12 @@ import {
   updateReportStatus,
   promoteToAdmin,
   demoteAdmin,
+  pinChat,
+  unpinChat,
+  muteChat,
+  getMutedChats,
+  archiveChat,
+  deleteChatForUser,
 } from "../controllers/chat.controller.js";
 
 const router = express.Router();
@@ -40,9 +48,15 @@ router.use(isLoggedIn);
 router.route("/").post(accessOrCreateChat).get(getUserChats);
 router.route("/search").get(searchUsers);
 
-// Pin / Unpin endpoints
+// Pin / Unpin endpoints (pinned MESSAGES within a chat)
 router.route("/pin").put(pinMessage);
 router.route("/unpin").put(unpinMessage);
+
+// Per-user chat list settings (pinned chat, muted, archived, deleted-for-me)
+router.route("/chat-settings/pin").put(pinChat).delete(unpinChat);
+router.route("/chat-settings/mute").put(muteChat);
+router.route("/chat-settings/muted").get(getMutedChats);
+router.route("/chat-settings/archive").put(archiveChat);
 
 // Group endpoints
 router.route("/group").post(createGroup);
@@ -62,6 +76,7 @@ router
 router.route("/message/react").post(toggleReaction);
 router.route("/message/forward").post(forwardMessages);
 router.route("/message/bulk-delete").delete(deleteMultipleMessages).post(deleteMultipleMessages);
+router.route("/message/hide").post(hideMessages);
 router.route("/message/report").post(reportMessage);
 router
   .route("/message/reports")
@@ -69,6 +84,7 @@ router
   .put(requireRole(["admin"]), updateReportStatus);
 router.route("/message/read/:chatId").put(markAsRead);
 router.route("/message/search/:chatId").get(searchMessagesInChat);
+router.route("/message/media/:chatId").get(getChatMedia);
 
 router
   .route("/message")
@@ -78,5 +94,10 @@ router
 
 router.route("/message/:messageId").delete(deleteMessage);
 router.route("/message/:chatId").get(getMessages);
+
+// Delete-for-me (1:1: per-user history cutoff; group: leave). Registered last
+// since it's a bare parameterized path that would otherwise shadow every
+// literal route above it.
+router.route("/:chatId").delete(deleteChatForUser);
 
 export default router;

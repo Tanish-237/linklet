@@ -13,7 +13,7 @@ const ChatSelectionBar = ({
           type="button"
           id="chat-multi-select-close-btn"
           onClick={onClearSelection}
-          className="text-gray-400 hover:text-white cursor-pointer flex items-center"
+          className="text-gray-400 hover:text-fg cursor-pointer flex items-center"
           aria-label="Cancel selection"
         >
           <span className="material-icons">close</span>

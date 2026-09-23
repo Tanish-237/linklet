@@ -110,6 +110,17 @@ const userSchema = new mongoose.Schema(
     // refuses to deliver new direct messages in either direction once blocked) —
     // this is NOT just a client-side display preference.
     blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    // Per-category in-app notification switches (Settings → Notifications).
+    // Stored on the account so they follow the user across devices; enforced
+    // in notification.service.js (forum/post/system) and by the client's
+    // chat toast listeners (chatAlerts).
+    notificationPrefs: {
+      chatAlerts: { type: Boolean, default: true },
+      forumAlerts: { type: Boolean, default: true },
+      postAlerts: { type: Boolean, default: true },
+      systemAlerts: { type: Boolean, default: true },
+      _id: false,
+    },
     refreshToken: {
       type: String,
     },

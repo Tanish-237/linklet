@@ -7,8 +7,12 @@ vi.mock("../../api/apiClient", () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
+    delete: vi.fn(),
   },
 }));
+
+import { apiClient } from "../../api/apiClient";
 
 describe("ChatSidebar Component", () => {
   const sampleChats = [
@@ -33,6 +37,8 @@ describe("ChatSidebar Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     try { localStorage.clear(); } catch {}
+    apiClient.put.mockResolvedValue({ data: { success: true, data: {} } });
+    apiClient.delete.mockResolvedValue({ data: { success: true, data: {} } });
   });
 
   it("renders list of chats correctly", () => {
@@ -190,6 +196,191 @@ describe("ChatSidebar Component", () => {
     console.log("TRACE [ChatSidebar.test.jsx]: Re-click toggle and outside click verified");
   });
 
+  it("persists Pin to the server instead of only localStorage", async () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing Pin calls the chat-settings API");
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Pin"));
+    });
+
+    expect(apiClient.put).toHaveBeenCalledWith("/chat/chat-settings/pin", { chatId: "c1" });
+    console.log("TRACE [ChatSidebar.test.jsx]: Pin API call verified");
+  });
+
+  it("persists Mute to the server with the new muted value", async () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing Mute calls the chat-settings API");
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Mute"));
+    });
+
+    expect(apiClient.put).toHaveBeenCalledWith("/chat/chat-settings/mute", { chatId: "c1", muted: true });
+    console.log("TRACE [ChatSidebar.test.jsx]: Mute API call verified");
+  });
+
+  it("rolls back the optimistic Pin toggle if the server rejects it", async () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing Pin rollback on server error (e.g. over the pin cap)");
+    apiClient.put.mockRejectedValueOnce({ response: { data: { message: "You can only pin up to 5 chats" } } });
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Pin"));
+    });
+
+    // Re-open the menu: if the rollback worked, the item still reads "Pin" (not "Unpin").
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    expect(screen.getByText("Pin")).toBeInTheDocument();
+    console.log("TRACE [ChatSidebar.test.jsx]: Optimistic pin rolled back after server rejection");
+  });
+
+  it("deletes a 1:1 chat via the real endpoint and notifies the parent", async () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing Delete chat calls DELETE /chat/:chatId");
+    const onDeleteChat = vi.fn();
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        onDeleteChat={onDeleteChat}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    await act(async () => {
+      fireEvent.click(screen.getByText("Delete chat"));
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/chat/c1");
+    expect(onDeleteChat).toHaveBeenCalledWith("c1");
+    console.log("TRACE [ChatSidebar.test.jsx]: Delete chat API call and callback verified");
+  });
+
+  it("offers 'Leave group' instead of 'Delete chat' for a group, and hits the same endpoint", async () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing group chats show Leave group wording");
+    const onDeleteChat = vi.fn();
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        onDeleteChat={onDeleteChat}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[1]);
+    expect(screen.getByText("Leave group")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByText("Leave group"));
+    });
+
+    expect(apiClient.delete).toHaveBeenCalledWith("/chat/c2");
+    expect(onDeleteChat).toHaveBeenCalledWith("c2");
+  });
+
+  it("hydrates pinned/muted/archived state from the server-merged chat flags, not only localStorage", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing settings hydrate from `chats` prop flags");
+    const chatsWithSettings = [
+      { ...sampleChats[0], pinned: true, muted: true, archived: false },
+      sampleChats[1],
+    ];
+    render(
+      <ChatSidebar
+        chats={chatsWithSettings}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+      />
+    );
+
+    fireEvent.click(screen.getAllByTitle("Chat options")[0]);
+    expect(screen.getByText("Unpin")).toBeInTheDocument();
+    expect(screen.getByText("Unmute")).toBeInTheDocument();
+    console.log("TRACE [ChatSidebar.test.jsx]: Server-provided pin/mute flags correctly reflected in the menu");
+  });
+
+  it("requests more chats when scrolled near the bottom and hasMoreChats is true", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing infinite-scroll pagination trigger");
+    const onLoadMoreChats = vi.fn();
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        hasMoreChats={true}
+        onLoadMoreChats={onLoadMoreChats}
+      />
+    );
+
+    const list = document.querySelector(".chat-list");
+    Object.defineProperty(list, "scrollHeight", { value: 1000, configurable: true });
+    Object.defineProperty(list, "clientHeight", { value: 400, configurable: true });
+    Object.defineProperty(list, "scrollTop", { value: 550, configurable: true }); // 1000 - 550 - 400 = 50 < 150
+
+    fireEvent.scroll(list);
+    expect(onLoadMoreChats).toHaveBeenCalled();
+    console.log("TRACE [ChatSidebar.test.jsx]: onLoadMoreChats fired near the bottom of the list");
+  });
+
+  it("does not request more chats when hasMoreChats is false", () => {
+    console.log("TRACE [ChatSidebar.test.jsx]: Testing infinite-scroll no-op when nothing left to load");
+    const onLoadMoreChats = vi.fn();
+    render(
+      <ChatSidebar
+        chats={sampleChats}
+        activeChat={null}
+        onSelectChat={vi.fn()}
+        onOpenCreateGroup={vi.fn()}
+        currentUser={{ _id: "user1" }}
+        hasMoreChats={false}
+        onLoadMoreChats={onLoadMoreChats}
+      />
+    );
+
+    const list = document.querySelector(".chat-list");
+    Object.defineProperty(list, "scrollHeight", { value: 1000, configurable: true });
+    Object.defineProperty(list, "clientHeight", { value: 400, configurable: true });
+    Object.defineProperty(list, "scrollTop", { value: 550, configurable: true });
+
+    fireEvent.scroll(list);
+    expect(onLoadMoreChats).not.toHaveBeenCalled();
+  });
+
   it("calls onMarkAsUnread when selecting 'Mark as unread' from context menu", () => {
     console.log("TRACE [ChatSidebar.test.jsx]: Testing onMarkAsUnread callback from context menu");
     const onMarkAsUnread = vi.fn();
@@ -306,7 +497,7 @@ describe("ChatSidebar Component", () => {
         />
       );
 
-      const tickIcon = container.querySelector(".tick-sent");
+      const tickIcon = container.querySelector(".sidebar-tick-sent");
       expect(tickIcon).toBeInTheDocument();
       expect(tickIcon.textContent).toBe("done");
       console.log("Passed: Sidebar rendered single grey tick for offline recipient");
@@ -341,7 +532,7 @@ describe("ChatSidebar Component", () => {
         />
       );
 
-      const tickIcon = container.querySelector(".tick-delivered");
+      const tickIcon = container.querySelector(".sidebar-tick-delivered");
       expect(tickIcon).toBeInTheDocument();
       expect(tickIcon.textContent).toBe("done_all");
       console.log("Passed: Sidebar rendered double grey tick for online recipient");

@@ -1,20 +1,41 @@
 /* Navbar styles. These used to live in styled-components template literals, which
    shipped a whole second CSS-in-JS runtime just for this one component while the
-   rest of the app uses Tailwind + plain CSS. Rules are unchanged, only flattened. */
+   rest of the app uses Tailwind + plain CSS. Rules are unchanged, only flattened.
+   Colours are theme tokens (see src/index.css) so this navbar follows light/dark. */
 
 .app-nav {
   position: sticky;
   top: 0;
   z-index: 50;
-  background-color: rgba(17, 17, 17, 0.9);
+  background-color: rgb(var(--surface) / calc(0.9 + var(--glass-fill)));
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgb(var(--line));
   padding: 1rem 1.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.app-nav-brand {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-nav-brand-logo {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  object-fit: contain;
+}
+
+.app-nav-brand-name {
+  color: rgb(var(--fg));
+  font-size: 1.5rem;
+  font-weight: 600;
 }
 
 .app-nav-links {
@@ -25,7 +46,7 @@
 
 .app-nav-links > a:not(.nav-auth-btn),
 .app-nav-links > button:not(.nav-auth-btn) {
-  color: #f5f5f5;
+  color: rgb(var(--fg));
   font-size: 1rem;
   transition: all 0.3s ease;
   background: none;
@@ -37,8 +58,8 @@
 
 .app-nav-links > a:not(.nav-auth-btn):hover,
 .app-nav-links > button:not(.nav-auth-btn):hover {
-  color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.1);
+  color: rgb(var(--accent-fg));
+  background: rgb(var(--accent) / 0.1);
 }
 
 .app-nav-auth-link {
@@ -52,16 +73,16 @@
   text-decoration: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  color: #e5e7eb;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgb(var(--fg-secondary));
+  border: 1px solid rgb(var(--line-strong));
   background: transparent;
   outline: none;
 }
 
 .app-nav-auth-link:hover {
-  border-color: #8b5cf6;
-  background: rgba(139, 92, 246, 0.1);
-  color: #ffffff;
+  border-color: rgb(var(--accent));
+  background: rgb(var(--accent) / 0.1);
+  color: rgb(var(--fg));
   transform: translateY(-1px);
 }
 
@@ -70,8 +91,20 @@
 }
 
 .app-nav-auth-link:focus-visible {
-  outline: 2px solid #8b5cf6;
+  outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
+}
+
+.nav-btn-signup {
+  background: rgb(var(--accent));
+  border-color: rgb(var(--accent));
+  color: rgb(var(--on-accent));
+}
+
+.nav-btn-signup:hover {
+  background: rgb(var(--accent-hover));
+  border-color: rgb(var(--accent-hover));
+  color: rgb(var(--on-accent));
 }
 
 .app-nav-profile {
@@ -91,31 +124,31 @@
 }
 
 .app-nav-profile-btn:hover {
-  background: rgba(139, 92, 246, 0.15);
+  background: rgb(var(--accent) / 0.15);
 }
 
 .app-nav-profile-btn img {
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 9999px;
-  border: 2px solid #8b5cf6;
+  border: 2px solid rgb(var(--accent));
   object-fit: cover;
 }
 
 .app-nav-profile-btn .nav-arrow-icon {
-  color: #9ca3af;
+  color: rgb(var(--fg-muted));
   font-size: 1.25rem;
   transition: transform 0.3s ease, color 0.3s ease;
 }
 
 .app-nav-profile-btn:hover .nav-arrow-icon {
-  color: #8b5cf6;
+  color: rgb(var(--accent-fg));
   transform: translateY(1px);
 }
 
 .app-nav-profile-btn.open .nav-arrow-icon {
   transform: rotate(180deg);
-  color: #8b5cf6;
+  color: rgb(var(--accent-fg));
 }
 
 .app-nav-dropdown {
@@ -123,24 +156,24 @@
   top: 100%;
   right: 0;
   margin-top: 0.5rem;
-  background: rgba(17, 24, 39, 0.95);
+  background: rgb(var(--surface) / calc(0.98 + var(--glass-fill)));
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgb(var(--line-strong));
   border-radius: 1rem;
   min-width: 15rem;
   max-width: calc(100vw - 1.5rem);
-  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 10px 20px -5px rgb(var(--shadow-color) / 0.3);
   overflow: hidden;
   z-index: 50;
 }
 
 .app-nav-dropdown .dropdown-header {
   padding: 1rem 1rem 0.75rem 1rem;
-  border-bottom: 1px solid #1f2937;
+  border-bottom: 1px solid rgb(var(--line));
 }
 
 .app-nav-dropdown .dropdown-header .dropdown-username {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   font-size: 0.9375rem;
   font-weight: 600;
   white-space: nowrap;
@@ -149,7 +182,7 @@
 }
 
 .app-nav-dropdown .dropdown-header .dropdown-email {
-  color: #9ca3af;
+  color: rgb(var(--fg-muted));
   font-size: 0.875rem;
   white-space: nowrap;
   overflow: hidden;
@@ -167,7 +200,7 @@
   width: 100%;
   text-align: left;
   padding: 0.625rem 1rem;
-  color: #e5e7eb;
+  color: rgb(var(--fg-secondary));
   display: flex;
   align-items: center;
   gap: 0.875rem;
@@ -180,31 +213,31 @@
 }
 
 .app-nav-dropdown button .material-icons {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   font-size: 1.25rem;
   transition: color 0.2s ease;
 }
 
 .app-nav-dropdown button:hover {
-  background: rgba(139, 92, 246, 0.2);
-  color: #ffffff;
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--fg));
 }
 
 .app-nav-dropdown button.logout-btn {
-  color: #f87171;
+  color: rgb(var(--danger-fg));
 }
 
 .app-nav-dropdown button.logout-btn .material-icons {
-  color: #f87171;
+  color: rgb(var(--danger-fg));
 }
 
 .app-nav-dropdown button.logout-btn:hover {
-  background: rgba(139, 92, 246, 0.2);
-  color: #fca5a5;
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--danger-fg));
 }
 
 .app-nav-dropdown .logout-wrapper {
-  border-top: 1px solid #1f2937;
+  border-top: 1px solid rgb(var(--line));
   margin-top: 0.5rem;
   padding-top: 0.5rem;
 }

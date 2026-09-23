@@ -147,8 +147,8 @@ describe("Profile Component", () => {
     console.log("Passed: Admin badge rendered cleanly without lightning emoji");
   });
 
-  it("opens followers and following modals when clicking stat cards and displays user list", async () => {
-    console.log("TRACE [Profile.test.jsx]: Testing followers and following modal interaction");
+  it("switches to the followers tab in place when clicking the followers stat card, with no separate modal", async () => {
+    console.log("TRACE [Profile.test.jsx]: Testing followers stat card switches the in-page tab instead of opening a modal");
     useAuth.mockReturnValue({
       user: mockCurrentUser,
       fetchUser: vi.fn(),
@@ -181,16 +181,11 @@ describe("Profile Component", () => {
       expect(screen.getByText("Charlie Day")).toBeInTheDocument();
     });
 
-    console.log("Passed: Followers modal opened and displayed follower users");
+    // There's no separate modal to close — the list rendered directly in the tab content.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /close modal/i })).not.toBeInTheDocument();
 
-    // Close modal
-    const closeBtn = screen.getByRole("button", { name: /close modal/i });
-    fireEvent.click(closeBtn);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Alice Wonder")).not.toBeInTheDocument();
-    });
-    console.log("Passed: Followers modal closed successfully");
+    console.log("Passed: Followers stat card switched the in-page tab and displayed follower users, no modal involved");
   });
 
   it("renders and switches to followers tab directly in profile itself and displays followers", async () => {

@@ -10,12 +10,12 @@ vi.mock("../../api/dashboard.api", () => ({
   fetchAttendance: vi.fn(),
 }));
 
-// Mock react-toastify
-vi.mock("react-toastify", () => ({
+// Mock sonner
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn(),
+    warning: vi.fn(),
     info: vi.fn(),
   },
 }));

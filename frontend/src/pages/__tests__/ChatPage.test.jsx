@@ -5,6 +5,7 @@ import ChatPage from "../ChatPage";
 import { apiClient } from "../../api/apiClient";
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { clearChatMessageCache } from "../../components/chat/hooks/chatMessageCache";
 
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
@@ -50,6 +51,7 @@ globalThis.localStorage = fakeLocalStorage;
 describe("ChatPage Component", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    clearChatMessageCache();
     window.localStorage.clear();
     window.innerWidth = 1024;
     window.dispatchEvent(new Event("resize"));
@@ -99,6 +101,61 @@ describe("ChatPage Component", () => {
       expect(apiClient.get).toHaveBeenCalledWith("/chat");
       expect(screen.getAllByText("General Lounge")[0]).toBeInTheDocument();
     });
+  });
+
+  const renderPage = () =>
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <BrowserRouter>
+          <ChatPage />
+        </BrowserRouter>
+      </QueryClientProvider>
+    );
+
+  const unreadChat = {
+    _id: "chat_unread",
+    chatName: "Direct Message",
+    isGroup: false,
+    participants: [{ _id: "user123", username: "testuser" }, { _id: "u9", username: "priya" }],
+    lastMessage: {
+      _id: "lm",
+      sender: { _id: "u9", username: "priya" },
+      content: "are you coming?",
+      readBy: ["u9"],
+      createdAt: new Date().toISOString(),
+    },
+    unreadCount: 7,
+    lastReadAt: new Date(Date.now() - 3600000).toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  it("shows the server's real unread count, not a flat 1", async () => {
+    apiClient.get.mockImplementation((url) =>
+      url === "/chat"
+        ? Promise.resolve({ data: { success: true, data: [unreadChat] } })
+        : Promise.resolve({ data: { success: true, data: { messages: [], hasMore: false } } })
+    );
+    renderPage();
+    const row = await screen.findByRole("button", { name: /priya, 7 unread/i });
+    expect(row).toHaveTextContent("7");
+  });
+
+  it("clears a badge when the chat is read on another device, and removes only its own socket listeners", async () => {
+    apiClient.get.mockImplementation((url) =>
+      url === "/chat"
+        ? Promise.resolve({ data: { success: true, data: [unreadChat] } })
+        : Promise.resolve({ data: { success: true, data: { messages: [], hasMore: false } } })
+    );
+    const { unmount } = renderPage();
+    await screen.findByRole("button", { name: /priya, 7 unread/i });
+
+    const chatRead = mockSocketOn.mock.calls.find(([event]) => event === "chat read")[1];
+    await waitFor(() => chatRead({ chatId: "chat_unread", userId: "user123" }));
+    await screen.findByRole("button", { name: /^priya$/i });
+
+    unmount();
+    // Every off() names the exact handler it registered
+    mockSocketOff.mock.calls.forEach((call) => expect(typeof call[1]).toBe("function"));
   });
 
   it("subscribes to incremental presence events (user_connected, user_disconnected) and unregisters on unmount", async () => {

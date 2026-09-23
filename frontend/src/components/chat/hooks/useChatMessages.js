@@ -1,13 +1,20 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../../../api/apiClient";
+import { upsertMessage } from "./upsertMessage";
+import { getCachedChat, setCachedChat } from "./chatMessageCache";
+
+export { upsertMessage };
 
 /**
  * Custom hook for managing the message lifecycle, caching, socket listeners, and message operations
  */
-export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage }) => {
+export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage, onPinnedMessagesChange }) => {
   const getInitialMessages = () => {
     if (!chat?._id) return [];
+    // In-memory first (instant, kept live by ChatPage), then localStorage.
+    const memory = getCachedChat(chat._id);
+    if (memory?.messages?.length) return memory.messages;
     try {
       if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
         const cached = window.localStorage.getItem(`linklet_cached_msgs_${chat._id}`);
@@ -22,17 +29,26 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
   const [messages, setMessages] = useState(getInitialMessages);
   const [loadingInitial, setLoadingInitial] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(() => Boolean(getCachedChat(chat?._id)?.hasMore));
+  const [nextCursor, setNextCursor] = useState(() => getCachedChat(chat?._id)?.nextCursor || null);
   const [typingUsers, setTypingUsers] = useState([]);
+  // Distinct from `loadingInitial`: that flips to false as soon as a
+  // localStorage cache hydrates `messages`, which happens before the real
+  // network fetch (and its authoritative `hasMore`/`nextCursor`) resolves.
+  // Callers that need to know "has hasMore settled to a real value yet" —
+  // e.g. deciding whether to give up looking for a message — must wait for
+  // this instead, or they'll act on a stale default `hasMore: false`.
+  const [initialFetchDone, setInitialFetchDone] = useState(false);
 
   // Immediately synchronize messages if chat changes while component remains mounted
   const prevChatIdRef = useRef(chat?._id);
   const onUpdateLastMessageRef = useRef(onUpdateLastMessage);
 
+  const onPinnedChangeRef = useRef(onPinnedMessagesChange);
   useEffect(() => {
     onUpdateLastMessageRef.current = onUpdateLastMessage;
-  }, [onUpdateLastMessage]);
+    onPinnedChangeRef.current = onPinnedMessagesChange;
+  }, [onUpdateLastMessage, onPinnedMessagesChange]);
   if (prevChatIdRef.current !== chat?._id) {
     prevChatIdRef.current = chat?._id;
     setMessages(getInitialMessages());
@@ -41,14 +57,31 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
 
   const typingTimeoutRef = useRef(null);
   const lastTypingEmitRef = useRef(0);
+  // Per-username expiry for the incoming "typing…" indicator. If the other
+  // person closes their tab mid-sentence no "stop typing" ever arrives, so
+  // each name drops off on its own a few seconds after its last signal.
+  const typingExpiryRef = useRef({});
+  // Read receipts: an incoming message is only "read" if this tab is actually
+  // visible. Receipts are throttled — a busy group chat shouldn't fire a DB
+  // write per message.
+  const readReceiptTimerRef = useRef(null);
+  const pendingReadRef = useRef(false);
   const cacheKey = `linklet_cached_msgs_${chat?._id}`;
 
-  // Sync latest messages to localStorage cache
+  // Keep the in-memory cache current (cheap) and mirror the newest
+  // messages to localStorage for the next page load.
+  useEffect(() => {
+    if (!chat?._id || messages.length === 0) return;
+    setCachedChat(chat._id, { messages, hasMore, nextCursor });
+  }, [messages, hasMore, nextCursor, chat?._id]);
+
   useEffect(() => {
     if (!chat?._id || messages.length === 0) return;
     try {
       if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.setItem === "function") {
-        const recent = messages.slice(-30);
+        // Unsent optimistic bubbles carry File objects and blob: URLs that
+        // don't survive a reload — only cache real, server-confirmed messages.
+        const recent = messages.filter((m) => !String(m._id).startsWith("opt_")).slice(-30);
         window.localStorage.setItem(cacheKey, JSON.stringify(recent));
       }
     } catch {
@@ -60,51 +93,116 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
   useEffect(() => {
     if (!chat?._id) return;
 
-    // Fast-hydrate from localStorage cache
-    try {
-      if (typeof window !== "undefined" && window.localStorage && typeof window.localStorage.getItem === "function") {
-        const cached = window.localStorage.getItem(cacheKey);
-        if (cached) {
-          setMessages(JSON.parse(cached));
-          setLoadingInitial(false);
-        } else {
-          setLoadingInitial(true);
-        }
-      } else {
-        setLoadingInitial(true);
-      }
-    } catch {
-      setLoadingInitial(true);
-    }
+    setInitialFetchDone(false);
 
+    // Anything already rendered from a cache (initial state) stays on screen;
+    // only show the skeleton when there's nothing at all to show.
+    setLoadingInitial(getInitialMessages().length === 0);
+
+    let cancelled = false;
     const fetchMessages = async () => {
       try {
         const res = await apiClient.get(`/chat/message/${chat._id}`, {
           params: { limit: 25 },
         });
-        if (res.data.success) {
-          setMessages(res.data.data.messages);
-          setHasMore(res.data.data.hasMore);
-          setNextCursor(res.data.data.nextCursor);
+        if (!cancelled && res.data.success) {
+          const { messages: fresh, hasMore: more, nextCursor: cursor } = res.data.data;
+          // Keep any optimistic (still-sending) bubbles the user added while
+          // this request was in flight.
+          setMessages((prev) => {
+            const pending = prev.filter((m) => String(m._id).startsWith("opt_"));
+            return pending.reduce((acc, m) => upsertMessage(acc, m), fresh);
+          });
+          setHasMore(more);
+          setNextCursor(cursor);
+          setCachedChat(chat._id, { messages: fresh, hasMore: more, nextCursor: cursor, fetchedAt: Date.now() });
         }
       } catch {
-        toast.error("Failed to load messages");
+        if (!cancelled) toast.error("Failed to load messages");
       } finally {
-        setLoadingInitial(false);
+        if (!cancelled) {
+          setLoadingInitial(false);
+          setInitialFetchDone(true);
+        }
       }
+      // Mark read only AFTER the messages are loaded: fired in parallel, the
+      // read could land first and the fetch would come back already-read.
+      if (!cancelled) markChatRead();
     };
 
     fetchMessages();
+    return () => {
+      cancelled = true;
+    };
+    // markChatRead is stable (refs only); chat id drives this effect
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chat?._id, cacheKey]);
 
-    // Mark as read on server & emit real-time read receipt
-    Promise.resolve(apiClient.put?.(`/chat/message/read/${chat._id}`)).catch(() => {});
-    if (socket) {
-      socket.emit("read receipt", {
-        chatId: chat._id,
-        userId: currentUser?._id,
-      });
+  // Persist "read up to now" (server updates readBy + the read cursor and
+  // broadcasts the receipt), and reflect it locally. Deferred while the tab is
+  // hidden — messages that arrive in a background tab stay unread until the
+  // user actually comes back to them.
+  const socketRef = useRef(socket);
+  const currentUserIdRef = useRef(currentUser?._id);
+  const chatIdRef = useRef(chat?._id);
+  useEffect(() => {
+    socketRef.current = socket;
+    currentUserIdRef.current = currentUser?._id;
+    chatIdRef.current = chat?._id;
+  });
+
+  const markChatRead = useCallback(() => {
+    const chatId = chatIdRef.current;
+    const me = currentUserIdRef.current?.toString();
+    if (!chatId) return;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      pendingReadRef.current = true;
+      return;
     }
-  }, [chat?._id, cacheKey, currentUser?._id, socket]);
+    pendingReadRef.current = false;
+
+    setMessages((prev) => {
+      let changed = false;
+      const next = prev.map((m) => {
+        const senderId = (m.sender?._id || m.sender)?.toString();
+        if (!me || senderId === me) return m;
+        if (m.readBy?.some((u) => (u?._id || u)?.toString() === me)) return m;
+        changed = true;
+        return { ...m, readBy: [...(m.readBy || []), me] };
+      });
+      return changed ? next : prev;
+    });
+
+    const sock = socketRef.current;
+    if (sock?.connected) {
+      sock.emit("read receipt", { chatId });
+    } else {
+      Promise.resolve(apiClient.put?.(`/chat/message/read/${chatId}`)).catch(() => {});
+    }
+  }, []);
+
+  const scheduleReadReceipt = useCallback(() => {
+    if (readReceiptTimerRef.current) return;
+    readReceiptTimerRef.current = setTimeout(() => {
+      readReceiptTimerRef.current = null;
+      markChatRead();
+    }, 1000);
+  }, [markChatRead]);
+
+  useEffect(() => {
+    const typingExpiries = typingExpiryRef.current;
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && pendingReadRef.current) markChatRead();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      if (readReceiptTimerRef.current) clearTimeout(readReceiptTimerRef.current);
+      Object.values(typingExpiries).forEach(clearTimeout);
+    };
+  }, [markChatRead]);
 
   // Real-time socket listeners for messages, reactions, pins, and delivery status
   useEffect(() => {
@@ -115,16 +213,10 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     const handleMessageReceived = (newMessage) => {
       const msgChatId = (newMessage.chat?._id || newMessage.chat)?.toString();
       if (msgChatId === chat._id?.toString()) {
-        setMessages((prev) => {
-          if (prev.some((m) => m._id === newMessage._id)) return prev;
-          return [...prev, newMessage];
-        });
+        setMessages((prev) => upsertMessage(prev, newMessage));
 
-        // Broadcast real-time read receipt via socket
-        socket.emit("read receipt", {
-          chatId: chat._id,
-          userId: currentUser?._id,
-        });
+        const senderId = (newMessage.sender?._id || newMessage.sender)?.toString();
+        if (senderId !== currentUser?._id?.toString()) scheduleReadReceipt();
 
         if (onUpdateLastMessageRef.current) {
           onUpdateLastMessageRef.current(chat._id, newMessage);
@@ -178,17 +270,28 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       }
     };
 
+    const clearTypingUser = (username) => {
+      clearTimeout(typingExpiryRef.current[username]);
+      delete typingExpiryRef.current[username];
+      setTypingUsers((prev) => prev.filter((u) => u !== username));
+    };
+
     const handleTyping = (room) => {
-      if (room?.chatId === chat._id && room?.userId !== currentUser?._id) {
+      if (room?.chatId === chat._id && room?.userId !== currentUser?._id && room?.username) {
         setTypingUsers((prev) =>
           prev.includes(room.username) ? prev : [...prev, room.username]
+        );
+        clearTimeout(typingExpiryRef.current[room.username]);
+        typingExpiryRef.current[room.username] = setTimeout(
+          () => clearTypingUser(room.username),
+          5000
         );
       }
     };
 
     const handleStopTyping = (room) => {
-      if (room?.chatId === chat._id) {
-        setTypingUsers((prev) => prev.filter((u) => u !== room.username));
+      if (room?.chatId === chat._id && room?.username) {
+        clearTypingUser(room.username);
       }
     };
 
@@ -207,7 +310,15 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       }
     };
 
+    const handlePinChange = ({ chatId, pinnedMessages }) => {
+      if (chatId?.toString() === chat._id?.toString() && Array.isArray(pinnedMessages)) {
+        onPinnedChangeRef.current?.(pinnedMessages);
+      }
+    };
+
     socket.on("message received", handleMessageReceived);
+    socket.on("message pinned", handlePinChange);
+    socket.on("message unpinned", handlePinChange);
     socket.on("message delivered", handleMessageDelivered);
     socket.on("message deleted", handleMessageDeleted);
     socket.on("messages_bulk_deleted", handleMessagesBulkDeleted);
@@ -220,6 +331,8 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     return () => {
       socket.emit("leave chat", chat._id);
       socket.off("message received", handleMessageReceived);
+      socket.off("message pinned", handlePinChange);
+      socket.off("message unpinned", handlePinChange);
       socket.off("message delivered", handleMessageDelivered);
       socket.off("message deleted", handleMessageDeleted);
       socket.off("messages_bulk_deleted", handleMessagesBulkDeleted);
@@ -229,14 +342,15 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       socket.off("typing", handleTyping);
       socket.off("stop typing", handleStopTyping);
     };
-  }, [socket, chat?._id, currentUser?._id]);
+  }, [socket, chat?._id, currentUser?._id, scheduleReadReceipt]);
 
   // Load older messages via cursor pagination
-  const loadOlderMessages = useCallback(async (container) => {
+  // Scroll position across the prepend is kept by ChatWindow's own scroll
+  // anchoring (it pins the message you were looking at), so this only loads.
+  const loadOlderMessages = useCallback(async () => {
     if (!chat?._id || !hasMore || !nextCursor || loadingOlder) return;
 
     setLoadingOlder(true);
-    const previousScrollHeight = container ? container.scrollHeight : 0;
 
     try {
       const res = await apiClient.get(`/chat/message/${chat._id}`, {
@@ -245,17 +359,12 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
 
       if (res.data.success) {
         const { messages: olderMessages, hasMore: more, nextCursor: cursor } = res.data.data;
-        setMessages((prev) => [...olderMessages, ...prev]);
+        setMessages((prev) => {
+          const have = new Set(prev.map((m) => String(m._id)));
+          return [...olderMessages.filter((m) => !have.has(String(m._id))), ...prev];
+        });
         setHasMore(more);
         setNextCursor(cursor);
-
-        // Preserve user scroll position after prepending older messages
-        requestAnimationFrame(() => {
-          if (container) {
-            const newScrollHeight = container.scrollHeight;
-            container.scrollTop += newScrollHeight - previousScrollHeight;
-          }
-        });
       }
     } catch {
       toast.error("Failed to load older messages");
@@ -386,7 +495,7 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
         toast.error("Failed to add reaction");
       }
     },
-    [chat?._id, currentUser, socket]
+    [chat?._id, currentUser]
   );
 
   // Pin & unpin message
@@ -399,16 +508,14 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
       });
 
       if (res.data.success) {
-        const updatedChat = res.data.data;
-        toast.success(isAlreadyPinned ? "Message unpinned" : "Message pinned");
-        // Server broadcasts "message pinned"/"message unpinned" to the chat room.
-        return updatedChat;
+        // Server also broadcasts "message pinned"/"message unpinned" to the room.
+        return res.data.data;
       }
-    } catch {
-      toast.error("Failed to update pinned status");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Couldn't update the pin");
     }
     return null;
-  }, [chat?._id, socket]);
+  }, [chat?._id]);
 
   // Delete message
   const deleteMessage = useCallback(async (messageId) => {
@@ -425,9 +532,11 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     } catch {
       toast.error("Failed to delete message");
     }
-  }, [chat?._id, socket]);
+  }, [chat?._id]);
 
-  // Bulk delete messages
+  // Bulk delete: your own messages are deleted for everyone, anyone else's
+  // are hidden for you — the server says which is which, and only those leave
+  // the screen, so nothing reappears on reload.
   const bulkDeleteMessages = useCallback(async (messageIds) => {
     try {
       const res = await apiClient.delete("/chat/message/bulk-delete", {
@@ -437,19 +546,40 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
         },
       });
       if (res.data.success) {
-        setMessages((prev) => prev.filter((m) => !messageIds.includes(m._id)));
+        const { deletedIds = [], hiddenIds = [] } = res.data.data || {};
+        const removed = new Set([...deletedIds, ...hiddenIds].map(String));
+        setMessages((prev) => prev.filter((m) => !removed.has(m._id?.toString())));
         // Server broadcasts "messages_bulk_deleted" to the chat room.
-        toast.success(`${messageIds.length} messages deleted`);
+        toast.success(`${removed.size} message${removed.size === 1 ? "" : "s"} deleted`);
       }
     } catch {
       toast.error("Failed to delete messages");
     }
-  }, [chat?._id, socket]);
+  }, [chat?._id]);
+
+  // "Delete for me" on someone else's message: persisted, so it stays gone.
+  const hideMessageForMe = useCallback(async (messageId) => {
+    let removed = null;
+    setMessages((prev) => {
+      removed = prev.find((m) => m._id === messageId) || null;
+      return prev.filter((m) => m._id !== messageId);
+    });
+    try {
+      await apiClient.post("/chat/message/hide", { chatId: chat?._id, messageIds: [messageId] });
+      toast.success("Message deleted for you");
+    } catch {
+      if (removed) setMessages((prev) => upsertMessage(prev, removed).sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      ));
+      toast.error("Failed to delete message");
+    }
+  }, [chat?._id]);
 
   return {
     messages,
     setMessages,
     loadingInitial,
+    initialFetchDone,
     loadingOlder,
     hasMore,
     typingUsers,
@@ -460,5 +590,6 @@ export const useChatMessages = ({ chat, currentUser, socket, onUpdateLastMessage
     togglePin,
     deleteMessage,
     bulkDeleteMessages,
+    hideMessageForMe,
   };
 };

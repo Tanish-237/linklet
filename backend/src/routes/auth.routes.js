@@ -1,5 +1,6 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
+import { createRateLimitStore } from "../utils/rateLimitStore.js";
 import * as authController from "../controllers/auth.controller.js";
 import { isLoggedIn, optionalAuth } from "../middlewares/auth.middleware.js";
 
@@ -11,6 +12,7 @@ const router = express.Router();
 const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 8,
+  store: createRateLimitStore("otp"),
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many attempts. Please try again in a few minutes." },
@@ -19,6 +21,7 @@ const otpLimiter = rateLimit({
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
+  store: createRateLimitStore("login"),
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: "Too many login attempts. Please try again in a few minutes." },

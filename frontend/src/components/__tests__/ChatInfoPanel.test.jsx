@@ -1,9 +1,11 @@
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi } from "vitest";
 import ChatInfoPanel from "../ChatInfoPanel";
 import { apiClient } from "../../api/apiClient";
+import { calculateAcademicYear } from "../../utlis/academicYear";
 
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
@@ -41,65 +43,93 @@ describe("ChatInfoPanel Component", () => {
 
   const currentUser = { _id: "user1", username: "tanish-mittal" };
 
-  it("renders 1:1 contact details with full name, handle, bio, phone, and abbreviated branch", () => {
-    console.log("TRACE [ChatInfoPanel.test.jsx]: Testing 1:1 contact details render");
+  it("loads the contact's full profile: real year, full branch, class, contact links — no encryption claim", async () => {
+    apiClient.get.mockImplementation((url) =>
+      url === "/profile/shankkyvibe"
+        ? Promise.resolve({
+            data: {
+              success: true,
+              data: {
+                username: "shankkyvibe",
+                fullName: "Shashank Kanaujiya",
+                email: "shashank.20223111@mnnit.ac.in",
+                bio: "Full Stack Dev",
+                phoneNumber: "+91 9876543210",
+                department: "Computer Science and Engineering",
+                semester: 7,
+                section: "B",
+                userType: "Student",
+                skills: ["React", "Node"],
+              },
+            },
+          })
+        : Promise.resolve({ data: { success: true, data: {} } })
+    );
+
     render(
-      <BrowserRouter>
-        <ChatInfoPanel
-          chat={mockChat}
-          currentUser={currentUser}
-          onClose={vi.fn()}
-          onUpdateChat={vi.fn()}
-        />
-      </BrowserRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><BrowserRouter>
+        <ChatInfoPanel chat={mockChat} currentUser={currentUser} onClose={vi.fn()} onUpdateChat={vi.fn()} />
+      </BrowserRouter></QueryClientProvider>
     );
 
     expect(screen.getByText("Shashank Kanaujiya")).toBeInTheDocument();
     expect(screen.getByText("@shankkyvibe")).toBeInTheDocument();
-    expect(screen.getByText("Full Stack Dev")).toBeInTheDocument();
-    expect(screen.getByText("+91 9876543210")).toBeInTheDocument();
-    expect(screen.getByText("CSE")).toBeInTheDocument();
+    expect(await screen.findByText("Full Stack Dev")).toBeInTheDocument();
+    // Year derived from the institute email when not stored (was always "N/A")
+    const expectedYear = {
+      First: "1st year", Second: "2nd year", Third: "3rd year", Final: "Final year", Alumni: "Alumni",
+    }[calculateAcademicYear("shashank.20223111@mnnit.ac.in")];
+    expect(screen.getByText(expectedYear, { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByText("Computer Science and Engineering")).toBeInTheDocument();
+    expect(screen.getByText("Semester 7 · Section B")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "+91 9876543210" })).toHaveAttribute("href", "tel:+919876543210");
+    expect(screen.getByRole("link", { name: "shashank.20223111@mnnit.ac.in" })).toHaveAttribute(
+      "href",
+      "mailto:shashank.20223111@mnnit.ac.in"
+    );
+    expect(screen.getByText("React")).toBeInTheDocument();
+    expect(screen.queryByText(/encryption/i)).toBeNull();
+    expect(screen.queryByText("CSE")).toBeNull();
   });
 
-  it("switches to Media tab and fetches chat media gallery", async () => {
-    console.log("TRACE [ChatInfoPanel.test.jsx]: Testing Media tab and gallery rendering");
-    apiClient.get.mockResolvedValue({
-      data: {
-        success: true,
-        data: {
-          messages: [
-            {
-              _id: "m_img1",
-              media: "https://example.com/test-photo.jpg",
-              mediaType: "image",
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      },
+  it("Media & files loads attachments page by page, with Docs and Voice tabs", async () => {
+    apiClient.get.mockImplementation((url, config) => {
+      if (url === "/chat/message/media/chat123") {
+        const kind = config?.params?.kind;
+        const items =
+          kind === "docs"
+            ? [{ _id: "d1", media: "https://res.cloudinary.com/x/raw/upload/v1/notes.pdf", mediaType: "document", fileName: "OS Notes.pdf", createdAt: new Date().toISOString(), sender: { username: "shankkyvibe" } }]
+            : kind === "audio"
+            ? []
+            : [{ _id: "m_img1", media: "https://example.com/test-photo.jpg", mediaType: "image", createdAt: new Date().toISOString(), sender: { username: "shankkyvibe" } }];
+        return Promise.resolve({ data: { success: true, data: { items, hasMore: false, nextCursor: null } } });
+      }
+      return Promise.resolve({ data: { success: true, data: {} } });
     });
+    const onJumpToMessage = vi.fn();
 
     render(
-      <BrowserRouter>
-        <ChatInfoPanel
-          chat={mockChat}
-          currentUser={currentUser}
-          onClose={vi.fn()}
-          onUpdateChat={vi.fn()}
-        />
-      </BrowserRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><BrowserRouter>
+        <ChatInfoPanel chat={mockChat} currentUser={currentUser} onClose={vi.fn()} onUpdateChat={vi.fn()} onJumpToMessage={onJumpToMessage} />
+      </BrowserRouter></QueryClientProvider>
     );
 
-    const mediaTabBtn = screen.getByText("Media");
-    fireEvent.click(mediaTabBtn);
+    fireEvent.click(screen.getByText("Media & files"));
+    const tile = await screen.findByRole("button", { name: /Photo from shankkyvibe/i });
+    expect(apiClient.get).toHaveBeenCalledWith("/chat/message/media/chat123", { params: { kind: "media" } });
+    // Only attachments are requested — not the chat's whole message history
+    expect(apiClient.get).not.toHaveBeenCalledWith(expect.stringContaining("limit=200"));
 
-    await waitFor(() => {
-      expect(apiClient.get).toHaveBeenCalledWith(
-        expect.stringContaining("/chat/message/chat123")
-      );
-      expect(screen.getByAltText("media")).toBeInTheDocument();
-    });
-    console.log("TRACE [ChatInfoPanel.test.jsx]: Confirmed media tab gallery fetched and rendered");
+    fireEvent.click(tile);
+    fireEvent.click(await screen.findByTitle("Show in chat"));
+    expect(onJumpToMessage).toHaveBeenCalledWith("m_img1");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Docs" }));
+    expect(await screen.findByText("OS Notes.pdf")).toBeInTheDocument();
+    expect(screen.getByText("PDF")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Voice" }));
+    expect(await screen.findByText("No voice messages yet")).toBeInTheDocument();
   });
 
   it("renders group details with admin badge and prevents saving identical name", async () => {
@@ -119,14 +149,14 @@ describe("ChatInfoPanel Component", () => {
     const onUpdateChat = vi.fn();
 
     render(
-      <BrowserRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><BrowserRouter>
         <ChatInfoPanel
           chat={groupChat}
           currentUser={currentUser}
           onClose={vi.fn()}
           onUpdateChat={onUpdateChat}
         />
-      </BrowserRouter>
+      </BrowserRouter></QueryClientProvider>
     );
 
     // Verify group name and participant count rendered
@@ -191,14 +221,14 @@ describe("ChatInfoPanel Component", () => {
     const onUpdateChat = vi.fn();
 
     render(
-      <BrowserRouter>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><BrowserRouter>
         <ChatInfoPanel
           chat={groupChat}
           currentUser={currentUser}
           onClose={vi.fn()}
           onUpdateChat={onUpdateChat}
         />
-      </BrowserRouter>
+      </BrowserRouter></QueryClientProvider>
     );
 
     // Open member options menu for user2

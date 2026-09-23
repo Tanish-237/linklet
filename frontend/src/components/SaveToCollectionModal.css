@@ -24,11 +24,11 @@
 }
 
 .scm-modal {
-  background: #1a1a2e;
+  background: rgb(var(--surface));
   border-radius: 16px;
   width: 100%;
   max-width: 400px;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid rgb(var(--accent) / 0.2);
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
@@ -41,13 +41,13 @@
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgb(var(--fg) / 0.05);
 }
 
 .scm-header h2 {
   font-size: 16px;
   font-weight: 600;
-  color: #fff;
+  color: rgb(var(--fg));
   margin: 0;
 }
 
@@ -69,13 +69,13 @@
   align-items: center;
   padding: 8px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.02);
+  background: rgb(var(--fg) / 0.02);
   transition: background 0.2s;
   cursor: pointer;
 }
 
 .scm-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgb(var(--fg) / 0.05);
 }
 
 .scm-item-left {
@@ -94,19 +94,19 @@
 }
 
 .scm-cover .material-icons {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgb(var(--fg) / 0.8);
   font-size: 20px;
 }
 
 .scm-name {
-  color: #f1f1f1;
+  color: rgb(var(--fg));
   font-size: 14px;
   font-weight: 500;
 }
 
 .scm-btn {
-  background: rgba(139, 92, 246, 0.2);
-  color: #c4b5fd;
+  background: rgb(var(--accent) / 0.2);
+  color: rgb(var(--accent-fg));
   border: none;
   padding: 6px 12px;
   border-radius: 20px;
@@ -117,24 +117,24 @@
 }
 
 .scm-btn:hover {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgb(var(--accent) / 0.3);
 }
 
 .scm-btn.saved {
-  background: #8b5cf6;
-  color: #fff;
+  background: rgb(var(--accent));
+  color: rgb(var(--on-accent));
 }
 
 .scm-empty {
   text-align: center;
-  color: #6b7280;
+  color: rgb(var(--fg-muted));
   font-size: 14px;
   padding: 20px 0;
 }
 
 .scm-footer {
   padding: 16px 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgb(var(--fg) / 0.05);
   background: rgba(0, 0, 0, 0.2);
 }
 
@@ -145,22 +145,22 @@
 
 .scm-create-form input {
   flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgb(var(--fg) / 0.05);
+  border: 1px solid rgb(var(--fg) / 0.1);
   padding: 10px 12px;
   border-radius: 8px;
-  color: #fff;
+  color: rgb(var(--fg));
   font-size: 14px;
   outline: none;
 }
 
 .scm-create-form input:focus {
-  border-color: rgba(139, 92, 246, 0.5);
+  border-color: rgb(var(--accent) / 0.5);
 }
 
 .scm-create-btn {
-  background: #8b5cf6;
-  color: #fff;
+  background: rgb(var(--accent));
+  color: rgb(var(--on-accent));
   border: none;
   padding: 0 16px;
   border-radius: 8px;
@@ -170,7 +170,7 @@
 }
 
 .scm-create-btn:hover:not(:disabled) {
-  background: #7c3aed;
+  background: rgb(var(--accent));
 }
 
 .scm-create-btn:disabled {

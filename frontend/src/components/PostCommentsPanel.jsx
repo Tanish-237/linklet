@@ -1,13 +1,21 @@
 import React, { useRef, useState, useEffect, lazy, Suspense } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import defaultAvatar from "../assets/default-avatar.webp";
 import usePostComments from "../hooks/usePostComments";
+import useThemeStore from "../theme/useThemeStore";
 import { formatTime } from "../utlis/formatTime";
 import { optimizeAvatar } from "../utlis/cloudinary";
 import "../pages/Posts.css";
 
 // The emoji picker is ~360 KB; it's only fetched the first time someone opens it.
 const EmojiPicker = lazy(() => import("emoji-picker-react"));
+
+// Replies nest to arbitrary depth (any reply can itself be replied to). Each
+// level adds its own margin-left/padding-left (see .feed-detail__reply-thread
+// in Posts.css) — with no cap, a long thread pushes content further right
+// every level, eating most of a phone's width by 4-5 levels deep. Beyond this
+// depth, replies still nest logically but stop indenting further.
+const MAX_INDENT_DEPTH = 4;
 
 const idOf = (value) => (value?._id || value)?.toString();
 
@@ -42,6 +50,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
 
   const currentUserId = (user?._id || user?.id)?.toString();
   const isAdmin = user?.role === "admin";
+  const theme = useThemeStore((s) => s.theme);
 
   useEffect(() => {
     const handleClick = (e) => {
@@ -82,11 +91,13 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
     }
   };
 
-  const handleReplySubmit = async (commentId, replyToUser) => {
+  // `parentId` is whichever node — a top-level comment or a reply at any
+  // depth — the user hit "Reply" on; the new reply nests directly under it.
+  const handleReplySubmit = async (parentId, replyToUser) => {
     const text = replyTextMap[replyingToKey];
     if (!text || !text.trim() || !user) return;
     try {
-      await thread.addReply(commentId, text.trim(), replyToUser);
+      await thread.addReply(parentId, text.trim(), replyToUser);
       setReplyTextMap((prev) => ({ ...prev, [replyingToKey]: "" }));
       setReplyingToKey(null);
       toast.success("Reply added");
@@ -153,113 +164,88 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
         title={isAdmin && authorId !== currentUserId ? "Delete Comment (Admin Moderation)" : "Delete Comment"}
         aria-label={`Delete comment by ${authorName}`}
       >
-        <span className="material-icons" style={{ fontSize: "0.85rem", color: "#f87171" }}>delete_outline</span>
+        <span className="material-icons" style={{ fontSize: "0.85rem", color: "rgb(var(--danger-fg))" }}>delete_outline</span>
         Delete
       </button>
     );
   };
 
-  const renderReply = (comment, reply) => {
-    const replyUser = reply.userId || {};
-    const replyAuthorName = replyUser.username || "User";
-    const replyKey = `${comment._id}-${reply._id}`;
+  // A single recursive node renderer covers a top-level comment and a reply
+  // at any depth — the only difference between them is styling (depth 0 gets
+  // the plain card + a Like button; deeper nodes get the "--reply" card
+  // variant) and how far right the thread indents.
+  const renderCommentNode = (node, depth = 0) => {
+    const nodeUser = node.userId || {};
+    const authorName = nodeUser.username || "User";
+    const upvotes = node.upvotes || [];
+    const isLiked = upvotes.some((id) => idOf(id) === currentUserId);
+    const replies = node.replies || [];
+    const hiddenReplies = Math.max(0, (node.repliesCount || 0) - replies.length);
+    const threadClass =
+      depth + 1 > MAX_INDENT_DEPTH ? "feed-detail__reply-thread feed-detail__reply-thread--flat" : "feed-detail__reply-thread";
 
     return (
-      <div key={reply._id} className="feed-detail__reply-node">
-        <div className="feed-detail__comment-card feed-detail__comment-card--reply">
+      <div
+        key={node._id}
+        className={depth === 0 ? "feed-detail__comment-node" : "feed-detail__reply-node"}
+      >
+        <div className={`feed-detail__comment-card ${depth > 0 ? "feed-detail__comment-card--reply" : ""}`}>
           <div className="feed-detail__comment-header">
-            <Avatar src={replyUser.avatar} className="feed-detail__comment-avatar" />
+            <Avatar src={nodeUser.avatar} className="feed-detail__comment-avatar" />
             <span
               className="feed-detail__comment-author"
-              onClick={() => onNavigateToProfile?.(replyAuthorName)}
+              onClick={() => onNavigateToProfile?.(authorName)}
             >
-              {replyAuthorName}
+              {authorName}
             </span>
-            <span className="feed-detail__comment-time">· {formatTime(reply.createdAt)}</span>
+            <span className="feed-detail__comment-time">· {formatTime(node.createdAt)}</span>
           </div>
           <p className="feed-detail__comment-body">
-            {reply.replyToUsername && <span className="feed-detail__mention">@{reply.replyToUsername} </span>}
-            {reply.text}
+            {depth > 0 && node.replyToUsername && (
+              <span className="feed-detail__mention">@{node.replyToUsername} </span>
+            )}
+            {node.text}
           </p>
           <div className="feed-detail__comment-footer">
-            <button
-              onClick={() => setReplyingToKey(replyingToKey === replyKey ? null : replyKey)}
-              className="feed-detail__comment-action"
-            >
-              <span className="material-icons" style={{ fontSize: "0.85rem" }}>reply</span>
-              Reply
-            </button>
-            {renderDeleteButton(reply, replyAuthorName)}
-          </div>
-          {replyingToKey === replyKey &&
-            renderReplyBox(replyKey, `Replying to @${replyAuthorName}...`, () =>
-              handleReplySubmit(comment._id, replyAuthorName)
-            )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderComment = (comment) => {
-    const commentUser = comment.userId || {};
-    const commentAuthorName = commentUser.username || "User";
-    const commentUpvotes = comment.upvotes || [];
-    const isCommentLiked = commentUpvotes.some((id) => idOf(id) === currentUserId);
-    const replies = comment.replies || [];
-    const hiddenReplies = Math.max(0, (comment.repliesCount || 0) - replies.length);
-
-    return (
-      <div key={comment._id} className="feed-detail__comment-node">
-        <div className="feed-detail__comment-card">
-          <div className="feed-detail__comment-header">
-            <Avatar src={commentUser.avatar} className="feed-detail__comment-avatar" />
-            <span
-              className="feed-detail__comment-author"
-              onClick={() => onNavigateToProfile?.(commentAuthorName)}
-            >
-              {commentAuthorName}
-            </span>
-            <span className="feed-detail__comment-time">· {formatTime(comment.createdAt)}</span>
-          </div>
-          <p className="feed-detail__comment-body">{comment.text}</p>
-          <div className="feed-detail__comment-footer">
-            <button
-              onClick={() => handleLike(comment._id)}
-              className={`feed-detail__comment-action ${isCommentLiked ? "liked" : ""}`}
-            >
-              <span
-                className="material-icons"
-                style={{ fontSize: "0.85rem", color: isCommentLiked ? "#a78bfa" : "inherit" }}
+            {depth === 0 && (
+              <button
+                onClick={() => handleLike(node._id)}
+                className={`feed-detail__comment-action ${isLiked ? "liked" : ""}`}
               >
-                {isCommentLiked ? "thumb_up" : "thumb_up_off_alt"}
-              </span>
-              {commentUpvotes.length > 0 ? commentUpvotes.length : "Like"}
-            </button>
+                <span
+                  className="material-icons"
+                  style={{ fontSize: "0.85rem", color: isLiked ? "rgb(var(--accent-fg))" : "inherit" }}
+                >
+                  {isLiked ? "thumb_up" : "thumb_up_off_alt"}
+                </span>
+                {upvotes.length > 0 ? upvotes.length : "Like"}
+              </button>
+            )}
             <button
-              onClick={() => setReplyingToKey(replyingToKey === comment._id ? null : comment._id)}
+              onClick={() => setReplyingToKey(replyingToKey === node._id ? null : node._id)}
               className="feed-detail__comment-action"
             >
               <span className="material-icons" style={{ fontSize: "0.85rem" }}>reply</span>
               Reply
             </button>
-            {renderDeleteButton(comment, commentAuthorName)}
+            {renderDeleteButton(node, authorName)}
           </div>
 
-          {replyingToKey === comment._id &&
-            renderReplyBox(comment._id, `Replying to @${commentAuthorName}...`, () =>
-              handleReplySubmit(comment._id, commentAuthorName)
+          {replyingToKey === node._id &&
+            renderReplyBox(node._id, `Replying to @${authorName}...`, () =>
+              handleReplySubmit(node._id, authorName)
             )}
 
           {(replies.length > 0 || hiddenReplies > 0) && (
-            <div className="feed-detail__reply-thread">
-              {replies.map((reply) => renderReply(comment, reply))}
+            <div className={threadClass}>
+              {replies.map((reply) => renderCommentNode(reply, depth + 1))}
               {hiddenReplies > 0 && (
                 <button
                   className="feed-detail__load-more feed-detail__load-more--replies"
-                  onClick={() => handleLoadReplies(comment._id)}
-                  disabled={thread.loadingReplies[comment._id]}
+                  onClick={() => handleLoadReplies(node._id)}
+                  disabled={thread.loadingReplies[node._id]}
                 >
-                  {thread.loadingReplies[comment._id]
+                  {thread.loadingReplies[node._id]
                     ? "Loading replies..."
                     : `View ${hiddenReplies} more ${hiddenReplies === 1 ? "reply" : "replies"}`}
                 </button>
@@ -275,7 +261,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
     if (thread.loading) {
       return (
         <div className="feed-detail__no-comments">
-          <span className="material-icons feed-spin" style={{ fontSize: "1.6rem", color: "#a78bfa" }}>refresh</span>
+          <span className="material-icons feed-spin" style={{ fontSize: "1.6rem", color: "rgb(var(--accent-fg))" }}>refresh</span>
           <span>Loading comments...</span>
         </div>
       );
@@ -283,7 +269,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
     if (thread.error && thread.comments.length === 0) {
       return (
         <div className="feed-detail__no-comments">
-          <span className="material-icons" style={{ fontSize: "2.5rem", color: "#374151" }}>error_outline</span>
+          <span className="material-icons" style={{ fontSize: "2.5rem", color: "rgb(var(--fg-subtle))" }}>error_outline</span>
           <p>Couldn&apos;t load comments</p>
           <button className="feed-detail__load-more" onClick={thread.reload}>Try again</button>
         </div>
@@ -292,7 +278,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
     if (thread.comments.length === 0) {
       return (
         <div className="feed-detail__no-comments">
-          <span className="material-icons" style={{ fontSize: "2.5rem", color: "#374151" }}>chat_bubble_outline</span>
+          <span className="material-icons" style={{ fontSize: "2.5rem", color: "rgb(var(--fg-subtle))" }}>chat_bubble_outline</span>
           <p>No comments yet</p>
           <span>Be the first to share your thoughts!</span>
         </div>
@@ -300,7 +286,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
     }
     return (
       <>
-        {thread.comments.map(renderComment)}
+        {thread.comments.map((c) => renderCommentNode(c, 0))}
         {thread.hasMore && (
           <button className="feed-detail__load-more" onClick={thread.loadMore} disabled={thread.loadingMore}>
             {thread.loadingMore ? "Loading..." : "Load more comments"}
@@ -313,7 +299,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
   return (
     <div className="feed-detail__right">
       <div className="feed-detail__comments-header">
-        <span className="material-icons" style={{ color: "#a78bfa", fontSize: "1.2rem" }}>forum</span>
+        <span className="material-icons" style={{ color: "rgb(var(--accent-fg))", fontSize: "1.2rem" }}>forum</span>
         <h3>Comments</h3>
         <span className="feed-detail__comments-count">{commentsCount}</span>
       </div>
@@ -339,7 +325,7 @@ const PostCommentsPanel = ({ postId, commentsCount = 0, onCountChange, user, onN
                 <Suspense fallback={null}>
                   <EmojiPicker
                     onEmojiClick={handleEmojiClick}
-                    theme="dark"
+                    theme={theme}
                     skinTonesDisabled
                     searchDisabled={false}
                     height={380}

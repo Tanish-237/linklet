@@ -196,7 +196,7 @@ export const getCategoryStats = async (branchId) => {
 
   const stats = {
     total: 0,
-    categories: { all: 0, notes: 0, assignments: 0, papers: 0, presentations: 0, other: 0 },
+    categories: { all: 0, notes: 0, assignments: 0, papers: 0, books: 0, lectures: 0, other: 0 },
   };
 
   statsAggregate.forEach((stat) => {

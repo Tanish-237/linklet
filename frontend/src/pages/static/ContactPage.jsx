@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../../api/apiClient.js";
 import SEO from "../../components/SEO";
 
@@ -62,7 +62,7 @@ const ContactPage = () => {
   };
 
   return (
-    <div className="contact-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+    <div className="contact-page min-h-screen bg-canvas text-fg no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
       <SEO title="Contact Linklet | Support & Feedback" ogTitle="Contact Linklet" description={CONTACT_DESCRIPTION} path="/contact" />
       <div className="max-w-5xl mx-auto">
         {/* Header Hero Section */}
@@ -71,7 +71,7 @@ const ContactPage = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
             Campus Support & Feedback
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-fg mb-4">
             How can we help you today?
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl leading-relaxed">
@@ -83,7 +83,7 @@ const ContactPage = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
           <div className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
             <div className="text-xs font-mono text-violet-400 mb-2">01 / TECHNICAL</div>
-            <h3 className="text-base font-semibold text-white mb-1.5">App Support</h3>
+            <h3 className="text-base font-semibold text-fg mb-1.5">App Support</h3>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
               Issues with attendance calculation, login sessions, or lecture schedules.
             </p>
@@ -94,7 +94,7 @@ const ContactPage = () => {
 
           <div className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
             <div className="text-xs font-mono text-violet-400 mb-2">02 / ACADEMIC</div>
-            <h3 className="text-base font-semibold text-white mb-1.5">Study Resources</h3>
+            <h3 className="text-base font-semibold text-fg mb-1.5">Study Resources</h3>
             <p className="text-xs text-zinc-400 leading-relaxed mb-4">
               Share past year question papers (PYQs), lab records, or semester notes.
             </p>
@@ -110,7 +110,7 @@ const ContactPage = () => {
             className="p-6 rounded-xl bg-zinc-900/40 border border-zinc-800/80 hover:border-zinc-700 transition-colors block group"
           >
             <div className="text-xs font-mono text-violet-400 mb-2">03 / CAMPUS</div>
-            <h3 className="text-base font-semibold text-white mb-1.5 flex items-center justify-between">
+            <h3 className="text-base font-semibold text-fg mb-1.5 flex items-center justify-between">
               MNNIT Allahabad
               <span className="text-zinc-500 group-hover:text-zinc-300 transition-colors text-xs">↗</span>
             </h3>
@@ -127,20 +127,20 @@ const ContactPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Form Side */}
           <div className="lg:col-span-7 p-7 sm:p-8 rounded-2xl bg-zinc-900/40 border border-zinc-800/80">
-            <h2 className="text-xl font-semibold text-white mb-6">
+            <h2 className="text-xl font-semibold text-fg mb-6">
               Send us a Message
             </h2>
 
             {submitted ? (
               <div className="p-8 text-center bg-zinc-900 border border-zinc-800 rounded-xl my-4">
                 <span className="material-icons text-4xl text-violet-400 mb-3">check_circle</span>
-                <h3 className="text-lg font-semibold text-white mb-2">Thank you!</h3>
+                <h3 className="text-lg font-semibold text-fg mb-2">Thank you!</h3>
                 <p className="text-zinc-400 text-sm mb-6">
                   Your message has been received. Our support team will respond shortly.
                 </p>
                 <button
                   onClick={() => setSubmitted(false)}
-                  className="px-5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs transition-colors"
+                  className="px-5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-fg font-medium text-xs transition-colors"
                 >
                   Send Another Message
                 </button>
@@ -160,7 +160,7 @@ const ContactPage = () => {
                       value={formData.name}
                       onChange={handleChange}
                       required
-                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm transition-colors"
+                      className="w-full px-3.5 py-2.5 bg-surface-2 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-fg placeholder-fg-subtle text-sm transition-colors"
                     />
                   </div>
 
@@ -176,7 +176,7 @@ const ContactPage = () => {
                       value={formData.email}
                       onChange={handleChange}
                       required
-                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm transition-colors"
+                      className="w-full px-3.5 py-2.5 bg-surface-2 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-fg placeholder-fg-subtle text-sm transition-colors"
                     />
                   </div>
                 </div>
@@ -191,7 +191,7 @@ const ContactPage = () => {
                       name="category"
                       value={formData.category}
                       onChange={handleChange}
-                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white text-sm transition-colors"
+                      className="w-full px-3.5 py-2.5 bg-surface-2 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-fg text-sm transition-colors"
                     >
                       <option value="General Inquiry">General Inquiry</option>
                       <option value="Contribute to Linklet">Contribute to Linklet (Dev / Design)</option>
@@ -212,7 +212,7 @@ const ContactPage = () => {
                       placeholder="Brief topic..."
                       value={formData.subject}
                       onChange={handleChange}
-                      className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm transition-colors"
+                      className="w-full px-3.5 py-2.5 bg-surface-2 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-fg placeholder-fg-subtle text-sm transition-colors"
                     />
                   </div>
                 </div>
@@ -229,14 +229,14 @@ const ContactPage = () => {
                     onChange={handleChange}
                     required
                     rows={4}
-                    className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-white placeholder-zinc-600 text-sm resize-none transition-colors"
+                    className="w-full px-3.5 py-2.5 bg-surface-2 border border-zinc-800 rounded-lg focus:outline-none focus:border-zinc-600 text-fg placeholder-fg-subtle text-sm resize-none transition-colors"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="w-full py-2.5 px-5 rounded-lg bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="w-full py-2.5 px-5 rounded-lg bg-violet-600 hover:bg-violet-700 active:bg-violet-800 text-fg font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {submitting ? "Sending..." : "Send Message"}
                 </button>
@@ -247,7 +247,7 @@ const ContactPage = () => {
           {/* Guidelines & Info Sidebar */}
           <div className="lg:col-span-5 space-y-4">
             <div className="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/80">
-              <h3 className="text-sm font-semibold text-white mb-4">
+              <h3 className="text-sm font-semibold text-fg mb-4">
                 Campus Guidelines
               </h3>
               <div className="space-y-4 text-xs text-zinc-400 leading-relaxed">

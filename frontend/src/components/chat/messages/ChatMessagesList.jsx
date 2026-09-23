@@ -2,11 +2,17 @@ import React from "react";
 import MessageItem from "./MessageItem";
 import DateSeparator, { formatMessageDate } from "./DateSeparator";
 
+// Shared default so memoized rows don't see a brand-new object every render.
+const IDLE_AUDIO_STATE = Object.freeze({ isPlaying: false, currentTime: 0, duration: 0 });
+
 const ChatMessagesList = ({
   messages = [],
   currentUser,
   chat,
-  onlineUsers = [],
+  isRecipientOnline = false,
+  readTarget = 2,
+  unreadAnchorId = null,
+  unreadCount = 0,
   loadingInitial,
   loadingOlder,
   hasMore,
@@ -19,6 +25,8 @@ const ChatMessagesList = ({
   activeMenuMessageId,
   activeReactionMessageId,
   searchQuery,
+  activeMatchId = null,
+  pinnedIds = null,
   audioPlaybackState = {},
   onToggleSelect,
   onOpenReaction,
@@ -27,6 +35,8 @@ const ChatMessagesList = ({
   onToggleAudioPlay,
   onSeekAudio,
   onOpenLightbox,
+  onRetryFailed,
+  onDiscardFailed,
 }) => {
   // Filter messages to ensure they belong to this chat (guards against transient prop desync)
   const validMessages = messages.filter((m) => {
@@ -39,19 +49,14 @@ const ChatMessagesList = ({
     return true;
   });
 
-  const firstUnreadIndex = validMessages.findIndex((m) => {
-    const isSentByMe =
-      (m.sender?._id || m.sender)?.toString() ===
-      currentUser?._id?.toString();
-    if (isSentByMe) return false;
-    const isReadByMe = m.readBy?.some(
-      (u) => (u._id || u)?.toString() === currentUser?._id?.toString()
-    );
-    return !isReadByMe;
-  });
-
-  const unreadCount =
-    firstUnreadIndex !== -1 ? validMessages.length - firstUnreadIndex : 0;
+  // The "N unread messages" divider sits where the chat was unread when it
+  // was opened (ChatWindow snapshots that once). It's deliberately NOT derived
+  // from each message's readBy: that would move while the chat is open and
+  // label messages the user is watching arrive as "unread".
+  const firstUnreadIndex = unreadAnchorId
+    ? validMessages.findIndex((m) => m._id === unreadAnchorId)
+    : -1;
+  const unreadLabel = unreadCount >= 100 ? "99+" : String(unreadCount);
 
   return (
     <div
@@ -104,9 +109,9 @@ const ChatMessagesList = ({
               : null;
           const showDateSeparator = currentDate && currentDate !== prevDate;
 
-          const isPinned = chat?.pinnedMessages?.some(
-            (p) => (p._id || p).toString() === msg._id?.toString()
-          );
+          const isPinned = pinnedIds
+            ? pinnedIds.has(String(msg._id))
+            : Boolean(chat?.pinnedMessages?.some((p) => (p._id || p).toString() === msg._id?.toString()));
 
           const showUnreadSeparator =
             index === firstUnreadIndex && unreadCount > 0;
@@ -121,11 +126,7 @@ const ChatMessagesList = ({
           );
           const isStarred = starredMessageIds.includes(msg._id);
 
-          const audioState = audioPlaybackState[msg._id] || {
-            isPlaying: false,
-            currentTime: 0,
-            duration: 0,
-          };
+          const audioState = audioPlaybackState[msg._id] || IDLE_AUDIO_STATE;
 
           return (
             <React.Fragment key={msg._id || index}>
@@ -141,7 +142,7 @@ const ChatMessagesList = ({
                       mark_chat_unread
                     </span>
                     <span>
-                      {unreadCount} Unread Message{unreadCount > 1 ? "s" : ""}
+                      {unreadLabel} Unread Message{unreadCount === 1 ? "" : "s"}
                     </span>
                   </div>
                 </div>
@@ -151,13 +152,15 @@ const ChatMessagesList = ({
                 msg={msg}
                 currentUser={currentUser}
                 chat={chat}
-                onlineUsers={onlineUsers}
+                isRecipientOnline={isRecipientOnline}
+                readTarget={readTarget}
                 isSelected={isSelected}
                 isSelectionActive={isSelectionActive}
                 isPinned={isPinned}
                 isStarred={isStarred}
                 isSameSenderAsPrev={isSameSenderAsPrev}
                 searchQuery={searchQuery}
+                isActiveMatch={activeMatchId === msg._id}
                 audioState={audioState}
                 isMenuActive={activeMenuMessageId === msg._id}
                 isReactionActive={activeReactionMessageId === msg._id}
@@ -168,6 +171,8 @@ const ChatMessagesList = ({
                 onToggleAudioPlay={onToggleAudioPlay}
                 onSeekAudio={onSeekAudio}
                 onOpenLightbox={onOpenLightbox}
+                onRetryFailed={onRetryFailed}
+                onDiscardFailed={onDiscardFailed}
               />
             </React.Fragment>
           );
@@ -178,4 +183,5 @@ const ChatMessagesList = ({
   );
 };
 
-export default ChatMessagesList;
+// Memoized so composer keystrokes (state in ChatWindow) don't re-walk the list.
+export default React.memo(ChatMessagesList);

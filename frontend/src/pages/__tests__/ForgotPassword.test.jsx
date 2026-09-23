@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import ForgotPassword from "../ForgotPassword";
 import { apiClient } from "../../api/apiClient";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 const mockNavigate = vi.fn();
 vi.mock("react-router-dom", async () => {
@@ -23,7 +23,7 @@ vi.mock("../../api/apiClient", () => ({
   },
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),

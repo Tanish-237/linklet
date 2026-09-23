@@ -141,10 +141,11 @@ export const createComment = async ({ postId, userId, text }) => {
 export const createReply = async ({ postId, parentId, userId, text, replyToUsername }) => {
   if (!isValidId(postId) || !isValidId(parentId)) return null;
 
-  // Only top-level comments of THIS post can be replied to. The parent's
-  // counter is bumped first, atomically, which doubles as the existence check.
+  // Any comment or reply of THIS post can be replied to (arbitrary nesting
+  // depth). The parent's counter is bumped first, atomically, which doubles
+  // as the existence check.
   const parent = await PostComment.findOneAndUpdate(
-    { _id: parentId, postId, parentId: null },
+    { _id: parentId, postId },
     { $inc: { repliesCount: 1 } },
     { new: true }
   ).lean();
@@ -207,22 +208,44 @@ export const toggleCommentUpvote = async (postId, commentId, userId) => {
 };
 
 /**
- * Delete a comment (and, for a top-level comment, all of its replies) and keep
- * the denormalized counters in sync. Returns the ids that were removed.
+ * Every descendant of `commentId` at any depth (its replies, their replies,
+ * and so on), via $graphLookup rather than a fixed number of manual
+ * one-level queries — the thread can now nest arbitrarily deep.
+ */
+const findDescendantIds = async (commentId) => {
+  const [result] = await PostComment.aggregate([
+    { $match: { _id: commentId } },
+    {
+      $graphLookup: {
+        from: PostComment.collection.name,
+        startWith: "$_id",
+        connectFromField: "_id",
+        connectToField: "parentId",
+        as: "descendants",
+      },
+    },
+    { $project: { "descendants._id": 1 } },
+  ]);
+  return (result?.descendants || []).map((d) => d._id);
+};
+
+/**
+ * Delete a comment and its entire reply subtree (at any depth) and keep the
+ * denormalized counters in sync. Returns the ids that were removed.
  */
 export const deleteComment = async (comment) => {
   const isReply = Boolean(comment.parentId);
+  const descendantIds = await findDescendantIds(comment._id);
+  const deletedIds = [comment._id, ...descendantIds];
+  await PostComment.deleteMany({ _id: { $in: deletedIds } });
 
   if (isReply) {
-    await PostComment.deleteOne({ _id: comment._id });
+    // Replies never count toward the post's top-level commentsCount — only
+    // the immediate parent's direct-children counter needs adjusting.
     await PostComment.findByIdAndUpdate(comment.parentId, decrementField("repliesCount"));
     const post = await Post.findById(comment.postId).select("commentsCount").lean();
-    return { deletedIds: [comment._id.toString()], commentsCount: post?.commentsCount ?? 0 };
+    return { deletedIds: deletedIds.map((id) => id.toString()), commentsCount: post?.commentsCount ?? 0 };
   }
-
-  const replies = await PostComment.find({ parentId: comment._id }).select("_id").lean();
-  const deletedIds = [comment._id, ...replies.map((r) => r._id)];
-  await PostComment.deleteMany({ _id: { $in: deletedIds } });
 
   const post = await Post.findByIdAndUpdate(comment.postId, decrementField("commentsCount"), { new: true })
     .select("commentsCount")

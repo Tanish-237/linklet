@@ -176,6 +176,59 @@ describe("usePostComments", () => {
     expect(texts).toEqual(["r10", "r11", "r12", "r13", "r14", "r15", "r99"]);
   });
 
+  it("addReply nests correctly when replying to a reply (not just a top-level comment)", async () => {
+    console.log("TRACE [usePostComments.test]: reply-to-a-reply attaches at the right depth");
+    postApi.getPostComments.mockResolvedValueOnce({
+      data: [comment(1, { replies: [reply(10)], repliesCount: 1 })],
+      hasMore: false,
+      nextCursor: null,
+    });
+    postApi.addReply.mockResolvedValueOnce({ reply: reply(20), repliesCount: 1, commentsCount: 1 });
+
+    const { result } = renderHook(() => usePostComments("post1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    // Reply to r10 (a reply, not the top-level comment) — should nest under it, not under c1.
+    await act(async () => {
+      await result.current.addReply(id(10), "nested reply", "bob");
+    });
+
+    expect(postApi.addReply).toHaveBeenCalledWith("post1", id(10), "nested reply", "bob");
+    const topComment = result.current.comments[0];
+    expect(topComment.replies).toHaveLength(1); // still just r10 directly under c1
+    const r10 = topComment.replies[0];
+    expect(r10.replies.map((r) => r.text)).toEqual(["r20"]);
+    expect(r10.repliesCount).toBe(1);
+  });
+
+  it("deleting a nested reply-of-a-reply removes it from deep inside the tree without disturbing siblings", async () => {
+    console.log("TRACE [usePostComments.test]: multi-level delete finds the node at any depth");
+    postApi.getPostComments.mockResolvedValueOnce({
+      data: [
+        comment(1, {
+          replies: [{ ...reply(10), replies: [reply(20)], repliesCount: 1 }],
+          repliesCount: 1,
+        }),
+      ],
+      hasMore: false,
+      nextCursor: null,
+    });
+    postApi.deletePostComment.mockResolvedValueOnce({ deletedIds: [id(20)], commentsCount: 1 });
+
+    const { result } = renderHook(() => usePostComments("post1"));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.deleteComment(id(20));
+    });
+
+    const topComment = result.current.comments[0];
+    const r10 = topComment.replies[0];
+    expect(r10).toBeTruthy();
+    expect(r10.replies).toHaveLength(0);
+    expect(r10.repliesCount).toBe(0);
+  });
+
   it("toggleUpvote writes the returned upvotes onto the right comment", async () => {
     postApi.getPostComments.mockResolvedValueOnce({ data: [comment(1), comment(2)], hasMore: false, nextCursor: null });
     postApi.toggleCommentUpvote.mockResolvedValueOnce({ _id: id(2), upvotes: ["u1", "u3"] });

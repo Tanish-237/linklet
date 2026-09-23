@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "../api/apiClient";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { formatChatListTime } from "../utlis/chatDateUtils";
 import CreateGroupModal from "./CreateGroupModal";
 import defaultAvatar from "../assets/default-avatar.webp";
@@ -27,6 +27,10 @@ const ChatSidebar = ({
   onBlockedUserIdsChange,
   onArchivedChatIdsChange,
   onGroupCreated,
+  hasMoreChats = false,
+  isLoadingMoreChats = false,
+  onLoadMoreChats,
+  onPrefetchChat,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [userSearchResults, setUserSearchResults] = useState([]);
@@ -38,15 +42,46 @@ const ChatSidebar = ({
   const archivedStorageKey = `linklet_archived_chats_${currentUser?._id}`;
   const blockedStorageKey = `linklet_blocked_users_${currentUser?._id}`;
 
+  // Pin/mute/archive are server-persisted per-user chat settings (see backend
+  // chat.service.js setChatPinned/Muted/Archived) and arrive merged onto each
+  // chat in the `chats` prop. localStorage is kept only as an instant-paint
+  // cache (same pattern as blockedUserIds below) and — for mute specifically —
+  // as the channel Layout.jsx's global toast listener reads, since it mounts
+  // outside this component and never sees the `chats` prop.
+  const deriveIdsWithFlag = (flag) =>
+    (chats || []).filter((c) => c?.[flag]).map((c) => c._id);
+
   const [pinnedChatIds, setPinnedChatIds] = useState(() => {
+    const fromChats = deriveIdsWithFlag("pinned");
+    if (fromChats.length > 0) return fromChats;
     try { const s = localStorage.getItem(pinnedStorageKey); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [mutedChatIds, setMutedChatIds] = useState(() => {
+    const fromChats = deriveIdsWithFlag("muted");
+    if (fromChats.length > 0) return fromChats;
     try { const s = localStorage.getItem(mutedStorageKey); return s ? JSON.parse(s) : []; } catch { return []; }
   });
   const [archivedChatIds, setArchivedChatIds] = useState(() => {
+    const fromChats = deriveIdsWithFlag("archived");
+    if (fromChats.length > 0) return fromChats;
     try { const s = localStorage.getItem(archivedStorageKey); return s ? JSON.parse(s) : []; } catch { return []; }
   });
+
+  // One-time resync once the server-fetched `chats` prop first lands (it starts
+  // as [] or a localStorage placeholder, then gets replaced by the real fetch).
+  // Deliberately NOT re-run on every later `chats` change — that array's
+  // reference changes on every new message (lastMessage bump), which would
+  // otherwise stomp an optimistic pin/mute/archive toggle with the pre-toggle
+  // flag still sitting in the (not yet refetched) chats prop.
+  const hasHydratedSettingsRef = useRef(false);
+  useEffect(() => {
+    if (hasHydratedSettingsRef.current || !Array.isArray(chats) || chats.length === 0) return;
+    hasHydratedSettingsRef.current = true;
+    setPinnedChatIds(deriveIdsWithFlag("pinned"));
+    setMutedChatIds(deriveIdsWithFlag("muted"));
+    setArchivedChatIds(deriveIdsWithFlag("archived"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chats]);
   // Blocking is enforced server-side (see backend chat.service.js), so the list of
   // who this user has blocked is sourced from their own profile (currentUser),
   // never purely from localStorage. localStorage is kept only as an instant-paint
@@ -198,37 +233,85 @@ const ChatSidebar = ({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [blockedUserIds]);
 
-  const togglePinChat = (chatId, e) => {
+  const togglePinChat = async (chatId, e) => {
     e?.stopPropagation();
+    setMenuChat(null);
+    const wasPinned = pinnedChatIds.includes(chatId);
+    const nextPinned = !wasPinned;
+
     setPinnedChatIds((prev) => {
-      const next = prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [chatId, ...prev];
+      const next = nextPinned ? [chatId, ...prev] : prev.filter((id) => id !== chatId);
       try { localStorage.setItem(pinnedStorageKey, JSON.stringify(next)); } catch {}
-      toast.info(next.includes(chatId) ? "Chat pinned" : "Chat unpinned");
       return next;
     });
-    setMenuChat(null);
+
+    try {
+      if (nextPinned) {
+        await apiClient.put("/chat/chat-settings/pin", { chatId });
+      } else {
+        await apiClient.delete("/chat/chat-settings/pin", { data: { chatId } });
+      }
+      toast.info(nextPinned ? "Chat pinned" : "Chat unpinned");
+    } catch (error) {
+      // Roll back the optimistic toggle — most commonly hitting the server's
+      // MAX_PINNED_CHATS cap, which only the request can tell us about.
+      setPinnedChatIds((prev) => {
+        const rolledBack = wasPinned ? [chatId, ...prev] : prev.filter((id) => id !== chatId);
+        try { localStorage.setItem(pinnedStorageKey, JSON.stringify(rolledBack)); } catch {}
+        return rolledBack;
+      });
+      toast.error(error.response?.data?.message || "Failed to update pinned status");
+    }
   };
 
-  const toggleMuteChat = (chatId, e) => {
+  const toggleMuteChat = async (chatId, e) => {
     e?.stopPropagation();
+    setMenuChat(null);
+    const wasMuted = mutedChatIds.includes(chatId);
+    const nextMuted = !wasMuted;
+
     setMutedChatIds((prev) => {
-      const next = prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [...prev, chatId];
+      const next = nextMuted ? [...prev, chatId] : prev.filter((id) => id !== chatId);
       try { localStorage.setItem(mutedStorageKey, JSON.stringify(next)); } catch {}
-      toast.info(next.includes(chatId) ? "Notifications muted" : "Notifications unmuted");
       return next;
     });
-    setMenuChat(null);
+
+    try {
+      await apiClient.put("/chat/chat-settings/mute", { chatId, muted: nextMuted });
+      toast.info(nextMuted ? "Notifications muted" : "Notifications unmuted");
+    } catch (error) {
+      setMutedChatIds((prev) => {
+        const rolledBack = wasMuted ? [...prev, chatId] : prev.filter((id) => id !== chatId);
+        try { localStorage.setItem(mutedStorageKey, JSON.stringify(rolledBack)); } catch {}
+        return rolledBack;
+      });
+      toast.error(error.response?.data?.message || "Failed to update mute status");
+    }
   };
 
-  const toggleArchiveChat = (chatId, e) => {
+  const toggleArchiveChat = async (chatId, e) => {
     e?.stopPropagation();
+    setMenuChat(null);
+    const wasArchived = archivedChatIds.includes(chatId);
+    const nextArchived = !wasArchived;
+
     setArchivedChatIds((prev) => {
-      const next = prev.includes(chatId) ? prev.filter((id) => id !== chatId) : [...prev, chatId];
+      const next = nextArchived ? [...prev, chatId] : prev.filter((id) => id !== chatId);
       try { localStorage.setItem(archivedStorageKey, JSON.stringify(next)); } catch {}
-      toast.info(next.includes(chatId) ? "Chat archived" : "Chat unarchived");
       return next;
     });
-    setMenuChat(null);
+
+    try {
+      await apiClient.put("/chat/chat-settings/archive", { chatId, archived: nextArchived });
+      toast.info(nextArchived ? "Chat archived" : "Chat unarchived");
+    } catch (error) {
+      setArchivedChatIds((prev) => {
+        const rolledBack = wasArchived ? [...prev, chatId] : prev.filter((id) => id !== chatId);
+        try { localStorage.setItem(archivedStorageKey, JSON.stringify(rolledBack)); } catch {}
+        return rolledBack;
+      });
+      toast.error(error.response?.data?.message || "Failed to update archive status");
+    }
   };
 
   const toggleBlockUser = async (chat, e) => {
@@ -251,6 +334,17 @@ const ChatSidebar = ({
       }
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update block status");
+    }
+  };
+
+  const handleDeleteChat = async (chat) => {
+    setMenuChat(null);
+    try {
+      await apiClient.delete(`/chat/${chat._id}`);
+      if (onDeleteChat) onDeleteChat(chat._id);
+      toast.info(chat.isGroup ? "You left the group" : "Chat deleted");
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete chat");
     }
   };
 
@@ -351,7 +445,7 @@ const ChatSidebar = ({
       ? `${lastMsg.sender.fullName || lastMsg.sender.username}: `
       : isSentByMe ? "You: " : "";
 
-    const tickClass = isLastMsgRead ? "tick-read" : isDelivered ? "tick-delivered" : "tick-sent";
+    const tickClass = isLastMsgRead ? "tick-read" : isDelivered ? "sidebar-tick-delivered" : "sidebar-tick-sent";
     const tickIcon = isLastMsgRead || isDelivered ? "done_all" : "done";
     const tickTitle = isLastMsgRead ? "Read" : isDelivered ? "Delivered" : "Sent";
 
@@ -449,7 +543,7 @@ const ChatSidebar = ({
             <button
               type="button"
               onClick={() => { setSearchQuery(""); setUserSearchResults([]); }}
-              className="absolute right-3 text-gray-400 hover:text-white"
+              className="absolute right-3 text-gray-400 hover:text-fg"
             >
               <span className="material-icons text-base">close</span>
             </button>
@@ -490,7 +584,16 @@ const ChatSidebar = ({
       </div>
 
       {/* Chat List */}
-      <div className="chat-list">
+      <div
+        className="chat-list"
+        onScroll={(e) => {
+          if (!hasMoreChats || isLoadingMoreChats || !onLoadMoreChats) return;
+          const el = e.currentTarget;
+          if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
+            onLoadMoreChats();
+          }
+        }}
+      >
         {filteredChats.length === 0 ? (
           <div className="text-center text-gray-400 py-10 text-sm">
             {activeFilter === "archived"
@@ -513,7 +616,24 @@ const ChatSidebar = ({
             return (
               <div
                 key={chat._id}
+                role="button"
+                tabIndex={0}
+                aria-current={isActive ? "true" : undefined}
+                aria-label={`${getChatDisplayName(chat)}${unread > 0 ? `, ${unread} unread` : ""}`}
                 onClick={() => onSelectChat(chat)}
+                // Warm this chat's messages while the pointer is on its way to
+                // clicking it, so opening it renders instantly.
+                onMouseEnter={() => onPrefetchChat?.(chat._id)}
+                onMouseLeave={() => onPrefetchChat?.(null)}
+                onFocus={() => onPrefetchChat?.(chat._id)}
+                onTouchStart={() => onPrefetchChat?.(chat._id, 0)}
+                onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelectChat(chat);
+                  }
+                }}
                 onContextMenu={(e) => handleOpenContextMenu(chat, e)}
                 className={`chat-item group ${isActive ? "active" : ""}`}
               >
@@ -557,9 +677,9 @@ const ChatSidebar = ({
                       {isMuted && <span className="material-icons text-gray-500 text-[14px]">volume_off</span>}
                       {isPinned && <span className="material-icons chat-pinned-icon">push_pin</span>}
                       {isArchived && <span className="material-icons text-gray-500 text-[14px]">archive</span>}
-                      {unread > 0 && !isMuted && <span className="unread-badge">{unread}</span>}
+                      {unread > 0 && !isMuted && <span className="unread-badge">{unread > 99 ? "99+" : unread}</span>}
                       {unread > 0 && isMuted && (
-                        <span className="unread-badge" style={{ background: "rgba(100,116,139,0.7)" }}>{unread}</span>
+                        <span className="unread-badge" style={{ background: "rgba(100,116,139,0.7)" }}>{unread > 99 ? "99+" : unread}</span>
                       )}
                     </div>
                   </div>
@@ -567,6 +687,9 @@ const ChatSidebar = ({
               </div>
             );
           })
+        )}
+        {isLoadingMoreChats && (
+          <div className="text-center text-gray-500 py-3 text-xs">Loading more chats…</div>
         )}
       </div>
 
@@ -640,11 +763,11 @@ const ChatSidebar = ({
           </button>
           <button
             type="button"
-            onClick={() => { if (onDeleteChat) onDeleteChat(menuChat._id); toast.info("Chat deleted"); setMenuChat(null); }}
+            onClick={() => handleDeleteChat(menuChat)}
             className="chat-item-menu-btn danger"
           >
             <span className="material-icons text-base">delete</span>
-            Delete chat
+            {menuChat.isGroup ? "Leave group" : "Delete chat"}
           </button>
         </div>,
         document.body

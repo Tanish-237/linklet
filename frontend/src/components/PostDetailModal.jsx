@@ -1,19 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import defaultAvatar from "../assets/default-avatar.webp";
 import PostCommentsPanel from "./PostCommentsPanel";
+import SharePostMenu from "./SharePostMenu";
+import PostActionsMenu from "./PostActionsMenu";
 import { formatTime } from "../utlis/formatTime";
 import { optimizeAvatar, optimizeImage, buildSrcSet } from "../utlis/cloudinary";
 import "../pages/Posts.css";
 
-const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}, onDeletePost = () => {} }) => {
+const PostDetailModal = ({
+  isOpen,
+  onClose,
+  post,
+  user,
+  onPostUpdated = () => {},
+  onDeletePost = () => {},
+  onEditPost = () => {},
+  onReportPost = () => {},
+}) => {
   const [localPost, setLocalPost] = useState(post);
-  const [showShareMenu, setShowShareMenu] = useState(false);
 
   const modalRef = useRef(null);
-  const shareRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -69,37 +78,6 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
     }
   };
 
-  const handleShare = async (platform) => {
-    if (!localPost) return;
-    const url = `${window.location.origin}/posts/${localPost._id}`;
-    const text = `Check out this post on Linklet: ${localPost.caption || ""}`;
-    switch (platform) {
-      case "copy":
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied to clipboard!");
-        break;
-      case "twitter":
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
-        break;
-      case "linkedin":
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
-        break;
-      case "whatsapp":
-        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
-        break;
-    }
-    setShowShareMenu(false);
-  };
-
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (shareRef.current && !shareRef.current.contains(e.target)) setShowShareMenu(false);
-    };
-    if (showShareMenu) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showShareMenu]);
-
-
   // Keep the post's comment total in sync with what the panel just did
   // (add / delete), for this modal AND the feed card behind it.
   const handleCommentsCountChange = (commentsCount) => {
@@ -138,24 +116,25 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
                 className="feed-detail__username"
                 onClick={() => {
                   onClose();
-                  navigate(`/dashboard/profile/${postUsername}`);
+                  navigate(`/profile/${postUsername}`);
                 }}
               >
                 {postUsername}
               </span>
-              <span className="feed-detail__time">{formatTime(localPost.createdAt)}</span>
+              <span className="feed-detail__time">
+                {formatTime(localPost.createdAt)}
+                {localPost.isEdited && <span className="feed-detail__edited-tag"> · edited</span>}
+              </span>
             </div>
 
-            {canDeletePost && (
-              <button
-                className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-colors ml-auto cursor-pointer flex items-center gap-1"
-                onClick={() => onDeletePost(localPost._id)}
-                title={user?.role === "admin" && postAuthorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
-                aria-label="Delete post"
-              >
-                <span className="material-icons text-base">delete_outline</span>
-              </button>
-            )}
+            <PostActionsMenu
+              className="ml-auto"
+              canManage={canDeletePost}
+              onEdit={() => onEditPost(localPost)}
+              onDelete={() => onDeletePost(localPost._id)}
+              onReport={user ? () => onReportPost(localPost._id) : undefined}
+              deleteTitle={user?.role === "admin" && postAuthorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
+            />
           </div>
 
           {/* Caption */}
@@ -165,17 +144,21 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
             </div>
           )}
 
-          {/* Image */}
+          {/* Image / Video */}
           {localPost.image && (
             <div className="feed-detail__media">
-              <img
-                src={optimizeImage(localPost.image, { width: 1200 })}
-                srcSet={buildSrcSet(localPost.image)}
-                sizes="(max-width: 900px) 100vw, 60vw"
-                alt=""
-                className="feed-detail__image"
-                decoding="async"
-              />
+              {localPost.mediaType === "video" ? (
+                <video src={localPost.image} controls className="feed-detail__image" preload="metadata" />
+              ) : (
+                <img
+                  src={optimizeImage(localPost.image, { width: 1200 })}
+                  srcSet={buildSrcSet(localPost.image)}
+                  sizes="(max-width: 900px) 100vw, 60vw"
+                  alt=""
+                  className="feed-detail__image"
+                  decoding="async"
+                />
+              )}
             </div>
           )}
 
@@ -204,35 +187,11 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
             </span>
 
             {/* Share button with dropdown */}
-            <div className="feed-card__share-wrap" ref={shareRef} style={{ marginLeft: "auto" }}>
-              <button
-                onClick={() => setShowShareMenu(!showShareMenu)}
-                className="feed-card__share-btn"
-                aria-label="Share post"
-              >
-                <span className="material-icons">share</span>
-              </button>
-              {showShareMenu && (
-                <div className="feed-card__share-menu">
-                  <button onClick={() => handleShare("copy")} className="feed-card__share-option">
-                    <span className="material-icons">link</span>
-                    Copy Link
-                  </button>
-                  <button onClick={() => handleShare("twitter")} className="feed-card__share-option">
-                    <span className="material-icons">tag</span>
-                    Twitter / X
-                  </button>
-                  <button onClick={() => handleShare("linkedin")} className="feed-card__share-option">
-                    <span className="material-icons">work</span>
-                    LinkedIn
-                  </button>
-                  <button onClick={() => handleShare("whatsapp")} className="feed-card__share-option">
-                    <span className="material-icons">chat</span>
-                    WhatsApp
-                  </button>
-                </div>
-              )}
-            </div>
+            <SharePostMenu
+              className="ml-auto"
+              getUrl={() => `${window.location.origin}/posts/${localPost._id}`}
+              shareText={`Check out this post on Linklet: ${localPost.caption || ""}`}
+            />
           </div>
         </div>
 
@@ -244,7 +203,7 @@ const PostDetailModal = ({ isOpen, onClose, post, user, onPostUpdated = () => {}
           user={user}
           onNavigateToProfile={(username) => {
             onClose();
-            navigate(`/dashboard/profile/${username}`);
+            navigate(`/profile/${username}`);
           }}
         />
       </div>

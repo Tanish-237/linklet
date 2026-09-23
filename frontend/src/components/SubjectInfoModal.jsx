@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import {
   fetchAttendance,
   createAttendanceCourse,
@@ -70,7 +70,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
   const handleUpdate = async (e) => {
     e.preventDefault();
     if (!editForm.courseName.trim()) {
-      toast.warn("Subject name cannot be empty");
+      toast.warning("Subject name cannot be empty");
       return;
     }
 
@@ -97,7 +97,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!newSubject.courseName.trim()) {
-      toast.warn("Please enter a subject name");
+      toast.warning("Please enter a subject name");
       return;
     }
 
@@ -147,7 +147,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
 
   return (
     <div
-      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4"
       role="dialog"
       aria-modal="true"
     >
@@ -159,7 +159,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
               <span className="material-icons text-2xl">auto_stories</span>
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white tracking-wide">Subject Information</h2>
+              <h2 className="text-xl font-bold text-fg tracking-wide">Subject Information</h2>
               <p className="text-xs text-gray-400">
                 Manage subject details and professors
               </p>
@@ -167,7 +167,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition cursor-pointer"
+            className="p-2 text-gray-400 hover:text-fg rounded-xl hover:bg-gray-800 transition cursor-pointer"
             aria-label="Close"
           >
             <span className="material-icons">close</span>
@@ -223,7 +223,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                     placeholder="e.g. Compiler Design"
                     value={newSubject.courseName}
                     onChange={(e) => setNewSubject({ ...newSubject, courseName: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                   />
                 </div>
                 <div>
@@ -235,7 +235,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                     placeholder="e.g. CS301"
                     value={newSubject.courseCode}
                     onChange={(e) => setNewSubject({ ...newSubject, courseCode: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                   />
                 </div>
                 <div>
@@ -247,7 +247,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                     placeholder="e.g. Dr. D. S. Sharma"
                     value={newSubject.professor}
                     onChange={(e) => setNewSubject({ ...newSubject, professor: e.target.value })}
-                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                    className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                   />
                 </div>
               </div>
@@ -330,7 +330,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                             onChange={(e) =>
                               setEditForm({ ...editForm, courseName: e.target.value })
                             }
-                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                           />
                         </div>
 
@@ -344,7 +344,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                             onChange={(e) =>
                               setEditForm({ ...editForm, courseCode: e.target.value })
                             }
-                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                           />
                         </div>
 
@@ -358,7 +358,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                             onChange={(e) =>
                               setEditForm({ ...editForm, professor: e.target.value })
                             }
-                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                           />
                         </div>
                       </div>
@@ -411,7 +411,7 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h4 className="text-sm font-bold text-white">{course.courseName}</h4>
+                          <h4 className="text-sm font-bold text-fg">{course.courseName}</h4>
                           {course.courseCode && (
                             <span className="px-2 py-0.5 rounded-lg text-[10px] font-mono font-semibold bg-gray-700/80 text-gray-300 border border-gray-600/50">
                               {course.courseCode}
@@ -476,14 +476,14 @@ export default function SubjectInfoModal({ isOpen, onClose, onSubjectsChanged })
 
         {/* Custom Delete Confirmation Modal */}
         {deleteTarget && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
             <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-rose-900/60 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center gap-2 mb-2 text-rose-400">
                 <span className="material-icons text-xl">delete_forever</span>
-                <h3 className="text-lg font-bold text-white">Delete Subject?</h3>
+                <h3 className="text-lg font-bold text-fg">Delete Subject?</h3>
               </div>
               <p className="text-sm text-gray-300 mb-5">
-                Are you sure you want to delete <strong className="text-white">"{deleteTarget.name}"</strong>? All associated attendance logs for this subject will be permanently deleted.
+                Are you sure you want to delete <strong className="text-fg">"{deleteTarget.name}"</strong>? All associated attendance logs for this subject will be permanently deleted.
               </p>
               <div className="flex gap-3 justify-end">
                 <button

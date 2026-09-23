@@ -16,9 +16,9 @@
   align-items: center;
   gap: 0.875rem;
   padding: 1.15rem 1.35rem;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgb(var(--surface) / calc(0.5 + var(--glass-fill)));
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  border: 1px solid rgb(var(--accent) / 0.15);
   border-radius: 16px;
   margin-bottom: 1.5rem;
   cursor: pointer;
@@ -26,39 +26,39 @@
 }
 
 .feed-create-prompt:hover {
-  border-color: rgba(139, 92, 246, 0.35);
-  background: rgba(15, 23, 42, 0.65);
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.08);
+  border-color: rgb(var(--accent) / 0.35);
+  background: rgb(var(--surface) / calc(0.65 + var(--glass-fill)));
+  box-shadow: 0 0 20px rgb(var(--accent) / 0.08);
 }
 
 .feed-create-prompt__avatar {
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.25);
+  border: 2px solid rgb(var(--accent) / 0.25);
   object-fit: cover;
   flex-shrink: 0;
   transition: border-color 0.3s;
 }
 
 .feed-create-prompt:hover .feed-create-prompt__avatar {
-  border-color: rgba(139, 92, 246, 0.5);
+  border-color: rgb(var(--accent) / 0.5);
 }
 
 .feed-create-prompt__input {
   flex: 1;
   padding: 0.7rem 1.1rem;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  background: rgb(var(--surface-2) / 0.5);
+  border: 1px solid rgb(var(--accent) / 0.12);
   border-radius: 24px;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   font-size: 0.95rem;
   transition: all 0.3s;
 }
 
 .feed-create-prompt:hover .feed-create-prompt__input {
-  border-color: rgba(139, 92, 246, 0.25);
-  color: #94a3b8;
+  border-color: rgb(var(--accent) / 0.25);
+  color: rgb(var(--fg-muted));
 }
 
 .feed-create-prompt__actions {
@@ -74,14 +74,14 @@
   width: 38px;
   height: 38px;
   border: none;
-  background: rgba(139, 92, 246, 0.06);
+  background: rgb(var(--accent) / 0.06);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .feed-create-prompt__btn:hover {
-  background: rgba(139, 92, 246, 0.15);
+  background: rgb(var(--accent) / 0.15);
   transform: scale(1.08);
 }
 
@@ -89,27 +89,81 @@
   font-size: 1.3rem;
 }
 
+/* Pastel blue/green read fine on a near-black rail but wash out against a
+   light background, so these get a darker, more saturated shade in light
+   mode rather than staying fixed. */
+.feed-create-prompt__btn--photo .material-icons {
+  color: #3b82f6;
+}
+.feed-create-prompt__btn--video .material-icons {
+  color: #10b981;
+}
+:root[data-theme="light"] .feed-create-prompt__btn--photo .material-icons {
+  color: #1d4ed8;
+}
+:root[data-theme="light"] .feed-create-prompt__btn--video .material-icons {
+  color: #047857;
+}
+
 /* ─── Post Card (Enlarged Size) ──────────────────────────────────────────── */
+/* Virtualized: height is the true total scroll height of every post
+   (rowVirtualizer.getTotalSize()), but only nearby rows are actually
+   mounted — each positioned absolutely via its own translateY. */
 .feed-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
+  position: relative;
+  width: 100%;
+}
+
+.feed-list__row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  /* Bakes in the gap flexbox `gap` used to provide — a virtualized row's
+     own measured height (used to position every row after it) needs to
+     already include this spacing. */
+  padding-bottom: 1.5rem;
 }
 
 .feed-card {
-  background: rgba(15, 23, 42, 0.5);
+  background: rgb(var(--surface) / calc(0.5 + var(--glass-fill)));
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  border: 1px solid rgb(var(--accent) / 0.12);
   border-radius: 18px;
-  overflow: hidden;
+  /* Not `overflow: hidden` — the share menu (.feed-card__share-menu) is a
+     descendant that now opens downward below the card's own bottom edge,
+     and needs to be able to render past it instead of being clipped.
+     Nothing else in the card touches its rounded corners (the optional
+     media block is always sandwiched between the header and action bar,
+     never flush against them), so this was safe to drop. */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .feed-card:hover {
-  border-color: rgba(139, 92, 246, 0.28);
-  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.08),
+  border-color: rgb(var(--accent) / 0.28);
+  box-shadow: 0 8px 32px rgb(var(--accent) / 0.08),
               0 2px 8px rgba(0, 0, 0, 0.2);
   transform: translateY(-2px);
+}
+
+/* Light mode: separate cards from the canvas with a neutral hairline and a
+   soft elevation shadow (the Facebook/LinkedIn feed pattern) instead of the
+   accent-tinted border and glow used on the dark canvas. */
+:root[data-theme="light"] .feed-card,
+:root[data-theme="light"] .feed-create-prompt {
+  border-color: rgb(var(--line));
+  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.06),
+              0 1px 3px rgb(var(--shadow-color) / 0.04);
+}
+:root[data-theme="light"] .feed-card:hover,
+:root[data-theme="light"] .feed-create-prompt:hover {
+  border-color: rgb(var(--line-strong));
+  box-shadow: 0 4px 16px -4px rgb(var(--shadow-color) / 0.12),
+              0 1px 3px rgb(var(--shadow-color) / 0.06);
+}
+:root[data-theme="light"] .feed-create-prompt__input {
+  background: rgb(var(--surface-2));
+  border-color: rgb(var(--line));
 }
 
 /* Card Header */
@@ -124,14 +178,14 @@
   width: 46px;
   height: 46px;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.2);
+  border: 2px solid rgb(var(--accent) / 0.2);
   object-fit: cover;
   flex-shrink: 0;
   transition: border-color 0.3s;
 }
 
 .feed-card:hover .feed-card__avatar {
-  border-color: rgba(139, 92, 246, 0.45);
+  border-color: rgb(var(--accent) / 0.45);
 }
 
 .feed-card__user-info {
@@ -144,7 +198,7 @@
 .feed-card__username {
   font-size: 1.02rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: rgb(var(--fg));
   line-height: 1.3;
   cursor: pointer;
   transition: color 0.2s;
@@ -152,13 +206,13 @@
 }
 
 .feed-card__username:hover {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   text-decoration: underline;
 }
 
 .feed-card__time {
   font-size: 0.8rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
 }
 
 /* Single Bookmark Button */
@@ -170,7 +224,7 @@
   height: 38px;
   border: none;
   background: transparent;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   cursor: pointer;
   border-radius: 10px;
   transition: all 0.2s;
@@ -178,16 +232,16 @@
 }
 
 .feed-card__save-btn:hover {
-  background: rgba(139, 92, 246, 0.12);
-  color: #a78bfa;
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent-fg));
 }
 
 .feed-card__save-btn--saved {
-  color: #a78bfa !important;
+  color: rgb(var(--accent-fg)) !important;
 }
 
 .feed-card__save-btn--saved:hover {
-  color: #c4b5fd !important;
+  color: rgb(var(--accent-fg)) !important;
 }
 
 .feed-card__save-btn .material-icons {
@@ -200,7 +254,7 @@
 }
 
 .feed-card__caption p {
-  color: #cbd5e1;
+  color: rgb(var(--fg-secondary));
   font-size: 0.96rem;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -208,11 +262,15 @@
   margin: 0;
 }
 
-/* Media (Enlarged max-height) */
+/* Media (Enlarged max-height) — the letterbox background shows whenever an
+   image's aspect ratio doesn't fill the frame (object-fit: contain). A
+   muted surface tone (--surface-2) still reads as a visible gray band next
+   to the card, so light mode matches the card's own --surface exactly and
+   dark mode goes to solid black. */
 .feed-card__media {
-  background: rgba(0, 0, 0, 0.35);
-  border-top: 1px solid rgba(139, 92, 246, 0.08);
-  border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+  background: rgb(var(--surface));
+  border-top: 1px solid rgb(var(--accent) / 0.08);
+  border-bottom: 1px solid rgb(var(--accent) / 0.08);
   cursor: pointer;
 }
 
@@ -221,6 +279,53 @@
   max-height: 640px;
   object-fit: contain;
   display: block;
+}
+
+.feed-card__video-thumb {
+  position: relative;
+}
+
+/* Shown when there's no Cloudinary-derived poster frame to display (a
+   non-Cloudinary video URL, or the thumbnail failed to load) — a plain
+   themed block with a movie icon, so a video post always has *something*
+   deliberate to show instead of empty space or a browser's broken-image icon. */
+.feed-card__video-placeholder {
+  aspect-ratio: 16 / 9;
+  min-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(var(--surface-2));
+}
+
+.feed-card__video-placeholder .material-icons {
+  font-size: 3rem;
+  color: rgb(var(--fg-subtle));
+}
+
+/* Fixed dark circle + white icon regardless of theme — this sits on top of
+   the actual video thumbnail, which can be any color, so (like the lightbox
+   controls before they moved to a themed backdrop) it needs to stay legible
+   against arbitrary content rather than following the page theme. */
+.feed-card__video-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.feed-card__video-play-overlay .material-icons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 32px;
 }
 
 /* Actions Bar */
@@ -236,67 +341,70 @@
   display: inline-flex;
   align-items: center;
   gap: 0.75rem;
-  background: rgba(12, 16, 30, 0.75);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  background: rgb(var(--surface) / calc(0.75 + var(--glass-fill)));
+  border: 1px solid rgb(var(--accent) / 0.12);
   border-radius: 24px;
   padding: 4px 6px;
   user-select: none;
 }
 
+/* 30px + the pill's own 4px vertical padding = 38px total — matching the
+   comment-count text and the 38px share/actions buttons next to it, which
+   otherwise made the vote pill read as visibly taller than its neighbors. */
 .feed-card__vote-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   border: none;
   background: transparent;
-  color: #64748b;
-  border-radius: 12px;
+  color: rgb(var(--fg-muted));
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .feed-card__vote-btn .material-icons {
-  font-size: 1.25rem;
+  font-size: 1.1rem;
   font-weight: 700;
 }
 
 .feed-card__vote-btn:hover {
-  background: rgba(139, 92, 246, 0.1);
-  color: #a78bfa;
+  background: rgb(var(--accent) / 0.1);
+  color: rgb(var(--accent-fg));
 }
 
 /* Upvote Active State */
 .feed-card__vote-btn--up:hover {
-  background: rgba(43, 38, 94, 0.6);
-  color: #c4b5fd;
+  background: rgb(var(--accent-soft) / 0.6);
+  color: rgb(var(--accent-fg));
 }
 
 .feed-card__vote-btn--active-up {
-  background: #2b265e !important;
-  color: #c4b5fd !important;
-  box-shadow: 0 2px 8px rgba(43, 38, 94, 0.4);
+  background: rgb(var(--accent-soft)) !important;
+  color: rgb(var(--accent-fg)) !important;
+  box-shadow: 0 2px 8px rgb(var(--accent-soft) / 0.4);
 }
 
 .feed-card__vote-btn--active-up .material-icons {
-  color: #c4b5fd !important;
+  color: rgb(var(--accent-fg)) !important;
 }
 
 /* Downvote Active State */
 .feed-card__vote-btn--down:hover {
-  background: rgba(69, 26, 36, 0.6);
-  color: #f87171;
+  background: rgb(var(--surface-2) / 0.6);
+  color: rgb(var(--danger-fg));
 }
 
 .feed-card__vote-btn--active-down {
   background: #451a24 !important;
-  color: #f87171 !important;
-  box-shadow: 0 2px 8px rgba(69, 26, 36, 0.4);
+  color: rgb(var(--danger-fg)) !important;
+  box-shadow: 0 2px 8px rgb(var(--surface-2) / 0.4);
 }
 
 .feed-card__vote-btn--active-down .material-icons {
-  color: #f87171 !important;
+  color: rgb(var(--danger-fg)) !important;
 }
 
 .feed-card__vote-count {
@@ -304,15 +412,15 @@
   text-align: center;
   font-size: 0.95rem;
   font-weight: 700;
-  color: #cbd5e1;
+  color: rgb(var(--fg-secondary));
 }
 
 .feed-card__vote-count--positive {
-  color: #c4b5fd;
+  color: rgb(var(--accent-fg));
 }
 
 .feed-card__vote-count--negative {
-  color: #f87171;
+  color: rgb(var(--danger-fg));
 }
 
 /* Comment Button */
@@ -321,10 +429,10 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.5rem 0.9rem;
-  background: rgba(12, 16, 30, 0.75);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  background: rgb(var(--surface) / calc(0.75 + var(--glass-fill)));
+  border: 1px solid rgb(var(--accent) / 0.12);
   border-radius: 24px;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
@@ -332,9 +440,9 @@
 }
 
 .feed-card__comment-btn:hover {
-  background: rgba(139, 92, 246, 0.12);
-  border-color: rgba(139, 92, 246, 0.3);
-  color: #a78bfa;
+  background: rgb(var(--accent) / 0.12);
+  border-color: rgb(var(--accent) / 0.3);
+  color: rgb(var(--accent-fg));
 }
 
 .feed-card__comment-btn .material-icons {
@@ -358,18 +466,18 @@
   width: 38px;
   height: 38px;
   padding: 0;
-  background: rgba(12, 16, 30, 0.75);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  background: rgb(var(--surface) / calc(0.75 + var(--glass-fill)));
+  border: 1px solid rgb(var(--accent) / 0.12);
   border-radius: 24px;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .feed-card__share-btn:hover {
-  background: rgba(139, 92, 246, 0.12);
-  border-color: rgba(139, 92, 246, 0.3);
-  color: #a78bfa;
+  background: rgb(var(--accent) / 0.12);
+  border-color: rgb(var(--accent) / 0.3);
+  color: rgb(var(--accent-fg));
 }
 
 .feed-card__share-btn .material-icons {
@@ -377,14 +485,15 @@
 }
 
 .feed-card__share-menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  /* Positioning (position/top/bottom/left) is computed in JS by
+     SharePostMenu and applied inline as `position: fixed` viewport
+     coordinates — it opens downward by default and flips upward only when
+     there's no room below, and is never clipped by a scrollable or
+     rounded-corner ancestor the way a static `position: absolute` would be. */
   min-width: 170px;
-  background: rgba(15, 23, 42, 0.97);
+  background: rgb(var(--surface) / calc(0.97 + var(--glass-fill)));
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   padding: 0.35rem;
@@ -400,7 +509,7 @@
   padding: 0.55rem 0.75rem;
   border: none;
   background: transparent;
-  color: #cbd5e1;
+  color: rgb(var(--fg-secondary));
   font-size: 0.82rem;
   font-weight: 500;
   cursor: pointer;
@@ -409,17 +518,49 @@
 }
 
 .feed-card__share-option:hover {
-  background: rgba(139, 92, 246, 0.12);
-  color: #a78bfa;
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent-fg));
 }
 
 .feed-card__share-option .material-icons {
   font-size: 1.05rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
 }
 
 .feed-card__share-option:hover .material-icons {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
+}
+
+.feed-card__share-option--danger:hover {
+  background: rgba(239, 68, 68, 0.12);
+  color: rgb(var(--danger-fg));
+}
+
+.feed-card__share-option--danger:hover .material-icons {
+  color: rgb(var(--danger-fg));
+}
+
+/* Post options ("⋮") trigger button — sits in the card header next to the
+   bookmark button, so it matches that button's transparent/compact style
+   rather than the bordered surface look of the share button. */
+.feed-card__actions-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  background: transparent;
+  color: rgb(var(--fg-muted));
+  cursor: pointer;
+  border-radius: 10px;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.feed-card__actions-btn:hover {
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent-fg));
 }
 
 /* ─── Loading State ──────────────────────────────────────────────────────── */
@@ -435,14 +576,14 @@
 .feed-loading__spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(139, 92, 246, 0.15);
-  border-top-color: #a78bfa;
+  border: 3px solid rgb(var(--accent) / 0.15);
+  border-top-color: rgb(var(--accent-fg));
   border-radius: 50%;
   animation: feedSpin 0.8s linear infinite;
 }
 
 .feed-loading p {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   font-size: 0.95rem;
   font-weight: 500;
 }
@@ -454,9 +595,9 @@
   align-items: center;
   justify-content: center;
   padding: 4rem 2rem;
-  background: rgba(15, 23, 42, 0.4);
+  background: rgb(var(--surface) / calc(0.4 + var(--glass-fill)));
   backdrop-filter: blur(16px);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  border: 1px solid rgb(var(--accent) / 0.12);
   border-radius: 20px;
   text-align: center;
 }
@@ -467,27 +608,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(79, 70, 229, 0.08));
+  background: linear-gradient(135deg, rgb(var(--accent) / 0.15), rgb(var(--accent) / 0.08));
   border-radius: 50%;
   margin-bottom: 1.5rem;
-  border: 2px solid rgba(139, 92, 246, 0.2);
+  border: 2px solid rgb(var(--accent) / 0.2);
 }
 
 .feed-empty__icon-wrap .material-icons {
   font-size: 2.5rem;
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
 }
 
 .feed-empty__title {
   font-size: 1.35rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: rgb(var(--fg));
   margin: 0 0 0.5rem;
 }
 
 .feed-empty__subtitle {
   font-size: 0.9rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   max-width: 360px;
   line-height: 1.6;
   margin: 0 0 1.75rem;
@@ -498,8 +639,8 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  background-color: #7c3aed;
-  color: #fff;
+  background-color: rgb(var(--accent));
+  color: rgb(var(--on-accent));
   border: none;
   border-radius: 12px;
   font-size: 0.95rem;
@@ -510,11 +651,11 @@
 }
 
 .feed-empty__cta:hover {
-  background-color: #6d28d9;
+  background-color: rgb(var(--accent-hover));
 }
 
 .feed-empty__cta:active {
-  background-color: #5b21b6;
+  background-color: rgb(var(--accent-hover));
 }
 
 .feed-empty__cta .material-icons {
@@ -542,11 +683,11 @@
   width: 100%;
   max-width: 620px;
   max-height: 90vh;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(7, 11, 20, 0.98));
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: linear-gradient(180deg, rgb(var(--surface) / calc(0.98 + var(--glass-fill))), rgb(var(--surface) / calc(0.98 + var(--glass-fill))));
+  border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 20px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5),
-              0 0 40px rgba(139, 92, 246, 0.08);
+              0 0 40px rgb(var(--accent) / 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -558,13 +699,13 @@
   align-items: center;
   justify-content: space-between;
   padding: 1.15rem 1.5rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.12);
+  border-bottom: 1px solid rgb(var(--accent) / 0.12);
 }
 
 .feed-create-modal__title {
   font-size: 1.2rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: rgb(var(--fg));
   margin: 0;
 }
 
@@ -575,16 +716,98 @@
   width: 36px;
   height: 36px;
   border: none;
-  background: rgba(139, 92, 246, 0.08);
+  background: rgb(var(--accent) / 0.08);
   border-radius: 10px;
-  color: #94a3b8;
+  color: rgb(var(--fg-muted));
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .feed-create-modal__close:hover {
   background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
+  color: rgb(var(--danger-fg));
+}
+
+/* ─── Report Post Modal ──────────────────────────────────────────────────── */
+.feed-report-modal {
+  width: 100%;
+  max-width: 400px;
+  background: linear-gradient(180deg, rgb(var(--surface) / calc(0.98 + var(--glass-fill))), rgb(var(--surface) / calc(0.98 + var(--glass-fill))));
+  border: 1px solid rgb(var(--accent) / 0.2);
+  border-radius: 18px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 40px rgb(var(--accent) / 0.08);
+  padding: 1.4rem;
+  animation: feedModalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.feed-report-modal__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: rgb(var(--fg));
+  margin: 0 0 0.3rem;
+}
+
+.feed-report-modal__subtitle {
+  font-size: 0.85rem;
+  color: rgb(var(--fg-muted));
+  margin: 0 0 1rem;
+}
+
+.feed-report-modal__reasons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.feed-report-modal__reason {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: rgb(var(--fg-secondary));
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.feed-report-modal__reason:hover {
+  background: rgb(var(--accent) / 0.08);
+}
+
+.feed-report-modal__reason input[type="radio"] {
+  accent-color: rgb(var(--accent));
+}
+
+.feed-report-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.feed-report-modal__submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  background: #dc2626;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.feed-report-modal__submit-btn:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.feed-report-modal__submit-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .feed-create-modal__body {
@@ -604,23 +827,23 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.25);
+  border: 2px solid rgb(var(--accent) / 0.25);
   object-fit: cover;
 }
 
 .feed-create-modal__username {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #c4b5fd;
+  color: rgb(var(--accent-fg));
   display: block;
 }
 
 .feed-create-modal__badge {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #a78bfa;
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  color: rgb(var(--accent-fg));
+  background: rgb(var(--accent) / 0.12);
+  border: 1px solid rgb(var(--accent) / 0.2);
   padding: 0.1rem 0.5rem;
   border-radius: 8px;
   margin-top: 0.2rem;
@@ -631,10 +854,10 @@
   width: 100%;
   min-height: 120px;
   padding: 0.85rem 1rem;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  background: rgb(var(--surface-2) / 0.5);
+  border: 1px solid rgb(var(--accent) / 0.15);
   border-radius: 12px;
-  color: #f1f5f9;
+  color: rgb(var(--fg));
   font-size: 0.92rem;
   font-family: inherit;
   line-height: 1.6;
@@ -645,12 +868,12 @@
 
 .feed-create-modal__textarea:focus {
   outline: none;
-  border-color: rgba(139, 92, 246, 0.4);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.08);
+  border-color: rgb(var(--accent) / 0.4);
+  box-shadow: 0 0 0 3px rgb(var(--accent) / 0.08);
 }
 
 .feed-create-modal__textarea::placeholder {
-  color: #475569;
+  color: rgb(var(--fg-secondary));
 }
 
 .feed-create-modal__char-count {
@@ -659,19 +882,20 @@
   margin-top: 0.35rem;
   margin-bottom: 0.85rem;
   font-size: 0.75rem;
-  color: #475569;
+  color: rgb(var(--fg-secondary));
 }
 
 .feed-create-modal__preview {
   position: relative;
   border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  border: 1px solid rgb(var(--accent) / 0.15);
   margin-bottom: 1rem;
-  background: rgba(0, 0, 0, 0.3);
+  background: rgb(var(--surface));
 }
 
-.feed-create-modal__preview img {
+.feed-create-modal__preview img,
+.feed-create-modal__preview video {
   width: 100%;
   max-height: 300px;
   object-fit: contain;
@@ -690,7 +914,7 @@
   background: rgba(0, 0, 0, 0.6);
   border: none;
   border-radius: 50%;
-  color: #fff;
+  color: rgb(var(--fg));
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -709,9 +933,9 @@
   align-items: center;
   justify-content: center;
   padding: 2rem 1.5rem;
-  border: 2px dashed rgba(139, 92, 246, 0.2);
+  border: 2px dashed rgb(var(--accent) / 0.2);
   border-radius: 14px;
-  background: rgba(30, 41, 59, 0.25);
+  background: rgb(var(--surface-2) / 0.25);
   cursor: pointer;
   transition: all 0.25s;
   margin-bottom: 1rem;
@@ -719,67 +943,43 @@
 
 .feed-create-modal__dropzone:hover,
 .feed-create-modal__dropzone--active {
-  border-color: rgba(139, 92, 246, 0.5);
-  background: rgba(139, 92, 246, 0.05);
+  border-color: rgb(var(--accent) / 0.5);
+  background: rgb(var(--accent) / 0.05);
 }
 
 .feed-create-modal__dropzone-icon {
   font-size: 2.5rem;
-  color: #6d28d9;
+  color: rgb(var(--accent-hover));
   margin-bottom: 0.5rem;
   opacity: 0.7;
 }
 
 .feed-create-modal__dropzone-text {
   font-size: 0.88rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   margin: 0;
 }
 
 .feed-create-modal__dropzone-text span {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   font-weight: 600;
 }
 
 .feed-create-modal__dropzone-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
   font-size: 0.75rem;
-  color: #475569;
+  color: rgb(var(--fg-secondary));
   margin: 0.35rem 0 0;
 }
 
 .feed-create-modal__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding-top: 1rem;
-  border-top: 1px solid rgba(139, 92, 246, 0.1);
-}
-
-.feed-create-modal__tools {
-  display: flex;
-  gap: 0.35rem;
-}
-
-.feed-create-modal__tool-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: rgba(139, 92, 246, 0.06);
-  border-radius: 10px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.feed-create-modal__tool-btn:hover {
-  background: rgba(139, 92, 246, 0.15);
-  transform: scale(1.08);
-}
-
-.feed-create-modal__tool-btn .material-icons {
-  font-size: 1.2rem;
+  border-top: 1px solid rgb(var(--accent) / 0.1);
 }
 
 .feed-create-modal__actions {
@@ -789,10 +989,10 @@
 
 .feed-create-modal__cancel-btn {
   padding: 0.55rem 1.15rem;
-  background: rgba(51, 65, 85, 0.5);
-  border: 1px solid rgba(100, 116, 139, 0.25);
+  background: rgb(var(--line-strong) / 0.5);
+  border: 1px solid rgb(var(--fg-muted) / 0.25);
   border-radius: 10px;
-  color: #94a3b8;
+  color: rgb(var(--fg-muted));
   font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
@@ -800,8 +1000,8 @@
 }
 
 .feed-create-modal__cancel-btn:hover {
-  background: rgba(51, 65, 85, 0.7);
-  color: #cbd5e1;
+  background: rgb(var(--line-strong) / 0.7);
+  color: rgb(var(--fg-secondary));
 }
 
 .feed-create-modal__submit-btn {
@@ -809,10 +1009,10 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.55rem 1.25rem;
-  background-color: #7c3aed;
+  background-color: rgb(var(--accent));
   border: none;
   border-radius: 10px;
-  color: #fff;
+  color: rgb(var(--on-accent));
   font-size: 0.88rem;
   font-weight: 500;
   cursor: pointer;
@@ -821,11 +1021,11 @@
 }
 
 .feed-create-modal__submit-btn:hover:not(:disabled) {
-  background-color: #6d28d9;
+  background-color: rgb(var(--accent-hover));
 }
 
 .feed-create-modal__submit-btn:active:not(:disabled) {
-  background-color: #5b21b6;
+  background-color: rgb(var(--accent-hover));
 }
 
 .feed-create-modal__submit-btn:disabled {
@@ -861,15 +1061,20 @@
   width: 92vw;
   max-width: 1200px;
   height: 88vh;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(7, 11, 20, 0.99));
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: linear-gradient(180deg, rgb(var(--surface) / calc(0.98 + var(--glass-fill))), rgb(var(--surface) / calc(0.99 + var(--glass-fill))));
+  border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 20px;
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.7),
-              0 0 50px rgba(139, 92, 246, 0.08);
+              0 0 50px rgb(var(--accent) / 0.08);
   overflow: hidden;
   animation: feedModalSlideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
+/* Sits at the whole modal's top-right corner (over the comments pane's
+   header, not the media), so — unlike the lightbox's close button, which
+   really does float over an arbitrary-colored image — this should just
+   follow the theme like any other chrome button, not stay a fixed dark
+   circle that reads as out-of-place on a light background. */
 .feed-detail__close-btn {
   position: absolute;
   top: 0.85rem;
@@ -880,17 +1085,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgb(var(--line-strong));
+  background: rgb(var(--surface) / calc(0.9 + var(--glass-fill)));
   border-radius: 50%;
-  color: #94a3b8;
+  color: rgb(var(--fg-muted));
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .feed-detail__close-btn:hover {
   background: rgba(239, 68, 68, 0.25);
-  color: #f87171;
+  color: rgb(var(--danger-fg));
 }
 
 /* Left side (Post) */
@@ -898,25 +1103,32 @@
   flex: 1.3;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(139, 92, 246, 0.12);
+  border-right: 1px solid rgb(var(--accent) / 0.12);
   min-width: 0;
   height: 100%;
   overflow-y: auto;
 }
 
+/* Fixed height (rather than letting padding + content decide it) so this
+   lines up exactly with .feed-detail__comments-header's divider on the
+   other side — the post header's 44px avatar is taller than the comments
+   header's icon+title row, which otherwise pushed this border-bottom
+   noticeably lower than the one across from it. */
 .feed-detail__header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 1.15rem 1.5rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.08);
+  height: 78px;
+  padding: 0 1.5rem;
+  border-bottom: 1px solid rgb(var(--accent) / 0.08);
+  box-sizing: border-box;
 }
 
 .feed-detail__avatar {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 2px solid rgba(139, 92, 246, 0.2);
+  border: 2px solid rgb(var(--accent) / 0.2);
   object-fit: cover;
   flex-shrink: 0;
 }
@@ -929,19 +1141,24 @@
 .feed-detail__username {
   font-size: 0.98rem;
   font-weight: 600;
-  color: #e2e8f0;
+  color: rgb(var(--fg));
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .feed-detail__username:hover {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   text-decoration: underline;
 }
 
 .feed-detail__time {
   font-size: 0.78rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
+}
+
+.feed-detail__edited-tag {
+  font-style: italic;
+  opacity: 0.8;
 }
 
 .feed-detail__caption {
@@ -949,7 +1166,7 @@
 }
 
 .feed-detail__caption p {
-  color: #cbd5e1;
+  color: rgb(var(--fg-secondary));
   font-size: 0.95rem;
   line-height: 1.65;
   white-space: pre-wrap;
@@ -962,8 +1179,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgb(var(--surface));
   min-height: 300px;
+}
+
+/* .feed-card__media, .feed-create-modal__preview and .feed-detail__media
+   match the card surface in light mode and go to solid black in dark
+   mode, rather than an intermediate surface tone. */
+:root[data-theme="dark"] .feed-card__media,
+:root[data-theme="dark"] .feed-create-modal__preview,
+:root[data-theme="dark"] .feed-detail__media {
+  background: #000;
 }
 
 .feed-detail__image {
@@ -974,20 +1200,25 @@
   display: block;
 }
 
+/* Fixed height, same reasoning as .feed-detail__header above — lines this
+   border-top up exactly with .feed-detail__comment-input-area's on the
+   other side instead of each being sized by its own content. */
 .feed-detail__actions {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding: 0.85rem 1.5rem;
-  border-top: 1px solid rgba(139, 92, 246, 0.08);
+  height: 66px;
+  padding: 0 1.5rem;
+  border-top: 1px solid rgb(var(--accent) / 0.08);
   margin-top: auto;
+  box-sizing: border-box;
 }
 
 .feed-detail__comment-count {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   font-size: 0.85rem;
   font-weight: 500;
 }
@@ -1000,30 +1231,36 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  /* The whole comments column (header, thread, composer) sits on one grey
+     surface so it reads as a separate pane from the post; comment cards and
+     the input stay on --surface to lift off it. */
+  background: rgb(var(--surface-2));
 }
 
 .feed-detail__comments-header {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 1.15rem 1.25rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.12);
-  background: rgba(0, 0, 0, 0.15);
+  height: 78px;
+  padding: 0 1.25rem;
+  border-bottom: 1px solid rgb(var(--accent) / 0.12);
+  background: transparent;
+  box-sizing: border-box;
 }
 
 .feed-detail__comments-header h3 {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: rgb(var(--fg));
   margin: 0;
 }
 
 .feed-detail__comments-count {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #a78bfa;
-  background: rgba(139, 92, 246, 0.12);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  color: rgb(var(--accent-fg));
+  background: rgb(var(--accent) / 0.12);
+  border: 1px solid rgb(var(--accent) / 0.2);
   padding: 0.1rem 0.55rem;
   border-radius: 10px;
 }
@@ -1044,14 +1281,14 @@
 }
 
 .feed-detail__no-comments p {
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   font-size: 0.95rem;
   font-weight: 500;
   margin: 0.75rem 0 0.2rem;
 }
 
 .feed-detail__no-comments span {
-  color: #475569;
+  color: rgb(var(--fg-secondary));
   font-size: 0.82rem;
 }
 
@@ -1061,20 +1298,20 @@
 }
 
 .feed-detail__comment-card {
-  background: rgba(15, 23, 42, 0.45);
-  border: 1px solid rgba(139, 92, 246, 0.1);
+  background: rgb(var(--surface) / calc(0.45 + var(--glass-fill)));
+  border: 1px solid rgb(var(--accent) / 0.1);
   border-radius: 12px;
   padding: 0.75rem 0.9rem;
   transition: all 0.2s;
 }
 
 .feed-detail__comment-card:hover {
-  background: rgba(15, 23, 42, 0.65);
-  border-color: rgba(139, 92, 246, 0.2);
+  background: rgb(var(--surface) / calc(0.65 + var(--glass-fill)));
+  border-color: rgb(var(--accent) / 0.2);
 }
 
 .feed-detail__comment-card--reply {
-  background: rgba(15, 23, 42, 0.3);
+  background: rgb(var(--surface) / calc(0.3 + var(--glass-fill)));
 }
 
 .feed-detail__comment-header {
@@ -1088,31 +1325,31 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  border: 1.5px solid rgba(139, 92, 246, 0.15);
+  border: 1.5px solid rgb(var(--accent) / 0.15);
   object-fit: cover;
 }
 
 .feed-detail__comment-author {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #c4b5fd;
+  color: rgb(var(--accent-fg));
   cursor: pointer;
   transition: color 0.2s;
 }
 
 .feed-detail__comment-author:hover {
-  color: #e9ddff;
+  color: rgb(var(--accent-fg));
   text-decoration: underline;
 }
 
 .feed-detail__comment-time {
   font-size: 0.74rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
 }
 
 .feed-detail__comment-body {
   font-size: 0.88rem;
-  color: #cbd5e1;
+  color: rgb(var(--fg-secondary));
   line-height: 1.55;
   margin: 0.2rem 0 0.4rem;
   white-space: pre-wrap;
@@ -1120,7 +1357,7 @@
 }
 
 .feed-detail__mention {
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   font-weight: 600;
 }
 
@@ -1136,7 +1373,7 @@
   gap: 0.25rem;
   background: none;
   border: none;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
   font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
@@ -1147,33 +1384,33 @@
 
 .feed-detail__comment-action:hover,
 .feed-detail__comment-action.liked {
-  color: #a78bfa;
-  background: rgba(139, 92, 246, 0.1);
+  color: rgb(var(--accent-fg));
+  background: rgb(var(--accent) / 0.1);
 }
 
 /* Reply Input Box */
 .feed-detail__reply-box {
   margin-top: 0.55rem;
   padding: 0.55rem;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: rgb(var(--surface-2) / 0.5);
+  border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 8px;
 }
 
 .feed-detail__reply-input {
   width: 100%;
   padding: 0.5rem 0.7rem;
-  background: rgba(15, 23, 42, 0.8);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  background: rgb(var(--surface) / calc(0.8 + var(--glass-fill)));
+  border: 1px solid rgb(var(--accent) / 0.25);
   border-radius: 6px;
-  color: #f8fafc;
+  color: rgb(var(--fg));
   font-size: 0.84rem;
   box-sizing: border-box;
 }
 
 .feed-detail__reply-input:focus {
   outline: none;
-  border-color: #a78bfa;
+  border-color: rgb(var(--accent-fg));
 }
 
 .feed-detail__reply-actions {
@@ -1186,19 +1423,19 @@
 .feed-detail__reply-cancel {
   padding: 0.22rem 0.6rem;
   background: transparent;
-  border: 1px solid rgba(100, 116, 139, 0.3);
+  border: 1px solid rgb(var(--fg-muted) / 0.3);
   border-radius: 4px;
-  color: #94a3b8;
+  color: rgb(var(--fg-muted));
   font-size: 0.78rem;
   cursor: pointer;
 }
 
 .feed-detail__reply-submit {
   padding: 0.22rem 0.75rem;
-  background: #7c3aed;
+  background: rgb(var(--accent));
   border: none;
   border-radius: 4px;
-  color: #fff;
+  color: rgb(var(--on-accent));
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
@@ -1211,18 +1448,18 @@
   width: 100%;
   margin: 0.25rem 0 0.5rem;
   padding: 0.55rem 0.75rem;
-  background: rgba(139, 92, 246, 0.08);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: rgb(var(--accent) / 0.08);
+  border: 1px solid rgb(var(--accent) / 0.2);
   border-radius: 8px;
-  color: #a78bfa;
+  color: rgb(var(--accent-fg));
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 .feed-detail__load-more:hover:not(:disabled) {
-  background: rgba(139, 92, 246, 0.16);
-  border-color: rgba(139, 92, 246, 0.35);
+  background: rgb(var(--accent) / 0.16);
+  border-color: rgb(var(--accent) / 0.35);
 }
 .feed-detail__load-more:disabled {
   opacity: 0.6;
@@ -1240,34 +1477,54 @@
   margin-top: 0.55rem;
   margin-left: 0.9rem;
   padding-left: 0.85rem;
-  border-left: 2px solid rgba(139, 92, 246, 0.18);
+  border-left: 2px solid rgb(var(--accent) / 0.18);
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
 }
 
 .feed-detail__reply-thread:hover {
-  border-left-color: rgba(167, 139, 250, 0.4);
+  border-left-color: rgb(var(--accent-fg) / 0.4);
+}
+
+/* Beyond MAX_INDENT_DEPTH (PostCommentsPanel.jsx), replies stop indenting
+   further right — they still nest logically, just render at the same
+   visual depth as their MAX_INDENT_DEPTH-th ancestor. */
+.feed-detail__reply-thread--flat {
+  margin-left: 0;
+  padding-left: 0.6rem;
 }
 
 /* Comment Input */
 .feed-detail__comment-input-area {
-  padding: 0.85rem 1rem;
-  border-top: 1px solid rgba(139, 92, 246, 0.12);
-  background: rgba(0, 0, 0, 0.25);
+  height: 66px;
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid rgb(var(--accent) / 0.12);
+  background: transparent;
+  box-sizing: border-box;
 }
 
 .feed-detail__comment-form {
   display: flex;
   align-items: center;
   gap: 0.65rem;
+  /* .feed-detail__comment-input-area became a flex container (to vertically
+     center its fixed-height row), which makes this <form> a flex ITEM of
+     it — without an explicit width it shrinks to fit its content instead
+     of filling the row, collapsing the whole composer (and the "Add a
+     comment" input's flex:1, which only had the form's own shrunk width to
+     grow into) over to the left with dead space on the right. */
+  width: 100%;
+  min-width: 0;
 }
 
 .feed-detail__comment-input-avatar {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  border: 1.5px solid rgba(139, 92, 246, 0.2);
+  border: 1.5px solid rgb(var(--accent) / 0.2);
   object-fit: cover;
   flex-shrink: 0;
 }
@@ -1275,21 +1532,21 @@
 .feed-detail__comment-input {
   flex: 1;
   padding: 0.6rem 0.95rem;
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  background: rgb(var(--surface));
+  border: 1px solid rgb(var(--accent) / 0.15);
   border-radius: 20px;
-  color: #f1f5f9;
+  color: rgb(var(--fg));
   font-size: 0.88rem;
   transition: border-color 0.2s;
 }
 
 .feed-detail__comment-input:focus {
   outline: none;
-  border-color: rgba(139, 92, 246, 0.4);
+  border-color: rgb(var(--accent) / 0.4);
 }
 
 .feed-detail__comment-input::placeholder {
-  color: #475569;
+  color: rgb(var(--fg-secondary));
 }
 
 .feed-detail__comment-send {
@@ -1299,9 +1556,9 @@
   width: 36px;
   height: 36px;
   border: none;
-  background-color: #7c3aed;
+  background-color: rgb(var(--accent));
   border-radius: 50%;
-  color: #fff;
+  color: rgb(var(--on-accent));
   cursor: pointer;
   transition: background-color 0.15s ease;
   flex-shrink: 0;
@@ -1309,11 +1566,11 @@
 }
 
 .feed-detail__comment-send:hover:not(:disabled) {
-  background-color: #6d28d9;
+  background-color: rgb(var(--accent-hover));
 }
 
 .feed-detail__comment-send:active:not(:disabled) {
-  background-color: #5b21b6;
+  background-color: rgb(var(--accent-hover));
 }
 
 .feed-detail__comment-send:disabled {
@@ -1353,14 +1610,20 @@
   }
 }
 
+/* No translateX(-50%) here — SharePostMenu already computes the menu's
+   left edge in JS (pre-centered under the button), so a CSS centering
+   transform on top of that would double up. It used to be here, which
+   made the menu render ~85px left of its real spot for the animation's
+   0.2s duration, then snap right the instant the animation ended (no
+   animation-fill-mode, so the transform reverted to its unanimated value). */
 @keyframes feedSharePop {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(4px) scale(0.95);
+    transform: translateY(-4px) scale(0.95);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1375,7 +1638,7 @@
   .feed-detail__left {
     flex: 1;
     border-right: none;
-    border-bottom: 1px solid rgba(139, 92, 246, 0.1);
+    border-bottom: 1px solid rgb(var(--accent) / 0.1);
     max-height: 48vh;
   }
 
@@ -1428,7 +1691,10 @@
   flex-shrink: 0;
 }
 
-/* Emoji face button left of the text input */
+/* Emoji face button left of the text input. Same 34px box as the avatar
+   next to it, but a bare icon on a transparent background reads as much
+   smaller than a photo filling a solid circle — a faint fill + border
+   gives it the same visual weight instead of just a same-size hit target. */
 .feed-detail__emoji-btn {
   display: flex;
   align-items: center;
@@ -1436,10 +1702,10 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: transparent;
-  border: none;
+  background: rgb(var(--surface-2) / 0.7);
+  border: 1.5px solid rgb(var(--accent) / 0.12);
   cursor: pointer;
-  color: #9ca3af;
+  color: rgb(var(--fg-muted));
   transition: color 0.2s ease, background 0.2s ease, transform 0.2s ease;
   flex-shrink: 0;
 }
@@ -1467,7 +1733,7 @@
   z-index: 9999;
   border-radius: 16px;
   overflow: hidden;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(139, 92, 246, 0.15);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgb(var(--accent) / 0.15);
   animation: emojiPickerIn 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -1478,16 +1744,16 @@
 
 /* Override emoji-picker-react dark theme to match app palette */
 .feed-detail__emoji-picker-wrap .EmojiPickerReact {
-  --epr-bg-color: #0f0c1e;
-  --epr-category-label-bg-color: #0f0c1e;
-  --epr-search-input-bg-color: rgba(255, 255, 255, 0.06);
-  --epr-search-input-bg-color-active: rgba(255, 255, 255, 0.09);
-  --epr-search-border-color: rgba(139, 92, 246, 0.3);
-  --epr-hover-bg-color: rgba(139, 92, 246, 0.12);
-  --epr-focus-bg-color: rgba(139, 92, 246, 0.12);
-  --epr-text-color: #d1d5db;
-  --epr-category-icon-active-color: #8b5cf6;
-  border: 1px solid rgba(139, 92, 246, 0.15) !important;
+  --epr-bg-color: rgb(var(--canvas));
+  --epr-category-label-bg-color: rgb(var(--canvas));
+  --epr-search-input-bg-color: rgb(var(--fg) / 0.06);
+  --epr-search-input-bg-color-active: rgb(var(--fg) / 0.09);
+  --epr-search-border-color: rgb(var(--accent) / 0.3);
+  --epr-hover-bg-color: rgb(var(--accent) / 0.12);
+  --epr-focus-bg-color: rgb(var(--accent) / 0.12);
+  --epr-text-color: rgb(var(--fg-secondary));
+  --epr-category-icon-active-color: rgb(var(--accent));
+  border: 1px solid rgb(var(--accent) / 0.15) !important;
   border-radius: 16px !important;
 }
 
@@ -1504,9 +1770,13 @@
 .feed-load-more p {
   margin: 0;
   font-size: 0.8rem;
-  color: #64748b;
+  color: rgb(var(--fg-muted));
 }
 .feed-load-more .feed-loading__spinner {
   width: 26px;
   height: 26px;
+}
+
+:root[data-theme="light"] .feed-detail__emoji-btn:hover:not(:disabled) {
+  color: #a16207;
 }

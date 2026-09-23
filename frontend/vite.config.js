@@ -9,7 +9,7 @@ import tailwindcss from '@tailwindcss/vite'
 const VENDOR_CHUNKS = [
   ['react-vendor', ['/node_modules/react/', '/node_modules/react-dom/', '/node_modules/scheduler/', '/node_modules/react-router', '/node_modules/@remix-run/']],
   ['query-vendor', ['/node_modules/@tanstack/']],
-  ['ui-vendor', ['/node_modules/react-toastify/', '/node_modules/react-helmet-async/', '/node_modules/react-intersection-observer/']],
+  ['ui-vendor', ['/node_modules/sonner/', '/node_modules/react-helmet-async/', '/node_modules/react-intersection-observer/']],
 ]
 
 const manualChunks = (id) => {

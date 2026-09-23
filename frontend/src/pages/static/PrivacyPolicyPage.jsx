@@ -27,7 +27,7 @@ const PrivacyPolicyPage = () => {
   }, []);
 
   return (
-    <div className="privacy-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+    <div className="privacy-page min-h-screen bg-canvas text-fg no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
       <SEO title="Privacy Policy | Linklet" description={PRIVACY_DESCRIPTION} path="/privacy" />
       <div className="max-w-4xl mx-auto">
         <div className="mb-12 border-b border-zinc-800/80 pb-8">
@@ -35,7 +35,7 @@ const PrivacyPolicyPage = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
             MNNIT Allahabad Campus Platform
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-fg mb-4">
             Privacy Policy
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl leading-relaxed">
@@ -135,7 +135,7 @@ const PrivacyPolicyPage = () => {
           <span className="text-zinc-400">Also see how using Linklet works.</span>
           <Link
             to="/terms"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-fg font-medium text-xs transition-colors"
           >
             Read Terms of Service
             <span className="text-xs">→</span>

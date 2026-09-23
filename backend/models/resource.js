@@ -10,11 +10,11 @@ const resourceSchema = new mongoose.Schema({
   title: { type: String, required: true },
   description: { type: String, required: true },
   resourcetags: [{ type: String }], // e.g., ["End sem", "Mid sem", "maths"]
-  category: { 
-    type: String, 
-    enum: ["notes", "assignments", "papers", "presentations", "other"], 
-    required: true, 
-    default: "notes" 
+  category: {
+    type: String,
+    enum: ["notes", "assignments", "papers", "books", "lectures", "other"],
+    required: true,
+    default: "notes"
   },
   fileUrl: { type: String }, // URL to Cloudinary document
   fileType: { type: String }, // e.g., "pdf", "doc", "docx"

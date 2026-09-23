@@ -1,9 +1,33 @@
 import * as chatRepo from "../repositories/chat.repository.js";
-import { MESSAGE_EDIT_WINDOW_MS, MAX_PINNED_MESSAGES_PER_CHAT } from "../config/constants.js";
+import {
+  MESSAGE_EDIT_WINDOW_MS,
+  MAX_PINNED_MESSAGES_PER_CHAT,
+  MAX_PINNED_CHATS,
+  CHAT_LIST_PAGE_SIZE,
+} from "../config/constants.js";
 import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { getRedisClient } from "../utils/redis.js";
 import logger from "../utils/logger.js";
+
+// Set (as a non-serialized symbol key) on sendMessage's result when the
+// client's clientId matched an already-created message, so the controller
+// doesn't broadcast the same message a second time.
+export const DUPLICATE_SEND = Symbol("duplicateSend");
+
+const CLIENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+const normalizeClientId = (clientId) =>
+  typeof clientId === "string" && CLIENT_ID_PATTERN.test(clientId) ? clientId : null;
+
+const isDuplicateKeyError = (err) => err?.code === 11000;
+
+const markDuplicate = (messages) => {
+  const result = messages.length === 1 ? messages[0] : messages;
+  Object.defineProperty(result, DUPLICATE_SEND, { value: true, enumerable: false });
+  return result;
+};
+
+const userChatsCacheKey = (userId) => `user:chats:v2:${userId}`;
 
 /**
  * In a 1:1 chat, refuse to deliver a new message if either user has blocked the
@@ -50,7 +74,7 @@ const invalidateUserChatsCache = async (participantIds) => {
   try {
     const redisClient = getRedisClient();
     if (!redisClient || !participantIds?.length) return;
-    const keys = participantIds.map((id) => `user:chats:${(id._id || id).toString()}`);
+    const keys = participantIds.map((id) => userChatsCacheKey((id._id || id).toString()));
     await redisClient.del(keys);
   } catch (err) {
     // Graceful fallback when Redis is not running
@@ -197,6 +221,7 @@ export const removeFromGroup = async (chatId, adminId, targetUserId) => {
   }
 
   const updated = await chatRepo.removeParticipant(chatId, targetUserId);
+  await chatRepo.deleteMemberSetting(chatId, targetUserId);
   await invalidateUserChatsCache([...chat.participants, targetUserId]);
   logger.info(`Removed user ${targetUserId} from group ${chatId}`);
   return updated;
@@ -313,8 +338,36 @@ export const leaveGroup = async (chatId, userId) => {
   }
 
   const updated = await chatRepo.removeParticipant(chatId, userId);
+  await chatRepo.deleteMemberSetting(chatId, userId);
   logger.info(`User ${userId} left group ${chatId}`);
   return updated;
+};
+
+/**
+ * Delete a chat for the current user only.
+ * - Group chats: same as leaving (removeParticipant / deleteChat-if-empty logic
+ *   in leaveGroup already covers the "last member" case).
+ * - 1:1 chats: the OTHER participant should still see their side of the
+ *   conversation, so this doesn't touch the Chat/Message documents — it's the
+ *   same per-user visibility cutoff as clearChatForUser, exposed as "delete"
+ *   in the UI because that's the action users recognize.
+ */
+export const deleteChatForUser = async (userId, chatId) => {
+  const chat = await chatRepo.findChatById(chatId);
+  if (!chat) throw new AppError("Chat not found", 404);
+
+  const isParticipant = chat.participants.some(
+    (p) => (p._id || p).toString() === userId.toString()
+  );
+  if (!isParticipant) {
+    throw new AppError("You are not a participant in this chat", 403);
+  }
+
+  if (chat.isGroup) {
+    return leaveGroup(chatId, userId);
+  }
+
+  return clearChatForUser(userId, chatId);
 };
 
 /**
@@ -338,7 +391,11 @@ export const updateGroupImage = async (chatId, userId, filePath) => {
 
 // ─── Messages ───────────────────────────────────────────────────────────────
 
-export const sendMessage = async (userId, { chatId, content, replyTo, mediaType }, filesParam) => {
+export const sendMessage = async (
+  userId,
+  { chatId, content, replyTo, mediaType, clientId },
+  filesParam
+) => {
   if (!chatId) throw new AppError("Chat ID is required", 400);
 
   const chat = await chatRepo.findChatById(chatId);
@@ -352,6 +409,18 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
   }
 
   await assertNotBlocked(chat, userId);
+
+  const normalizedClientId = normalizeClientId(clientId);
+
+  // Idempotent resend: a client that retried a send (flaky connection, double
+  // tap, React effect double-invoke) after already getting the message through
+  // gets the ORIGINAL message(s) back instead of creating duplicates.
+  if (normalizedClientId) {
+    const existing = await chatRepo.findMessagesByClientId(userId, normalizedClientId);
+    if (existing.length > 0) {
+      return markDuplicate(existing);
+    }
+  }
 
   // Normalize filesParam to an array
   let files = [];
@@ -377,6 +446,12 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
     verifiedReplyTo = replyTo;
   }
 
+  // Replying implies the sender has read the conversation up to now — move
+  // their read cursor so this chat doesn't show as unread for them.
+  Promise.resolve()
+    .then(() => chatRepo.markMessagesAsRead(chatId, userId))
+    .catch(() => {});
+
   // If no files, create a single text message
   if (files.length === 0) {
     if (!content || !content.trim()) {
@@ -389,9 +464,22 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
       readBy: [userId],
     };
     if (verifiedReplyTo) messageData.replyTo = verifiedReplyTo;
-    const message = await chatRepo.createMessage(messageData);
-    invalidateUserChatsCache(chat.participants).catch(() => {});
-    return message;
+    if (normalizedClientId) messageData.clientId = normalizedClientId;
+
+    try {
+      const message = await chatRepo.createMessage(messageData);
+      invalidateUserChatsCache(chat.participants).catch(() => {});
+      return message;
+    } catch (err) {
+      // Two concurrent requests with the same clientId (double-click racing the
+      // network) both passed the pre-check above; the unique index resolves the
+      // race — the loser fetches and returns what the winner just created.
+      if (isDuplicateKeyError(err) && normalizedClientId) {
+        const winner = await chatRepo.findMessagesByClientId(userId, normalizedClientId);
+        if (winner.length > 0) return markDuplicate(winner);
+      }
+      throw err;
+    }
   }
 
   // Invalidate redis cache for all participants
@@ -418,6 +506,13 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
       messageData.replyTo = verifiedReplyTo;
     }
 
+    // Each file becomes its own Message document, so a shared clientId needs a
+    // per-file suffix to satisfy the (sender, clientId) unique index while
+    // still being recognizable as "one send" to findMessagesByClientId's prefix match.
+    if (normalizedClientId) {
+      messageData.clientId = files.length > 1 ? `${normalizedClientId}:${i}` : normalizedClientId;
+    }
+
     // Determine media type (including audio support for voice notes!)
     if (
       mediaType === "audio" ||
@@ -433,12 +528,25 @@ export const sendMessage = async (userId, { chatId, content, replyTo, mediaType 
       messageData.mediaType = "document";
     }
 
+    if (file.originalname && messageData.mediaType !== "audio") {
+      // Drop any path components a client might send; cap the length
+      messageData.fileName = String(file.originalname).split(/[\\/]/).pop().slice(0, 200);
+    }
+
     return messageData;
   });
 
   const messagesData = await Promise.all(uploadPromises);
-  const createdMessages = await chatRepo.createManyMessages(messagesData);
-  return createdMessages.length === 1 ? createdMessages[0] : createdMessages;
+  try {
+    const createdMessages = await chatRepo.createManyMessages(messagesData);
+    return createdMessages.length === 1 ? createdMessages[0] : createdMessages;
+  } catch (err) {
+    if (isDuplicateKeyError(err) && normalizedClientId) {
+      const winner = await chatRepo.findMessagesByClientId(userId, normalizedClientId);
+      if (winner.length > 0) return markDuplicate(winner);
+    }
+    throw err;
+  }
 };
 
 /**
@@ -452,11 +560,17 @@ export const getMessages = async (chatId, userId, query = {}) => {
     throw new AppError("You are not a participant in this chat", 403);
   }
 
+  // A "deleted for me" cutoff (see clearChatHistory) hides everything up to
+  // that instant from THIS user only — the other participant's history is untouched.
+  const setting = await chatRepo.findMemberSetting(chatId, userId);
+
   return chatRepo.getMessages(chatId, {
+    viewerId: userId,
     cursor: query.cursor,
     // Clamp so `?limit=999999` can't force one query to load an entire chat's
     // history (and its populated sender/reactions/replyTo) into memory at once.
     limit: Math.min(100, Math.max(1, parseInt(query.limit) || 25)),
+    after: setting?.clearedAt || null,
   });
 };
 
@@ -504,7 +618,37 @@ export const deleteMessage = async (userId, { chatId, messageId }) => {
 
   const targetChatId = chatId || (message.chat?._id || message.chat)?.toString();
   await chatRepo.deleteMessage(messageId);
-  return { success: true, messageId, chatId: targetChatId };
+  const preview = await refreshChatPreview(targetChatId);
+  return { success: true, messageId, chatId: targetChatId, preview };
+};
+
+/**
+ * After messages are deleted, repoint the chat's lastMessage at the newest
+ * survivor and drop every participant's cached chat list, so the sidebar
+ * preview doesn't keep showing deleted text. Returns the new populated
+ * lastMessage (or null) for the real-time preview update.
+ */
+const refreshChatPreview = async (chatId) => {
+  await chatRepo.refreshLastMessage(chatId);
+  const chat = await chatRepo.findChatById(chatId);
+  if (chat?.participants) invalidateUserChatsCache(chat.participants).catch(() => {});
+  return { lastMessage: chat?.lastMessage || null, participants: chat?.participants || [] };
+};
+
+/**
+ * "Delete for me": hide messages from this user's view only. Works on anyone's
+ * messages — the other participants keep seeing them.
+ */
+export const hideMessagesForUser = async (userId, { chatId, messageIds }) => {
+  if (!chatId) throw new AppError("Chat ID is required", 400);
+  if (!Array.isArray(messageIds) || messageIds.length === 0) {
+    throw new AppError("Message IDs are required", 400);
+  }
+  if (messageIds.length > 100) throw new AppError("Too many messages at once", 400);
+  await assertChatMembership(chatId, userId);
+  await chatRepo.hideMessagesForUser(chatId, messageIds, userId);
+  invalidateUserChatsCache([userId]).catch(() => {});
+  return { hiddenIds: messageIds.map(String) };
 };
 
 /**
@@ -518,7 +662,11 @@ export const markAsRead = async (chatId, userId) => {
     throw new AppError("You are not a participant in this chat", 403);
   }
 
-  return chatRepo.markMessagesAsRead(chatId, userId);
+  const result = await chatRepo.markMessagesAsRead(chatId, userId);
+  // The cached chat list carries unread counts — drop it so the next load
+  // doesn't resurrect a badge for a chat that was just read.
+  invalidateUserChatsCache([userId]).catch(() => {});
+  return result;
 };
 
 // ─── Reactions ──────────────────────────────────────────────────────────────
@@ -577,7 +725,11 @@ export const pinMessage = async (userId, { chatId, messageId }) => {
 
   await assertMessageBelongsToChat(messageId, chatId);
 
-  return chatRepo.pinChatMessage(chatId, messageId);
+  const updated = await chatRepo.pinChatMessage(chatId, messageId);
+  // Chat lists carry pinnedMessages — without this, a reload served the
+  // cached list and the pin appeared to vanish for up to two minutes.
+  invalidateUserChatsCache(chat.participants).catch(() => {});
+  return updated;
 };
 
 /**
@@ -600,7 +752,9 @@ export const unpinMessage = async (userId, { chatId, messageId }) => {
 
   await assertMessageBelongsToChat(messageId, chatId);
 
-  return chatRepo.unpinChatMessage(chatId, messageId);
+  const updated = await chatRepo.unpinChatMessage(chatId, messageId);
+  invalidateUserChatsCache(chat.participants).catch(() => {});
+  return updated;
 };
 
 // ─── Search ─────────────────────────────────────────────────────────────────
@@ -621,9 +775,104 @@ export const searchUsers = async (query, currentUserId) => {
 const CHAT_LIST_CACHE_TTL = 120; // seconds
 
 /**
- * Get all chats for the current user with Redis caching (CHAT_LIST_CACHE_TTL) & graceful fallback.
+ * A 1:1 chat whose other participant no longer resolves (their User document
+ * is gone — populate() silently drops missing refs from a populated array) is a
+ * dead conversation nobody can ever act on again, so it's dropped from the list
+ * rather than shown as a nameless, avatar-less "Direct Message" entry.
+ * Group chats are exempt: losing one member out of several doesn't kill the group.
  */
-export const getUserChats = async (userId) => {
+const isLiveChat = (chat, userId) => {
+  if (chat.isGroup) return true;
+  const uid = userId.toString();
+  const resolvedOthers = (chat.participants || []).filter(
+    (p) => (p._id || p)?.toString() !== uid
+  );
+  return resolvedOthers.length > 0;
+};
+
+const mergeMemberSettings = (chats, settingsByChat) =>
+  chats.map((chat) => {
+    const s = settingsByChat.get(chat._id.toString());
+    return {
+      ...chat,
+      pinned: Boolean(s?.pinned),
+      pinnedAt: s?.pinnedAt || null,
+      muted: Boolean(s?.muted),
+      archived: Boolean(s?.archived),
+    };
+  });
+
+/**
+ * Add `unreadCount` (capped at 100) and `lastReadAt` to each chat. Most chats
+ * resolve without a query: if the last message is the user's own or isn't
+ * newer than their read cursor, the count is 0. The rest run small indexed
+ * counts in parallel; the whole list is then cached with the chat list.
+ */
+const attachUnreadCounts = async (chats, userId, settingsByChat) => {
+  const uid = userId.toString();
+  return Promise.all(
+    chats.map(async (chat) => {
+      const setting = settingsByChat.get(chat._id.toString());
+      const lastReadAt = setting?.lastReadAt || null;
+      const last = chat.lastMessage;
+      const lastSenderId = (last?.sender?._id || last?.sender)?.toString();
+
+      let unreadCount = 0;
+      const lastIsUnread =
+        last &&
+        lastSenderId !== uid &&
+        (lastReadAt
+          ? new Date(last.createdAt) > new Date(lastReadAt)
+          : !(last.readBy || []).some((id) => (id?._id || id)?.toString() === uid));
+
+      if (lastIsUnread) {
+        const clearedAt = setting?.clearedAt || null;
+        const since =
+          lastReadAt && clearedAt
+            ? new Date(Math.max(new Date(lastReadAt), new Date(clearedAt)))
+            : lastReadAt || clearedAt;
+        try {
+          unreadCount = await chatRepo.countUnreadMessages(chat._id, userId, {
+            since,
+            useReadBy: !lastReadAt,
+          });
+        } catch (err) {
+          logger.warn(`Unread count failed for chat ${chat._id}: ${err.message}`);
+          unreadCount = 1;
+        }
+      }
+
+      return { ...chat, unreadCount, lastReadAt };
+    })
+  );
+};
+
+/**
+ * A chat this user "deleted" (clearChatForUser) stays hidden from their list
+ * until a message newer than the clear cutoff arrives — same rule WhatsApp/
+ * Telegram use, so deleting a chat doesn't just relabel it, it actually goes away.
+ */
+const isVisibleAfterClear = (chat, settingsByChat) => {
+  const clearedAt = settingsByChat.get(chat._id.toString())?.clearedAt;
+  if (!clearedAt) return true;
+  const lastMsgAt = chat.lastMessage?.createdAt || chat.updatedAt;
+  return lastMsgAt && new Date(lastMsgAt) > new Date(clearedAt);
+};
+
+/**
+ * Get a page of the current user's chats, most-recently-active first, with
+ * this user's pin/mute/archive state merged in. Page 1 (no cursor) is cached
+ * in Redis; deeper pages go straight to Mongo since drift there is far less
+ * noticeable than at the top of the list.
+ *
+ * Pinned chats are pulled out of the normal cursor stream and always returned
+ * once, at the top of page 1 — otherwise a chat pinned by the user could sort
+ * onto an arbitrary later page purely because it went quiet.
+ */
+export const getUserChats = async (userId, { cursor = null, limit = CHAT_LIST_PAGE_SIZE } = {}) => {
+  const isFirstPage = !cursor;
+  const cacheKey = userChatsCacheKey(userId);
+
   let redisClient = null;
   try {
     redisClient = getRedisClient();
@@ -631,29 +880,116 @@ export const getUserChats = async (userId) => {
     // Redis not initialized or running in test/in-memory mode
   }
 
-  const cacheKey = `user:chats:${userId}`;
-  if (redisClient) {
+  if (isFirstPage && redisClient) {
     try {
       const cached = await redisClient.get(cacheKey);
-      if (cached) {
-        return JSON.parse(cached);
-      }
+      if (cached) return JSON.parse(cached);
     } catch (err) {
       logger.warn(`Redis get error for ${cacheKey}: ${err.message}`);
     }
   }
 
-  const chats = await chatRepo.findChatsByUser(userId);
+  const settings = await chatRepo.findMemberSettingsByUser(userId);
+  const settingsByChat = new Map(settings.map((s) => [s.chat.toString(), s]));
+  const pinnedIds = settings.filter((s) => s.pinned).map((s) => s.chat);
 
-  if (redisClient && chats) {
+  const [pinnedChats, page] = await Promise.all([
+    isFirstPage && pinnedIds.length > 0
+      ? chatRepo.findUserChatsByIds(userId, pinnedIds)
+      : Promise.resolve([]),
+    chatRepo.findChatsByUser(userId, {
+      limit: Math.min(100, Math.max(1, limit)),
+      cursor,
+      excludeIds: pinnedIds,
+    }),
+  ]);
+
+  const pinnedSorted = pinnedChats
+    .filter((c) => isLiveChat(c, userId) && isVisibleAfterClear(c, settingsByChat))
+    .sort((a, b) => new Date(settingsByChat.get(b._id.toString())?.pinnedAt || 0) - new Date(settingsByChat.get(a._id.toString())?.pinnedAt || 0));
+  const rest = page.chats.filter((c) => isLiveChat(c, userId) && isVisibleAfterClear(c, settingsByChat));
+
+  const merged = mergeMemberSettings([...pinnedSorted, ...rest], settingsByChat);
+  const result = {
+    chats: await attachUnreadCounts(merged, userId, settingsByChat),
+    hasMore: page.hasMore,
+    nextCursor: page.nextCursor,
+  };
+
+  if (isFirstPage && redisClient) {
     try {
-      await redisClient.setEx(cacheKey, CHAT_LIST_CACHE_TTL, JSON.stringify(chats));
+      await redisClient.setEx(cacheKey, CHAT_LIST_CACHE_TTL, JSON.stringify(result));
     } catch (err) {
       logger.warn(`Redis set error for ${cacheKey}: ${err.message}`);
     }
   }
 
-  return chats;
+  return result;
+};
+
+// ─── Per-chat member settings (pin / mute / archive / delete-for-me) ────────
+
+const assertChatMembership = async (chatId, userId) => {
+  const isMember = await chatRepo.isParticipant(chatId, userId);
+  if (!isMember) {
+    const exists = await chatRepo.chatExists(chatId);
+    if (!exists) throw new AppError("Chat not found", 404);
+    throw new AppError("You are not a participant in this chat", 403);
+  }
+};
+
+export const setChatPinned = async (userId, chatId, pinned) => {
+  await assertChatMembership(chatId, userId);
+  if (pinned) {
+    const count = await chatRepo.countPinnedChats(userId);
+    const already = await chatRepo.findMemberSetting(chatId, userId);
+    if (!already?.pinned && count >= MAX_PINNED_CHATS) {
+      throw new AppError(`You can only pin up to ${MAX_PINNED_CHATS} chats`, 400);
+    }
+  }
+  const updated = await chatRepo.upsertMemberSetting(chatId, userId, {
+    pinned: Boolean(pinned),
+    pinnedAt: pinned ? new Date() : null,
+  });
+  invalidateUserChatsCache([userId]).catch(() => {});
+  return updated;
+};
+
+export const setChatMuted = async (userId, chatId, muted) => {
+  await assertChatMembership(chatId, userId);
+  const updated = await chatRepo.upsertMemberSetting(chatId, userId, { muted: Boolean(muted) });
+  invalidateUserChatsCache([userId]).catch(() => {});
+  return updated;
+};
+
+/**
+ * Muted chat ids on their own, for the app shell's global new-message toast
+ * listener, which runs on every page and doesn't load the full chat list.
+ */
+export const getMutedChatIds = async (userId) => chatRepo.findMutedChatIdsByUser(userId);
+
+export const setChatArchived = async (userId, chatId, archived) => {
+  await assertChatMembership(chatId, userId);
+  const updated = await chatRepo.upsertMemberSetting(chatId, userId, { archived: Boolean(archived) });
+  invalidateUserChatsCache([userId]).catch(() => {});
+  return updated;
+};
+
+/**
+ * "Delete chat" for this user only: hides every message up to now from them
+ * and drops the chat out of their list (it reappears once a new message
+ * arrives). The other participant's copy of the conversation is untouched —
+ * this is a per-user visibility cutoff, not a data deletion, matching how
+ * WhatsApp/Telegram's "delete chat for me" behaves.
+ */
+export const clearChatForUser = async (userId, chatId) => {
+  await assertChatMembership(chatId, userId);
+  const updated = await chatRepo.upsertMemberSetting(chatId, userId, {
+    clearedAt: new Date(),
+    archived: false,
+  });
+  invalidateUserChatsCache([userId]).catch(() => {});
+  return updated;
 };
 
 /**
@@ -670,7 +1006,25 @@ export const searchMessagesInChat = async (chatId, userId, query) => {
     throw new AppError("You are not a participant in this chat", 403);
   }
 
-  return chatRepo.searchMessagesInChat(chatId, query);
+  const setting = await chatRepo.findMemberSetting(chatId, userId);
+  return chatRepo.searchMessagesInChat(chatId, query, {
+    after: setting?.clearedAt || null,
+    viewerId: userId,
+  });
+};
+
+/**
+ * Paginated shared media / documents / voice notes for a chat's details panel.
+ */
+export const getChatMedia = async (chatId, userId, { kind, cursor } = {}) => {
+  await assertChatMembership(chatId, userId);
+  const setting = await chatRepo.findMemberSetting(chatId, userId);
+  return chatRepo.getChatMedia(chatId, {
+    kind: ["media", "docs", "audio"].includes(kind) ? kind : "media",
+    cursor: cursor || null,
+    after: setting?.clearedAt || null,
+    viewerId: userId,
+  });
 };
 
 /**
@@ -733,6 +1087,7 @@ export const forwardMessages = async (userId, { targetChatId, messageIds }) => {
     if (originalMsg.media) {
       messageData.media = originalMsg.media;
       messageData.mediaType = originalMsg.mediaType;
+      if (originalMsg.fileName) messageData.fileName = originalMsg.fileName;
     }
 
     if (!messageData.content && !messageData.media) continue;
@@ -761,6 +1116,18 @@ export const deleteMultipleMessages = async (userId, { chatId, messageIds }) => 
     throw new AppError("You are not a participant in this chat", 403);
   }
 
-  const deletedIds = await chatRepo.deleteManyMessages(messageIds, userId);
-  return { success: true, deletedIds };
+  if (messageIds.length > 100) throw new AppError("Too many messages at once", 400);
+
+  // Your own messages are deleted for everyone; anyone else's in the
+  // selection are hidden from you only ("delete for me"), so nothing selected
+  // silently reappears on reload.
+  const deletedIds = (await chatRepo.deleteManyMessages(messageIds, userId)).map(String);
+  const deletedSet = new Set(deletedIds);
+  const hiddenIds = messageIds.map(String).filter((id) => !deletedSet.has(id));
+  if (hiddenIds.length > 0) {
+    await chatRepo.hideMessagesForUser(chatId, hiddenIds, userId);
+    invalidateUserChatsCache([userId]).catch(() => {});
+  }
+  const preview = deletedIds.length > 0 ? await refreshChatPreview(chatId) : null;
+  return { success: true, deletedIds, hiddenIds, preview };
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import {
   fetchSchedule,
   createScheduleEvent,
@@ -141,21 +141,21 @@ const buildOverlapGroups = (evList) => {
 // ─── Attendance button configs ────────────────────────────────────────────────
 const ATTENDANCE_STYLES = {
   present: {
-    active: 'bg-emerald-600 border-emerald-500 text-white shadow-md shadow-emerald-900/40',
+    active: 'bg-emerald-600 border-emerald-500 text-on-accent shadow-md shadow-emerald-900/40',
     idle: 'bg-emerald-500/15 border-emerald-600/50 text-emerald-400 hover:bg-emerald-500/25',
     icon: 'check_circle',
     short: 'P',
     label: 'Present',
   },
   absent: {
-    active: 'bg-rose-600 border-rose-500 text-white shadow-md shadow-rose-900/40',
+    active: 'bg-rose-600 border-rose-500 text-on-accent shadow-md shadow-rose-900/40',
     idle: 'bg-rose-500/15 border-rose-600/50 text-rose-400 hover:bg-rose-500/25',
     icon: 'cancel',
     short: 'A',
     label: 'Absent',
   },
   off: {
-    active: 'bg-amber-600 border-amber-500 text-white shadow-md shadow-amber-900/40',
+    active: 'bg-amber-600 border-amber-500 text-on-accent shadow-md shadow-amber-900/40',
     idle: 'bg-amber-500/15 border-amber-600/50 text-amber-400 hover:bg-amber-500/25',
     icon: 'block',
     short: 'Off',
@@ -182,7 +182,7 @@ function AttendanceBtn({ which, current, onClick }) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, addEventTrigger, refreshTrigger }) {
+export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, refreshTrigger }) {
   const [selectedDate, setSelectedDate] = useState(getTodayDateStr);
   const [schedule, setSchedule] = useState([]);
   const [courses, setCourses] = useState([]); // Loaded from Attendance Guardian (Subject Info)
@@ -196,6 +196,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
   const [attendanceState, setAttendanceState] = useState({}); // { [eventId]: 'present'|'absent'|'off'|null }
   const dateInputRef = useRef(null);
   const nowLineRef = useRef(null);
+  const timelineScrollRef = useRef(null);
 
   // New Event Form State
   const [newEvent, setNewEvent] = useState({
@@ -253,11 +254,24 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
     return () => clearInterval(id);
   }, []);
 
-  // Scroll now-line into view on today
+  // Scroll the now-line into view on today, confined to this component's own
+  // timeline scroll container. `scrollIntoView` was used here before, but it
+  // cascades to every scrollable ancestor needed to center the target —
+  // including the page's own <main>, which visibly scrolled the whole
+  // Dashboard down on load. Computing and setting scrollTop directly on the
+  // local container never touches anything outside it.
   useEffect(() => {
-    if (selectedDate === getTodayDateStr() && nowLineRef.current) {
-      if (typeof nowLineRef.current.scrollIntoView === 'function') {
-        nowLineRef.current.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (selectedDate === getTodayDateStr() && nowLineRef.current && timelineScrollRef.current) {
+      const container = timelineScrollRef.current;
+      const target = nowLineRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      const offsetWithinContainer = (targetRect.top - containerRect.top) + container.scrollTop;
+      const desiredScrollTop = offsetWithinContainer - container.clientHeight / 2 + target.clientHeight / 2;
+      if (typeof container.scrollTo === 'function') {
+        container.scrollTo({ top: Math.max(desiredScrollTop, 0), behavior: 'smooth' });
+      } else {
+        container.scrollTop = Math.max(desiredScrollTop, 0);
       }
     }
   }, [selectedDate, loading]);
@@ -284,10 +298,6 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       loadSchedule(false);
     }
   }, [refreshTrigger]);
-
-  useEffect(() => {
-    if (addEventTrigger) setShowAddEventModal(true);
-  }, [addEventTrigger]);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
   const changeDateByDays = (offset) => {
@@ -454,7 +464,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
   // ── Add event ─────────────────────────────────────────────────────────────
   const handleAddEvent = async () => {
     if (!newEvent.title.trim()) {
-      toast.warn('Please select a subject or enter a title');
+      toast.warning('Please select a subject or enter a title');
       return;
     }
     try {
@@ -509,7 +519,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
   const handleSaveEdit = async () => {
     if (!editForm.title.trim()) {
-      toast.warn('Please select a subject or enter a title');
+      toast.warning('Please select a subject or enter a title');
       return;
     }
     try {
@@ -620,17 +630,17 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div id="daily-schedule" className="bg-gray-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-gray-800 shadow-2xl relative">
+    <div id="daily-schedule" className="bg-surface/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 md:p-8 border border-line shadow-2xl relative">
 
       {/* ── Header ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-gray-800/80 pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-line/80 pb-6">
         <div className="flex items-center gap-3">
           <span className="p-2 rounded-xl bg-violet-600/20 border border-violet-500/30 text-violet-400 material-icons">
             calendar_today
           </span>
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">Daily Schedule</h2>
-            <p className="text-xs sm:text-sm text-gray-400">{formattedSelectedDate}</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-fg tracking-wide">Daily Schedule</h2>
+            <p className="text-xs sm:text-sm text-fg-muted">{formattedSelectedDate}</p>
           </div>
         </div>
 
@@ -638,7 +648,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
           <button
             id="daily-schedule-add-event-btn"
             onClick={() => setShowAddEventModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white text-xs font-semibold transition-colors duration-150 cursor-pointer shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-on-accent text-xs font-semibold transition-colors duration-150 cursor-pointer shadow-sm"
           >
             <span className="material-icons text-sm">add</span>
             <span>Add Event</span>
@@ -653,7 +663,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                   try { dateInputRef.current.showPicker(); } catch { dateInputRef.current.focus(); }
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-800 hover:bg-gray-750 text-gray-300 hover:text-white border border-gray-700 text-xs font-medium cursor-pointer transition shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-surface-2 hover:bg-surface-3 text-fg-secondary hover:text-fg border border-line text-xs font-medium cursor-pointer transition shadow-sm"
               title="Pick any date from calendar"
             >
               <span className="material-icons text-sm text-violet-400">event</span>
@@ -672,10 +682,10 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
       </div>
 
       {/* ── 7-Day Strip ── */}
-      <div className="mb-6 p-1.5 sm:p-2 rounded-2xl bg-black/40 border border-gray-800/80 flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+      <div className="mb-6 p-1.5 sm:p-2 rounded-2xl bg-surface-2 border border-line/80 flex items-center justify-between gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
         <button
           onClick={() => changeDateByDays(-1)}
-          className="p-1.5 sm:p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition flex-shrink-0 cursor-pointer"
+          className="p-1.5 sm:p-2 text-fg-muted hover:text-fg rounded-xl hover:bg-surface-3 transition flex-shrink-0 cursor-pointer"
           title="Previous Day"
           aria-label="Previous Day"
         >
@@ -689,15 +699,15 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               onClick={() => setSelectedDate(day.dateStr)}
               className={`flex-1 flex flex-col items-center py-2 px-1 sm:px-2 rounded-xl transition-all cursor-pointer min-w-[34px] sm:min-w-[42px] ${
                 day.isSelected
-                  ? 'bg-violet-600 text-white shadow-sm font-semibold'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800/60 font-medium'
+                  ? 'bg-violet-600 text-on-accent shadow-sm font-semibold'
+                  : 'text-fg-muted hover:text-fg-secondary hover:bg-surface-3/60 font-medium'
               }`}
             >
               <span className="text-[10px] uppercase tracking-wider opacity-80">{day.dayName}</span>
               <span className="text-sm sm:text-base font-mono mt-0.5">{day.dayNum}</span>
               {day.isDayToday && (
                 <span
-                  className={`w-1.5 h-1.5 rounded-full mt-0.5 ${day.isSelected ? 'bg-white' : 'bg-violet-400'}`}
+                  className={`w-1.5 h-1.5 rounded-full mt-0.5 ${day.isSelected ? 'bg-on-accent' : 'bg-violet-400'}`}
                   title="Today"
                 />
               )}
@@ -707,7 +717,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
         <button
           onClick={() => changeDateByDays(1)}
-          className="p-2 text-gray-400 hover:text-white rounded-xl hover:bg-gray-800 transition flex-shrink-0 cursor-pointer"
+          className="p-2 text-fg-muted hover:text-fg rounded-xl hover:bg-surface-3 transition flex-shrink-0 cursor-pointer"
           title="Next Day"
           aria-label="Next Day"
         >
@@ -734,13 +744,23 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
       {/* ── Timeline ── */}
       {loading ? (
-        <div className="py-16 text-center">
-          <div className="inline-block w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin" />
-          <p className="mt-3 text-sm text-gray-400">Loading schedule...</p>
+        <div className="space-y-4" aria-busy="true" aria-label="Loading schedule">
+          {Array.from({ length: 7 }, (_, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <div className="h-3 w-10 bg-surface-2 rounded animate-pulse shrink-0" />
+              <div className="w-[18px] flex justify-center shrink-0">
+                <div className="w-1.5 h-1.5 rounded-full bg-surface-3 animate-pulse" />
+              </div>
+              <div
+                className="h-12 bg-surface-2 rounded-xl animate-pulse flex-1"
+                style={{ opacity: 1 - i * 0.08 }}
+              />
+            </div>
+          ))}
         </div>
       ) : (
         <div className="relative">
-          <div className="max-h-[70vh] overflow-y-auto pl-1 pr-1 scrollbar-thin scrollbar-track-gray-900 scrollbar-thumb-gray-700">
+          <div ref={timelineScrollRef} className="max-h-[70vh] overflow-y-auto pl-1 pr-1 custom-scrollbar">
             <div className="relative pt-3">
               {SLOTS.map((slot, idx) => {
                 const isNowInSlot = isToday && nowHours >= slot.startHour && nowHours < slot.endHour;
@@ -763,8 +783,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                           isNowInSlot
                             ? 'text-violet-400 font-bold'
                             : slot.hasEvents
-                              ? 'text-gray-300'
-                              : 'text-gray-600'
+                              ? 'text-fg-secondary'
+                              : 'text-fg-subtle'
                         }`}
                       >
                         {slot.label}
@@ -776,16 +796,16 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                       {/* Tick mark */}
                       <div
                         className={`h-px flex-shrink-0 ${
-                          slot.hasEvents ? 'w-[10px] bg-gray-500' : 'w-[6px] bg-gray-700'
+                          slot.hasEvents ? 'w-[10px] bg-line-strong' : 'w-[6px] bg-line'
                         }`}
                       />
                       {/* Connector */}
                       {!isLastSlot && (
                         <div
                           className={`flex-1 w-px ${
-                            slot.hasEvents ? 'bg-gray-600' : 'bg-gray-800'
+                            slot.hasEvents ? 'bg-line-strong' : 'bg-line'
                           }`}
-                          style={!slot.hasEvents ? { backgroundImage: 'repeating-linear-gradient(to bottom, #374151 0, #374151 3px, transparent 3px, transparent 7px)', backgroundSize: '1px 7px', width: '1px', background: 'none' } : {}}
+                          style={!slot.hasEvents ? { backgroundImage: 'repeating-linear-gradient(to bottom, rgb(var(--line-strong)) 0, rgb(var(--line-strong)) 3px, transparent 3px, transparent 7px)', backgroundSize: '1px 7px', width: '1px', background: 'none' } : {}}
                         />
                       )}
 
@@ -811,8 +831,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                               <div key={gi} className="space-y-1.5">
                                 {isOverlap && (
                                   <div className="flex items-center gap-1 mb-1">
-                                    <span className="material-icons text-[10px] text-amber-500">call_merge</span>
-                                    <span className="text-[9px] text-amber-500 font-semibold uppercase tracking-wider">Overlapping</span>
+                                    <span className="material-icons text-[10px] text-amber-400">call_merge</span>
+                                    <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wider">Overlapping</span>
                                   </div>
                                 )}
                                 {group.events.map((ev) => {
@@ -825,7 +845,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                   return (
                                     <div
                                       key={ev._id}
-                                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-r-xl border border-gray-700/50 border-l-4 px-3.5 py-2.5 transition-all duration-200 hover:border-gray-600/80 group ${cfg.accent} ${
+                                      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-r-xl border border-line/50 border-l-4 px-3.5 py-2.5 transition-all duration-200 hover:border-line-strong/80 group ${cfg.accent} ${
                                         isOverlap ? 'ml-3' : ''
                                       }`}
                                     >
@@ -837,22 +857,22 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                             {cfg.label}
                                           </span>
                                           {ev.type === 'class' && ev.location && (
-                                            <span className="flex items-center gap-1 text-xs text-gray-300">
-                                              <span className="material-icons text-sm text-gray-400">location_on</span>
+                                            <span className="flex items-center gap-1 text-xs text-fg-secondary">
+                                              <span className="material-icons text-sm text-fg-muted">location_on</span>
                                               {ev.location}
                                             </span>
                                           )}
                                         </div>
 
                                         {/* Line 2: Title in next line */}
-                                        <p className="text-sm font-semibold text-gray-100 truncate leading-snug">
+                                        <p className="text-sm font-semibold text-fg truncate leading-snug">
                                           {cleanTitle}
                                         </p>
 
                                         {/* Line 3: Professor name (only for classes) */}
                                         {ev.type === 'class' && ev.professor && (
-                                          <div className="mt-1 flex items-center gap-1 text-xs text-gray-300">
-                                            <span className="material-icons text-sm text-gray-400">person</span>
+                                          <div className="mt-1 flex items-center gap-1 text-xs text-fg-secondary">
+                                            <span className="material-icons text-sm text-fg-muted">person</span>
                                             <span>{ev.professor}</span>
                                           </div>
                                         )}
@@ -870,7 +890,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                         <div className="flex flex-col gap-1">
                                           <button
                                             onClick={() => handleEditEventClick(ev)}
-                                            className="p-1.5 rounded-lg text-gray-400 hover:text-violet-400 hover:bg-violet-500/10 transition cursor-pointer"
+                                            className="p-1.5 rounded-lg text-fg-muted hover:text-violet-400 hover:bg-violet-500/10 transition cursor-pointer"
                                             title="Edit Event"
                                             aria-label="Edit Event"
                                           >
@@ -878,7 +898,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                                           </button>
                                           <button
                                             onClick={() => handleDeleteEventClick(ev)}
-                                            className="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                                            className="p-1.5 rounded-lg text-fg-muted hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
                                             title="Delete Event"
                                             aria-label="Delete Event"
                                           >
@@ -912,12 +932,12 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               {/* End-of-range label */}
               <div className="flex">
                 <div className="w-[54px] sm:w-[60px] flex-shrink-0 flex justify-end pr-2">
-                  <span className="text-[10px] font-mono text-gray-600 -translate-y-[5px] tabular-nums">
+                  <span className="text-[10px] font-mono text-fg-subtle -translate-y-[5px] tabular-nums">
                     {String(maxHour + 1 > 24 ? 24 : maxHour + 1).padStart(2, '0')}:00
                   </span>
                 </div>
                 <div className="w-[18px] flex-shrink-0 flex items-start pt-0">
-                  <div className="w-[6px] h-px bg-gray-700" />
+                  <div className="w-[6px] h-px bg-line" />
                 </div>
               </div>
             </div>
@@ -927,8 +947,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
           {schedule.length === 0 && !loading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none pt-32">
               <span className="material-icons text-5xl text-violet-500/20 mb-3">event_available</span>
-              <h4 className="text-base font-semibold text-gray-500">No events scheduled</h4>
-              <p className="text-xs text-gray-600 mt-1">Add classes or tasks to see them on the timeline.</p>
+              <h4 className="text-base font-semibold text-fg-muted">No events scheduled</h4>
+              <p className="text-xs text-fg-subtle mt-1">Add classes or tasks to see them on the timeline.</p>
             </div>
           )}
         </div>
@@ -936,16 +956,16 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
       {/* ── Add Event Modal ── */}
       {showAddEventModal && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-gray-800 shadow-2xl">
-            <div className="flex justify-between items-center mb-6 pb-3 border-b border-gray-800">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-lg border border-line shadow-2xl">
+            <div className="flex justify-between items-center mb-6 pb-3 border-b border-line">
+              <h3 className="text-xl font-bold text-fg flex items-center gap-2">
                 <span className="material-icons text-violet-400">add_circle_outline</span>
                 Add Event to Schedule
               </h3>
               <button
                 onClick={() => setShowAddEventModal(false)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 cursor-pointer"
+                className="text-fg-muted hover:text-fg p-1 rounded-lg hover:bg-surface-2 cursor-pointer"
               >
                 <span className="material-icons">close</span>
               </button>
@@ -954,7 +974,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
             <div className="space-y-4 text-sm">
               {/* Type */}
               <div>
-                <label className="block text-gray-300 mb-1.5 font-medium">Type</label>
+                <label className="block text-fg-secondary mb-1.5 font-medium">Type</label>
                 <div className="grid grid-cols-3 gap-2">
                   {['class', 'task', 'event'].map((type) => (
                     <button
@@ -963,8 +983,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                       onClick={() => setNewEvent((prev) => ({ ...prev, type }))}
                       className={`py-2 px-3 rounded-xl border text-center font-semibold capitalize transition cursor-pointer ${
                         newEvent.type === type
-                          ? 'bg-violet-600 border-violet-500 text-white'
-                          : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:bg-gray-700'
+                          ? 'bg-violet-600 border-violet-500 text-on-accent'
+                          : 'bg-surface-2/80 border-line text-fg-muted hover:bg-surface-3'
                       }`}
                     >
                       {type}
@@ -976,7 +996,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               {/* Class Type selection if class */}
               {newEvent.type === 'class' && (
                 <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Class Type</label>
+                  <label className="block text-fg-secondary mb-1.5 font-medium">Class Type</label>
                   <div className="grid grid-cols-3 gap-2">
                     {['Lecture', 'Lab', 'Tutorial'].map((ct) => (
                       <button
@@ -990,7 +1010,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                               : ct === 'Tutorial'
                               ? 'bg-amber-600/30 border-amber-500 text-amber-300'
                               : 'bg-violet-600/30 border-violet-500 text-violet-300'
-                            : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:bg-gray-700'
+                            : 'bg-surface-2/80 border-line text-fg-muted hover:bg-surface-3'
                         }`}
                       >
                         {ct}
@@ -1002,7 +1022,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
               {/* Title / Subject Name: Dropdown for subjects in Subject Info only */}
               <div>
-                <label className="block text-gray-300 mb-1.5 font-medium">
+                <label className="block text-fg-secondary mb-1.5 font-medium">
                   {newEvent.type === 'class' ? 'Subject (from Subject Info)' : 'Title'}
                 </label>
                 {newEvent.type === 'class' ? (
@@ -1017,7 +1037,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                           professor: selectedCourse?.professor || prev.professor,
                         }));
                       }}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500 cursor-pointer"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500 cursor-pointer"
                       required
                     >
                       <option value="" disabled>Select a subject from Subject Info</option>
@@ -1037,7 +1057,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                     type="text"
                     value={newEvent.title}
                     onChange={(e) => setNewEvent((prev) => ({ ...prev, title: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg placeholder-fg-subtle focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500"
                     placeholder="e.g. Submit Assignment 3"
                     required
                   />
@@ -1047,32 +1067,32 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               {/* Timings */}
               {newEvent.type === 'task' ? (
                 <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Deadline Time</label>
+                  <label className="block text-fg-secondary mb-1.5 font-medium">Deadline Time</label>
                   <input
                     type="time"
                     value={newEvent.deadline}
                     onChange={(e) => setNewEvent((prev) => ({ ...prev, deadline: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                   />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-300 mb-1.5 font-medium">Start Time</label>
+                    <label className="block text-fg-secondary mb-1.5 font-medium">Start Time</label>
                     <input
                       type="time"
                       value={newEvent.startTime}
                       onChange={(e) => setNewEvent((prev) => ({ ...prev, startTime: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1.5 font-medium">End Time</label>
+                    <label className="block text-fg-secondary mb-1.5 font-medium">End Time</label>
                     <input
                       type="time"
                       value={newEvent.endTime}
                       onChange={(e) => setNewEvent((prev) => ({ ...prev, endTime: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                     />
                   </div>
                 </div>
@@ -1080,26 +1100,26 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
               {/* Location */}
               <div>
-                <label className="block text-gray-300 mb-1.5 font-medium">Location (Room/Hall)</label>
+                <label className="block text-fg-secondary mb-1.5 font-medium">Location (Room/Hall)</label>
                 <input
                   type="text"
                   value={newEvent.location}
                   onChange={(e) => setNewEvent((prev) => ({ ...prev, location: e.target.value }))}
                   placeholder="e.g. CC-1 / Lab 2"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                  className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg placeholder-fg-subtle focus:outline-none focus:border-violet-500"
                 />
               </div>
 
               {/* Professor (classes only) */}
               {newEvent.type === 'class' && (
                 <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Professor Name</label>
+                  <label className="block text-fg-secondary mb-1.5 font-medium">Professor Name</label>
                   <input
                     type="text"
                     value={newEvent.professor}
                     onChange={(e) => setNewEvent((prev) => ({ ...prev, professor: e.target.value }))}
                     placeholder="e.g. Dr. A. Sharma"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg placeholder-fg-subtle focus:outline-none focus:border-violet-500"
                   />
                 </div>
               )}
@@ -1107,7 +1127,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               <button
                 onClick={handleAddEvent}
                 disabled={isSubmitting || !newEvent.title.trim()}
-                className="w-full mt-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full mt-4 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-on-accent py-3 rounded-xl font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isSubmitting ? 'Saving...' : 'Save to Schedule'}
               </button>
@@ -1118,16 +1138,16 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
       {/* ── Edit Event Modal ── */}
       {editingEvent && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-gray-800 shadow-2xl">
-            <div className="flex justify-between items-center mb-6 pb-3 border-b border-gray-800">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-lg border border-line shadow-2xl">
+            <div className="flex justify-between items-center mb-6 pb-3 border-b border-line">
+              <h3 className="text-xl font-bold text-fg flex items-center gap-2">
                 <span className="material-icons text-violet-400">edit_note</span>
                 Edit {editForm.type === 'class' ? 'Class' : editForm.type === 'task' ? 'Task' : 'Event'}
               </h3>
               <button
                 onClick={() => setEditingEvent(null)}
-                className="text-gray-400 hover:text-white p-1 rounded-lg hover:bg-gray-800 cursor-pointer"
+                className="text-fg-muted hover:text-fg p-1 rounded-lg hover:bg-surface-2 cursor-pointer"
               >
                 <span className="material-icons">close</span>
               </button>
@@ -1136,7 +1156,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
             <div className="space-y-4 text-sm">
               {/* Type */}
               <div>
-                <label className="block text-gray-300 mb-1.5 font-medium">Type</label>
+                <label className="block text-fg-secondary mb-1.5 font-medium">Type</label>
                 <div className="grid grid-cols-3 gap-2">
                   {['class', 'task', 'event'].map((type) => (
                     <button
@@ -1145,8 +1165,8 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                       onClick={() => setEditForm((prev) => ({ ...prev, type }))}
                       className={`py-2 px-3 rounded-xl border text-center font-semibold capitalize transition cursor-pointer ${
                         editForm.type === type
-                          ? 'bg-violet-600 border-violet-500 text-white'
-                          : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:bg-gray-700'
+                          ? 'bg-violet-600 border-violet-500 text-on-accent'
+                          : 'bg-surface-2/80 border-line text-fg-muted hover:bg-surface-3'
                       }`}
                     >
                       {type}
@@ -1158,7 +1178,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               {/* Class Type selection if class */}
               {editForm.type === 'class' && (
                 <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Class Type</label>
+                  <label className="block text-fg-secondary mb-1.5 font-medium">Class Type</label>
                   <div className="grid grid-cols-3 gap-2">
                     {['Lecture', 'Lab', 'Tutorial'].map((ct) => (
                       <button
@@ -1172,7 +1192,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                               : ct === 'Tutorial'
                               ? 'bg-amber-600/30 border-amber-500 text-amber-300'
                               : 'bg-violet-600/30 border-violet-500 text-violet-300'
-                            : 'bg-gray-800/80 border-gray-700 text-gray-400 hover:bg-gray-700'
+                            : 'bg-surface-2/80 border-line text-fg-muted hover:bg-surface-3'
                         }`}
                       >
                         {ct}
@@ -1184,7 +1204,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
               {/* Title / Subject Name: Dropdown for subjects in Subject Info only */}
               <div>
-                <label className="block text-gray-300 mb-1.5 font-medium">
+                <label className="block text-fg-secondary mb-1.5 font-medium">
                   {editForm.type === 'class' ? 'Subject (from Subject Info)' : 'Title'}
                 </label>
                 {editForm.type === 'class' ? (
@@ -1199,7 +1219,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                           professor: selectedCourse?.professor || prev.professor,
                         }));
                       }}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500 cursor-pointer"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500 cursor-pointer"
                       required
                     >
                       <option value="" disabled>Select a subject from Subject Info</option>
@@ -1218,7 +1238,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                       type="text"
                       value={editForm.title}
                       onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                       required
                     />
                   )
@@ -1227,7 +1247,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                     type="text"
                     value={editForm.title}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, title: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                     required
                   />
                 )}
@@ -1236,32 +1256,32 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
               {/* Timings */}
               {editForm.type === 'task' ? (
                 <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Deadline Time</label>
+                  <label className="block text-fg-secondary mb-1.5 font-medium">Deadline Time</label>
                   <input
                     type="time"
                     value={editForm.deadline}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, deadline: e.target.value }))}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                   />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-gray-300 mb-1.5 font-medium">Start Time</label>
+                    <label className="block text-fg-secondary mb-1.5 font-medium">Start Time</label>
                     <input
                       type="time"
                       value={editForm.startTime}
                       onChange={(e) => setEditForm((prev) => ({ ...prev, startTime: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                     />
                   </div>
                   <div>
-                    <label className="block text-gray-300 mb-1.5 font-medium">End Time</label>
+                    <label className="block text-fg-secondary mb-1.5 font-medium">End Time</label>
                     <input
                       type="time"
                       value={editForm.endTime}
                       onChange={(e) => setEditForm((prev) => ({ ...prev, endTime: e.target.value }))}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white focus:outline-none focus:border-violet-500"
+                      className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg focus:outline-none focus:border-violet-500"
                     />
                   </div>
                 </div>
@@ -1269,26 +1289,26 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
               {/* Location */}
               <div>
-                <label className="block text-gray-300 mb-1.5 font-medium">Location (Room/Hall)</label>
+                <label className="block text-fg-secondary mb-1.5 font-medium">Location (Room/Hall)</label>
                 <input
                   type="text"
                   value={editForm.location}
                   onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
                   placeholder="e.g. CC-1 / Lab 2"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                  className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg placeholder-fg-subtle focus:outline-none focus:border-violet-500"
                 />
               </div>
 
               {/* Professor (classes only) */}
               {editForm.type === 'class' && (
                 <div>
-                  <label className="block text-gray-300 mb-1.5 font-medium">Professor Name</label>
+                  <label className="block text-fg-secondary mb-1.5 font-medium">Professor Name</label>
                   <input
                     type="text"
                     value={editForm.professor}
                     onChange={(e) => setEditForm((prev) => ({ ...prev, professor: e.target.value }))}
                     placeholder="e.g. Dr. A. Sharma"
-                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-violet-500"
+                    className="w-full bg-surface-2 border border-line rounded-xl px-4 py-2.5 text-fg placeholder-fg-subtle focus:outline-none focus:border-violet-500"
                   />
                 </div>
               )}
@@ -1297,7 +1317,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                 <button
                   type="button"
                   onClick={() => setEditingEvent(null)}
-                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-gray-300 py-3 rounded-xl font-semibold transition cursor-pointer"
+                  className="flex-1 bg-surface-2 hover:bg-surface-3 text-fg-secondary py-3 rounded-xl font-semibold transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1305,7 +1325,7 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
                   type="button"
                   onClick={handleSaveEdit}
                   disabled={isSubmitting || !editForm.title.trim()}
-                  className="flex-1 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white py-3 rounded-xl font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                  className="flex-1 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-on-accent py-3 rounded-xl font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                 >
                   {isSubmitting ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -1317,28 +1337,28 @@ export default function DailySchedule({ onScheduleChanged, onAttendanceChanged, 
 
       {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-gray-800 shadow-2xl">
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+          <div className="bg-surface rounded-2xl p-6 w-full max-w-md border border-line shadow-2xl">
             <div className="flex items-center gap-2 mb-2 text-rose-400">
               <span className="material-icons text-xl">delete_forever</span>
-              <h3 className="text-lg font-bold text-white">
+              <h3 className="text-lg font-bold text-fg">
                 Delete {showDeleteConfirm.type === 'class' ? 'Class' : showDeleteConfirm.type === 'task' ? 'Task' : 'Event'}?
               </h3>
             </div>
-            <p className="text-sm text-gray-300 mb-5">
+            <p className="text-sm text-fg-secondary mb-5">
               Are you sure you want to permanently delete{' '}
-              <strong className="text-white">"{showDeleteConfirm.title}"</strong> from your schedule? This action cannot be undone.
+              <strong className="text-fg">"{showDeleteConfirm.title}"</strong> from your schedule? This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-gray-800 hover:bg-gray-700 text-gray-300 transition cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-surface-2 hover:bg-surface-3 text-fg-secondary transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmDelete}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white transition-colors duration-150 shadow-sm cursor-pointer"
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-on-accent transition-colors duration-150 shadow-sm cursor-pointer"
               >
                 Delete Permanently
               </button>

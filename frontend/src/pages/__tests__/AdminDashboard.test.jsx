@@ -25,9 +25,11 @@ vi.mock('../../api/admin.api', () => ({
   deleteAdminPost: vi.fn(),
   getReportedMessages: vi.fn(),
   updateReportStatus: vi.fn(),
+  getReportedPosts: vi.fn(),
+  updatePostReportStatus: vi.fn(),
 }));
 
-vi.mock('react-toastify', () => ({
+vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -137,6 +139,26 @@ describe('AdminDashboard Component Tests', () => {
     adminApi.updateReportStatus.mockResolvedValue({
       success: true,
       data: { _id: 'rep_1', status: 'reviewed' },
+    });
+    adminApi.getReportedPosts.mockResolvedValue({
+      success: true,
+      data: [
+        {
+          _id: 'post_rep_1',
+          postId: 'post_42',
+          reportedBy: { _id: 'u1', username: 'reporter_user' },
+          postAuthorId: { _id: 'u3', username: 'poster_user' },
+          captionSnippet: 'Buy followers cheap',
+          reason: 'Spam or misleading',
+          status: 'pending',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      pagination: { totalDocs: 1, totalPages: 1, page: 1, limit: 15 },
+    });
+    adminApi.updatePostReportStatus.mockResolvedValue({
+      success: true,
+      data: { _id: 'post_rep_1', status: 'dismissed' },
     });
   });
 
@@ -314,12 +336,12 @@ describe('AdminDashboard Component Tests', () => {
     console.log('TRACE [AdminDashboard.test.jsx]: Audit trail logs rendered correctly');
   });
 
-  it('switches to Reported Messages tab, displays reports, and allows resolving a report', async () => {
+  it('switches to Reports tab, displays message reports, and allows resolving a report', async () => {
     console.log('TRACE [AdminDashboard.test.jsx]: Testing Reported Messages tab navigation and action');
     const user = userEvent.setup();
     renderComponent();
 
-    const reportsTab = screen.getByRole('tab', { name: /Reported Messages/i });
+    const reportsTab = screen.getByRole('tab', { name: /Reports/i });
     await user.click(reportsTab);
 
     // Verify reported message row rendered
@@ -340,5 +362,27 @@ describe('AdminDashboard Component Tests', () => {
     });
 
     console.log('TRACE [AdminDashboard.test.jsx]: Reported message successfully resolved');
+  });
+
+  it('shows reported feed posts under the Posts switch and dismisses through the post-report API', async () => {
+    const user = userEvent.setup();
+    renderComponent();
+
+    await user.click(screen.getByRole('tab', { name: /Reports/i }));
+    await user.click(screen.getByRole('button', { name: 'Posts' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Reported Feed Posts')).toBeInTheDocument();
+      expect(screen.getByText('@poster_user')).toBeInTheDocument();
+      expect(screen.getByText('Buy followers cheap')).toBeInTheDocument();
+    });
+    expect(adminApi.getReportedPosts).toHaveBeenCalledWith({ page: 1, limit: 15, status: 'pending' });
+    expect(screen.getByRole('link', { name: /View/i })).toHaveAttribute('href', '/posts/post_42');
+
+    await user.click(screen.getByTitle('Dismiss report'));
+    await waitFor(() => {
+      expect(adminApi.updatePostReportStatus).toHaveBeenCalledWith('post_rep_1', 'dismissed');
+    });
+    expect(adminApi.updateReportStatus).not.toHaveBeenCalled();
   });
 });

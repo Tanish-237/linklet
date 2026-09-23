@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import useAuthStore from "../store/useAuthStore";
+import useThemeStore from "../theme/useThemeStore";
 import PreviewModal, { getFileIcon } from "../components/PreviewModal";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
@@ -32,59 +33,35 @@ const SkeletonCard = ({ view }) => (
 import SaveToCollectionModal from "../components/SaveToCollectionModal";
 
 const CATEGORIES = [
-  { id: "all",           label: "All",           icon: "folder" },
-  { id: "notes",         label: "Notes",         icon: "description" },
-  { id: "assignments",   label: "Assignments",   icon: "assignment" },
-  { id: "papers",        label: "Papers",        icon: "library_books" },
-  { id: "presentations", label: "Presentations", icon: "slideshow" },
-  { id: "other",         label: "Other",         icon: "more_horiz" },
+  { id: "all",         label: "All",         icon: "folder" },
+  { id: "notes",       label: "Notes",       icon: "description" },
+  { id: "assignments", label: "Assignments", icon: "assignment" },
+  { id: "papers",      label: "Papers",      icon: "library_books" },
+  { id: "books",       label: "Books",       icon: "menu_book" },
+  { id: "lectures",    label: "Lectures",    icon: "school" },
+  { id: "other",       label: "Other",       icon: "more_horiz" },
 ];
-
-const POPULAR_TAGS = ["mid-term", "finals", "project", "homework", "research"];
 
 const UploadModal = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({ title: "", description: "", category: "notes" });
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState("");
   const [uploadType, setUploadType] = useState("file");
   const [linkUrl, setLinkUrl] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
-  const ALLOWED_TYPES = [
-    "application/pdf","application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "text/plain",
-    "image/jpeg","image/png","image/gif","image/webp","image/svg+xml",
-    "video/mp4","video/webm","video/ogg","video/quicktime"
-  ];
+  // Any file type is accepted — the backend imposes no type restriction
+  // (only a 25MB size / 10 file count limit), so the picker shouldn't either.
+  const MAX_FILE_SIZE = 25 * 1024 * 1024;
 
   const handleFile = (file) => {
-    if (file && (ALLOWED_TYPES.includes(file.type) || file.type.startsWith("image/") || file.type.startsWith("video/"))) setSelectedFile(file);
-    else toast.error("Please select a valid document, image, or video file.");
-  };
-
-  const addTag = (tag) => {
-    const cleaned = tag.trim().toLowerCase().replace(/^#+/, "");
-    if (cleaned && !tags.includes(cleaned)) setTags((p) => [...p, cleaned]);
-    setTagInput("");
-  };
-
-  const handleTagKeyDown = (e) => {
-    if (["Enter", ",", " "].includes(e.key)) {
-      e.preventDefault();
-      if (tagInput.trim()) addTag(tagInput);
-    } else if (e.key === "Backspace" && !tagInput && tags.length > 0) {
-      setTags((p) => p.slice(0, -1));
+    if (!file) return;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("File is too large. Maximum size is 25MB.");
+      return;
     }
+    setSelectedFile(file);
   };
-
-  const removeTag = (tag) => setTags((p) => p.filter((t) => t !== tag));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -98,7 +75,6 @@ const UploadModal = ({ onClose, onSuccess }) => {
       fd.append("title", finalTitle);
       fd.append("description", formData.description);
       fd.append("category", formData.category);
-      fd.append("tags", tags.join(","));
       if (uploadType === "file") {
         fd.append("document", selectedFile);
       } else {
@@ -122,7 +98,7 @@ const UploadModal = ({ onClose, onSuccess }) => {
       <div className="gs-upload-modal" onClick={(e) => e.stopPropagation()}>
         <div className="gs-modal-header">
           <h2 className="gs-modal-title">
-            <span className="material-icons" style={{ color: "#a78bfa" }}>upload_file</span>
+            <span className="material-icons" style={{ color: "rgb(var(--accent-fg))" }}>upload_file</span>
             Share a Resource
           </h2>
           <button className="gs-icon-btn" onClick={onClose}>
@@ -144,46 +120,17 @@ const UploadModal = ({ onClose, onSuccess }) => {
               placeholder="e.g. Data Structures Notes (Defaults to file name if empty)"
             />
           </div>
-          <div className="gs-form-row">
-            <div className="gs-form-group">
-              <label>Category *</label>
-              <select
-                value={formData.category}
-                onChange={(e) => setFormData((p) => ({ ...p, category: e.target.value }))}
-                required
-              >
-                {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
-                  <option key={c.id} value={c.id}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="gs-form-group">
-              <label>Tags</label>
-              <div className="gs-tag-input-wrap">
-                {tags.map((t) => (
-                  <span key={t} className="gs-tag-input-chip">
-                    #{t}
-                    <button type="button" className="gs-tag-remove" onClick={() => removeTag(t)}>×</button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  className="gs-tag-inner-input"
-                  placeholder={tags.length === 0 ? "Add tags…" : ""}
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={handleTagKeyDown}
-                  onBlur={() => tagInput.trim() && addTag(tagInput)}
-                />
-              </div>
-              <div className="gs-tag-suggestions">
-                {POPULAR_TAGS.filter((t) => !tags.includes(t)).map((t) => (
-                  <button key={t} type="button" className="gs-tag-suggestion" onClick={() => addTag(t)}>
-                    +{t}
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className="gs-form-group">
+            <label>Category *</label>
+            <select
+              value={formData.category}
+              onChange={(e) => setFormData((p) => ({ ...p, category: e.target.value }))}
+              required
+            >
+              {CATEGORIES.filter((c) => c.id !== "all").map((c) => (
+                <option key={c.id} value={c.id}>{c.label}</option>
+              ))}
+            </select>
           </div>
           <div className="gs-form-group">
             <label>Description *</label>
@@ -208,10 +155,10 @@ const UploadModal = ({ onClose, onSuccess }) => {
               ) : (
                 <>
                   <p className="gs-dropzone-text">Drag & drop or click to choose</p>
-                  <p className="gs-dropzone-sub">Documents, Images, Videos</p>
+                  <p className="gs-dropzone-sub">Any file type, up to 25MB</p>
                 </>
               )}
-              <input id="gs-file-input" type="file" accept="image/*,video/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" onChange={(e) => handleFile(e.target.files[0])} style={{ display: "none" }} />
+              <input id="gs-file-input" type="file" onChange={(e) => handleFile(e.target.files[0])} style={{ display: "none" }} />
             </div>
           ) : (
             <div className="gs-form-group gs-link-group">
@@ -237,7 +184,8 @@ const UploadModal = ({ onClose, onSuccess }) => {
 
 /* ──────────────────────── resource card ──────────────────────── */
 const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, onPromptDelete, currentUser }) => {
-  const { icon, color } = getFileIcon(resource.fileName, resource.fileType);
+  const theme = useThemeStore((s) => s.theme);
+  const { icon, color } = getFileIcon(resource.fileName, resource.fileType, theme);
   const [copying, setCopying] = useState(false);
 
   const ownerId = resource.userId?._id || resource.userId;
@@ -246,7 +194,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
   const copyLink = async (e) => {
     if (e) e.stopPropagation();
     try {
-      const shareUrl = `${window.location.origin}/dashboard/global-search?preview=${resource._id}`;
+      const shareUrl = `${window.location.origin}/resource-hub?preview=${resource._id}`;
       await navigator.clipboard.writeText(shareUrl);
       setCopying(true);
       setTimeout(() => setCopying(false), 1500);
@@ -280,7 +228,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
                 ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
                 : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
               }
-              <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
+              <Link to={`/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
                 {resource.userId?.username || "Anonymous"}
               </Link>
               <span className="gs-dot" />
@@ -307,7 +255,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
             <button
               className="gs-icon-btn"
               title="Delete Resource"
-              style={{ color: "#f87171" }}
+              style={{ color: "rgb(var(--danger-fg))" }}
               onClick={(e) => {
                 e.stopPropagation();
                 onPromptDelete(resource._id);
@@ -381,7 +329,7 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
             ? <img loading="lazy" decoding="async" src={resource.userId.avatar} alt="" className="gs-avatar-sm" />
             : <div className="gs-avatar-sm gs-avatar-placeholder"><span className="material-icons">person</span></div>
           }
-          <Link to={`/dashboard/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
+          <Link to={`/profile/${resource.userId?.username}`} className="gs-username" onClick={(e) => e.stopPropagation()}>
             {resource.userId?.username || "Anonymous"}
           </Link>
         </div>
@@ -410,23 +358,10 @@ const ResourceCard = ({ resource, view, saved, onToggleSave, onOpen, onAction, o
 /* ─────────────────────── constants ─────────────────────────── */
 const SORT_OPTIONS = [
   { id: "most_downloaded", label: "Most Downloaded", icon: "trending_up" },
-  { id: "relevance",       label: "Relevance",        icon: "auto_awesome" },
   { id: "newest",          label: "Newest First",     icon: "schedule" },
   { id: "oldest",          label: "Oldest First",     icon: "history" },
   { id: "az",              label: "A – Z",            icon: "sort_by_alpha" },
   { id: "za",              label: "Z – A",            icon: "sort_by_alpha" },
-];
-
-const FILE_TYPE_FILTERS = [
-  { id: "all", label: "All Types" },
-  { id: "pdf", label: "PDF" },
-  { id: "doc", label: "Word" },
-  { id: "ppt", label: "Slides" },
-  { id: "xls", label: "Sheet" },
-  { id: "txt", label: "Text" },
-  { id: "img", label: "Image" },
-  { id: "vid", label: "Video" },
-  { id: "link", label: "Link" },
 ];
 
 const PAGE_SIZE = 12;
@@ -436,7 +371,7 @@ const DeletedNoticeModal = ({ onClose }) => (
   <div className="gs-modal-backdrop" onClick={onClose}>
     <div className="gs-deleted-modal" onClick={(e) => e.stopPropagation()}>
       <div className="gs-deleted-icon-wrap">
-        <span className="material-icons" style={{ fontSize: 44, color: "#f87171" }}>
+        <span className="material-icons" style={{ fontSize: 44, color: "rgb(var(--danger-fg))" }}>
           do_not_disturb_on
         </span>
       </div>
@@ -466,11 +401,9 @@ export default function GlobalSearch() {
   const [loading, setLoading]               = useState(false);
   const [loadingMore, setLoadingMore]       = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [selectedFileType, setSelectedFileType] = useState("all");
   const [selectedSort, setSelectedSort]     = useState("most_downloaded");
-  const [selectedTags, setSelectedTags]     = useState([]);
   const [isSortOpen, setIsSortOpen]         = useState(false);
-  const [view, setView]                     = useState("grid");
+  const view = "grid";
   const [bookmarks, setBookmarks]           = useState(new Set());
   const [previewResource, setPreviewResource] = useState(null);
   const [showDeletedNotice, setShowDeletedNotice] = useState(false);
@@ -478,7 +411,7 @@ export default function GlobalSearch() {
   const [showSavedOnly, setShowSavedOnly] = useState(false);
   const [showMyResourcesOnly, setShowMyResourcesOnly] = useState(false);
   const [savedResources, setBookmarkedResources] = useState([]);
-  const [stats, setStats]                   = useState({ total: 0, categories: { all:0, notes:0, assignments:0, papers:0, presentations:0, other:0 } });
+  const [stats, setStats]                   = useState({ total: 0, categories: { all:0, notes:0, assignments:0, papers:0, books:0, lectures:0, other:0 } });
   const [pagination, setPagination]         = useState({ page: 1, totalPages: 1, totalDocs: 0, hasNextPage: false });
   const [searchParams, setSearchParams]     = useSearchParams();
   const [collectionModalResourceId, setCollectionModalResourceId] = useState(null);
@@ -538,9 +471,9 @@ export default function GlobalSearch() {
   useEffect(() => {
     fetchResources(1, false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedTerm, selectedCategory, selectedFileType, selectedSort, selectedTags, showMyResourcesOnly]);
+  }, [debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly]);
 
-  // Close sort dropdown outside click
+  // Close sort dropdown on outside click
   useEffect(() => {
     const handler = (e) => { if (sortRef.current && !sortRef.current.contains(e.target)) setIsSortOpen(false); };
     document.addEventListener("mousedown", handler);
@@ -571,9 +504,7 @@ export default function GlobalSearch() {
         params: {
           search: debouncedTerm || undefined,
           category: selectedCategory !== "all" ? selectedCategory : undefined,
-          fileType: selectedFileType !== "all" ? selectedFileType : undefined,
           sort: selectedSort,
-          tags: selectedTags.length > 0 ? selectedTags.join(",") : undefined,
           page,
           limit: PAGE_SIZE,
           onlyMe: showMyResourcesOnly || undefined,
@@ -615,7 +546,7 @@ export default function GlobalSearch() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedFileType, selectedSort, selectedTags, showMyResourcesOnly]);
+  }, [pagination.hasNextPage, pagination.page, loading, loadingMore, showSavedOnly, debouncedTerm, selectedCategory, selectedSort, showMyResourcesOnly]);
 
   const handleResourceAction = async (resource, actionType) => {
     if (!isSafeHttpUrl(resource.fileUrl)) {
@@ -655,9 +586,7 @@ export default function GlobalSearch() {
       if (res.data.bookmarked) {
         setCollectionModalResourceId(id.toString());
       } else {
-        toast("Removed from Saved", {
-          icon: "🗑️", autoClose: 1500,
-        });
+        toast("Removed from Saved", { duration: 2000 });
       }
       // Refresh bookmark list for sidebar view
       fetchMySaved();
@@ -672,18 +601,14 @@ export default function GlobalSearch() {
     }
   };
 
-  const toggleTag = (tag) =>
-    setSelectedTags((prev) => prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]);
-
   const clearFilters = () => {
     setSearchTerm(""); setDebouncedTerm("");
-    setSelectedCategory("all"); setSelectedFileType("all");
-    setSelectedSort("most_downloaded"); setSelectedTags([]);
+    setSelectedCategory("all");
+    setSelectedSort("most_downloaded");
     setShowSavedOnly(false);
   };
 
-  const hasFilters = searchTerm || selectedCategory !== "all" || selectedFileType !== "all"
-    || selectedTags.length > 0 || showSavedOnly;
+  const hasFilters = searchTerm || selectedCategory !== "all" || showSavedOnly;
 
   const displayedResources = showSavedOnly ? savedResources : resources;
   const activeSort = SORT_OPTIONS.find((o) => o.id === selectedSort);
@@ -691,7 +616,7 @@ export default function GlobalSearch() {
   return (
     <div className="gs-root">
       <Helmet>
-        <title>Global Search | Linklet</title>
+        <title>Resource Hub | Linklet</title>
       </Helmet>
       {/* ── Toolbar ── */}
       <div className="gs-toolbar">
@@ -703,7 +628,7 @@ export default function GlobalSearch() {
               className="gs-search-input"
               type="text" value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search resources, notes, papers…"
+              placeholder="Search resources…"
               autoComplete="off"
             />
             {searchTerm && (
@@ -723,27 +648,17 @@ export default function GlobalSearch() {
               onClick={() => setShowSavedOnly((p) => !p)}
             >
               <span className="material-icons">bookmark</span>
-              {bookmarks.size > 0 && <span className="gs-badge">{bookmarks.size}</span>}
             </button>
 
-            {/* My Resources toggle */}
+            {/* My uploads toggle */}
             <button
               className={`gs-icon-btn-lg ${showMyResourcesOnly ? "active" : ""}`}
-              title="My Resources"
+              title="My Uploads"
               onClick={() => setShowMyResourcesOnly((p) => !p)}
             >
               <span className="material-icons">folder_shared</span>
+              My Uploads
             </button>
-
-            {/* View toggle */}
-            <div className="gs-view-toggle">
-              <button className={view === "grid" ? "active" : ""} onClick={() => setView("grid")} title="Grid view">
-                <span className="material-icons">grid_view</span>
-              </button>
-              <button className={view === "list" ? "active" : ""} onClick={() => setView("list")} title="List view">
-                <span className="material-icons">view_list</span>
-              </button>
-            </div>
 
             {/* Upload */}
             <button className="gs-btn-upload" onClick={() => setShowUpload(true)}>
@@ -753,7 +668,7 @@ export default function GlobalSearch() {
           </div>
         </div>
 
-        {/* Filter row */}
+        {/* Filter row — Type is the one filter; file format is already shown via the card icon */}
         <div className="gs-filter-row">
           <div className="gs-filter-scroll">
             {CATEGORIES.map((cat) => (
@@ -793,33 +708,6 @@ export default function GlobalSearch() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-
-        {/* File type + popular tags */}
-        <div className="gs-sub-filter-row">
-          <div className="gs-filetype-row">
-            {FILE_TYPE_FILTERS.map((ft) => (
-              <button
-                key={ft.id}
-                className={`gs-filetype-chip ${selectedFileType === ft.id ? "active" : ""}`}
-                onClick={() => setSelectedFileType(ft.id)}
-              >
-                {ft.label}
-              </button>
-            ))}
-          </div>
-          <div className="gs-tags-row">
-            <span className="gs-tags-label">Popular:</span>
-            {POPULAR_TAGS.map((tag) => (
-              <button
-                key={tag}
-                className={`gs-tag-chip ${selectedTags.includes(tag) ? "active" : ""}`}
-                onClick={() => toggleTag(tag)}
-              >
-                #{tag}
-              </button>
-            ))}
           </div>
         </div>
       </div>

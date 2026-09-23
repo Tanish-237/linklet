@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { uploadTimetablePdf, confirmTimetable } from "../api/timetable.api";
 
 const DAYS_ORDER = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -166,19 +166,19 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
   const dayClasses = (previewData?.classes || []).filter((c) => c.day === selectedDayTab);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-gray-900 border border-violet-500/20 rounded-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-surface border border-violet-500/20 rounded-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between bg-gradient-to-r from-gray-900 via-gray-850 to-gray-900">
+        <div className="p-4 sm:p-6 border-b border-line flex items-center justify-between bg-surface-2">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center text-violet-400 shrink-0">
               <span className="material-icons text-xl sm:text-2xl">upload_file</span>
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-white truncate">
+              <h2 className="text-base sm:text-lg font-bold text-fg truncate">
                 {previewData ? "Verify Extracted Classes" : "Import Timetable"}
               </h2>
-              <p className="text-[11px] sm:text-xs text-gray-400 truncate">
+              <p className="text-[11px] sm:text-xs text-fg-muted truncate">
                 {previewData
                   ? "Review your classes before syncing to schedule"
                   : "Upload your official MNNIT semester timetable (PDF or Image)"}
@@ -187,7 +187,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
           </div>
           <button
             onClick={handleCloseModal}
-            className="text-gray-400 hover:text-white p-1.5 sm:p-2 rounded-lg hover:bg-gray-800 transition shrink-0"
+            className="text-fg-muted hover:text-fg p-1.5 sm:p-2 rounded-lg hover:bg-surface-2 transition shrink-0"
           >
             <span className="material-icons text-xl">close</span>
           </button>
@@ -225,12 +225,12 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 <span className="material-icons text-sky-400 text-lg mt-0.5 shrink-0">badge</span>
                 <div className="text-xs leading-relaxed">
                   <div className="font-semibold text-sky-300">Section & Sub-Section Check</div>
-                  <p className="text-gray-300 mt-0.5">
-                    Classes will be matched for Section: <span className="font-bold text-white px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/50">{userSection || "Not Set"}</span>
+                  <p className="text-fg-secondary mt-0.5">
+                    Classes will be matched for Section: <span className="font-bold text-sky-300 px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/50">{userSection || "Not Set"}</span>
                     {userSubSection ? (
-                      <> and Sub-Section: <span className="font-bold text-white px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/50">{userSubSection}</span></>
+                      <> and Sub-Section: <span className="font-bold text-sky-300 px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/50">{userSubSection}</span></>
                     ) : (
-                      <span className="text-gray-400 italic"> (No sub-section set)</span>
+                      <span className="text-fg-muted italic"> (No sub-section set)</span>
                     )}.
                     {" "}Please make sure your section and sub-section are updated properly in your{" "}
                     <a href="/profile" className="text-sky-400 underline hover:text-sky-300 font-medium">Profile</a>{" "}
@@ -245,10 +245,10 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all bg-gray-950/40 ${
+                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all bg-surface-2 ${
                   dragActive
                     ? "border-violet-500 bg-violet-950/20 scale-[1.01]"
-                    : "border-gray-700 hover:border-violet-500/50"
+                    : "border-line-strong hover:border-violet-500/50"
                 }`}
               >
                 <input
@@ -271,22 +271,22 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                     <span className="text-sm font-semibold text-violet-400 hover:underline">
                       Click to browse
                     </span>{" "}
-                    <span className="text-sm text-gray-400">or drag and drop your timetable PDF or Image</span>
+                    <span className="text-sm text-fg-muted">or drag and drop your timetable PDF or Image</span>
                   </div>
-                  <p className="text-xs text-gray-500">Official MNNIT Timetable (PDF, PNG, JPG, WEBP) • Max 15 MB</p>
+                  <p className="text-xs text-fg-subtle">Official MNNIT Timetable (PDF, PNG, JPG, WEBP) • Max 15 MB</p>
                 </label>
               </div>
 
               {/* Selected File */}
               {file && (
-                <div className="p-4 bg-gray-800/60 rounded-xl border border-gray-700 flex items-center justify-between">
+                <div className="p-4 bg-surface-2 rounded-xl border border-line flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className={`material-icons ${isImageFile(file) ? "text-indigo-400" : "text-rose-400"}`}>
                       {isImageFile(file) ? "image" : "picture_as_pdf"}
                     </span>
                     <div>
-                      <div className="text-sm font-medium text-white truncate max-w-sm">{file.name}</div>
-                      <div className="text-xs text-gray-400">{(file.size / 1024).toFixed(1)} KB</div>
+                      <div className="text-sm font-medium text-fg truncate max-w-sm">{file.name}</div>
+                      <div className="text-xs text-fg-muted">{(file.size / 1024).toFixed(1)} KB</div>
                     </div>
                   </div>
                   <button
@@ -305,12 +305,12 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                   <div className="text-sm font-bold text-violet-200">
                     Scanning & parsing timetable with Gemini AI...
                   </div>
-                  <p className="text-xs text-gray-400 max-w-md">
+                  <p className="text-xs text-fg-muted max-w-md">
                     Visually reading grid, resolving subjects, faculty, and room numbers. This may take 1–2 minutes, please wait.
                   </p>
                 </div>
               ) : (
-                <div className="p-4 bg-gray-950/40 border border-gray-800 rounded-xl flex items-center gap-3 text-xs text-gray-400">
+                <div className="p-4 bg-surface-2 border border-line rounded-xl flex items-center gap-3 text-xs text-fg-muted">
                   <span className="material-icons text-violet-400 text-base">auto_awesome</span>
                   <span>
                     AI scans your official timetable (PDF or image), matching section {userSection || "—"}
@@ -323,10 +323,10 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
             /* ───── Preview & Verification State ───── */
             <div className="space-y-5">
               {/* Summary Banner */}
-              <div className="p-4 bg-gray-800/50 border border-gray-700 rounded-xl flex flex-wrap items-center justify-between gap-3">
+              <div className="p-4 bg-surface-2 border border-line rounded-xl flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <div className="text-xs text-gray-400 font-medium">Extracted from your Timetable</div>
-                  <div className="text-sm font-bold text-white flex flex-wrap items-center gap-2 mt-0.5">
+                  <div className="text-xs text-fg-muted font-medium">Extracted from your Timetable</div>
+                  <div className="text-sm font-bold text-fg flex flex-wrap items-center gap-2 mt-0.5">
                     <span>{previewData.branch}</span>
                     <span className="text-xs px-2 py-0.5 rounded bg-violet-900/50 text-violet-300 border border-violet-700/50 font-semibold">
                       Sem {previewData.semester}
@@ -340,7 +340,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                   <div className="text-lg font-extrabold text-violet-400 font-mono">
                     {previewData.totalClassesFound}
                   </div>
-                  <div className="text-xs text-gray-400">Matched Classes</div>
+                  <div className="text-xs text-fg-muted">Matched Classes</div>
                 </div>
               </div>
 
@@ -365,7 +365,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               )}
 
               {/* Day Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-gray-800">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-line">
                 {DAYS_ORDER.map((day) => {
                   const count = previewData.classes.filter((c) => c.day === day).length;
                   if (count === 0) return null;
@@ -376,14 +376,14 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                       onClick={() => setSelectedDayTab(day)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                         isActive
-                          ? "bg-violet-600 text-white shadow"
-                          : "text-gray-400 hover:text-white hover:bg-gray-800/60"
+                          ? "bg-violet-600 text-on-accent shadow"
+                          : "text-fg-muted hover:text-fg hover:bg-surface-2"
                       }`}
                     >
                       <span>{day}</span>
                       <span
                         className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                          isActive ? "bg-white/20 text-white" : "bg-gray-800 text-gray-400"
+                          isActive ? "bg-on-accent/20 text-on-accent" : "bg-surface-2 text-fg-muted"
                         }`}
                       >
                         {count}
@@ -396,7 +396,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
               {/* Class Cards for Selected Day */}
               <div className="space-y-2.5">
                 {dayClasses.length === 0 ? (
-                  <div className="p-6 text-center text-sm text-gray-500 bg-gray-950/30 rounded-xl border border-gray-800">
+                  <div className="p-6 text-center text-sm text-fg-subtle bg-surface-2 rounded-xl border border-line">
                     No classes scheduled for {selectedDayTab}.
                   </div>
                 ) : (
@@ -407,7 +407,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                     return (
                       <div
                         key={`${item.day}-${item.startTime}-${idx}`}
-                        className="p-3.5 rounded-xl border border-gray-800 bg-gray-850/60 hover:border-gray-700 transition flex items-center justify-between gap-3"
+                        className="p-3.5 rounded-xl border border-line bg-surface-2 hover:border-line-strong transition flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <div
@@ -420,10 +420,10 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                             }`}
                           >
                             <span>{item.startTime}</span>
-                            <span className="text-[10px] text-gray-400 font-normal">{item.endTime}</span>
+                            <span className="text-[10px] text-fg-muted font-normal">{item.endTime}</span>
                           </div>
                           <div className="min-w-0">
-                            <div className="text-sm font-semibold text-white flex items-center gap-2 flex-wrap">
+                            <div className="text-sm font-semibold text-fg flex items-center gap-2 flex-wrap">
                               <span className="truncate">{item.subjectName}</span>
                               <span
                                 className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ${
@@ -437,21 +437,21 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                                 {item.classType}
                               </span>
                             </div>
-                            <div className="text-xs text-gray-400 flex flex-wrap items-center gap-2 mt-1">
+                            <div className="text-xs text-fg-muted flex flex-wrap items-center gap-2 mt-1">
                               {item.courseCode && (
-                                <span className="font-mono bg-gray-800 px-1.5 py-0.5 rounded text-gray-400">
+                                <span className="font-mono bg-surface-3 px-1.5 py-0.5 rounded text-fg-muted">
                                   {item.courseCode}
                                 </span>
                               )}
                               {item.location && (
                                 <span className="flex items-center gap-0.5">
-                                  <span className="material-icons text-[12px] text-gray-500">room</span>
+                                  <span className="material-icons text-[12px] text-fg-subtle">room</span>
                                   {item.location}
                                 </span>
                               )}
                               {item.professor && (
                                 <span className="flex items-center gap-0.5">
-                                  <span className="material-icons text-[12px] text-gray-500">person</span>
+                                  <span className="material-icons text-[12px] text-fg-subtle">person</span>
                                   {item.professor}
                                 </span>
                               )}
@@ -462,7 +462,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                         <button
                           onClick={() => handleRemoveClass(globalIndex)}
                           title="Remove this class"
-                          className="text-gray-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-gray-800 transition shrink-0 cursor-pointer"
+                          className="text-fg-subtle hover:text-rose-400 p-1.5 rounded-lg hover:bg-surface-2 transition shrink-0 cursor-pointer"
                         >
                           <span className="material-icons text-base">close</span>
                         </button>
@@ -476,14 +476,14 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-gray-800 bg-gray-900/80 flex items-center justify-between gap-3">
+        <div className="p-4 border-t border-line bg-surface/80 flex items-center justify-between gap-3">
           {!previewData ? (
             <>
               <button
                 type="button"
                 onClick={handleCloseModal}
                 disabled={isUploading}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition cursor-pointer"
+                className="px-4 py-2 text-sm text-fg-muted hover:text-fg transition cursor-pointer"
               >
                 Cancel
               </button>
@@ -491,7 +491,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 type="button"
                 onClick={handleUploadAndAnalyze}
                 disabled={!file || isUploading}
-                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-on-accent rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isUploading ? (
                   <>
@@ -516,7 +516,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 type="button"
                 onClick={handleReUpload}
                 disabled={isConfirming}
-                className="px-4 py-2 text-sm text-gray-400 hover:text-white transition flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 text-sm text-fg-muted hover:text-fg transition flex items-center gap-1.5 cursor-pointer"
               >
                 <span className="material-icons text-sm">upload_file</span>
                 Re-upload Timetable
@@ -525,7 +525,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                 type="button"
                 onClick={handleConfirm}
                 disabled={isConfirming || previewData.classes.length === 0}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-on-accent rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
               >
                 {isConfirming ? (
                   <>

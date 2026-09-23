@@ -1,11 +1,16 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { apiClient } from "../api/apiClient";
 import { useParams, useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.webp";
 import SaveToCollectionModal from "../components/SaveToCollectionModal";
 import PostCommentsPanel from "../components/PostCommentsPanel";
+import SharePostMenu from "../components/SharePostMenu";
+import PostActionsMenu from "../components/PostActionsMenu";
+import EditPostModal from "../components/EditPostModal";
+import ReportPostModal from "../components/ReportPostModal";
+import { deletePost as apiDeletePost } from "../api/post.api";
 import { formatTime } from "../utlis/formatTime";
 import { optimizeAvatar, optimizeImage, buildSrcSet } from "../utlis/cloudinary";
 import "./Posts.css";
@@ -14,13 +19,13 @@ const PostDetail = () => {
   const { postId } = useParams();
   const [post, setPost] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [showShareMenu, setShowShareMenu] = useState(false);
   const [savedPosts, setSavedPosts] = useState(new Set());
   const [collectionPostId, setCollectionPostId] = useState(null);
+  const [editingPost, setEditingPost] = useState(null);
+  const [reportingPostId, setReportingPostId] = useState(null);
 
   const { user } = useAuth();
   const navigate = useNavigate();
-  const shareRef = useRef(null);
 
   // Load the post itself (comments are paginated separately by PostCommentsPanel).
   // `cancelled` drops the response if the user navigated to another post meanwhile.
@@ -63,14 +68,6 @@ const PostDetail = () => {
     fetchBookmarks();
   }, [user]);
 
-  useEffect(() => {
-    const handleClick = (e) => {
-      if (shareRef.current && !shareRef.current.contains(e.target)) setShowShareMenu(false);
-    };
-    if (showShareMenu) document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [showShareMenu]);
-
   const closeModal = () => {
     if (window.history.length > 2 && document.referrer.includes(window.location.host)) {
       navigate(-1);
@@ -95,25 +92,15 @@ const PostDetail = () => {
     } catch { toast.error("Error voting"); }
   };
 
-  const handleShare = async (platform) => {
-    const url = window.location.href;
-    const text = `Check out this post on Linklet: ${post?.caption || ""}`;
-    switch (platform) {
-      case "twitter":
-        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`);
-        break;
-      case "linkedin":
-        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`);
-        break;
-      case "whatsapp":
-        window.open(`https://wa.me/?text=${encodeURIComponent(text + " " + url)}`);
-        break;
-      case "copy":
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied to clipboard!");
-        break;
+  const handleDeletePost = async () => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await apiDeletePost(postId);
+      toast.success("Post deleted successfully");
+      navigate("/home");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete post");
     }
-    setShowShareMenu(false);
   };
 
   if (loading) {
@@ -146,6 +133,8 @@ const PostDetail = () => {
   const netVotes = (post.upvotes?.length || 0) - (post.downvotes?.length || 0);
 
   const postAuthor = post.userId || post.user || {};
+  const postAuthorId = (postAuthor._id || postAuthor.id || postAuthor)?.toString();
+  const canDeletePost = currentUserId && (postAuthorId === currentUserId?.toString() || user?.role === "admin");
   const postUsername = postAuthor.username || "User";
   const postAvatar = optimizeAvatar(postAuthor.avatar, 40) || defaultAvatar;
   const isSaved = savedPosts.has(post._id?.toString());
@@ -166,22 +155,34 @@ const PostDetail = () => {
             <div className="feed-detail__user-info" style={{ flex: 1 }}>
               <span
                 className="feed-detail__username"
-                onClick={() => navigate(`/dashboard/profile/${postUsername}`)}
+                onClick={() => navigate(`/profile/${postUsername}`)}
               >
                 {postUsername}
               </span>
-              <span className="feed-detail__time">{formatTime(post.createdAt)}</span>
+              <span className="feed-detail__time">
+                {formatTime(post.createdAt)}
+                {post.isEdited && <span className="feed-detail__edited-tag"> · edited</span>}
+              </span>
             </div>
 
-            {/* Bookmark / Save Button */}
-            <button
-              className={`feed-card__save-btn ${isSaved ? "feed-card__save-btn--saved" : ""}`}
-              onClick={() => setCollectionPostId(post._id)}
-              title="Save to Collection"
-              style={{ marginRight: "2.5rem" }}
-            >
-              <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
-            </button>
+            <div className="flex items-center gap-1.5" style={{ marginRight: "2.5rem" }}>
+              <PostActionsMenu
+                canManage={canDeletePost}
+                onEdit={() => setEditingPost(post)}
+                onDelete={handleDeletePost}
+                onReport={user ? () => setReportingPostId(post._id) : undefined}
+                deleteTitle={user?.role === "admin" && postAuthorId !== currentUserId?.toString() ? "Delete Post (Admin Moderation)" : "Delete Post"}
+              />
+
+              {/* Bookmark / Save Button */}
+              <button
+                className={`feed-card__save-btn ${isSaved ? "feed-card__save-btn--saved" : ""}`}
+                onClick={() => setCollectionPostId(post._id)}
+                title="Save to Collection"
+              >
+                <span className="material-icons">{isSaved ? "bookmark" : "bookmark_border"}</span>
+              </button>
+            </div>
           </div>
 
           {/* Caption */}
@@ -191,17 +192,21 @@ const PostDetail = () => {
             </div>
           )}
 
-          {/* Image */}
+          {/* Image / Video */}
           {post.image && (
             <div className="feed-detail__media">
-              <img
-                src={optimizeImage(post.image, { width: 1200 })}
-                srcSet={buildSrcSet(post.image)}
-                sizes="(max-width: 900px) 100vw, 60vw"
-                alt=""
-                className="feed-detail__image"
-                decoding="async"
-              />
+              {post.mediaType === "video" ? (
+                <video src={post.image} controls className="feed-detail__image" preload="metadata" />
+              ) : (
+                <img
+                  src={optimizeImage(post.image, { width: 1200 })}
+                  srcSet={buildSrcSet(post.image)}
+                  sizes="(max-width: 900px) 100vw, 60vw"
+                  alt=""
+                  className="feed-detail__image"
+                  decoding="async"
+                />
+              )}
             </div>
           )}
 
@@ -232,35 +237,11 @@ const PostDetail = () => {
             </span>
 
             {/* Share button */}
-            <div className="feed-card__share-wrap" ref={shareRef} style={{ marginLeft: "auto" }}>
-              <button
-                onClick={() => setShowShareMenu(!showShareMenu)}
-                className="feed-card__share-btn"
-                aria-label="Share"
-              >
-                <span className="material-icons">share</span>
-              </button>
-              {showShareMenu && (
-                <div className="feed-card__share-menu">
-                  <button onClick={() => handleShare("copy")} className="feed-card__share-option">
-                    <span className="material-icons">link</span>
-                    Copy Link
-                  </button>
-                  <button onClick={() => handleShare("twitter")} className="feed-card__share-option">
-                    <span className="material-icons">tag</span>
-                    Twitter / X
-                  </button>
-                  <button onClick={() => handleShare("linkedin")} className="feed-card__share-option">
-                    <span className="material-icons">work</span>
-                    LinkedIn
-                  </button>
-                  <button onClick={() => handleShare("whatsapp")} className="feed-card__share-option">
-                    <span className="material-icons">chat</span>
-                    WhatsApp
-                  </button>
-                </div>
-              )}
-            </div>
+            <SharePostMenu
+              className="ml-auto"
+              getUrl={() => window.location.href}
+              shareText={`Check out this post on Linklet: ${post?.caption || ""}`}
+            />
           </div>
         </div>
 
@@ -270,7 +251,7 @@ const PostDetail = () => {
           commentsCount={post.commentsCount || 0}
           onCountChange={(commentsCount) => setPost((prev) => (prev ? { ...prev, commentsCount } : prev))}
           user={user}
-          onNavigateToProfile={(username) => navigate(`/dashboard/profile/${username}`)}
+          onNavigateToProfile={(username) => navigate(`/profile/${username}`)}
         />
       </div>
 
@@ -284,6 +265,18 @@ const PostDetail = () => {
             setCollectionPostId(null);
           }}
         />
+      )}
+
+      {editingPost && (
+        <EditPostModal
+          post={editingPost}
+          onClose={() => setEditingPost(null)}
+          onSaved={(updated) => setPost(updated)}
+        />
+      )}
+
+      {reportingPostId && (
+        <ReportPostModal postId={reportingPostId} onClose={() => setReportingPostId(null)} />
       )}
     </div>
   );

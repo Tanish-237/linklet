@@ -28,3 +28,24 @@ export const MESSAGE_EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 // Maximum number of messages that can be pinned in a single chat at once.
 export const MAX_PINNED_MESSAGES_PER_CHAT = 3;
+
+// Maximum number of chats a user can pin to the top of their chat list.
+export const MAX_PINNED_CHATS = 5;
+
+// Page size for the chat list (sidebar) endpoint.
+export const CHAT_LIST_PAGE_SIZE = 30;
+
+// Notification preference switches a user can toggle in Settings, and which
+// notification types each one silences. Types not listed here (follows,
+// resource uploads) have no switch and are always delivered.
+export const NOTIFICATION_PREF_KEYS = ["chatAlerts", "forumAlerts", "postAlerts", "systemAlerts"];
+export const NOTIFICATION_TYPE_PREF = {
+  FORUM_ANSWER: "forumAlerts",
+  FORUM_ACCEPT: "forumAlerts",
+  FORUM_COMMENT: "forumAlerts",
+  FORUM_UPVOTE: "forumAlerts",
+  POST_COMMENT: "postAlerts",
+  POST_REPLY: "postAlerts",
+  POST_LIKE: "postAlerts",
+  SYSTEM_ALERT: "systemAlerts",
+};

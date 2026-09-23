@@ -5,6 +5,7 @@ import { AppError } from "../utils/error.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { invalidateUserCache } from "../utils/userCache.js";
 import { cached, cacheDel } from "../utils/cache.js";
+import { NOTIFICATION_PREF_KEYS } from "../config/constants.js";
 
 // Profile pages are read far more often than they change. Cached per username
 // for a short TTL, and dropped immediately on the writes that alter them
@@ -361,6 +362,32 @@ export const toggleBlockUser = async (req, res, next) => {
       isBlocked: !isBlocked,
       message: isBlocked ? "User unblocked" : "User blocked",
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/** Update one or more notification preference switches for the current user */
+export const updateNotificationPrefs = async (req, res, next) => {
+  try {
+    const updates = {};
+    for (const key of NOTIFICATION_PREF_KEYS) {
+      if (req.body?.[key] === undefined) continue;
+      if (typeof req.body[key] !== "boolean") {
+        throw new AppError(`${key} must be true or false`, 400);
+      }
+      updates[`notificationPrefs.${key}`] = req.body[key];
+    }
+    if (Object.keys(updates).length === 0) {
+      throw new AppError("No notification preferences provided", 400);
+    }
+
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true })
+      .select("notificationPrefs")
+      .lean();
+    await invalidateUserCache(req.user._id);
+
+    res.status(200).json({ success: true, notificationPrefs: user?.notificationPrefs });
   } catch (error) {
     next(error);
   }

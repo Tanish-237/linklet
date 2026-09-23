@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import useAuthStore from '../store/useAuthStore';
 import defaultAvatar from '../assets/default-avatar.webp';
 import './HelpForum.css';
@@ -139,7 +139,7 @@ export const ThreadedCommentItem = ({
           </button>
 
           <Link
-            to={`/dashboard/profile/${comment.userId?.username}`}
+            to={`/profile/${comment.userId?.username}`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none' }}
           >
             <img loading="lazy" decoding="async"
@@ -431,7 +431,7 @@ const AnswerCard = ({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <div className="hf-author-row" style={{ marginTop: 0 }}>
               <Link
-                to={`/dashboard/profile/${answer.userId?.username}`}
+                to={`/profile/${answer.userId?.username}`}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
               >
                 <img loading="lazy" decoding="async"
@@ -442,7 +442,7 @@ const AnswerCard = ({
                 <span className="hf-author-name">{answer.userId?.username || 'Unknown'}</span>
               </Link>
               <span>·</span>
-              <span style={{ fontSize: '0.78rem', color: '#475569' }}>{timeAgo(answer.createdAt)}</span>
+              <span style={{ fontSize: '0.78rem', color: 'rgb(var(--fg-subtle))' }}>{timeAgo(answer.createdAt)}</span>
             </div>
 
             {/* Actions */}
@@ -491,7 +491,7 @@ const AnswerCard = ({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-const QuestionDetail = ({ basePath = '' }) => {
+const QuestionDetail = () => {
   const { questionId } = useParams();
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -779,7 +779,7 @@ const QuestionDetail = ({ basePath = '' }) => {
       try {
         await apiDeleteQuestion(questionId);
         toast.success('Question deleted');
-        navigate(`${basePath}/dashboard/help`);
+        navigate("/help");
       } catch (err) {
         toast.error(err?.response?.data?.message || 'Failed to delete question');
       }
@@ -815,7 +815,7 @@ const QuestionDetail = ({ basePath = '' }) => {
           <span className="material-icons" style={{ fontSize: '4rem', opacity: 0.3 }}>help_off</span>
           <h3>Question not found</h3>
           <p>This question may have been deleted.</p>
-          <Link to={`${basePath}/dashboard/help`} className="qd-back-link" style={{ marginTop: '1rem', display: 'inline-flex' }}>
+          <Link to="/help" className="qd-back-link" style={{ marginTop: '1rem', display: 'inline-flex' }}>
             ← Back to Forum
           </Link>
         </div>
@@ -841,7 +841,7 @@ const QuestionDetail = ({ basePath = '' }) => {
     <div className="qd-root">
       {/* Back Link */}
       <Link
-        to={`${basePath}/dashboard/help`}
+        to="/help"
         className="qd-back-link"
         id="qd-back-link"
       >
@@ -872,7 +872,7 @@ const QuestionDetail = ({ basePath = '' }) => {
         {/* Meta row */}
         <div className="qd-meta-row">
           <Link
-            to={`/dashboard/profile/${question.userId?.username}`}
+            to={`/profile/${question.userId?.username}`}
             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
           >
             <img loading="lazy" decoding="async"
@@ -982,7 +982,7 @@ const QuestionDetail = ({ basePath = '' }) => {
               maxLength={10000}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
-              <span style={{ fontSize: '0.75rem', color: '#475569' }}>{answerBody.length}/10000</span>
+              <span style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-subtle))' }}>{answerBody.length}/10000</span>
               <button
                 id="qd-post-answer-btn"
                 type="submit"
@@ -1004,9 +1004,9 @@ const QuestionDetail = ({ basePath = '' }) => {
             </div>
           </form>
         ) : (
-          <div style={{ textAlign: 'left', padding: '1.5rem 0', color: '#64748b' }}>
+          <div style={{ textAlign: 'left', padding: '1.5rem 0', color: 'rgb(var(--fg-muted))' }}>
             <p>
-              <Link to="/login" style={{ color: '#7c3aed', fontWeight: 600 }}>Log in</Link>
+              <Link to="/login" style={{ color: 'rgb(var(--accent-fg))', fontWeight: 600 }}>Log in</Link>
               {' '}to post an answer
             </p>
           </div>

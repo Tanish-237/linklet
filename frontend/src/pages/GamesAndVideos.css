@@ -2,7 +2,7 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
-  color: #f4f4f5;
+  color: rgb(var(--fg));
 }
 
 .tabs {
@@ -14,9 +14,9 @@
 
 .tabs button {
   padding: 0.75rem 1.5rem;
-  border: 1px solid #27272a;
-  background-color: #18181b;
-  color: #a1a1aa;
+  border: 1px solid rgb(var(--surface-2));
+  background-color: rgb(var(--surface));
+  color: rgb(var(--fg-muted));
   border-radius: 8px;
   cursor: pointer;
   font-size: 1rem;
@@ -24,27 +24,27 @@
 }
 
 .tabs button:hover {
-  border-color: #3f3f46;
-  color: #f4f4f5;
+  border-color: rgb(var(--surface-3));
+  color: rgb(var(--fg));
 }
 
 .tabs button.active {
-  background-color: #7c3aed;
-  border-color: #7c3aed;
+  background-color: rgb(var(--accent));
+  border-color: rgb(var(--accent));
   color: white;
 }
 
 .games-section,
 .videos-section {
-  background-color: rgba(24, 24, 27, 0.5);
-  border: 1px solid #27272a;
+  background-color: rgb(var(--surface) / calc(0.5 + var(--glass-fill)));
+  border: 1px solid rgb(var(--surface-2));
   border-radius: 12px;
   padding: 2rem;
 }
 
 .games-section h2,
 .videos-section h2 {
-  color: #f4f4f5;
+  color: rgb(var(--fg));
 }
 
 .games-grid {
@@ -55,8 +55,8 @@
 }
 
 .game-card {
-  background-color: #18181b;
-  border: 1px solid #27272a;
+  background-color: rgb(var(--surface));
+  border: 1px solid rgb(var(--surface-2));
   border-radius: 8px;
   padding: 1.5rem;
   cursor: pointer;
@@ -66,33 +66,33 @@
 
 .game-card:hover {
   transform: translateY(-4px);
-  border-color: #7c3aed;
+  border-color: rgb(var(--accent));
 }
 
 .game-card h3 {
-  color: #f4f4f5;
+  color: rgb(var(--fg));
 }
 
 .game-container {
   margin-top: 2rem;
   padding: 1rem;
-  background-color: #18181b;
-  border: 1px solid #27272a;
+  background-color: rgb(var(--surface));
+  border: 1px solid rgb(var(--surface-2));
   border-radius: 8px;
 }
 
 .back-button {
   margin-bottom: 1rem;
   padding: 0.5rem 1rem;
-  background-color: #27272a;
-  color: #f4f4f5;
+  background-color: rgb(var(--surface-2));
+  color: rgb(var(--fg));
   border: none;
   border-radius: 4px;
   cursor: pointer;
 }
 
 .back-button:hover {
-  background-color: #3f3f46;
+  background-color: rgb(var(--surface-3));
 }
 
 .video-form {
@@ -105,20 +105,20 @@
 .video-input {
   flex: 1 1 200px;
   padding: 0.75rem;
-  background-color: #18181b;
-  border: 1px solid #3f3f46;
+  background-color: rgb(var(--surface));
+  border: 1px solid rgb(var(--surface-3));
   border-radius: 4px;
   font-size: 1rem;
-  color: #f4f4f5;
+  color: rgb(var(--fg));
 }
 
 .video-input::placeholder {
-  color: #71717a;
+  color: rgb(var(--fg-muted));
 }
 
 .submit-button {
   padding: 0.75rem 1.5rem;
-  background-color: #7c3aed;
+  background-color: rgb(var(--accent));
   color: white;
   border: none;
   border-radius: 4px;
@@ -128,7 +128,7 @@
 }
 
 .submit-button:hover:not(:disabled) {
-  background-color: #6d28d9;
+  background-color: rgb(var(--accent-hover));
 }
 
 .video-container {
@@ -150,8 +150,8 @@
 }
 
 .room-controls {
-  background-color: rgba(24, 24, 27, 0.5);
-  border: 1px solid #27272a;
+  background-color: rgb(var(--surface) / calc(0.5 + var(--glass-fill)));
+  border: 1px solid rgb(var(--surface-2));
   border-radius: 12px;
   padding: 1.5rem;
   margin-bottom: 2rem;
@@ -174,17 +174,17 @@
 }
 
 .create-room-btn {
-  background-color: #7c3aed;
+  background-color: rgb(var(--accent));
   color: white;
 }
 
 .create-room-btn:hover:not(:disabled) {
-  background-color: #6d28d9;
+  background-color: rgb(var(--accent-hover));
 }
 
 .create-room-btn:disabled {
-  background-color: #3f3f46;
-  color: #71717a;
+  background-color: rgb(var(--surface-3));
+  color: rgb(var(--fg-muted));
   cursor: not-allowed;
 }
 
@@ -201,7 +201,7 @@
   top: 50%;
   left: 50%;
   margin: -10px 0 0 -10px;
-  border: 2px solid #ffffff;
+  border: 2px solid rgb(var(--fg));
   border-top-color: transparent;
   border-radius: 50%;
   animation: button-loading 0.8s linear infinite;
@@ -225,34 +225,34 @@
 .join-room-input {
   flex: 1 1 160px;
   padding: 0.75rem;
-  background-color: #18181b;
-  border: 2px solid #3f3f46;
+  background-color: rgb(var(--surface));
+  border: 2px solid rgb(var(--surface-3));
   border-radius: 4px;
   font-size: 1rem;
-  color: #f4f4f5;
+  color: rgb(var(--fg));
   transition: border-color 0.2s ease;
 }
 
 .join-room-input::placeholder {
-  color: #71717a;
+  color: rgb(var(--fg-muted));
 }
 
 .join-room-input:focus {
   outline: none;
-  border-color: #7c3aed;
-  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.25);
+  border-color: rgb(var(--accent));
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.25);
 }
 
 .join-room-input:disabled {
-  background-color: #27272a;
+  background-color: rgb(var(--surface-2));
   cursor: not-allowed;
 }
 
 .join-room-btn {
   padding: 0.75rem 1.5rem;
-  background-color: #27272a;
-  color: #f4f4f5;
-  border: 1px solid #3f3f46;
+  background-color: rgb(var(--surface-2));
+  color: rgb(var(--fg));
+  border: 1px solid rgb(var(--surface-3));
   border-radius: 4px;
   cursor: pointer;
   font-size: 1rem;
@@ -260,12 +260,12 @@
 }
 
 .join-room-btn:hover:not(:disabled) {
-  border-color: #7c3aed;
-  color: #a78bfa;
+  border-color: rgb(var(--accent));
+  color: rgb(var(--accent-fg));
 }
 
 .join-room-btn:disabled {
-  color: #52525b;
+  color: rgb(var(--fg-muted));
   cursor: not-allowed;
   opacity: 0.65;
 }
@@ -276,16 +276,16 @@
 
 .room-info h3 {
   margin-bottom: 0.5rem;
-  color: #f4f4f5;
+  color: rgb(var(--fg));
 }
 
 .room-info p {
-  color: #a1a1aa;
+  color: rgb(var(--fg-muted));
 }
 
 .game-card p {
   margin-top: 0.5rem;
-  color: #a1a1aa;
+  color: rgb(var(--fg-muted));
   font-size: 0.9rem;
 }
 

@@ -1,21 +1,467 @@
 @import "tailwindcss";
 
+/*
+  Linklet design tokens
+  ---------------------
+  Every surface, text and accent colour in the app resolves to one of the
+  tokens below, so switching `data-theme` on <html> re-skins the whole site.
+  Tokens are stored as bare RGB channels so they can take an alpha:
+    CSS:       rgb(var(--fg) / 0.6)
+    Tailwind:  text-fg/60, bg-accent-500/10 …
+
+  The `data-theme` attribute is set before first paint by the inline script
+  in index.html and kept in sync by src/theme/useThemeStore.js.
+*/
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
 @theme {
-  --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+@theme inline {
+  --color-canvas: rgb(var(--canvas));
+  --color-surface: rgb(var(--surface));
+  --color-surface-2: rgb(var(--surface-2));
+  --color-surface-3: rgb(var(--surface-3));
+  --color-line: rgb(var(--line));
+  --color-line-strong: rgb(var(--line-strong));
+  --color-fg: rgb(var(--fg));
+  --color-fg-secondary: rgb(var(--fg-secondary));
+  --color-fg-muted: rgb(var(--fg-muted));
+  --color-fg-subtle: rgb(var(--fg-subtle));
+  --color-on-accent: rgb(var(--on-accent));
+  --color-rail: rgb(var(--rail));
+  --color-rail-hover: rgb(var(--rail-hover));
+  --color-rail-fg: rgb(var(--rail-fg));
+
+  /* Brand accent scale. In light mode the pale shades (used as text on dark
+     backgrounds) and the deep shades (used as tinted backgrounds) swap so
+     existing `text-accent-300` / `bg-accent-950/40` read correctly on both. */
+  --color-accent-50: var(--acc-50);
+  --color-accent-100: var(--acc-100);
+  --color-accent-200: var(--acc-200);
+  --color-accent-300: var(--acc-300);
+  --color-accent-400: var(--acc-400);
+  --color-accent-500: var(--acc-500);
+  --color-accent-600: var(--acc-600);
+  --color-accent-700: var(--acc-700);
+  --color-accent-800: var(--acc-800);
+  --color-accent-900: var(--acc-900);
+  --color-accent-950: var(--acc-950);
+  --color-accent: rgb(var(--accent));
+  --color-accent-soft: rgb(var(--accent-soft));
+  --color-accent-fg: rgb(var(--accent-fg));
+}
+
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* Cool-neutral greys (same hue family as the zinc text colours) in the
+     range used by GitHub Primer / Vercel Geist. Every text token clears
+     WCAG AA (4.5:1) on every surface below, including surface-2 —
+     fg-subtle is used for real text (timestamps, meta), not decoration. */
+  --canvas: 241 242 245;
+  --surface: 255 255 255;
+  --surface-2: 243 243 245;
+  --surface-3: 231 231 235;
+  --line: 223 223 229;
+  --line-strong: 204 204 212;
+  --fg: 24 24 27;
+  --fg-secondary: 63 63 70;
+  --fg-muted: 84 84 94;
+  --fg-subtle: 107 107 117;
+  --on-accent: 255 255 255;
+
+  /* Brand accent — a deliberately new indigo-leaning purple, distinct from
+     Tailwind's stock `violet`. It's the single source of truth: `violet-*`
+     and `purple-*` utilities below are aliased to this same scale (see the
+     unconditional block further down) so every pre-existing `bg-violet-600`,
+     `text-purple-400`, etc. across the app renders as this colour too,
+     instead of leaving two different purples in play. */
+  --accent: 79 70 229;
+  --accent-hover: 67 56 202;
+  --accent-soft: 238 240 253;
+  --accent-fg: 67 56 202;
+
+  --rail: 28 28 30;
+  --rail-hover: 44 44 48;
+  --rail-fg: 161 161 170;
+
+  --shadow-color: 24 24 27;
+  --overlay: 24 24 27;
+
+  /* Added to the alpha of every translucent `rgb(var(--surface) / 0.x)`
+     panel. Dark mode's frosted-glass cards read as distinct layers over a
+     near-black canvas, but a half-transparent white over a light canvas is
+     indistinguishable from the canvas itself — so light mode renders them
+     solid (alpha > 1 clamps to 1). */
+  --glass-fill: 1;
+
+  /* Status text colours. Tailwind's red/green/amber utilities already flip per
+     theme (see the light-mode block below), but plain CSS and inline styles
+     can't use them — these are the same pairs as tokens. Light values clear
+     4.5:1 on white; dark values clear it on --surface. */
+  --danger-fg: 220 38 38;
+  --success-fg: 4 120 87;
+  --warning-fg: 161 98 7;
+
+  --acc-50: oklch(25.7% 0.09 281.288);
+  --acc-100: oklch(35.9% 0.144 278.697);
+  --acc-200: oklch(39.8% 0.195 277.366);
+  --acc-300: oklch(45.7% 0.24 277.023);
+  --acc-400: oklch(51.1% 0.262 276.966);
+  --acc-500: oklch(58.5% 0.233 277.117);
+  --acc-600: oklch(51.1% 0.262 276.966);
+  --acc-700: oklch(45.7% 0.24 277.023);
+  --acc-800: oklch(87% 0.065 274.039);
+  --acc-900: oklch(93% 0.034 272.788);
+  --acc-950: oklch(96.2% 0.018 272.314);
+}
+
+:root[data-theme="dark"],
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Elevation steps ~1.12:1 apart and borders ~1.4:1 on a card, in line
+     with GitHub / Vercel / Linear dark themes — enough that a card reads as
+     its own layer by fill alone, not just by its outline. */
+  --canvas: 10 10 12;
+  --surface: 24 24 28;
+  --surface-2: 34 34 39;
+  --surface-3: 46 46 52;
+  --line: 50 50 57;
+  --line-strong: 70 70 78;
+  --fg: 237 237 240;
+  --fg-secondary: 204 204 210;
+  --fg-muted: 152 152 160;
+  --fg-subtle: 140 140 149;
+  --on-accent: 255 255 255;
+
+  /* Same accent as light mode (see the comment above) — only the text-safe
+     and tinted-background variants flip per theme. */
+  /* Fill-only (buttons, active pills): white text on it is 5.3:1. Accent-
+     coloured text uses --accent-fg, which stays readable on dark surfaces. */
+  --accent: 88 88 232;
+  --accent-hover: 99 102 241;
+  --accent-soft: 34 35 70;
+  --accent-fg: 165 180 252;
+
+  --rail: 9 9 11;
+  --rail-hover: 30 30 34;
+  --rail-fg: 142 142 150;
+
+  --shadow-color: 0 0 0;
+  --overlay: 0 0 0;
+  /* Partial: a 0.5 "glass" panel becomes 0.9 — a visible layer over the
+     canvas while still letting hover states step up in opacity. */
+  --glass-fill: 0.4;
+
+  --danger-fg: 248 113 113;
+  --success-fg: 74 222 128;
+  --warning-fg: 253 230 138;
+
+  --acc-50: oklch(96.2% 0.018 272.314);
+  --acc-100: oklch(93% 0.034 272.788);
+  --acc-200: oklch(87% 0.065 274.039);
+  --acc-300: oklch(78.5% 0.115 274.713);
+  --acc-400: oklch(67.3% 0.182 276.935);
+  --acc-500: oklch(58.5% 0.233 277.117);
+  --acc-600: oklch(51.1% 0.262 276.966);
+  --acc-700: oklch(45.7% 0.24 277.023);
+  --acc-800: oklch(39.8% 0.195 277.366);
+  --acc-900: oklch(35.9% 0.144 278.697);
+  --acc-950: oklch(25.7% 0.09 281.288);
+}
+
+/* Light mode: status hues and any leftover neutral utilities were authored
+   for a dark canvas; map them to their mirrored shade so they stay legible.
+   The text shades (200/300/400) map to Tailwind's 900/800/700 rather than a
+   strict mirror, because the mirrored 600 shades of amber, green, emerald,
+   yellow, lime, teal, cyan, orange and sky are below 4.5:1 on white. */
+:root[data-theme="light"] {
+  --color-red-50: oklch(25.8% 0.092 26.042); --color-red-100: oklch(39.6% 0.141 25.723); --color-red-200: oklch(39.6% 0.141 25.723); --color-red-300: oklch(44.4% 0.177 26.899); --color-red-400: oklch(50.5% 0.213 27.518); --color-red-800: oklch(88.5% 0.062 18.334); --color-red-900: oklch(93.6% 0.032 17.717); --color-red-950: oklch(97.1% 0.013 17.38);
+  --color-orange-50: oklch(26.6% 0.079 36.259); --color-orange-100: oklch(40.8% 0.123 38.172); --color-orange-200: oklch(40.8% 0.123 38.172); --color-orange-300: oklch(47% 0.157 37.304); --color-orange-400: oklch(55.3% 0.195 38.402); --color-orange-800: oklch(90.1% 0.076 70.697); --color-orange-900: oklch(95.4% 0.038 75.164); --color-orange-950: oklch(98% 0.016 73.684);
+  --color-amber-50: oklch(27.9% 0.077 45.635); --color-amber-100: oklch(41.4% 0.112 45.904); --color-amber-200: oklch(41.4% 0.112 45.904); --color-amber-300: oklch(47.3% 0.137 46.201); --color-amber-400: oklch(55.5% 0.163 48.998); --color-amber-800: oklch(92.4% 0.12 95.746); --color-amber-900: oklch(96.2% 0.059 95.617); --color-amber-950: oklch(98.7% 0.022 95.277);
+  --color-yellow-50: oklch(28.6% 0.066 53.813); --color-yellow-100: oklch(42.1% 0.095 57.708); --color-yellow-200: oklch(42.1% 0.095 57.708); --color-yellow-300: oklch(47.6% 0.114 61.907); --color-yellow-400: oklch(55.4% 0.135 66.442); --color-yellow-800: oklch(94.5% 0.129 101.54); --color-yellow-900: oklch(97.3% 0.071 103.193); --color-yellow-950: oklch(98.7% 0.026 102.212);
+  --color-lime-50: oklch(27.4% 0.072 132.109); --color-lime-100: oklch(40.5% 0.101 131.063); --color-lime-200: oklch(40.5% 0.101 131.063); --color-lime-300: oklch(45.3% 0.124 130.933); --color-lime-400: oklch(53.2% 0.157 131.589); --color-lime-800: oklch(93.8% 0.127 124.321); --color-lime-900: oklch(96.7% 0.067 122.328); --color-lime-950: oklch(98.6% 0.031 120.757);
+  --color-green-50: oklch(26.6% 0.065 152.934); --color-green-100: oklch(39.3% 0.095 152.535); --color-green-200: oklch(39.3% 0.095 152.535); --color-green-300: oklch(44.8% 0.119 151.328); --color-green-400: oklch(52.7% 0.154 150.069); --color-green-800: oklch(92.5% 0.084 155.995); --color-green-900: oklch(96.2% 0.044 156.743); --color-green-950: oklch(98.2% 0.018 155.826);
+  --color-emerald-50: oklch(26.2% 0.051 172.552); --color-emerald-100: oklch(37.8% 0.077 168.94); --color-emerald-200: oklch(37.8% 0.077 168.94); --color-emerald-300: oklch(43.2% 0.095 166.913); --color-emerald-400: oklch(50.8% 0.118 165.612); --color-emerald-800: oklch(90.5% 0.093 164.15); --color-emerald-900: oklch(95% 0.052 163.051); --color-emerald-950: oklch(97.9% 0.021 166.113);
+  --color-teal-50: oklch(27.7% 0.046 192.524); --color-teal-100: oklch(38.6% 0.063 188.416); --color-teal-200: oklch(38.6% 0.063 188.416); --color-teal-300: oklch(43.7% 0.078 188.216); --color-teal-400: oklch(51.1% 0.096 186.391); --color-teal-800: oklch(91% 0.096 180.426); --color-teal-900: oklch(95.3% 0.051 180.801); --color-teal-950: oklch(98.4% 0.014 180.72);
+  --color-cyan-50: oklch(30.2% 0.056 229.695); --color-cyan-100: oklch(39.8% 0.07 227.392); --color-cyan-200: oklch(39.8% 0.07 227.392); --color-cyan-300: oklch(45% 0.085 224.283); --color-cyan-400: oklch(52% 0.105 223.128); --color-cyan-800: oklch(91.7% 0.08 205.041); --color-cyan-900: oklch(95.6% 0.045 203.388); --color-cyan-950: oklch(98.4% 0.019 200.873);
+  --color-sky-50: oklch(29.3% 0.066 243.157); --color-sky-100: oklch(39.1% 0.09 240.876); --color-sky-200: oklch(39.1% 0.09 240.876); --color-sky-300: oklch(44.3% 0.11 240.79); --color-sky-400: oklch(50% 0.134 242.749); --color-sky-800: oklch(90.1% 0.058 230.902); --color-sky-900: oklch(95.1% 0.026 236.824); --color-sky-950: oklch(97.7% 0.013 236.62);
+  --color-blue-50: oklch(28.2% 0.091 267.935); --color-blue-100: oklch(37.9% 0.146 265.522); --color-blue-200: oklch(37.9% 0.146 265.522); --color-blue-300: oklch(42.4% 0.199 265.638); --color-blue-400: oklch(48.8% 0.243 264.376); --color-blue-800: oklch(88.2% 0.059 254.128); --color-blue-900: oklch(93.2% 0.032 255.585); --color-blue-950: oklch(97% 0.014 254.604);
+  --color-fuchsia-50: oklch(29.3% 0.136 325.661); --color-fuchsia-100: oklch(40.1% 0.17 325.612); --color-fuchsia-200: oklch(40.1% 0.17 325.612); --color-fuchsia-300: oklch(45.2% 0.211 324.591); --color-fuchsia-400: oklch(51.8% 0.253 323.949); --color-fuchsia-800: oklch(90.3% 0.076 319.62); --color-fuchsia-900: oklch(95.2% 0.037 318.852); --color-fuchsia-950: oklch(97.7% 0.017 320.058);
+  --color-pink-50: oklch(28.4% 0.109 3.907); --color-pink-100: oklch(40.8% 0.153 2.432); --color-pink-200: oklch(40.8% 0.153 2.432); --color-pink-300: oklch(45.9% 0.187 3.815); --color-pink-400: oklch(52.5% 0.223 3.958); --color-pink-800: oklch(89.9% 0.061 343.231); --color-pink-900: oklch(94.8% 0.028 342.258); --color-pink-950: oklch(97.1% 0.014 343.198);
+  --color-rose-50: oklch(27.1% 0.105 12.094); --color-rose-100: oklch(41% 0.159 10.272); --color-rose-200: oklch(41% 0.159 10.272); --color-rose-300: oklch(45.5% 0.188 13.697); --color-rose-400: oklch(51.4% 0.222 16.935); --color-rose-800: oklch(89.2% 0.058 10.001); --color-rose-900: oklch(94.1% 0.03 12.58); --color-rose-950: oklch(96.9% 0.015 12.422);
+  /* indigo is the brand accent's source scale (see --accent above); its
+     light-mode flip lives here same as every other hue. */
+  --color-indigo-50: oklch(25.7% 0.09 281.288); --color-indigo-100: oklch(35.9% 0.144 278.697); --color-indigo-200: oklch(39.8% 0.195 277.366); --color-indigo-300: oklch(45.7% 0.24 277.023); --color-indigo-400: oklch(51.1% 0.262 276.966); --color-indigo-800: oklch(87% 0.065 274.039); --color-indigo-900: oklch(93% 0.034 272.788); --color-indigo-950: oklch(96.2% 0.018 272.314);
+  --color-gray-50: oklch(13% 0.028 261.692); --color-gray-100: oklch(21% 0.034 264.665); --color-gray-200: oklch(27.8% 0.033 256.848); --color-gray-300: oklch(37.3% 0.034 259.733); --color-gray-400: oklch(44.6% 0.03 256.802); --color-gray-600: oklch(70.7% 0.022 261.325); --color-gray-700: oklch(87.2% 0.01 258.338); --color-gray-800: oklch(92.8% 0.006 264.531); --color-gray-900: oklch(96.7% 0.003 264.542); --color-gray-950: oklch(98.5% 0.002 247.839);
+  --color-zinc-50: oklch(14.1% 0.005 285.823); --color-zinc-100: oklch(21% 0.006 285.885); --color-zinc-200: oklch(27.4% 0.006 286.033); --color-zinc-300: oklch(37% 0.013 285.805); --color-zinc-400: oklch(44.2% 0.017 285.786); --color-zinc-600: oklch(70.5% 0.015 286.067); --color-zinc-700: oklch(87.1% 0.006 286.286); --color-zinc-800: oklch(92% 0.004 286.32); --color-zinc-900: oklch(96.7% 0.001 286.375); --color-zinc-950: oklch(98.5% 0 0);
+  --color-slate-50: oklch(12.9% 0.042 264.695); --color-slate-100: oklch(20.8% 0.042 265.755); --color-slate-200: oklch(27.9% 0.041 260.031); --color-slate-300: oklch(37.2% 0.044 257.287); --color-slate-400: oklch(44.6% 0.043 257.281); --color-slate-600: oklch(70.4% 0.04 256.788); --color-slate-700: oklch(86.9% 0.022 252.894); --color-slate-800: oklch(92.9% 0.013 255.508); --color-slate-900: oklch(96.8% 0.007 247.896); --color-slate-950: oklch(98.4% 0.003 247.858);
+  --color-neutral-50: oklch(14.5% 0 0); --color-neutral-100: oklch(20.5% 0 0); --color-neutral-200: oklch(26.9% 0 0); --color-neutral-300: oklch(37.1% 0 0); --color-neutral-400: oklch(43.9% 0 0); --color-neutral-600: oklch(70.8% 0 0); --color-neutral-700: oklch(87% 0 0); --color-neutral-800: oklch(92.2% 0 0); --color-neutral-900: oklch(97% 0 0); --color-neutral-950: oklch(98.5% 0 0);
+  --color-stone-50: oklch(14.7% 0.004 49.25); --color-stone-100: oklch(21.6% 0.006 56.043); --color-stone-200: oklch(26.8% 0.007 34.298); --color-stone-300: oklch(37.4% 0.01 67.558); --color-stone-400: oklch(44.4% 0.011 73.639); --color-stone-600: oklch(70.9% 0.01 56.259); --color-stone-700: oklch(86.9% 0.005 56.366); --color-stone-800: oklch(92.3% 0.003 48.717); --color-stone-900: oklch(97% 0.001 106.424); --color-stone-950: oklch(98.5% 0.001 106.423);
+}
+
+/* The app was originally authored with a mix of `violet-*` and `purple-*`
+   Tailwind classes for its brand colour (buttons, badges, borders — see
+   Dashboard.jsx, Profile.jsx, NotFound.jsx, etc.), none of which know about
+   --accent. Rather than rewrite every one of those usages, alias both
+   scales directly onto --color-indigo-*, the accent's real source scale —
+   this is unconditional (same in light and dark) since indigo's own values
+   already flip correctly per theme above. The result: every existing
+   bg-violet-600 / text-purple-400 / border-violet-500 in the app now
+   renders as the exact same accent colour as the new components. */
+:root {
+  --color-violet-50: var(--color-indigo-50);
+  --color-violet-100: var(--color-indigo-100);
+  --color-violet-200: var(--color-indigo-200);
+  --color-violet-300: var(--color-indigo-300);
+  --color-violet-400: var(--color-indigo-400);
+  --color-violet-500: var(--color-indigo-500);
+  --color-violet-600: var(--color-indigo-600);
+  --color-violet-700: var(--color-indigo-700);
+  --color-violet-800: var(--color-indigo-800);
+  --color-violet-900: var(--color-indigo-900);
+  --color-violet-950: var(--color-indigo-950);
+
+  --color-purple-50: var(--color-indigo-50);
+  --color-purple-100: var(--color-indigo-100);
+  --color-purple-200: var(--color-indigo-200);
+  --color-purple-300: var(--color-indigo-300);
+  --color-purple-400: var(--color-indigo-400);
+  --color-purple-500: var(--color-indigo-500);
+  --color-purple-600: var(--color-indigo-600);
+  --color-purple-700: var(--color-indigo-700);
+  --color-purple-800: var(--color-indigo-800);
+  --color-purple-900: var(--color-indigo-900);
+  --color-purple-950: var(--color-indigo-950);
 }
 
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 80px;
-  background-color: #0a0a0a;
+  background-color: rgb(var(--canvas));
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
-  background-color: #0a0a0a;
-  color: #f5f5f5;
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: rgb(var(--canvas));
+  color: rgb(var(--fg));
+  font-family: var(--font-sans);
+  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgb(var(--accent) / 0.2);
+}
+
+/* Wrapped in Tailwind's `base` layer (not left unlayered) on purpose: an
+   unlayered rule always beats every layered rule regardless of selector
+   specificity, per the CSS cascade-layers spec — so this outline was
+   rendering on top of every component's own `focus:ring-*`/`outline-none`
+   utilities (which live in Tailwind's `utilities` layer) no matter what,
+   producing a highlighted element and a second, separate outline around it
+   everywhere at once. Inside `base`, Tailwind's utilities layer (declared
+   after `base`) correctly overrides this default, so elements that opt into
+   their own focus ring show only that ring, and everything else still gets
+   this as its fallback focus indicator. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(var(--accent));
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Page scaffolding shared by every in-app route */
+  .page-title {
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    color: rgb(var(--fg));
+  }
+
+  .card {
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--line));
+    border-radius: 14px;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    height: 1.75rem;
+    padding: 0 0.875rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: rgb(var(--fg-secondary));
+    background: rgb(var(--surface-2));
+    border: 1px solid transparent;
+    transition: background-color 150ms ease, color 150ms ease;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .pill:hover {
+    background: rgb(var(--surface-3));
+    color: rgb(var(--fg));
+  }
+  .pill[aria-pressed="true"],
+  .pill.is-active {
+    background: rgb(var(--accent));
+    color: rgb(var(--on-accent));
+  }
+
+  .input {
+    width: 100%;
+    height: 2.5rem;
+    padding: 0 0.875rem;
+    border-radius: 10px;
+    background: rgb(var(--surface-2));
+    border: 1px solid transparent;
+    color: rgb(var(--fg));
+    font-size: 0.875rem;
+    transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
+  }
+  .input::placeholder {
+    color: rgb(var(--fg-subtle));
+  }
+  .input:focus {
+    outline: none;
+    background: rgb(var(--surface));
+    border-color: rgb(var(--accent) / 0.5);
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.12);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.5rem;
+    padding: 0 1rem;
+    border-radius: 10px;
+    background: rgb(var(--accent));
+    color: rgb(var(--on-accent));
+    font-size: 0.875rem;
+    font-weight: 600;
+    transition: background-color 150ms ease, transform 150ms ease;
+    cursor: pointer;
+  }
+  .btn-primary:hover {
+    background: rgb(var(--accent-hover));
+  }
+  .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    height: 2.5rem;
+    padding: 0 1rem;
+    border-radius: 10px;
+    background: rgb(var(--surface));
+    color: rgb(var(--fg));
+    border: 1px solid rgb(var(--line));
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: background-color 150ms ease, border-color 150ms ease;
+    cursor: pointer;
+  }
+  .btn-secondary:hover {
+    background: rgb(var(--surface-2));
+    border-color: rgb(var(--line-strong));
+  }
+}
+
+@layer utilities {
+  .shadow-soft {
+    box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.04), 0 1px 1px rgb(var(--shadow-color) / 0.02);
+  }
+  .shadow-pop {
+    box-shadow: 0 12px 32px -8px rgb(var(--shadow-color) / 0.18), 0 2px 6px rgb(var(--shadow-color) / 0.06);
+  }
+}
+
+/* Sonner toasts (components/AppToaster.jsx), skinned with the app tokens.
+   Deliberately unlayered: Sonner injects its own unlayered stylesheet at
+   runtime, which would beat anything inside a Tailwind @layer. The `:root`
+   prefix out-ranks its `[data-sonner-toaster][data-sonner-theme]` rules.
+   Scoped to Sonner's own attributes, so nothing else is affected. */
+:root [data-sonner-toaster][data-sonner-theme] {
+  --normal-bg: rgb(var(--surface));
+  --normal-bg-hover: rgb(var(--surface-2));
+  --normal-border: rgb(var(--line));
+  --normal-border-hover: rgb(var(--line-strong));
+  --normal-text: rgb(var(--fg));
+  --border-radius: 12px;
+  --width: 360px;
+  font-family: var(--font-sans);
+}
+
+:root [data-sonner-toaster] [data-sonner-toast].linklet-toast {
+  padding: 14px 16px;
+  gap: 10px;
+  box-shadow: 0 12px 32px -8px rgb(var(--shadow-color) / 0.2), 0 2px 6px rgb(var(--shadow-color) / 0.06);
+}
+
+:root [data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+:root [data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-size: 0.8125rem;
+  color: rgb(var(--fg-muted));
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Neutral card, status carried by the icon colour — the Vercel/Linear style
+   rather than full-colour "rich" toasts. */
+:root [data-sonner-toast][data-type="success"] [data-icon] { color: rgb(var(--success-fg)); }
+:root [data-sonner-toast][data-type="error"] [data-icon] { color: rgb(var(--danger-fg)); }
+:root [data-sonner-toast][data-type="warning"] [data-icon] { color: rgb(var(--warning-fg)); }
+:root [data-sonner-toast][data-type="info"] [data-icon],
+:root [data-sonner-toast][data-type="loading"] [data-icon] { color: rgb(var(--accent-fg)); }
+
+:root [data-sonner-toast] [data-button][data-action] {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgb(var(--accent));
+  color: rgb(var(--on-accent));
+}
+
+:root [data-sonner-toast] [data-button][data-action]:hover {
+  background: rgb(var(--accent-hover));
+}
+
+:root [data-sonner-toast] [data-close-button] {
+  background: rgb(var(--surface));
+  border-color: rgb(var(--line));
+  color: rgb(var(--fg-muted));
+}
+
+:root [data-sonner-toast] [data-close-button]:hover {
+  background: rgb(var(--surface-2));
+  color: rgb(var(--fg));
 }

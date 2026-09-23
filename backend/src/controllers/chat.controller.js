@@ -2,7 +2,6 @@ import * as chatService from "../services/chat.service.js";
 import * as chatRepo from "../repositories/chat.repository.js";
 import { MessageReport } from "../models/messageReport.model.js";
 import {
-  getIo,
   notifyNewMessage,
   notifyMessageUpdated,
   notifyMessagesDeleted,
@@ -10,6 +9,8 @@ import {
   notifyPinChange,
   notifyGroupUpdated,
   notifyRemovedFromGroup,
+  notifyChatPreview,
+  broadcastChatRead,
   refreshPresence,
 } from "../../socket.js";
 
@@ -42,8 +43,80 @@ export const accessOrCreateChat = async (req, res, next) => {
 
 export const getUserChats = async (req, res, next) => {
   try {
-    const chats = await chatService.getUserChats(req.user._id);
-    res.status(200).json({ success: true, data: chats });
+    const { cursor } = req.query;
+    const limit = parseInt(req.query.limit, 10);
+    const result = await chatService.getUserChats(req.user._id, {
+      cursor: cursor || null,
+      limit: Number.isFinite(limit) ? limit : undefined,
+    });
+    // `data` stays the plain chat array — every existing caller (ChatSidebar,
+    // ChatPage) reads res.data.data as a list — while pagination metadata
+    // rides alongside it for callers that opt into loading more.
+    res.status(200).json({
+      success: true,
+      data: result.chats,
+      hasMore: result.hasMore,
+      nextCursor: result.nextCursor,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const pinChat = async (req, res, next) => {
+  try {
+    const { chatId } = req.body;
+    const setting = await chatService.setChatPinned(req.user._id, chatId, true);
+    res.status(200).json({ success: true, data: setting });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unpinChat = async (req, res, next) => {
+  try {
+    const chatId = req.body?.chatId || req.query?.chatId;
+    const setting = await chatService.setChatPinned(req.user._id, chatId, false);
+    res.status(200).json({ success: true, data: setting });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const muteChat = async (req, res, next) => {
+  try {
+    const { chatId, muted } = req.body;
+    const setting = await chatService.setChatMuted(req.user._id, chatId, muted !== false);
+    res.status(200).json({ success: true, data: setting });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getMutedChats = async (req, res, next) => {
+  try {
+    const mutedChatIds = await chatService.getMutedChatIds(req.user._id);
+    res.status(200).json({ success: true, data: mutedChatIds });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const archiveChat = async (req, res, next) => {
+  try {
+    const { chatId, archived } = req.body;
+    const setting = await chatService.setChatArchived(req.user._id, chatId, archived !== false);
+    res.status(200).json({ success: true, data: setting });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteChatForUser = async (req, res, next) => {
+  try {
+    const { chatId } = req.params;
+    const result = await chatService.deleteChatForUser(req.user._id, chatId);
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
     next(error);
   }
@@ -153,7 +226,7 @@ export const demoteAdmin = async (req, res, next) => {
 
 export const sendMessage = async (req, res, next) => {
   try {
-    const { chatId, content, replyTo, mediaType } = req.body;
+    const { chatId, content, replyTo, mediaType, clientId } = req.body;
     let files = [];
     if (Array.isArray(req.files)) {
       files = req.files;
@@ -164,12 +237,18 @@ export const sendMessage = async (req, res, next) => {
     }
     const result = await chatService.sendMessage(
       req.user._id,
-      { chatId, content, replyTo, mediaType },
+      { chatId, content, replyTo, mediaType, clientId },
       files
     );
-    const createdMessages = Array.isArray(result) ? result : [result];
-    for (const msg of createdMessages) {
-      await safeNotify(notifyNewMessage, msg);
+    // A duplicate resend (see chatService.sendMessage's clientId dedupe) returns
+    // the message(s) that were already broadcast the first time around — the
+    // client needs them back to reconcile its optimistic bubble, but firing
+    // notifyNewMessage again would double-deliver the message to every recipient.
+    if (!result[chatService.DUPLICATE_SEND]) {
+      const createdMessages = Array.isArray(result) ? result : [result];
+      for (const msg of createdMessages) {
+        await safeNotify(notifyNewMessage, msg);
+      }
     }
     res.status(201).json({ success: true, data: result });
   } catch (error) {
@@ -213,9 +292,14 @@ export const deleteMessage = async (req, res, next) => {
 
     if (result?.chatId && result?.messageId) {
       await safeNotify(notifyMessagesDeleted, result.chatId, result.messageId);
+      await safeNotify(notifyChatPreview, result.chatId, result.preview);
     }
 
-    res.status(200).json({ success: true, data: result });
+    const { preview, ...data } = result || {};
+    res.status(200).json({
+      success: true,
+      data: { ...data, lastMessage: preview?.lastMessage || null },
+    });
   } catch (error) {
     next(error);
   }
@@ -225,18 +309,7 @@ export const markAsRead = async (req, res, next) => {
   try {
     const { chatId } = req.params;
     await chatService.markAsRead(chatId, req.user._id);
-
-    try {
-      const io = getIo();
-      if (io && chatId) {
-        io.to(chatId).emit("messages_read", {
-          chatId,
-          readBy: req.user._id,
-        });
-      }
-    } catch (err) {
-      // Gracefully ignore if socket not initialized in test context
-    }
+    await safeNotify(broadcastChatRead, chatId, req.user._id);
 
     res.status(200).json({ success: true, message: "Messages marked as read" });
   } catch (error) {
@@ -284,6 +357,27 @@ export const forwardMessages = async (req, res, next) => {
   }
 };
 
+export const getChatMedia = async (req, res, next) => {
+  try {
+    const { chatId } = req.params;
+    const { kind, cursor } = req.query;
+    const result = await chatService.getChatMedia(chatId, req.user._id, { kind, cursor });
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const hideMessages = async (req, res, next) => {
+  try {
+    const { chatId, messageIds } = req.body || {};
+    const result = await chatService.hideMessagesForUser(req.user._id, { chatId, messageIds });
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteMultipleMessages = async (req, res, next) => {
   try {
     const { chatId, messageIds } = req.body || {};
@@ -294,9 +388,14 @@ export const deleteMultipleMessages = async (req, res, next) => {
 
     if (chatId && result?.deletedIds?.length) {
       await safeNotify(notifyMessagesDeleted, chatId, result.deletedIds);
+      await safeNotify(notifyChatPreview, chatId, result.preview);
     }
 
-    res.status(200).json({ success: true, data: result });
+    const { preview, ...data } = result || {};
+    res.status(200).json({
+      success: true,
+      data: { ...data, lastMessage: preview?.lastMessage || null },
+    });
   } catch (error) {
     next(error);
   }

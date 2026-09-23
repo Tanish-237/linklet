@@ -22,7 +22,7 @@ vi.mock("../../api/apiClient", () => ({
   },
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -88,7 +88,7 @@ describe("Navbar Component Tests", () => {
     console.log("TRACE [Navbar.test.jsx]: Dropdown opened, username and email rendered, and open class added to ProfileButton");
   });
 
-  it("navigates to /dashboard/settings and closes dropdown when Settings is clicked", async () => {
+  it("navigates to /settings and closes dropdown when Settings is clicked", async () => {
     console.log("TRACE [Navbar.test.jsx]: Testing Settings navigation from Navbar dropdown");
     const user = userEvent.setup();
     renderComponent();
@@ -99,10 +99,10 @@ describe("Navbar Component Tests", () => {
     const settingsBtn = document.getElementById("navbar-dropdown-settings-btn");
     await user.click(settingsBtn);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/settings");
+    expect(mockNavigate).toHaveBeenCalledWith("/settings");
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
 
-    console.log("TRACE [Navbar.test.jsx]: Navigated to /dashboard/settings and dropdown closed");
+    console.log("TRACE [Navbar.test.jsx]: Navigated to /settings and dropdown closed");
   });
 
   it("renders with id app-navbar and sticky navigation element", () => {

@@ -15,8 +15,8 @@
   width: 100%;
   max-width: 960px;
   height: 88vh;
-  background: rgba(10, 10, 18, 0.98);
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  background: rgb(var(--surface) / calc(0.98 + var(--glass-fill)));
+  border: 1px solid rgb(var(--accent) / 0.25);
   border-radius: 20px;
   overflow: hidden;
   display: flex;
@@ -30,8 +30,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgb(var(--fg) / 0.06);
+  background: rgb(var(--fg) / 0.02);
   flex-shrink: 0;
 }
 
@@ -46,14 +46,14 @@
 .gs-preview-title {
   font-size: 16px;
   font-weight: 700;
-  color: #f1f1f1;
+  color: rgb(var(--fg));
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.gs-preview-sub { font-size: 12.5px; color: #6b7280; margin: 3px 0 0; }
+.gs-preview-sub { font-size: 12.5px; color: rgb(var(--fg-muted)); margin: 3px 0 0; }
 
 .gs-preview-header-actions { display: flex; gap: 8px; }
 
@@ -63,14 +63,14 @@
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
+  background: rgb(var(--surface));
 }
 
 .gs-preview-image {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  background: #111;
+  background: rgb(var(--surface));
 }
 
 .gs-preview-fallback {
@@ -80,7 +80,7 @@
   justify-content: center;
   gap: 16px;
   height: 100%;
-  color: #6b7280;
+  color: rgb(var(--fg-muted));
   font-size: 15px;
 }
 

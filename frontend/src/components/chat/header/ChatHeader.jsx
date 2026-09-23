@@ -38,7 +38,7 @@ const ChatHeader = ({
             type="button"
             id="chat-back-to-sidebar-btn"
             onClick={onBackToSidebar}
-            className="md:hidden flex items-center justify-center w-9 h-9 -ml-1 text-gray-300 hover:text-white hover:bg-violet-950/50 active:scale-95 rounded-xl transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+            className="md:hidden flex items-center justify-center w-9 h-9 -ml-1 text-gray-300 hover:text-fg hover:bg-violet-950/50 active:scale-95 rounded-xl transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50"
             title="Back to all chats"
             aria-label="Back to all chats"
           >
@@ -89,19 +89,16 @@ const ChatHeader = ({
         </div>
       </div>
 
-      <div className="chat-header-actions flex items-center gap-2">
-        {/* In-chat Search Toggle */}
+      <div className="chat-header-actions flex items-center gap-1">
         <button
           type="button"
           onClick={onToggleSearch}
-          className={`p-2 rounded-full transition-colors cursor-pointer ${
-            isSearchOpen
-              ? "bg-violet-600/30 text-violet-300"
-              : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-          }`}
+          className="chat-header-icon-btn"
+          aria-pressed={Boolean(isSearchOpen)}
+          aria-label="Search in this chat"
           title="Search messages"
         >
-          <span className="material-icons text-xl">search</span>
+          <span className="material-icons">search</span>
         </button>
       </div>
     </div>

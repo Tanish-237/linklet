@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 /**
  * Hook for managing audio voice note recording with MediaRecorder

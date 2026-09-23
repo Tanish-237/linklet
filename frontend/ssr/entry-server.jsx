@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { StaticRouter } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 
+import { Navbar } from "../src/components/Navbar";
 import LandingPage from "../src/pages/LandingPage";
 import AboutPage from "../src/pages/static/AboutPage";
 import ContactPage from "../src/pages/static/ContactPage";
@@ -11,9 +12,11 @@ import TermsOfServicePage from "../src/pages/static/TermsOfServicePage";
 import PostsSeoShell from "../src/pages/static/PostsSeoShell";
 
 // Only genuinely static, public marketing/legal pages go here — no
-// AuthContext/SocketContext/React Query needed, since none of these read
-// user state at render time (see the comment in scripts/prerender.mjs for
-// why the app's real Navbar and every other route are deliberately excluded).
+// SocketContext/React Query needed. The public Navbar is included for the
+// pages that render it in App.jsx: at build time the auth store is empty, so
+// it renders its logged-out state, which is exactly what a first-time visitor
+// sees — the client's first render then matches this HTML instead of pushing
+// the page down by a navbar's height when it mounts.
 const PAGES = {
   "/": LandingPage,
   "/about": AboutPage,
@@ -23,6 +26,8 @@ const PAGES = {
   // Title/description/canonical only — the feed itself is client-rendered.
   "/posts": PostsSeoShell,
 };
+
+const WITH_NAVBAR = new Set(["/", "/about", "/contact", "/privacy", "/terms"]);
 
 export const STATIC_ROUTES = Object.keys(PAGES);
 
@@ -36,6 +41,7 @@ export const renderPage = (path) => {
   const html = renderToStaticMarkup(
     <HelmetProvider context={helmetContext}>
       <StaticRouter location={path}>
+        {WITH_NAVBAR.has(path) && <Navbar />}
         <Page />
       </StaticRouter>
     </HelmetProvider>

@@ -4,7 +4,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import GoogleAuthButton from "../../components/GoogleAuthButton";
 import { apiClient } from "../../api/apiClient";
 import useAuthStore from "../../store/useAuthStore";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 const mockedNavigate = vi.fn();
 vi.mock("react-router-dom", () => ({
@@ -17,7 +17,7 @@ vi.mock("../../api/apiClient", () => ({
   },
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),

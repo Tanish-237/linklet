@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, beforeEach, it, expect } from "vitest";
 import SaveToCollectionModal from "../SaveToCollectionModal";
 import * as collectionApi from "../../api/collection.api";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 
 vi.mock("../../api/collection.api", () => ({
   getCollections: vi.fn(),
@@ -11,7 +11,7 @@ vi.mock("../../api/collection.api", () => ({
   toggleResourceInCollection: vi.fn(),
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),

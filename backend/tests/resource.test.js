@@ -130,7 +130,7 @@ describe('Resource Service — Unit Tests', () => {
     it('should call repository with parsed page and limit and attach cached category stats', async () => {
       console.log('[TEST] getVerifiedResourcesFeed › parses page & limit, stats come from the (cached) stats query');
       const filters = { search: 'algo', category: 'notes', sort: 'newest', branchId: 'b1' };
-      const stats = { total: 1, categories: { all: 1, notes: 1, assignments: 0, papers: 0, presentations: 0, other: 0 } };
+      const stats = { total: 1, categories: { all: 1, notes: 1, assignments: 0, papers: 0, books: 0, lectures: 0, other: 0 } };
       const page = { resources: [{ _id: 'r1', title: 'Algo Notes' }], totalPages: 1, totalDocs: 1, page: 2, hasNextPage: false };
       mockGetVerifiedResources.mockResolvedValue(page);
       mockGetCategoryStats.mockResolvedValue(stats);

@@ -8,6 +8,42 @@ const dummyStorage = {
   removeItem: () => {},
 };
 
+// Per-user caches that hold conversation content or can be rebuilt from the
+// server. Cleared on sign-out so the next person on a shared (e.g. campus lab)
+// computer can't read someone else's chats out of localStorage. Starred
+// messages are left alone: they only exist on this device.
+const SIGN_OUT_CACHE_PREFIXES = [
+  "linklet_cached_msgs_",
+  "linklet_cached_chats_",
+  "linklet_muted_chats_",
+  "linklet_archived_chats_",
+  "linklet_pinned_chats_",
+  "linklet_blocked_users_",
+  "linklet_manual_unread_",
+];
+
+export const clearUserCaches = () => {
+  try {
+    const storage = typeof window !== "undefined" ? window.localStorage : null;
+    if (!storage) return;
+    const doomed = [];
+    for (let i = 0; i < storage.length; i++) {
+      const key = storage.key(i);
+      if (key && SIGN_OUT_CACHE_PREFIXES.some((p) => key.startsWith(p))) doomed.push(key);
+    }
+    doomed.forEach((key) => storage.removeItem(key));
+  } catch {
+    // Storage unavailable — nothing to clear
+  }
+  // In-memory caches (e.g. chat messages) listen for this rather than being
+  // imported here, which would pull chat code into the auth store.
+  try {
+    window.dispatchEvent(new Event("linklet:signed-out"));
+  } catch {
+    // Non-browser environment
+  }
+};
+
 const useAuthStore = create(
   persist(
     (set, get) => ({
@@ -26,6 +62,7 @@ const useAuthStore = create(
           if (typeof window !== "undefined" && window.localStorage) {
             window.localStorage.removeItem("accessToken");
           }
+          clearUserCaches();
           set({ user: null, isAuthenticated: false, isLoading: false });
           if (typeof window !== "undefined") {
             window.location.href = '/login';
@@ -69,6 +106,7 @@ if (typeof window !== 'undefined') {
     if (window.localStorage) {
       window.localStorage.removeItem('accessToken');
     }
+    clearUserCaches();
     useAuthStore.setState({ user: null, isAuthenticated: false, isLoading: false });
     if (
       window.location &&

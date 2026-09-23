@@ -1,16 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/apiClient";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { Helmet } from "react-helmet-async";
 import { useSocket } from "../hooks/useSocket";
 import packageInfo from "../../package.json";
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
+import { ThemeSegmentedControl } from "../theme/ThemeToggle";
+import useThemeStore from "../theme/useThemeStore";
+import { getNotificationPrefs } from "../utlis/notificationPrefs";
 import "./Settings.css";
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const socket = useSocket();
+  const themePreference = useThemeStore((s) => s.preference);
+  const resolvedTheme = useThemeStore((s) => s.theme);
 
   // Default active tab is now "security"
   const [activeTab, setActiveTab] = useState("security");
@@ -26,37 +31,28 @@ export default function Settings() {
   const [isSocketConnected, setIsSocketConnected] = useState(Boolean(socket?.connected));
   const [apiStatus, setApiStatus] = useState({ status: "checking", latency: null });
 
-  // Notification alert preferences state
-  const [notificationPrefs, setNotificationPrefs] = useState(() => {
-    try {
-      const saved = localStorage.getItem("linklet_notif_prefs");
-      return saved
-        ? JSON.parse(saved)
-        : {
-            forumAlerts: true,
-            postAlerts: true,
-            systemAlerts: true,
-            chatAlerts: true,
-          };
-    } catch {
-      return {
-        forumAlerts: true,
-        postAlerts: true,
-        systemAlerts: true,
-        chatAlerts: true,
-      };
-    }
-  });
+  // Notification preferences live on the account (so they follow the user
+  // across devices) and are enforced server-side for forum/post/system alerts.
+  // Toggles update optimistically and roll back if the save fails.
+  const [notificationPrefs, setNotificationPrefs] = useState(() => getNotificationPrefs(user));
 
-  const togglePref = (key) => {
-    setNotificationPrefs((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      try {
-        localStorage.setItem("linklet_notif_prefs", JSON.stringify(next));
-      } catch {}
+  useEffect(() => {
+    setNotificationPrefs(getNotificationPrefs(user));
+  }, [user?.notificationPrefs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const togglePref = async (key) => {
+    const previous = notificationPrefs;
+    const next = { ...previous, [key]: !previous[key] };
+    setNotificationPrefs(next);
+    try {
+      const res = await apiClient.put("/profile/notification-preferences", { [key]: next[key] });
+      const saved = res.data?.notificationPrefs || next;
+      if (user) setUser({ ...user, notificationPrefs: saved });
       toast.success("Notification preferences updated");
-      return next;
-    });
+    } catch {
+      setNotificationPrefs(previous);
+      toast.error("Couldn't save notification preferences. Please try again.");
+    }
   };
 
   useEffect(() => {
@@ -145,7 +141,7 @@ export default function Settings() {
 
       {/* Header */}
       <div className="settings-header">
-        <h2 className="text-2xl font-bold text-white mb-1">Account & App Settings</h2>
+        <h2 className="text-2xl font-bold text-fg mb-1">Account & App Settings</h2>
         <p className="text-sm text-gray-400">
           Manage your security credentials, upcoming preferences, and system diagnostics.
         </p>
@@ -201,14 +197,14 @@ export default function Settings() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-4 bg-gray-800/40 border border-gray-700/40 rounded-xl">
                 <span className="text-xs text-gray-400 block mb-1">Email Address</span>
-                <span className="text-sm font-semibold text-white block truncate" title={user?.email}>
+                <span className="text-sm font-semibold text-fg block truncate" title={user?.email}>
                   {user?.email || "student@mnnit.ac.in"}
                 </span>
               </div>
 
               <div className="p-4 bg-gray-800/40 border border-gray-700/40 rounded-xl">
                 <span className="text-xs text-gray-400 block mb-1">User Role</span>
-                <span className="text-sm font-semibold text-white uppercase block">
+                <span className="text-sm font-semibold text-fg uppercase block">
                   {user?.role || "user"}
                 </span>
               </div>
@@ -342,7 +338,7 @@ export default function Settings() {
               <div className="settings-toggle-row">
                 <div className="settings-toggle-info">
                   <h4>Forum Questions & Answer Alerts</h4>
-                  <p>In-app alerts when peers answer your question or accept your solution.</p>
+                  <p>In-app alerts when peers answer, comment on or upvote your questions, or accept your answer.</p>
                 </div>
                 <label className="settings-toggle-switch cursor-pointer">
                   <input
@@ -384,21 +380,6 @@ export default function Settings() {
                 </label>
               </div>
 
-              <div className="settings-toggle-row opacity-75 cursor-not-allowed">
-                <div className="settings-toggle-info">
-                  <div className="flex items-center gap-2">
-                    <h4>Email Activity Digest</h4>
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 bg-amber-950/60 border border-amber-500/40 rounded-full">
-                      Coming Soon
-                    </span>
-                  </div>
-                  <p>Periodic summaries sent directly to your @mnnit.ac.in institutional email.</p>
-                </div>
-                <label className="settings-toggle-switch cursor-not-allowed">
-                  <input type="checkbox" disabled />
-                  <span className="settings-slider opacity-50 cursor-not-allowed"></span>
-                </label>
-              </div>
             </div>
           </div>
         </div>
@@ -412,18 +393,30 @@ export default function Settings() {
               <span className="material-icons text-violet-400 text-2xl">desktop_windows</span>
               <div>
                 <h3>Theme & Visual Display</h3>
-                <p>Platform visual presentation settings.</p>
+                <p>Choose how Linklet looks on this device.</p>
               </div>
             </div>
 
             <div className="p-4 rounded-xl bg-gray-800/40 border border-gray-700/60">
-              <div className="flex items-center gap-3 mb-2">
-                <span className="material-icons text-violet-400">dark_mode</span>
-                <h4 className="text-sm font-semibold text-white">Active Theme: Dark Mode (Default)</h4>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                <div className="flex items-center gap-3">
+                  <span className="material-icons text-violet-400">
+                    {resolvedTheme === "dark" ? "dark_mode" : "light_mode"}
+                  </span>
+                  <h4 className="text-sm font-semibold text-fg">
+                    Appearance
+                    <span className="block text-xs font-normal text-gray-400 mt-0.5">
+                      {themePreference === "system"
+                        ? `Following your system setting (currently ${resolvedTheme})`
+                        : `Always ${resolvedTheme}`}
+                    </span>
+                  </h4>
+                </div>
+                <ThemeSegmentedControl />
               </div>
               <p className="text-xs text-gray-400">
-                Linklet uses an optimized high-contrast dark theme engineered to reduce eye strain
-                during extended study and development sessions.
+                Light and dark themes are fully supported across Linklet. "System" follows your
+                device's OS-level appearance setting automatically.
               </p>
             </div>
           </div>

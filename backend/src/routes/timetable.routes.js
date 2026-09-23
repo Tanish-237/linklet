@@ -1,6 +1,7 @@
 import express from "express";
 import multer from "multer";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import { createRateLimitStore } from "../utils/rateLimitStore.js";
 import * as timetableController from "../controllers/timetable.controller.js";
 import { isLoggedIn } from "../middlewares/auth.middleware.js";
 
@@ -37,6 +38,7 @@ const upload = multer({
 const timetableUploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
+  store: createRateLimitStore("timetable-upload"),
   standardHeaders: true,
   legacyHeaders: false,
   // ipKeyGenerator normalizes IPv6 addresses for the fallback branch — a raw

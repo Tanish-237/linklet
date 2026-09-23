@@ -20,6 +20,16 @@ export const deletePost = async (postId) => {
   return response.data;
 };
 
+export const updatePost = async (postId, caption) => {
+  const response = await apiClient.patch(`/posts/${postId}`, { caption });
+  return response.data.data;
+};
+
+export const reportPost = async (postId, reason) => {
+  const response = await apiClient.post(`/posts/${postId}/report`, { reason });
+  return response.data.data;
+};
+
 export const toggleUpvote = async (postId) => {
   const response = await apiClient.post(`/posts/${postId}/upvote`);
   return response.data.data;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { toast } from "sonner";
 import useAuthStore from '../store/useAuthStore';
 import defaultAvatar from '../assets/default-avatar.webp';
 import './HelpForum.css';
@@ -157,7 +157,7 @@ const AskQuestionModal = ({ onClose, onSuccess, categories, suggestedTags }) => 
           <form onSubmit={handleSubmit}>
             <div className="hf-form-group">
               <label className="hf-form-label" htmlFor="q-title">
-                Title <span style={{ color: '#f87171' }}>*</span>
+                Title <span style={{ color: 'rgb(var(--danger-fg))' }}>*</span>
               </label>
               <input
                 id="q-title"
@@ -187,7 +187,7 @@ const AskQuestionModal = ({ onClose, onSuccess, categories, suggestedTags }) => 
 
             <div className="hf-form-group">
               <label className="hf-form-label" htmlFor="q-body">
-                Description <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 400 }}>(optional)</span>
+                Description <span style={{ fontSize: '0.75rem', color: 'rgb(var(--fg-muted))', fontWeight: 400 }}>(optional)</span>
               </label>
               <textarea
                 id="q-body"
@@ -289,10 +289,10 @@ const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, o
   return (
     <article
       className="hf-question-card"
-      onClick={() => navigate(`/dashboard/question/${question._id}`)}
+      onClick={() => navigate(`/help/question/${question._id}`)}
       role="link"
       tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && navigate(`/dashboard/question/${question._id}`)}
+      onKeyDown={(e) => e.key === 'Enter' && navigate(`/help/question/${question._id}`)}
     >
       {/* Body */}
       <div className="hf-card-body">
@@ -332,7 +332,7 @@ const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, o
         <div className="hf-card-footer">
           <div className="hf-author-row" onClick={(e) => e.stopPropagation()}>
             <Link
-              to={`/dashboard/profile/${question.userId?.username}`}
+              to={`/profile/${question.userId?.username}`}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', textDecoration: 'none' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -346,47 +346,49 @@ const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, o
             <span>·</span>
             <span>{timeAgo(question.createdAt)}</span>
           </div>
-
-          <div className="hf-meta-pills">
-            {canDelete && (
-              <button
-                className="bm-del-btn inline-del-btn"
-                title="Delete Question"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete(question._id);
-                }}
-              >
-                <span className="material-icons">delete</span>
-              </button>
-            )}
-            <span className="hf-meta-pill">
-              <span className="material-icons" style={{ fontSize: '0.85rem' }}>visibility</span>
-              {question.views || 0} views
-            </span>
-          </div>
         </div>
       </div>
 
-      {/* Vote Column on Right */}
-      <div className="hf-vote-col" onClick={(e) => e.stopPropagation()}>
-        <button
-          className={`hf-vote-btn ${userVote === 'upvote' ? 'voted-up' : ''}`}
-          onClick={() => onVote(question._id, 'upvote')}
-          aria-label="Upvote"
-          title="Upvote"
-        >
-          <span className="material-icons" style={{ fontSize: '1rem' }}>arrow_upward</span>
-        </button>
-        <span className="hf-vote-count">{netVotes}</span>
-        <button
-          className={`hf-vote-btn ${userVote === 'downvote' ? 'voted-down' : ''}`}
-          onClick={() => onVote(question._id, 'downvote')}
-          aria-label="Downvote"
-          title="Downvote"
-        >
-          <span className="material-icons" style={{ fontSize: '1rem' }}>arrow_downward</span>
-        </button>
+      {/* Vote column + question actions, stacked on the right */}
+      <div className="hf-side-col" onClick={(e) => e.stopPropagation()}>
+        <div className="hf-vote-col">
+          <button
+            className={`hf-vote-btn ${userVote === 'upvote' ? 'voted-up' : ''}`}
+            onClick={() => onVote(question._id, 'upvote')}
+            aria-label="Upvote"
+            title="Upvote"
+          >
+            <span className="material-icons" style={{ fontSize: '1rem' }}>arrow_upward</span>
+          </button>
+          <span className="hf-vote-count">{netVotes}</span>
+          <button
+            className={`hf-vote-btn ${userVote === 'downvote' ? 'voted-down' : ''}`}
+            onClick={() => onVote(question._id, 'downvote')}
+            aria-label="Downvote"
+            title="Downvote"
+          >
+            <span className="material-icons" style={{ fontSize: '1rem' }}>arrow_downward</span>
+          </button>
+        </div>
+
+        <div className="hf-side-meta">
+          {canDelete && (
+            <button
+              className="hf-del-btn"
+              title="Delete Question"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(question._id);
+              }}
+            >
+              <span className="material-icons">delete</span>
+            </button>
+          )}
+          <span className="hf-meta-pill" title={`${question.views || 0} views`}>
+            <span className="material-icons" style={{ fontSize: '0.85rem' }}>visibility</span>
+            {question.views || 0}
+          </span>
+        </div>
       </div>
     </article>
   );
@@ -394,15 +396,23 @@ const QuestionCard = ({ question, currentUserId, userRole, onVote, onTagClick, o
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-const FILTERS = [
-  { id: 'all', label: 'Latest' },
-  { id: 'oldest', label: 'Oldest' },
-  { id: 'popular', label: 'Most Upvoted' },
-  { id: 'views', label: 'Most Viewed' },
+// Sort (how results are ordered) and status (which results qualify) used to
+// be crammed into one mutually-exclusive pill row — you could ask for
+// "Solved" or "Most Viewed" but never both. They're independent dimensions
+// on the backend (see question.repository.js buildBaseQuery), so they're
+// presented as independent controls: sort as a dropdown, status as pills.
+const SORT_OPTIONS = [
+  { id: 'all', label: 'Latest', icon: 'schedule' },
+  { id: 'oldest', label: 'Oldest', icon: 'history' },
+  { id: 'popular', label: 'Most Upvoted', icon: 'trending_up' },
+  { id: 'views', label: 'Most Viewed', icon: 'visibility' },
+];
+
+const STATUS_FILTERS = [
+  { id: '', label: 'All' },
   { id: 'solved', label: 'Solved' },
   { id: 'unanswered', label: 'Unanswered' },
   { id: 'answered', label: 'Answered' },
-  { id: 'mine', label: 'My Questions' },
 ];
 
 const HelpForum = () => {
@@ -418,9 +428,13 @@ const HelpForum = () => {
   // Filter / search state
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filter, setFilter] = useState('all');
+  const [sort, setSort] = useState('all');
+  const [status, setStatus] = useState('');
+  const [mineOnly, setMineOnly] = useState(false);
+  const [isSortOpen, setIsSortOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
+  const sortRef = useRef(null);
 
   // Metadata
   const [categories, setCategories] = useState(['General']);
@@ -498,13 +512,14 @@ const HelpForum = () => {
       try {
         const params = {
           search: debouncedSearch,
-          filter: filter === 'mine' ? 'all' : filter,
+          filter: sort,
+          status,
           category: selectedCategory,
           tag: selectedTag,
           limit: 15,
         };
         if (cursor) params.cursor = cursor;
-        if (filter === 'mine' && user?._id) params.userId = user._id;
+        if (mineOnly && user?._id) params.userId = user._id;
 
         const res = await getQuestions(params);
         if (stamp !== questionsRequestRef.current) return;
@@ -528,13 +543,22 @@ const HelpForum = () => {
         }
       }
     },
-    [debouncedSearch, filter, selectedCategory, selectedTag, user?._id]
+    [debouncedSearch, sort, status, mineOnly, selectedCategory, selectedTag, user?._id]
   );
 
   useEffect(() => {
     setNextCursor(null);
     fetchQuestions(null);
   }, [fetchQuestions]);
+
+  // Close the sort dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (sortRef.current && !sortRef.current.contains(e.target)) setIsSortOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
@@ -608,6 +632,8 @@ const HelpForum = () => {
     setNextCursor(null);
     fetchQuestions(null);
   };
+
+  const activeSort = SORT_OPTIONS.find((o) => o.id === sort);
 
   // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -744,18 +770,57 @@ const HelpForum = () => {
             </div>
           )}
 
-          {/* Filter Pills */}
+          {/* Sort + status filters + my questions */}
           <div className="hf-filter-bar">
-            {FILTERS.map((f) => (
+            <div className="hf-sort-wrap" ref={sortRef}>
               <button
-                key={f.id}
-                id={`hf-filter-${f.id}`}
-                className={`hf-filter-btn ${filter === f.id ? 'active' : ''}`}
-                onClick={() => setFilter(f.id)}
+                id="hf-sort-btn"
+                className="hf-sort-btn"
+                onClick={() => setIsSortOpen((p) => !p)}
+              >
+                <span className="material-icons hf-sort-icon">{activeSort?.icon}</span>
+                <span>{activeSort?.label}</span>
+                <span className={`material-icons hf-sort-chevron ${isSortOpen ? 'open' : ''}`}>expand_more</span>
+              </button>
+              {isSortOpen && (
+                <div className="hf-sort-dropdown">
+                  {SORT_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.id}
+                      id={`hf-sort-${opt.id}`}
+                      className={`hf-sort-item ${sort === opt.id ? 'selected' : ''}`}
+                      onClick={() => { setSort(opt.id); setIsSortOpen(false); }}
+                    >
+                      <span className="material-icons">{opt.icon}</span>
+                      {opt.label}
+                      {sort === opt.id && <span className="material-icons hf-sort-check">check</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {STATUS_FILTERS.map((f) => (
+              <button
+                key={f.id || 'status-all'}
+                id={`hf-filter-${f.id || 'all'}`}
+                className={`hf-filter-btn ${status === f.id ? 'active' : ''}`}
+                onClick={() => setStatus(f.id)}
               >
                 {f.label}
               </button>
             ))}
+
+            {user && (
+              <button
+                id="hf-filter-mine"
+                className={`hf-filter-btn hf-filter-btn-mine ${mineOnly ? 'active' : ''}`}
+                onClick={() => setMineOnly((p) => !p)}
+              >
+                <span className="material-icons" style={{ fontSize: '1rem' }}>person</span>
+                My Questions
+              </button>
+            )}
           </div>
 
           {/* Questions List */}

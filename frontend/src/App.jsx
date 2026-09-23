@@ -5,9 +5,10 @@ import {
   Routes,
   Navigate,
   useParams,
+  useLocation,
 } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
-import { Suspense, lazy, useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import useAuthStore from "./store/useAuthStore";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -16,44 +17,56 @@ import { Navbar } from "./components/Navbar";
 import Layout from "./pages/Layout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { SocketProvider } from "./context/SocketContext";
-import { ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import AppToaster from "./components/AppToaster";
 import "./App.css";
 
-// Lazy Loaded Pages
-const Home = lazy(() => import("./pages/Home"));
-const LandingPage = lazy(() => import("./pages/LandingPage"));
-const Login = lazy(() => import("./pages/Login"));
-const Register = lazy(() => import("./pages/Register"));
-const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
-const Posts = lazy(() => import("./pages/Posts"));
-const PostDetail = lazy(() => import("./pages/PostDetail"));
-const CreatePost = lazy(() => import("./pages/CreatePost"));
-const Resource = lazy(() => import("./pages/Resource"));
-const ChatPage = lazy(() => import("./pages/ChatPage"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const HelpForum = lazy(() => import("./pages/HelpForum"));
-const AskQuestion = lazy(() => import("./pages/AskQuestion"));
-const QuestionDetail = lazy(() => import("./pages/QuestionDetail"));
-const GamesAndVideos = lazy(() => import("./pages/GamesAndVideos"));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Saved = lazy(() => import("./pages/Saved"));
-const Settings = lazy(() => import("./pages/Settings"));
-const NotFound = lazy(() => import("./pages/NotFound"));
+// Route-level pages are code-split; see pages/lazyPages.js.
+import {
+  Home,
+  LandingPage,
+  Login,
+  Register,
+  ForgotPassword,
+  Posts,
+  PostDetail,
+  CreatePost,
+  Resource,
+  ChatPage,
+  Dashboard,
+  HelpForum,
+  AskQuestion,
+  QuestionDetail,
+  GamesAndVideos,
+  AdminDashboard,
+  Profile,
+  Saved,
+  Settings,
+  NotFound,
+  AboutPage,
+  ContactPage,
+  PrivacyPolicyPage,
+  TermsOfServicePage,
+} from "./pages/lazyPages";
 
-// Lazy Loaded Static Pages
-const AboutPage = lazy(() => import("./pages/static/AboutPage"));
-const ContactPage = lazy(() => import("./pages/static/ContactPage"));
-const PrivacyPolicyPage = lazy(() => import("./pages/static/PrivacyPolicyPage"));
-const TermsOfServicePage = lazy(() => import("./pages/static/TermsOfServicePage"));
-
-const ProfileRedirect = () => {
+// Legacy-URL redirects: old links kept the "/dashboard" prefix on every
+// authenticated page (e.g. /dashboard/chat, /dashboard/profile/:username).
+// That prefix now only belongs to the dashboard overview itself, but bookmarks,
+// shared links and old notifications may still point at the old paths, so
+// each one below forwards to its new home instead of 404ing.
+const LegacyProfileRedirect = () => {
   const { username } = useParams();
-  const { user } = useAuthStore();
-  
-  if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={`/dashboard/profile${username ? `/${username}` : ""}`} replace />;
+  return <Navigate to={`/profile${username ? `/${username}` : ""}`} replace />;
+};
+
+const LegacyQuestionRedirect = () => {
+  const { questionId } = useParams();
+  return <Navigate to={`/help/question/${questionId}`} replace />;
+};
+
+const LegacyHelpRedirect = () => {
+  const location = useLocation();
+  const rest = location.pathname.replace(/^\/dashboard\/help/, "");
+  return <Navigate to={`/help${rest}`} replace />;
 };
 
 function App() {
@@ -65,9 +78,9 @@ function App() {
 
   if (isLoading && !user) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex flex-col items-center justify-center gap-3">
-        <div className="w-8 h-8 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
-        <span className="text-sm font-medium text-gray-400">Loading Linklet...</span>
+      <div className="min-h-screen bg-canvas flex flex-col items-center justify-center gap-3">
+        <div className="w-8 h-8 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+        <span className="text-sm font-medium text-fg-muted">Loading Linklet...</span>
       </div>
     );
   }
@@ -76,24 +89,13 @@ function App() {
     <HelmetProvider>
       <SocketProvider>
         <Router>
-          <ToastContainer
-            position="top-right"
-            autoClose={5000}
-            hideProgressBar={false}
-            newestOnTop={false}
-            closeOnClick
-            rtl={false}
-            pauseOnFocusLoss
-            draggable
-            pauseOnHover
-            theme="dark"
-          />
+          <AppToaster />
           <ErrorBoundary>
           <Suspense
             fallback={
               <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
-                <div className="w-7 h-7 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
-                <span className="text-xs font-medium text-gray-500">Loading...</span>
+                <div className="w-7 h-7 rounded-full border-2 border-accent border-t-transparent animate-spin" />
+                <span className="text-xs font-medium text-fg-muted">Loading...</span>
               </div>
             }
           >
@@ -215,25 +217,11 @@ function App() {
               }
             />
 
-            {/* Redirect old /profile route to dashboard */}
+            {/* Layout Routes — everything the authenticated app shell renders
+                lives at a top-level path; only the dashboard overview itself
+                keeps "/dashboard". */}
             <Route
-              path="/profile/:username?"
-              element={<ProfileRedirect />}
-            />
-
-            {/* Redirect legacy /global-search and /resources paths to protected dashboard route */}
-            <Route
-              path="/global-search"
-              element={<Navigate to="/dashboard/global-search" replace />}
-            />
-            <Route
-              path="/resources"
-              element={<Navigate to="/dashboard/global-search" replace />}
-            />
-
-            {/* Layout Routes */}
-            <Route
-              path="/dashboard/admin"
+              path="/admin"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <Layout>
@@ -254,21 +242,11 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/profile/:username?"
+              path="/profile/:username?"
               element={
                 <ProtectedRoute>
                   <Layout>
                     <Profile />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/settings"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Settings />
                   </Layout>
                 </ProtectedRoute>
               }
@@ -284,7 +262,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/global-search"
+              path="/resource-hub"
               element={
                 <ProtectedRoute>
                   <Layout>
@@ -294,7 +272,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/help/*"
+              path="/help/*"
               element={
                 <ProtectedRoute>
                   <Layout>
@@ -304,7 +282,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/question/:questionId"
+              path="/help/question/:questionId"
               element={
                 <ProtectedRoute>
                   <Layout>
@@ -314,7 +292,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/bookmarks"
+              path="/saved"
               element={
                 <ProtectedRoute>
                   <Layout>
@@ -324,17 +302,7 @@ function App() {
               }
             />
             <Route
-              path="/dashboard/saved"
-              element={
-                <ProtectedRoute>
-                  <Layout>
-                    <Saved />
-                  </Layout>
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/dashboard/chat"
+              path="/chat"
               element={
                 <ProtectedRoute>
                   <Layout>
@@ -343,10 +311,21 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/chat"
-              element={<Navigate to="/dashboard/chat" replace />}
-            />
+
+            {/* Legacy "/dashboard/..." links (old bookmarks, shared links,
+                notifications) redirect to their new top-level home. */}
+            <Route path="/dashboard/admin" element={<Navigate to="/admin" replace />} />
+            <Route path="/dashboard/profile/:username?" element={<LegacyProfileRedirect />} />
+            <Route path="/dashboard/settings" element={<Navigate to="/settings" replace />} />
+            <Route path="/dashboard/global-search" element={<Navigate to="/resource-hub" replace />} />
+            <Route path="/dashboard/help/*" element={<LegacyHelpRedirect />} />
+            <Route path="/dashboard/question/:questionId" element={<LegacyQuestionRedirect />} />
+            <Route path="/dashboard/bookmarks" element={<Navigate to="/saved" replace />} />
+            <Route path="/dashboard/saved" element={<Navigate to="/saved" replace />} />
+            <Route path="/dashboard/chat" element={<Navigate to="/chat" replace />} />
+            <Route path="/global-search" element={<Navigate to="/resource-hub" replace />} />
+            <Route path="/resources" element={<Navigate to="/resource-hub" replace />} />
+            <Route path="/dashboard/resources" element={<Navigate to="/resource-hub" replace />} />
 
             {/* Static Pages */}
             <Route

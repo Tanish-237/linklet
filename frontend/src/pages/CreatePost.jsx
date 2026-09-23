@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.webp";
@@ -114,7 +114,7 @@ const CreatePost = () => {
     <div className="w-full max-w-3xl mx-auto py-8 px-4">
       <div className="bg-gray-900/70 backdrop-blur-md rounded-2xl border border-gray-800 shadow-2xl overflow-hidden">
         <div className="p-5 border-b border-gray-800">
-          <h1 className="text-xl font-bold text-white">Create Post</h1>
+          <h1 className="text-xl font-bold text-fg">Create Post</h1>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5">
@@ -127,7 +127,7 @@ const CreatePost = () => {
 
             <div className="flex-1">
               <div className="mb-2 flex items-center">
-                <h3 className="font-semibold text-base text-white">
+                <h3 className="font-semibold text-base text-fg">
                   {user?.username || "You"}
                 </h3>
                 <span className="ml-2 px-2 py-0.5 bg-gray-800 text-gray-300 text-xs rounded-full border border-gray-700">
@@ -139,7 +139,7 @@ const CreatePost = () => {
                 value={caption}
                 onChange={handleCaptionChange}
                 placeholder="What's on your mind?"
-                className="w-full min-h-[120px] px-4 py-3 bg-black/30 text-white rounded-xl border border-gray-800 focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 focus:outline-none transition-all placeholder-gray-500 resize-none"
+                className="w-full min-h-[120px] px-4 py-3 bg-surface-2 text-fg rounded-xl border border-gray-800 focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/30 focus:outline-none transition-all placeholder-gray-500 resize-none"
               />
 
               <div className="flex justify-between text-xs text-gray-400 mt-1">

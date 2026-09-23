@@ -92,13 +92,18 @@ describe('Chat API Integration Tests', () => {
 
   it('GET /api/v1/chat — Get User Chats', async () => {
     console.log('TRACE [chat.integration.test.js]: Testing GET /api/v1/chat');
-    mockGetUserChats.mockResolvedValue([{ _id: 'c1' }, { _id: 'c2' }]);
+    mockGetUserChats.mockResolvedValue({
+      chats: [{ _id: 'c1' }, { _id: 'c2' }],
+      hasMore: false,
+      nextCursor: null,
+    });
 
     const res = await request.get('/api/v1/chat');
 
     console.log('TRACE [chat.integration.test.js]: Response chats count:', res.body.data.length);
     expect(res.status).toBe(200);
     expect(res.body.data).toHaveLength(2);
+    expect(res.body.hasMore).toBe(false);
   });
 
   it('POST /api/v1/chat/group — Create Group Chat', async () => {

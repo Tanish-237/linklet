@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { fetchTimetable, confirmTimetable } from "../api/timetable.api";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -128,11 +128,11 @@ export default function WeeklyTimetableModal({
   const handleAddClass = async (e) => {
     e.preventDefault();
     if (!newClass.subjectName.trim()) {
-      toast.warn("Subject name is required");
+      toast.warning("Subject name is required");
       return;
     }
     if (!newClass.startTime || !newClass.endTime) {
-      toast.warn("Start time and End time are required");
+      toast.warning("Start time and End time are required");
       return;
     }
 
@@ -180,11 +180,11 @@ export default function WeeklyTimetableModal({
     e.preventDefault();
     if (editingIndex === null || !editClass) return;
     if (!editClass.subjectName.trim()) {
-      toast.warn("Subject name is required");
+      toast.warning("Subject name is required");
       return;
     }
     if (!editClass.startTime || !editClass.endTime) {
-      toast.warn("Start time and End time are required");
+      toast.warning("Start time and End time are required");
       return;
     }
 
@@ -229,7 +229,7 @@ export default function WeeklyTimetableModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
       <div className="bg-gray-900 border border-gray-800 rounded-2xl w-full max-w-4xl max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-gray-800 flex items-center justify-between bg-gray-900">
@@ -238,7 +238,7 @@ export default function WeeklyTimetableModal({
               <span className="material-icons text-xl sm:text-2xl">calendar_view_week</span>
             </div>
             <div className="min-w-0">
-              <h2 className="text-base sm:text-lg font-bold text-white truncate">Weekly Timetable</h2>
+              <h2 className="text-base sm:text-lg font-bold text-fg truncate">Weekly Timetable</h2>
               <p className="text-[11px] sm:text-xs text-gray-400 truncate">
                 {timetable?.branch
                   ? `${timetable.branch} • Sem ${timetable.semester} • Sec ${timetable.section}`
@@ -248,7 +248,7 @@ export default function WeeklyTimetableModal({
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-1.5 sm:p-2 rounded-lg hover:bg-gray-800 transition cursor-pointer shrink-0"
+            className="text-gray-400 hover:text-fg p-1.5 sm:p-2 rounded-lg hover:bg-gray-800 transition cursor-pointer shrink-0"
             aria-label="Close"
           >
             <span className="material-icons text-xl">close</span>
@@ -342,7 +342,7 @@ export default function WeeklyTimetableModal({
                         placeholder="e.g. Distributed Systems"
                         value={newClass.subjectName}
                         onChange={(e) => setNewClass({ ...newClass, subjectName: e.target.value })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                       />
                     </div>
 
@@ -355,7 +355,7 @@ export default function WeeklyTimetableModal({
                         placeholder="e.g. CS14402"
                         value={newClass.courseCode}
                         onChange={(e) => setNewClass({ ...newClass, courseCode: e.target.value })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                       />
                     </div>
 
@@ -368,7 +368,7 @@ export default function WeeklyTimetableModal({
                         placeholder="e.g. Dr. A. K. Singh"
                         value={newClass.professor}
                         onChange={(e) => setNewClass({ ...newClass, professor: e.target.value })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                       />
                     </div>
 
@@ -379,7 +379,7 @@ export default function WeeklyTimetableModal({
                       <select
                         value={newClass.classType}
                         onChange={(e) => setNewClass({ ...newClass, classType: e.target.value })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                       >
                         <option value="Lecture">Lecture</option>
                         <option value="Lab">Lab</option>
@@ -396,7 +396,7 @@ export default function WeeklyTimetableModal({
                         placeholder="e.g. GS6 / Lab 2"
                         value={newClass.location}
                         onChange={(e) => setNewClass({ ...newClass, location: e.target.value })}
-                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                        className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                       />
                     </div>
 
@@ -410,7 +410,7 @@ export default function WeeklyTimetableModal({
                           required
                           value={newClass.startTime}
                           onChange={(e) => setNewClass({ ...newClass, startTime: e.target.value })}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                         />
                       </div>
                       <div>
@@ -422,7 +422,7 @@ export default function WeeklyTimetableModal({
                           required
                           value={newClass.endTime}
                           onChange={(e) => setNewClass({ ...newClass, endTime: e.target.value })}
-                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                          className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                         />
                       </div>
                     </div>
@@ -487,7 +487,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, subjectName: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               />
                             </div>
 
@@ -501,7 +501,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, courseCode: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               />
                             </div>
 
@@ -515,7 +515,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, professor: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               />
                             </div>
 
@@ -528,7 +528,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, day: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               >
                                 {DAYS.map((d) => (
                                   <option key={d} value={d}>
@@ -547,7 +547,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, classType: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               >
                                 <option value="Lecture">Lecture</option>
                                 <option value="Lab">Lab</option>
@@ -565,7 +565,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, location: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               />
                             </div>
 
@@ -580,7 +580,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, startTime: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               />
                             </div>
 
@@ -595,7 +595,7 @@ export default function WeeklyTimetableModal({
                                 onChange={(e) =>
                                   setEditClass({ ...editClass, endTime: e.target.value })
                                 }
-                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-white focus:outline-none focus:border-violet-500"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-xl px-2.5 py-2 text-sm text-fg focus:outline-none focus:border-violet-500"
                               />
                             </div>
                           </div>
@@ -646,7 +646,7 @@ export default function WeeklyTimetableModal({
                           </div>
 
                           <div className="min-w-0">
-                            <div className="text-sm sm:text-base font-semibold text-white flex items-center gap-2 flex-wrap">
+                            <div className="text-sm sm:text-base font-semibold text-fg flex items-center gap-2 flex-wrap">
                               <span className="truncate">{item.subjectName}</span>
                               <span
                                 className={`text-[10px] px-2 py-0.5 rounded font-semibold shrink-0 ${
@@ -722,14 +722,14 @@ export default function WeeklyTimetableModal({
 
         {/* Delete Class Confirmation Modal */}
         {deleteTargetClass && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
             <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-md border border-rose-900/60 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center gap-2 mb-2 text-rose-400">
                 <span className="material-icons text-xl">delete_sweep</span>
-                <h3 className="text-lg font-bold text-white">Remove Class?</h3>
+                <h3 className="text-lg font-bold text-fg">Remove Class?</h3>
               </div>
               <p className="text-sm text-gray-300 mb-5">
-                Are you sure you want to remove <strong className="text-white">"{deleteTargetClass.name}"</strong> from <strong className="text-white">{deleteTargetClass.day}</strong>?
+                Are you sure you want to remove <strong className="text-fg">"{deleteTargetClass.name}"</strong> from <strong className="text-fg">{deleteTargetClass.day}</strong>?
               </p>
               <div className="flex gap-3 justify-end">
                 <button

@@ -16,7 +16,7 @@ const AboutPage = () => {
   }, []);
 
   return (
-    <div className="about-page min-h-screen bg-[#0a0a0a] text-zinc-100 no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
+    <div className="about-page min-h-screen bg-canvas text-fg no-scrollbar pt-20 pb-24 px-4 sm:px-6 lg:px-8">
       <SEO title="About Linklet | MNNIT Allahabad Campus Platform" ogTitle="About Linklet" description={ABOUT_DESCRIPTION} path="/about" />
       <div className="max-w-4xl mx-auto">
         {/* Header Badge & Title */}
@@ -25,7 +25,7 @@ const AboutPage = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-violet-400"></span>
             MNNIT Allahabad Campus Platform
           </div>
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-white mb-4">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight text-fg mb-4">
             About Linklet
           </h1>
           <p className="text-lg text-zinc-400 max-w-2xl leading-relaxed">
@@ -51,7 +51,7 @@ const AboutPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
               <div className="text-xs font-mono text-violet-400 mb-2">01 / SCHEDULE</div>
-              <h3 className="text-base font-semibold text-white mb-2">
+              <h3 className="text-base font-semibold text-fg mb-2">
                 Timetable & Attendance Tracking
               </h3>
               <p className="text-sm text-zinc-400 leading-normal">
@@ -61,7 +61,7 @@ const AboutPage = () => {
 
             <div className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
               <div className="text-xs font-mono text-violet-400 mb-2">02 / ACADEMICS</div>
-              <h3 className="text-base font-semibold text-white mb-2">
+              <h3 className="text-base font-semibold text-fg mb-2">
                 Semester Resource Hub
               </h3>
               <p className="text-sm text-zinc-400 leading-normal">
@@ -71,7 +71,7 @@ const AboutPage = () => {
 
             <div className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
               <div className="text-xs font-mono text-violet-400 mb-2">03 / FORUM</div>
-              <h3 className="text-base font-semibold text-white mb-2">
+              <h3 className="text-base font-semibold text-fg mb-2">
                 Campus Help Forum
               </h3>
               <p className="text-sm text-zinc-400 leading-normal">
@@ -81,7 +81,7 @@ const AboutPage = () => {
 
             <div className="p-6 rounded-xl bg-zinc-900/50 border border-zinc-800/80 hover:border-zinc-700 transition-colors">
               <div className="text-xs font-mono text-violet-400 mb-2">04 / COMMUNITY</div>
-              <h3 className="text-base font-semibold text-white mb-2">
+              <h3 className="text-base font-semibold text-fg mb-2">
                 Verified Peer Collaboration
               </h3>
               <p className="text-sm text-zinc-400 leading-normal">
@@ -93,7 +93,7 @@ const AboutPage = () => {
 
         {/* Mission Section */}
         <section className="p-8 rounded-2xl bg-zinc-900/30 border border-zinc-800 mb-10">
-          <h2 className="text-xl font-semibold text-white mb-4">Our Mission</h2>
+          <h2 className="text-xl font-semibold text-fg mb-4">Our Mission</h2>
           <p className="text-zinc-300 leading-relaxed text-[15px] mb-4">
             To build reliable, focused, and high-performance digital tools that respect students' time, streamline academic coordination, and strengthen the collaborative culture of MNNIT Allahabad.
           </p>
@@ -108,7 +108,7 @@ const AboutPage = () => {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
             Open Source & Community
           </div>
-          <h2 className="text-xl font-semibold text-white mb-3">
+          <h2 className="text-xl font-semibold text-fg mb-3">
             Contributors Are Welcome
           </h2>
           <p className="text-zinc-300 leading-relaxed text-[15px] mb-4">
@@ -126,7 +126,7 @@ const AboutPage = () => {
           </span>
           <Link
             to="/contact"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white font-medium text-xs transition-colors"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-fg font-medium text-xs transition-colors"
           >
             Get in Touch / Contribute
             <span className="text-xs">→</span>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { apiClient } from "../api/apiClient";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import defaultAvatar from "../assets/default-avatar.webp";
 import { optimizeAvatar } from "../utlis/cloudinary";
 
@@ -104,12 +104,12 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
       <div className="flex justify-between items-center mb-3 pb-2 border-b border-gray-800">
         <div className="flex items-center gap-2">
           <span className="material-icons text-violet-400 text-lg">group_add</span>
-          <h2 className="text-sm font-semibold text-white">Create New Group</h2>
+          <h2 className="text-sm font-semibold text-fg">Create New Group</h2>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="text-gray-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+          className="text-gray-400 hover:text-fg p-1 rounded-lg transition-colors cursor-pointer"
           aria-label="Close"
         >
           <span className="material-icons text-base">close</span>
@@ -126,7 +126,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             placeholder="e.g. Project Team Alpha"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900/90 border border-gray-700/80 text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none transition-colors"
+            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900/90 border border-gray-700/80 text-fg placeholder-gray-500 focus:border-violet-500 focus:outline-none transition-colors"
             autoFocus
           />
         </div>
@@ -140,7 +140,7 @@ const CreateGroupModal = ({ isOpen, onClose, onGroupCreated }) => {
             placeholder="Search user by name or username..."
             value={searchQuery}
             onChange={handleSearch}
-            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900/90 border border-gray-700/80 text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none transition-colors"
+            className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900/90 border border-gray-700/80 text-fg placeholder-gray-500 focus:border-violet-500 focus:outline-none transition-colors"
           />
 
           {/* Selected Members Chips */}

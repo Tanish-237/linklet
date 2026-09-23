@@ -47,3 +47,27 @@ export const buildSrcSet = (url, widths = [480, 800, 1200]) => {
   if (!isCloudinaryImage(url)) return undefined;
   return widths.map((w) => `${optimizeImage(url, { width: w })} ${w}w`).join(", ");
 };
+
+const VIDEO_UPLOAD_MARKER = "/video/upload/";
+
+export const isCloudinaryVideo = (url) =>
+  typeof url === "string" && url.includes("res.cloudinary.com") && url.includes(VIDEO_UPLOAD_MARKER);
+
+/**
+ * A poster-frame JPG for a Cloudinary video — feed cards can then show a
+ * real thumbnail image instead of embedding a live <video> element just to
+ * display a static preview. Returns undefined for anything that isn't a
+ * Cloudinary video URL.
+ *
+ * Uses Cloudinary's `so_auto` smart frame selection rather than a fixed
+ * timestamp like `so_0` (literally the first frame) — a screen-recorded demo
+ * or a video with a fade-in routinely opens on a blank/black frame, which
+ * made `so_0` thumbnails look like a broken preview instead of an actual
+ * preview. `so_auto` analyzes the video and picks a representative frame.
+ */
+export const getVideoThumbnail = (url) => {
+  if (!isCloudinaryVideo(url)) return undefined;
+  const [head, tail] = url.split(VIDEO_UPLOAD_MARKER);
+  const withoutExt = tail.replace(/\.[a-z0-9]+$/i, "");
+  return `${head}${VIDEO_UPLOAD_MARKER}so_auto/${withoutExt}.jpg`;
+};

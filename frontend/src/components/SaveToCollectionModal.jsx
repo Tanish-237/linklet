@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { getCollections, createCollection, toggleResourceInCollection } from "../api/collection.api";
 import "./SaveToCollectionModal.css";
 

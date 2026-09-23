@@ -3,6 +3,9 @@ import * as notificationRepository from "../repositories/notification.repository
 import { getRedisClient } from "../utils/redis.js";
 import logger from "../utils/logger.js";
 import { AppError } from "../utils/error.js";
+import { getCachedUser } from "../utils/userCache.js";
+import { findNotificationPrefsById } from "../repositories/user.repository.js";
+import { NOTIFICATION_TYPE_PREF } from "../config/constants.js";
 
 const REDIS_UNREAD_PREFIX = "user:unread_notifs:";
 const REDIS_TTL_SECONDS = 120; // 2 minutes cache TTL
@@ -46,6 +49,27 @@ const invalidateUnreadCache = async (userId) => {
 };
 
 /**
+ * True if the recipient has switched off the Settings category this
+ * notification type belongs to. Reads the auth-middleware user cache first
+ * (it already holds notificationPrefs) and only hits Mongo on a cache miss.
+ * Any lookup failure errs on the side of delivering the notification.
+ */
+const isSilencedByRecipient = async (recipient, type) => {
+  const prefKey = NOTIFICATION_TYPE_PREF[type];
+  if (!prefKey) return false;
+  try {
+    let prefs = (await getCachedUser(recipient.toString()))?.notificationPrefs;
+    if (!prefs && mongoose.connection.readyState === 1) {
+      prefs = (await findNotificationPrefsById(recipient))?.notificationPrefs;
+    }
+    return prefs?.[prefKey] === false;
+  } catch (err) {
+    logger.warn(`Notification preference lookup failed: ${err.message}`);
+    return false;
+  }
+};
+
+/**
  * Create a new notification, save to DB, update Redis cache, and push real-time socket event.
  */
 export const createAndPushNotification = async ({
@@ -73,7 +97,12 @@ export const createAndPushNotification = async ({
       return null;
     }
 
-    // 2. Throttling / deduplication for high-frequency actions (e.g. likes/unlikes, follow toggles)
+    // 2. Respect the recipient's notification preferences
+    if (await isSilencedByRecipient(recipient, type)) {
+      return null;
+    }
+
+    // 3. Throttling / deduplication for high-frequency actions (e.g. likes/unlikes, follow toggles)
     if (
       ["POST_LIKE", "FORUM_UPVOTE", "FORUM_COMMENT", "USER_FOLLOW"].includes(type) &&
       entityId
@@ -89,7 +118,7 @@ export const createAndPushNotification = async ({
       }
     }
 
-    // 3. Persist notification in MongoDB
+    // 4. Persist notification in MongoDB
     const notification = await notificationRepository.createNotification({
       recipient,
       sender,
@@ -101,7 +130,7 @@ export const createAndPushNotification = async ({
       entityType,
     });
 
-    // 4. Update unread count & cache
+    // 5. Update unread count & cache
     const unreadCount = await notificationRepository.getUnreadCount(recipient);
     const redis = getSafeRedis();
     if (redis) {
@@ -116,7 +145,7 @@ export const createAndPushNotification = async ({
       }
     }
 
-    // 5. Targeted real-time delivery to the recipient's personal socket room
+    // 6. Targeted real-time delivery to the recipient's personal socket room
     await emitSocketEvent(recipient, "notification:new", {
       notification,
       unreadCount,

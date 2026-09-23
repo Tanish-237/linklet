@@ -9,7 +9,11 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 const COLORS = {
   present: "#10b981", // emerald
   absent: "#f43f5e", // rose
-  emptyRing: "#374151", // neutral dark ring when there is nothing to show yet
+  // Neutral ring for "nothing to show yet" — a theme token (not a fixed
+  // hex) since, unlike the present/absent status colors, this one isn't
+  // semantic and needs to read as a light-gray ring in light mode instead
+  // of the near-black it was fixed to.
+  emptyRing: "rgb(var(--line-strong))",
 };
 
 /**

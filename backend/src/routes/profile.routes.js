@@ -13,6 +13,7 @@ router.post("/bookmarks/:resourceId", isLoggedIn, profileController.toggleBookma
 router.post("/follow/:targetUserId", isLoggedIn, profileController.toggleFollowUser);
 router.post("/block/:targetUserId", isLoggedIn, profileController.toggleBlockUser);
 router.put("/edit", isLoggedIn, upload.single("avatar"), profileController.updateProfile);
+router.put("/notification-preferences", isLoggedIn, profileController.updateNotificationPrefs);
 
 // Collection routes
 router.get("/collections", isLoggedIn, collectionController.getUserCollections);

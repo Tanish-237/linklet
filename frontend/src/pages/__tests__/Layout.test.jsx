@@ -21,6 +21,7 @@ vi.mock("react-router-dom", async () => {
 vi.mock("../../api/apiClient", () => ({
   apiClient: {
     post: vi.fn(),
+    get: vi.fn(() => Promise.resolve({ data: { data: [] } })),
   },
 }));
 
@@ -33,13 +34,34 @@ vi.mock("../../api/notification.api", () => ({
   clearReadNotifications: vi.fn().mockResolvedValue({ success: true }),
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
+    message: vi.fn(),
   },
 }));
+
+// Node's own experimental global `localStorage` shadows jsdom's and throws
+// without a --localstorage-file flag, so (as in WhatsNewDropdown.test.jsx)
+// install a plain in-memory fake for the rail-expand persistence tests.
+const fakeLocalStorage = (() => {
+  let store = {};
+  return {
+    getItem: (key) => (key in store ? store[key] : null),
+    setItem: (key, value) => {
+      store[key] = String(value);
+    },
+    removeItem: (key) => {
+      delete store[key];
+    },
+    clear: () => {
+      store = {};
+    },
+  };
+})();
+globalThis.localStorage = fakeLocalStorage;
 
 const mockSocketListeners = {};
 const mockSocket = {
@@ -68,6 +90,7 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -92,41 +115,48 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     );
   };
 
-  it("renders avatar button with cursor-pointer and chevron arrow", () => {
-    console.log("TRACE [Layout.test.jsx]: Verifying avatar dropdown button styling and arrow");
+  it("seeds the muted-chats cache from the server so muted chats stay silent on a fresh device", async () => {
+    apiClient.get.mockResolvedValueOnce({ data: { data: ["chat_muted_1"] } });
+    renderComponent();
+
+    expect(apiClient.get).toHaveBeenCalledWith("/chat/chat-settings/muted");
+    await waitFor(() =>
+      expect(JSON.parse(localStorage.getItem("linklet_muted_chats_user123"))).toEqual(["chat_muted_1"])
+    );
+  });
+
+  it("renders avatar trigger button with cursor-pointer and the user's avatar image", () => {
+    console.log("TRACE [Layout.test.jsx]: Verifying avatar dropdown button styling and image");
     renderComponent();
 
     const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
     expect(avatarBtn).toBeInTheDocument();
     expect(avatarBtn.className).toContain("cursor-pointer");
+    expect(avatarBtn).toHaveAttribute("aria-expanded", "false");
 
-    const arrowIcon = avatarBtn.querySelector(".material-icons");
-    expect(arrowIcon).toBeInTheDocument();
-    expect(arrowIcon.textContent).toBe("expand_more");
-    // Initially not rotated
-    expect(arrowIcon.className).not.toContain("rotate-180");
-    console.log("TRACE [Layout.test.jsx]: Avatar trigger button verified with cursor-pointer and expand_more");
+    const avatarImg = avatarBtn.querySelector("img[alt='Avatar']");
+    expect(avatarImg).toBeInTheDocument();
+    console.log("TRACE [Layout.test.jsx]: Avatar trigger button verified with cursor-pointer and avatar image");
   });
 
-  it("toggles dropdown and applies rotate-180 rotation class to chevron arrow on open", async () => {
-    console.log("TRACE [Layout.test.jsx]: Testing dropdown open and arrow rotation");
+  it("toggles dropdown open on avatar click, rendering username, email and menu options", async () => {
+    console.log("TRACE [Layout.test.jsx]: Testing dropdown open on avatar click");
     const user = userEvent.setup();
     renderComponent();
 
     const avatarBtn = document.getElementById("layout-avatar-dropdown-btn");
     await user.click(avatarBtn);
 
-    const arrowIcon = avatarBtn.querySelector(".material-icons");
-    expect(arrowIcon.className).toContain("rotate-180");
+    expect(avatarBtn).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText(mockUser.username)).toBeInTheDocument();
     expect(screen.getByText(mockUser.email)).toBeInTheDocument();
     expect(screen.getByText("Settings")).toBeInTheDocument();
     expect(screen.getByText("Profile")).toBeInTheDocument();
 
-    console.log("TRACE [Layout.test.jsx]: Dropdown menu opened, username and email rendered, and chevron arrow rotated 180 deg");
+    console.log("TRACE [Layout.test.jsx]: Dropdown menu opened with username and email rendered");
   });
 
-  it("navigates to /dashboard/settings and closes dropdown when Settings option is clicked", async () => {
+  it("navigates to /settings and closes dropdown when Settings option is clicked", async () => {
     console.log("TRACE [Layout.test.jsx]: Testing Settings option navigation from avatar dropdown");
     const user = userEvent.setup();
     renderComponent();
@@ -138,14 +168,14 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     expect(settingsBtn).toBeInTheDocument();
     await user.click(settingsBtn);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/settings");
+    expect(mockNavigate).toHaveBeenCalledWith("/settings");
     // Dropdown should be closed
     expect(screen.queryByText("Settings")).not.toBeInTheDocument();
 
-    console.log("TRACE [Layout.test.jsx]: Successfully navigated to /dashboard/settings and closed dropdown");
+    console.log("TRACE [Layout.test.jsx]: Successfully navigated to /settings and closed dropdown");
   });
 
-  it("navigates to /dashboard/profile and closes dropdown when Profile option is clicked", async () => {
+  it("navigates to /profile and closes dropdown when Profile option is clicked", async () => {
     console.log("TRACE [Layout.test.jsx]: Testing Profile option navigation from avatar dropdown");
     const user = userEvent.setup();
     renderComponent();
@@ -157,10 +187,10 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     expect(profileBtn).toBeInTheDocument();
     await user.click(profileBtn);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/dashboard/profile");
+    expect(mockNavigate).toHaveBeenCalledWith("/profile");
     expect(screen.queryByText("Profile")).not.toBeInTheDocument();
 
-    console.log("TRACE [Layout.test.jsx]: Successfully navigated to /dashboard/profile and closed dropdown");
+    console.log("TRACE [Layout.test.jsx]: Successfully navigated to /profile and closed dropdown");
   });
 
   it("calls logout and closes dropdown when Logout option is clicked", async () => {
@@ -282,126 +312,115 @@ describe("Layout Avatar Dropdown & Settings Navigation Tests", () => {
     console.log("Passed: What's New opened from Avatar menu");
   });
 
-  it("opens release notes dropdown from sidebar footer version button", async () => {
-    console.log("TRACE [Layout.test.jsx]: Testing sidebar version button click");
-    const user = userEvent.setup();
-    renderComponent();
-
-    const sidebarVersionBtn = document.getElementById("sidebar-version-btn");
-    expect(sidebarVersionBtn).toBeInTheDocument();
-
-    await user.click(sidebarVersionBtn);
-    expect(screen.getByRole("dialog", { name: /What's New release notes/i })).toBeInTheDocument();
-    expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
-    console.log("Passed: What's New opened from sidebar footer version button");
-  });
-
-  describe("Mobile Sidebar Drawer & Top-Left Hamburger Navigation Tests", () => {
-    it("renders top-left 3-line hamburger button with aria attributes and menu icon", () => {
-      console.log("TRACE [Layout.test.jsx]: Verifying top-left hamburger menu button");
+  describe("Rail Navigation Tests (left icon rail on desktop, bottom tab bar on mobile)", () => {
+    it("has no top navbar and no hamburger/drawer — the rail is a single, always-present nav surface", () => {
+      console.log("TRACE [Layout.test.jsx]: Verifying the drawer/hamburger pattern was removed");
       renderComponent();
 
-      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
-      expect(hamburgerBtn).toBeInTheDocument();
-      expect(hamburgerBtn).toHaveAttribute("aria-label", "Open sidebar menu");
-      expect(hamburgerBtn).toHaveAttribute("aria-expanded", "false");
-
-      const icon = hamburgerBtn.querySelector(".material-icons");
-      expect(icon).toBeInTheDocument();
-      expect(icon.textContent).toBe("menu");
-      console.log("Passed: Hamburger menu button rendered with 3-lines menu icon and aria-label");
-    });
-
-    it("opens mobile drawer and backdrop when hamburger button is clicked", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing drawer open on hamburger click");
-      const user = userEvent.setup();
-      renderComponent();
-
-      const sidebar = document.getElementById("app-sidebar");
-      expect(sidebar.className).toContain("-translate-x-full");
-
-      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
-      await user.click(hamburgerBtn);
-
-      // Now drawer should be translated into view
-      expect(sidebar.className).toContain("translate-x-0");
-      expect(hamburgerBtn).toHaveAttribute("aria-expanded", "true");
-
-      // Backdrop overlay should be rendered
-      const backdrop = document.getElementById("mobile-sidebar-backdrop");
-      expect(backdrop).toBeInTheDocument();
-      console.log("Passed: Sidebar translated to view and backdrop displayed on hamburger click");
-    });
-
-    it("closes mobile drawer when the close button inside drawer is clicked", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing drawer close button");
-      const user = userEvent.setup();
-      renderComponent();
-
-      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
-      await user.click(hamburgerBtn);
-
-      const closeBtn = document.getElementById("mobile-sidebar-close-btn");
-      expect(closeBtn).toBeInTheDocument();
-      await user.click(closeBtn);
-
-      const sidebar = document.getElementById("app-sidebar");
-      expect(sidebar.className).toContain("-translate-x-full");
+      expect(document.getElementById("mobile-sidebar-toggle-btn")).not.toBeInTheDocument();
+      expect(document.getElementById("mobile-sidebar-close-btn")).not.toBeInTheDocument();
       expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
-      console.log("Passed: Drawer successfully closed on close button click");
-    });
-
-    it("closes mobile drawer when clicking the backdrop overlay", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing drawer close on backdrop click");
-      const user = userEvent.setup();
-      renderComponent();
-
-      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
-      await user.click(hamburgerBtn);
-
-      const backdrop = document.getElementById("mobile-sidebar-backdrop");
-      expect(backdrop).toBeInTheDocument();
-      await user.click(backdrop);
+      expect(document.querySelector("header")).not.toBeInTheDocument();
 
       const sidebar = document.getElementById("app-sidebar");
-      expect(sidebar.className).toContain("-translate-x-full");
-      expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
-      console.log("Passed: Drawer closed upon clicking backdrop");
+      expect(sidebar).toBeInTheDocument();
+      // No slide-in/out transform classes left over from the old drawer.
+      expect(sidebar.className).not.toContain("translate-x");
+      console.log("Passed: no header, hamburger, drawer or backdrop present");
     });
 
-    it("closes mobile drawer and navigates when clicking a navigation link", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing navigation item click inside drawer");
-      const user = userEvent.setup();
+    it("renders all nav items with icon and label inside the rail", () => {
+      console.log("TRACE [Layout.test.jsx]: Verifying rail nav items render with labels");
       renderComponent();
 
-      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
-      await user.click(hamburgerBtn);
+      const sidebar = document.getElementById("app-sidebar");
+      ["Feed", "Dashboard", "Chat", "Resource Hub", "Saved", "Help Forum"].forEach((label) => {
+        const item = screen.getByText(label);
+        expect(sidebar.contains(item)).toBe(true);
+      });
+      console.log("Passed: all six nav items rendered inside the rail");
+    });
+
+    it("navigates directly when a nav item is clicked (no drawer to close)", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing direct navigation from a rail nav item");
+      const user = userEvent.setup();
+      renderComponent();
 
       const chatMenuItem = screen.getByText("Chat");
       await user.click(chatMenuItem);
 
-      expect(mockNavigate).toHaveBeenCalledWith("/dashboard/chat");
-      const sidebar = document.getElementById("app-sidebar");
-      expect(sidebar.className).toContain("-translate-x-full");
-      console.log("Passed: Drawer closed and navigated to /dashboard/chat on menu item click");
+      expect(mockNavigate).toHaveBeenCalledWith("/chat");
+      console.log("Passed: clicking a nav item navigates immediately");
     });
 
-    it("closes mobile drawer when pressing the Escape key", async () => {
-      console.log("TRACE [Layout.test.jsx]: Testing drawer close on Escape key press");
+    it("hides the logo while collapsed, and navigates home from it once the rail is expanded", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing rail logo visibility and click");
       const user = userEvent.setup();
       renderComponent();
 
-      const hamburgerBtn = document.getElementById("mobile-sidebar-toggle-btn");
-      await user.click(hamburgerBtn);
+      // Collapsed by default — no room for a logo next to the toggle, so it
+      // isn't rendered at all (not just visually hidden).
+      expect(screen.queryByAltText("Linklet Logo")).not.toBeInTheDocument();
+
+      await user.click(document.getElementById("rail-expand-toggle-btn"));
+
+      const logo = screen.getByAltText("Linklet Logo");
+      await user.click(logo);
+
+      expect(mockNavigate).toHaveBeenCalledWith("/home");
+      console.log("Passed: logo only appears once expanded, and navigates to /home");
+    });
+
+    it("renders the theme toggle inside the rail's bottom cluster", () => {
+      console.log("TRACE [Layout.test.jsx]: Verifying theme toggle lives in the rail, not a header");
+      renderComponent();
 
       const sidebar = document.getElementById("app-sidebar");
-      expect(sidebar.className).toContain("translate-x-0");
+      const themeBtn = document.getElementById("theme-toggle-btn");
+      expect(themeBtn).toBeInTheDocument();
+      expect(sidebar.contains(themeBtn)).toBe(true);
+      console.log("Passed: theme toggle is part of the rail");
+    });
 
-      fireEvent.keyDown(document, { key: "Escape" });
+    it("starts collapsed (icon rail) and extends into a full sidebar when the toggle is clicked", async () => {
+      console.log("TRACE [Layout.test.jsx]: Testing rail expand/collapse toggle");
+      const user = userEvent.setup();
+      renderComponent();
 
-      expect(sidebar.className).toContain("-translate-x-full");
-      expect(document.getElementById("mobile-sidebar-backdrop")).not.toBeInTheDocument();
-      console.log("Passed: Drawer closed on Escape key press");
+      const sidebar = document.getElementById("app-sidebar");
+      const toggleBtn = document.getElementById("rail-expand-toggle-btn");
+      expect(toggleBtn).toBeInTheDocument();
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+      expect(sidebar.className).toContain("md:w-20");
+      // Wordmark is only rendered once expanded.
+      expect(screen.queryByText("Linklet")).not.toBeInTheDocument();
+
+      await user.click(toggleBtn);
+
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "true");
+      expect(sidebar.className).toContain("md:w-60");
+      expect(screen.getByText("Linklet")).toBeInTheDocument();
+      expect(localStorage.getItem("linklet_rail_expanded")).toBe("true");
+
+      await user.click(toggleBtn);
+
+      expect(toggleBtn).toHaveAttribute("aria-expanded", "false");
+      expect(sidebar.className).toContain("md:w-20");
+      expect(screen.queryByText("Linklet")).not.toBeInTheDocument();
+      expect(localStorage.getItem("linklet_rail_expanded")).toBe("false");
+
+      console.log("Passed: rail toggles between collapsed icon rail and expanded sidebar, persisting the choice");
+    });
+
+    it("remembers an expanded rail across remounts via localStorage", () => {
+      console.log("TRACE [Layout.test.jsx]: Verifying rail expand preference persists");
+      localStorage.setItem("linklet_rail_expanded", "true");
+      renderComponent();
+
+      const sidebar = document.getElementById("app-sidebar");
+      expect(sidebar.className).toContain("md:w-60");
+      expect(screen.getByText("Linklet")).toBeInTheDocument();
+      console.log("Passed: previously expanded rail stays expanded on next render");
     });
   });
 

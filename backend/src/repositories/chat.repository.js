@@ -1,7 +1,32 @@
 import mongoose from "mongoose";
 import { Chat, Message } from "../../models/chat.js";
 import { User } from "../../models/users.js";
+import { ChatMemberSettings } from "../models/chatMemberSettings.model.js";
 import { escapeRegex } from "../utils/search.utils.js";
+
+// Opaque "<ISO date>_<ObjectId>" cursors. The _id half breaks ties between
+// documents sharing a timestamp (e.g. messages from one insertMany), which a
+// date-only cursor would silently skip at page boundaries.
+export const encodeCursor = (date, id) => `${new Date(date).toISOString()}_${id}`;
+
+export const decodeCursor = (cursor) => {
+  if (!cursor || typeof cursor !== "string") return null;
+  const sep = cursor.lastIndexOf("_");
+  // Legacy date-only cursors (issued before the tie-breaker existed).
+  if (sep === -1) {
+    const date = new Date(cursor);
+    return Number.isNaN(date.getTime()) ? null : { date, id: null };
+  }
+  const date = new Date(cursor.slice(0, sep));
+  const id = cursor.slice(sep + 1);
+  if (Number.isNaN(date.getTime()) || !mongoose.Types.ObjectId.isValid(id)) return null;
+  return { date, id: new mongoose.Types.ObjectId(id) };
+};
+
+const olderThanCursor = (field, cursor) =>
+  cursor.id
+    ? { $or: [{ [field]: { $lt: cursor.date } }, { [field]: cursor.date, _id: { $lt: cursor.id } }] }
+    : { [field]: { $lt: cursor.date } };
 
 /**
  * Check if a user is a participant of a chat using a lightweight indexed query.
@@ -103,12 +128,8 @@ export const findOneToOneChat = async (userId, targetUserId) => {
     .lean();
 };
 
-/**
- * Get all chats for a user, sorted by most recent activity.
- * High-performance lean query with stripped projections to eliminate lag.
- */
-export const findChatsByUser = async (userId, limit = 50) => {
-  return Chat.find({ participants: userId })
+const populateChatListQuery = (query) =>
+  query
     .populate("participants", "username fullName avatar lastSeen")
     .populate("groupAdmin", "username fullName avatar")
     .populate("groupAdmins", "username fullName avatar")
@@ -116,9 +137,39 @@ export const findChatsByUser = async (userId, limit = 50) => {
       path: "lastMessage",
       populate: { path: "sender", select: "username fullName avatar" },
     })
-    .sort({ updatedAt: -1 })
-    .limit(limit)
     .lean();
+
+/**
+ * One page of a user's chats, most recently active first.
+ * `excludeIds` lets the caller serve pinned chats separately (always on top)
+ * without them also showing up again on whichever later page they'd sort into.
+ */
+export const findChatsByUser = async (userId, { limit = 50, cursor = null, excludeIds = [] } = {}) => {
+  const query = { participants: userId };
+  if (excludeIds.length > 0) query._id = { $nin: excludeIds };
+  const decoded = decodeCursor(cursor);
+  if (decoded) Object.assign(query, olderThanCursor("updatedAt", decoded));
+
+  const docs = await populateChatListQuery(
+    Chat.find(query).sort({ updatedAt: -1, _id: -1 }).limit(limit + 1)
+  );
+
+  const hasMore = docs.length > limit;
+  const chats = hasMore ? docs.slice(0, limit) : docs;
+  const last = chats[chats.length - 1];
+  return {
+    chats,
+    hasMore,
+    nextCursor: hasMore && last ? encodeCursor(last.updatedAt, last._id) : null,
+  };
+};
+
+/** Specific chats of a user (e.g. their pinned ones), populated like the chat list. */
+export const findUserChatsByIds = async (userId, chatIds) => {
+  if (!Array.isArray(chatIds) || chatIds.length === 0) return [];
+  return populateChatListQuery(
+    Chat.find({ _id: { $in: chatIds }, participants: userId }).sort({ updatedAt: -1, _id: -1 })
+  );
 };
 
 /**
@@ -222,7 +273,10 @@ export const removeGroupAdmin = async (chatId, userId) => {
  * Delete a chat entirely.
  */
 export const deleteChat = async (chatId) => {
-  await Message.deleteMany({ chat: chatId });
+  await Promise.all([
+    Message.deleteMany({ chat: chatId }),
+    ChatMemberSettings.deleteMany({ chat: chatId }),
+  ]);
   return Chat.findByIdAndDelete(chatId);
 };
 
@@ -254,13 +308,16 @@ export const createMessage = async (messageData) => {
 
 /**
  * Get paginated messages for a chat using cursor-based pagination.
- * Returns 25 messages older than the cursor, ordered chronologically.
+ * Returns `limit` messages older than the cursor, ordered chronologically.
+ * `after` hides everything at or before that instant (the viewer's "delete chat").
  */
-export const getMessages = async (chatId, { cursor, limit = 25 }) => {
-  const query = { chat: chatId };
-  if (cursor) {
-    query.createdAt = { $lt: new Date(cursor) };
-  }
+export const getMessages = async (chatId, { cursor, limit = 25, after = null, viewerId = null }) => {
+  const conditions = [{ chat: chatId }];
+  if (viewerId) conditions.push({ hiddenFor: { $ne: viewerId } });
+  if (after) conditions.push({ createdAt: { $gt: after } });
+  const decoded = decodeCursor(cursor);
+  if (decoded) conditions.push(olderThanCursor("createdAt", decoded));
+  const query = conditions.length === 1 ? conditions[0] : { $and: conditions };
 
   const messages = await Message.find(query)
     .populate("sender", "username fullName avatar")
@@ -272,20 +329,34 @@ export const getMessages = async (chatId, { cursor, limit = 25 }) => {
       path: "reactions.user",
       select: "username fullName avatar",
     })
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: -1, _id: -1 })
     .limit(limit + 1)
     .lean();
 
   const hasMore = messages.length > limit;
   const result = hasMore ? messages.slice(0, limit) : messages;
+  const oldest = result[result.length - 1];
 
   return {
     messages: result.reverse(), // Return in chronological order
     hasMore,
-    nextCursor: hasMore
-      ? result[0].createdAt.toISOString()
-      : null,
+    nextCursor: hasMore && oldest ? encodeCursor(oldest.createdAt, oldest._id) : null,
   };
+};
+
+/** A message this sender already created with the given client id (idempotent resend). */
+export const findMessagesByClientId = async (senderId, clientId) => {
+  if (!clientId) return [];
+  const escaped = escapeRegex(clientId);
+  return Message.find({ sender: senderId, clientId: { $regex: `^${escaped}(:\\d+)?$` } })
+    .populate("sender", "username fullName avatar")
+    .populate("chat")
+    .populate({
+      path: "replyTo",
+      populate: { path: "sender", select: "username fullName avatar" },
+    })
+    .sort({ createdAt: 1, _id: 1 })
+    .lean();
 };
 
 /**
@@ -416,11 +487,70 @@ export const findMessageById = async (messageId) => {
 /**
  * Mark all messages in a chat as read by a specific user.
  */
-export const markMessagesAsRead = async (chatId, userId) => {
-  return Message.updateMany(
-    { chat: chatId, sender: { $ne: userId }, readBy: { $ne: userId } },
-    { $addToSet: { readBy: userId } }
+export const markMessagesAsRead = async (chatId, userId, readAt = new Date()) => {
+  const [result] = await Promise.all([
+    Message.updateMany(
+      { chat: chatId, sender: { $ne: userId }, readBy: { $ne: userId }, createdAt: { $lte: readAt } },
+      { $addToSet: { readBy: userId } }
+    ),
+    setLastReadAt(chatId, userId, readAt),
+  ]);
+  return result;
+};
+
+/**
+ * Move a user's read cursor forward (never backward — a late, out-of-order
+ * receipt must not resurrect unread messages).
+ */
+export const setLastReadAt = async (chatId, userId, readAt = new Date()) => {
+  return ChatMemberSettings.updateOne(
+    {
+      chat: chatId,
+      user: userId,
+      $or: [{ lastReadAt: null }, { lastReadAt: { $lt: readAt } }],
+    },
+    { $set: { lastReadAt: readAt } },
+    { upsert: true }
+  ).catch((err) => {
+    // Upsert raced an existing row whose cursor is already newer — that's the
+    // outcome we want anyway.
+    if (err?.code !== 11000) throw err;
+  });
+};
+
+/**
+ * Unread messages from other people in one chat, capped (the badge shows
+ * "99+" beyond that). With a read cursor this is an indexed range count; for
+ * chats opened before cursors existed it falls back to the readBy array.
+ */
+export const countUnreadMessages = async (chatId, userId, { since = null, useReadBy = false } = {}) => {
+  const filter = { chat: chatId, sender: { $ne: userId }, hiddenFor: { $ne: userId } };
+  if (since) filter.createdAt = { $gt: since };
+  if (useReadBy) filter.readBy = { $ne: userId };
+  return Message.countDocuments(filter, { limit: 100 });
+};
+
+/** Hide messages from one user's view only ("delete for me"). */
+export const hideMessagesForUser = async (chatId, messageIds, userId) => {
+  const result = await Message.updateMany(
+    { _id: { $in: messageIds }, chat: chatId },
+    { $addToSet: { hiddenFor: userId } }
   );
+  return result.modifiedCount ?? result.nModified ?? 0;
+};
+
+/**
+ * Point a chat's lastMessage at its newest remaining message. Called after a
+ * delete, since lastMessage would otherwise reference a message that no longer
+ * exists (sidebar shows the deleted text, or "No messages yet" once repopulated).
+ */
+export const refreshLastMessage = async (chatId) => {
+  const latest = await Message.findOne({ chat: chatId })
+    .sort({ createdAt: -1, _id: -1 })
+    .select("_id")
+    .lean();
+  await Chat.updateOne({ _id: chatId }, { $set: { lastMessage: latest?._id || null } });
+  return latest?._id || null;
 };
 
 /**
@@ -493,27 +623,109 @@ export const deleteManyMessages = async (messageIds, userId) => {
 /**
  * Search messages within a specific chat using text index with fallback.
  */
-export const searchMessagesInChat = async (chatId, query) => {
-  if (!query || !query.trim()) return [];
-  try {
-    const results = await Message.find({
-      chat: chatId,
-      $text: { $search: query.trim() },
-    })
-      .populate("sender", "username fullName avatar")
-      .sort({ createdAt: -1 })
-      .limit(30)
-      .lean();
-    return results || [];
-  } catch (err) {
-    // Fallback if text index is missing or unsupported in test mock
-    return Message.find({
-      chat: chatId,
-      content: { $regex: escapeRegex(query), $options: "i" },
-    })
-      .populate("sender", "username fullName avatar")
-      .sort({ createdAt: -1 })
-      .limit(30)
-      .lean();
-  }
+/**
+ * Case-insensitive substring search within ONE chat, newest first.
+ *
+ * A regex rather than the `$text` index on purpose: `$text` only matches
+ * whole (stemmed) words, so typing "hel" finds nothing for "hello" — not how
+ * anyone expects a search box to behave while they type. The `chat` equality
+ * narrows the scan to this conversation via the { chat, createdAt } index.
+ * Returns only what the search UI needs (id, time, snippet, sender).
+ */
+export const searchMessagesInChat = async (chatId, query, { after = null, viewerId = null, limit = 50 } = {}) => {
+  const q = (query || "").trim();
+  if (!q) return [];
+  const filter = {
+    chat: chatId,
+    content: { $regex: escapeRegex(q.slice(0, 100)), $options: "i" },
+  };
+  if (after) filter.createdAt = { $gt: after };
+  if (viewerId) filter.hiddenFor = { $ne: viewerId };
+  return Message.find(filter)
+    .select("_id content createdAt sender")
+    .populate("sender", "username fullName")
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(limit)
+    .lean();
+};
+
+const MEDIA_KINDS = {
+  media: ["image", "video"],
+  docs: ["document"],
+  audio: ["audio"],
+};
+
+/**
+ * One page of a chat's shared attachments for the details panel, newest
+ * first, without loading the surrounding text messages.
+ */
+export const getChatMedia = async (chatId, { kind = "media", cursor = null, limit = 30, after = null, viewerId = null } = {}) => {
+  const conditions = [
+    { chat: chatId },
+    { media: { $exists: true, $ne: null } },
+    { mediaType: { $in: MEDIA_KINDS[kind] || MEDIA_KINDS.media } },
+  ];
+  if (after) conditions.push({ createdAt: { $gt: after } });
+  if (viewerId) conditions.push({ hiddenFor: { $ne: viewerId } });
+  const decoded = decodeCursor(cursor);
+  if (decoded) conditions.push(olderThanCursor("createdAt", decoded));
+
+  const items = await Message.find({ $and: conditions })
+    .select("_id media mediaType fileName content createdAt sender")
+    .populate("sender", "username fullName")
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(limit + 1)
+    .lean();
+
+  const hasMore = items.length > limit;
+  const page = hasMore ? items.slice(0, limit) : items;
+  const last = page[page.length - 1];
+  return {
+    items: page,
+    hasMore,
+    nextCursor: hasMore && last ? encodeCursor(last.createdAt, last._id) : null,
+  };
+};
+
+// ─── Per-user Chat Settings ─────────────────────────────────────────────────
+
+/** All of a user's chat settings (pin / mute / archive / cleared). */
+export const findMemberSettingsByUser = async (userId) => {
+  return ChatMemberSettings.find({ user: userId })
+    .select("chat pinned pinnedAt muted archived clearedAt lastReadAt")
+    .lean();
+};
+
+/** Ids of the chats a user has muted. */
+export const findMutedChatIdsByUser = async (userId) => {
+  const settings = await ChatMemberSettings.find({ user: userId, muted: true }).select("chat").lean();
+  return settings.map((s) => s.chat.toString());
+};
+
+/** One user's settings for one chat, or null. */
+export const findMemberSetting = async (chatId, userId) => {
+  return ChatMemberSettings.findOne({ chat: chatId, user: userId })
+    .select("chat pinned pinnedAt muted archived clearedAt lastReadAt")
+    .lean();
+};
+
+/** Create-or-update one user's settings for one chat. */
+export const upsertMemberSetting = async (chatId, userId, update) => {
+  return ChatMemberSettings.findOneAndUpdate(
+    { chat: chatId, user: userId },
+    { $set: update },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  )
+    .select("chat pinned pinnedAt muted archived clearedAt lastReadAt")
+    .lean();
+};
+
+/** How many chats this user currently has pinned. */
+export const countPinnedChats = async (userId) => {
+  return ChatMemberSettings.countDocuments({ user: userId, pinned: true });
+};
+
+/** Drop a user's settings for a chat (e.g. after they leave a group). */
+export const deleteMemberSetting = async (chatId, userId) => {
+  return ChatMemberSettings.deleteOne({ chat: chatId, user: userId });
 };

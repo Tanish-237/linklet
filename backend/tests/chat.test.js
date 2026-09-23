@@ -30,12 +30,23 @@ const mockIsParticipant = jest.fn();
 const mockChatExists = jest.fn();
 const mockGetBlockStatus = jest.fn();
 const mockFilterExistingUserIds = jest.fn();
+const mockFindMessagesByClientId = jest.fn();
+const mockFindUserChatsByIds = jest.fn();
+const mockFindMemberSettingsByUser = jest.fn();
+const mockFindMemberSetting = jest.fn();
+const mockUpsertMemberSetting = jest.fn();
+const mockCountPinnedChats = jest.fn();
+const mockDeleteMemberSetting = jest.fn();
+const mockRefreshLastMessage = jest.fn();
+const mockHideMessagesForUser = jest.fn();
+const mockCountUnreadMessages = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   createChat: mockCreateChat,
   findChatById: mockFindChatById,
   findOneToOneChat: mockFindOneToOneChat,
   findChatsByUser: mockFindChatsByUser,
+  findUserChatsByIds: mockFindUserChatsByIds,
   updateChat: mockUpdateChat,
   addParticipants: mockAddParticipants,
   removeParticipant: mockRemoveParticipant,
@@ -45,6 +56,7 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   updateMessage: mockUpdateMessage,
   deleteMessage: mockDeleteMessage,
   findMessageById: mockFindMessageById,
+  findMessagesByClientId: mockFindMessagesByClientId,
   markMessagesAsRead: mockMarkMessagesAsRead,
   searchUsers: mockSearchUsers,
   searchMessagesInChat: mockSearchMessagesInChat,
@@ -60,6 +72,14 @@ jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   chatExists: mockChatExists,
   getBlockStatus: mockGetBlockStatus,
   filterExistingUserIds: mockFilterExistingUserIds,
+  findMemberSettingsByUser: mockFindMemberSettingsByUser,
+  findMemberSetting: mockFindMemberSetting,
+  upsertMemberSetting: mockUpsertMemberSetting,
+  countPinnedChats: mockCountPinnedChats,
+  deleteMemberSetting: mockDeleteMemberSetting,
+  refreshLastMessage: mockRefreshLastMessage,
+  hideMessagesForUser: mockHideMessagesForUser,
+  countUnreadMessages: mockCountUnreadMessages,
 }));
 
 jest.unstable_mockModule('../src/utils/cloudinary.js', () => ({
@@ -83,6 +103,21 @@ describe('Chat Service Unit Tests', () => {
         }))
       )
     );
+    mockFindMessagesByClientId.mockResolvedValue([]);
+    mockFindMemberSetting.mockResolvedValue(null);
+    mockFindMemberSettingsByUser.mockResolvedValue([]);
+    mockFindUserChatsByIds.mockResolvedValue([]);
+    mockCountPinnedChats.mockResolvedValue(0);
+    mockDeleteMemberSetting.mockResolvedValue({ deletedCount: 1 });
+    mockUpsertMemberSetting.mockImplementation(async (chatId, userId, update) => ({
+      chat: chatId,
+      user: userId,
+      pinned: false,
+      muted: false,
+      archived: false,
+      clearedAt: null,
+      ...update,
+    }));
   });
 
   describe('accessOrCreateChat', () => {
@@ -495,9 +530,18 @@ describe('Chat Service Unit Tests', () => {
       });
       mockDeleteMessage.mockResolvedValue(true);
 
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: ['user1', 'user2'],
+        lastMessage: { _id: 'm0', content: 'earlier' },
+      });
+
       const res = await chatService.deleteMessage('user1', { chatId: 'chat1', messageId: 'm1' });
       console.log('TRACE [chat.test.js]: Message deleted successfully:', res);
       expect(res.success).toBe(true);
+      // The chat's preview is repointed at the newest surviving message
+      expect(mockRefreshLastMessage).toHaveBeenCalledWith('chat1');
+      expect(res.preview.lastMessage).toEqual({ _id: 'm0', content: 'earlier' });
     });
 
     it('throws error if editing someone elses message', async () => {
@@ -526,7 +570,24 @@ describe('Chat Service Unit Tests', () => {
       console.log('TRACE [chat.test.js]: Bulk delete result:', res);
       expect(res.success).toBe(true);
       expect(res.deletedIds).toEqual(['m1', 'm2']);
+      expect(res.hiddenIds).toEqual([]);
       expect(mockDeleteManyMessages).toHaveBeenCalledWith(['m1', 'm2'], 'user1');
+      expect(mockHideMessagesForUser).not.toHaveBeenCalled();
+    });
+
+    it('hides (rather than silently skips) selected messages sent by someone else', async () => {
+      mockIsParticipant.mockResolvedValue(true);
+      mockDeleteManyMessages.mockResolvedValue(['m1']);
+      mockFindChatById.mockResolvedValue({ _id: 'chat1', participants: ['user1', 'user2'], lastMessage: null });
+
+      const res = await chatService.deleteMultipleMessages('user1', {
+        chatId: 'chat1',
+        messageIds: ['m1', 'theirs'],
+      });
+
+      expect(res.deletedIds).toEqual(['m1']);
+      expect(res.hiddenIds).toEqual(['theirs']);
+      expect(mockHideMessagesForUser).toHaveBeenCalledWith('chat1', ['theirs'], 'user1');
     });
 
     it('throws error if messageIds is empty', async () => {
@@ -822,6 +883,328 @@ describe('Chat Service Unit Tests', () => {
       expect(Array.isArray(res)).toBe(true);
       expect(res).toHaveLength(2);
       console.log('TRACE [chat.test.js]: Batch messages created in parallel successfully');
+    });
+
+    it('returns the original message and skips re-creating it when clientId was already used (idempotent resend)', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - idempotent resend via clientId');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }, { _id: 'user2' }],
+      });
+      const original = { _id: 'm1', content: 'Hello', chat: 'chat1', sender: 'user1', clientId: 'abc' };
+      mockFindMessagesByClientId.mockResolvedValue([original]);
+
+      const result = await chatService.sendMessage('user1', {
+        chatId: 'chat1',
+        content: 'Hello',
+        clientId: 'abc',
+      });
+
+      console.log('TRACE [chat.test.js]: Resend returned original message instead of creating a new one:', result[chatService.DUPLICATE_SEND]);
+      expect(result).toBe(original);
+      expect(result[chatService.DUPLICATE_SEND]).toBe(true);
+      expect(mockCreateMessage).not.toHaveBeenCalled();
+    });
+
+    it('recovers from a duplicate-key race by returning the winner instead of throwing', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - concurrent same-clientId race resolved via unique index');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      // Pre-check passes (nothing found yet) — the OTHER concurrent request wins the insert.
+      mockFindMessagesByClientId
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ _id: 'winner', content: 'Hello', chat: 'chat1', sender: 'user1', clientId: 'race' }]);
+      const dupError = Object.assign(new Error('E11000 duplicate key'), { code: 11000 });
+      mockCreateMessage.mockRejectedValue(dupError);
+
+      const result = await chatService.sendMessage('user1', {
+        chatId: 'chat1',
+        content: 'Hello',
+        clientId: 'race',
+      });
+
+      console.log('TRACE [chat.test.js]: Race resolved, returned winner message:', result._id);
+      expect(result._id).toBe('winner');
+      expect(result[chatService.DUPLICATE_SEND]).toBe(true);
+    });
+
+    it('ignores a malformed clientId instead of persisting it', async () => {
+      console.log('TRACE [chat.test.js]: Testing sendMessage - clientId with disallowed characters is dropped');
+      mockFindChatById.mockResolvedValue({
+        _id: 'chat1',
+        participants: [{ _id: 'user1' }],
+      });
+      mockCreateMessage.mockImplementation((data) => ({ _id: 'm1', ...data }));
+
+      await chatService.sendMessage('user1', {
+        chatId: 'chat1',
+        content: 'Hi',
+        clientId: 'not valid! id/with slashes',
+      });
+
+      expect(mockFindMessagesByClientId).not.toHaveBeenCalled();
+      expect(mockCreateMessage).toHaveBeenCalledWith(
+        expect.not.objectContaining({ clientId: expect.anything() })
+      );
+    });
+  });
+
+  describe('getMessages "delete for me" cutoff', () => {
+    it('passes the caller\'s clearedAt setting through as the `after` filter', async () => {
+      console.log('TRACE [chat.test.js]: Testing getMessages - clearedAt from member settings is forwarded to the repo');
+      const clearedAt = new Date('2026-01-01T00:00:00.000Z');
+      mockFindMemberSetting.mockResolvedValue({ chat: 'c1', user: 'u1', clearedAt });
+      mockGetMessages.mockResolvedValue({ messages: [], hasMore: false, nextCursor: null });
+
+      await chatService.getMessages('c1', 'u1', { limit: 10 });
+
+      expect(mockGetMessages).toHaveBeenCalledWith('c1', expect.objectContaining({ after: clearedAt }));
+    });
+  });
+
+  describe('chat-level settings: pin / mute / archive / delete-for-me', () => {
+    beforeEach(() => {
+      mockIsParticipant.mockResolvedValue(true);
+    });
+
+    it('setChatPinned(true) persists pinned + pinnedAt', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatPinned - pin a chat');
+      const result = await chatService.setChatPinned('u1', 'c1', true);
+      expect(mockUpsertMemberSetting).toHaveBeenCalledWith(
+        'c1', 'u1', expect.objectContaining({ pinned: true, pinnedAt: expect.any(Date) })
+      );
+      expect(result.pinned).toBe(true);
+    });
+
+    it('setChatPinned(false) clears pinnedAt', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatPinned - unpin a chat');
+      await chatService.setChatPinned('u1', 'c1', false);
+      expect(mockUpsertMemberSetting).toHaveBeenCalledWith(
+        'c1', 'u1', expect.objectContaining({ pinned: false, pinnedAt: null })
+      );
+    });
+
+    it('rejects pinning past MAX_PINNED_CHATS', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatPinned - over the pin cap is rejected');
+      mockCountPinnedChats.mockResolvedValue(5);
+      mockFindMemberSetting.mockResolvedValue(null);
+
+      await expect(chatService.setChatPinned('u1', 'c6', true)).rejects.toThrow(
+        /only pin up to/i
+      );
+      expect(mockUpsertMemberSetting).not.toHaveBeenCalled();
+    });
+
+    it('re-pinning an already-pinned chat does not count against the cap', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatPinned - re-pin does not double count');
+      mockCountPinnedChats.mockResolvedValue(5);
+      mockFindMemberSetting.mockResolvedValue({ chat: 'c1', user: 'u1', pinned: true });
+
+      await expect(chatService.setChatPinned('u1', 'c1', true)).resolves.toBeTruthy();
+    });
+
+    it('setChatMuted persists the muted flag', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatMuted');
+      await chatService.setChatMuted('u1', 'c1', true);
+      expect(mockUpsertMemberSetting).toHaveBeenCalledWith('c1', 'u1', { muted: true });
+    });
+
+    it('setChatArchived persists the archived flag', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatArchived');
+      await chatService.setChatArchived('u1', 'c1', true);
+      expect(mockUpsertMemberSetting).toHaveBeenCalledWith('c1', 'u1', { archived: true });
+    });
+
+    it('rejects a settings change from a non-participant', async () => {
+      console.log('TRACE [chat.test.js]: Testing setChatMuted - non-participant rejected');
+      mockIsParticipant.mockResolvedValue(false);
+      mockChatExists.mockResolvedValue(true);
+      await expect(chatService.setChatMuted('intruder', 'c1', true)).rejects.toThrow(
+        'You are not a participant in this chat'
+      );
+    });
+
+    it('clearChatForUser sets clearedAt and un-archives the chat', async () => {
+      console.log('TRACE [chat.test.js]: Testing clearChatForUser - "delete chat for me"');
+      await chatService.clearChatForUser('u1', 'c1');
+      expect(mockUpsertMemberSetting).toHaveBeenCalledWith(
+        'c1', 'u1', expect.objectContaining({ clearedAt: expect.any(Date), archived: false })
+      );
+    });
+  });
+
+  describe('deleteChatForUser', () => {
+    it('delegates to leaveGroup for a group chat', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteChatForUser - group chat delegates to leaveGroup');
+      mockFindChatById.mockResolvedValue({
+        _id: 'g1',
+        isGroup: true,
+        participants: [{ _id: 'u1' }, { _id: 'u2' }],
+        groupAdmins: [{ _id: 'u2' }],
+        groupAdmin: { _id: 'u2' },
+      });
+
+      await chatService.deleteChatForUser('u1', 'g1');
+      expect(mockRemoveParticipant).toHaveBeenCalledWith('g1', 'u1');
+    });
+
+    it('clears history for the caller only on a 1:1 chat, without deleting the Chat document', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteChatForUser - 1:1 chat is a per-user cutoff, not a hard delete');
+      mockFindChatById.mockResolvedValue({
+        _id: 'c1',
+        isGroup: false,
+        participants: [{ _id: 'u1' }, { _id: 'u2' }],
+      });
+
+      await chatService.deleteChatForUser('u1', 'c1');
+      expect(mockUpsertMemberSetting).toHaveBeenCalledWith(
+        'c1', 'u1', expect.objectContaining({ clearedAt: expect.any(Date) })
+      );
+      expect(mockDeleteChat).not.toHaveBeenCalled();
+    });
+
+    it('rejects deleting a chat the caller is not part of', async () => {
+      console.log('TRACE [chat.test.js]: Testing deleteChatForUser - non-participant rejected');
+      mockFindChatById.mockResolvedValue({
+        _id: 'c1',
+        isGroup: false,
+        participants: [{ _id: 'u2' }],
+      });
+
+      await expect(chatService.deleteChatForUser('intruder', 'c1')).rejects.toThrow(
+        'You are not a participant in this chat'
+      );
+    });
+  });
+
+  describe('getUserChats — pagination, pinned chats, and dead 1:1 chats', () => {
+    it('drops a 1:1 chat whose other participant no longer resolves (deleted account)', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - deleted-user 1:1 chat is filtered out');
+      // populate() silently omits a participant ref whose User document is gone,
+      // so this chat comes back from the repo with only the caller in `participants`.
+      mockFindChatsByUser.mockResolvedValue({
+        chats: [
+          { _id: 'live', isGroup: false, participants: [{ _id: 'u1' }, { _id: 'u2' }], updatedAt: new Date() },
+          { _id: 'dead', isGroup: false, participants: [{ _id: 'u1' }], updatedAt: new Date() },
+        ],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      const result = await chatService.getUserChats('u1');
+      const ids = result.chats.map((c) => c._id);
+      console.log('TRACE [chat.test.js]: Chats returned after filtering:', ids);
+      expect(ids).toContain('live');
+      expect(ids).not.toContain('dead');
+    });
+
+    it('keeps a group chat even if a member left/was deleted', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - group chats are exempt from the dead-chat filter');
+      mockFindChatsByUser.mockResolvedValue({
+        chats: [{ _id: 'g1', isGroup: true, participants: [{ _id: 'u1' }], updatedAt: new Date() }],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      const result = await chatService.getUserChats('u1');
+      expect(result.chats.map((c) => c._id)).toContain('g1');
+    });
+
+    it('hides a chat cleared by the user until a newer message arrives', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - cleared chat stays hidden until a fresh message');
+      const clearedAt = new Date('2026-01-01T00:00:00.000Z');
+      mockFindMemberSettingsByUser.mockResolvedValue([
+        { chat: 'c1', pinned: false, muted: false, archived: false, clearedAt },
+      ]);
+      mockFindChatsByUser.mockResolvedValue({
+        chats: [{
+          _id: 'c1', isGroup: false,
+          participants: [{ _id: 'u1' }, { _id: 'u2' }],
+          lastMessage: { createdAt: new Date('2025-12-31T00:00:00.000Z') },
+          updatedAt: new Date('2025-12-31T00:00:00.000Z'),
+        }],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      const result = await chatService.getUserChats('u1');
+      console.log('TRACE [chat.test.js]: Chats visible while stale (pre-cutoff):', result.chats.map((c) => c._id));
+      expect(result.chats).toHaveLength(0);
+    });
+
+    it('re-shows a cleared chat once a message newer than the cutoff arrives', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - cleared chat reappears after a fresh message');
+      const clearedAt = new Date('2026-01-01T00:00:00.000Z');
+      mockFindMemberSettingsByUser.mockResolvedValue([
+        { chat: 'c1', pinned: false, muted: false, archived: false, clearedAt },
+      ]);
+      mockFindChatsByUser.mockResolvedValue({
+        chats: [{
+          _id: 'c1', isGroup: false,
+          participants: [{ _id: 'u1' }, { _id: 'u2' }],
+          lastMessage: { createdAt: new Date('2026-01-02T00:00:00.000Z') },
+          updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+        }],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      const result = await chatService.getUserChats('u1');
+      expect(result.chats.map((c) => c._id)).toContain('c1');
+    });
+
+    it('excludes pinned chat ids from the cursor query and prepends them, sorted by pinnedAt', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - pinned chats float to the top of page 1');
+      mockFindMemberSettingsByUser.mockResolvedValue([
+        { chat: 'p1', pinned: true, pinnedAt: new Date('2026-01-01T00:00:00.000Z'), muted: false, archived: false, clearedAt: null },
+        { chat: 'p2', pinned: true, pinnedAt: new Date('2026-01-02T00:00:00.000Z'), muted: false, archived: false, clearedAt: null },
+      ]);
+      mockFindUserChatsByIds.mockResolvedValue([
+        { _id: 'p1', isGroup: false, participants: [{ _id: 'u1' }, { _id: 'u2' }], updatedAt: new Date() },
+        { _id: 'p2', isGroup: false, participants: [{ _id: 'u1' }, { _id: 'u3' }], updatedAt: new Date() },
+      ]);
+      mockFindChatsByUser.mockResolvedValue({
+        chats: [{ _id: 'regular', isGroup: false, participants: [{ _id: 'u1' }, { _id: 'u4' }], updatedAt: new Date() }],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      const result = await chatService.getUserChats('u1');
+      const ids = result.chats.map((c) => c._id);
+      console.log('TRACE [chat.test.js]: Order returned:', ids);
+      // p2 was pinned more recently than p1, so it sorts first; both precede the unpinned chat.
+      expect(ids).toEqual(['p2', 'p1', 'regular']);
+      expect(mockFindChatsByUser).toHaveBeenCalledWith(
+        'u1', expect.objectContaining({ excludeIds: ['p1', 'p2'] })
+      );
+    });
+
+    it('does not re-fetch pinned chats on a later page (cursor present)', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - pinned chats only surface on page 1');
+      mockFindMemberSettingsByUser.mockResolvedValue([
+        { chat: 'p1', pinned: true, pinnedAt: new Date(), muted: false, archived: false, clearedAt: null },
+      ]);
+      mockFindChatsByUser.mockResolvedValue({ chats: [], hasMore: false, nextCursor: null });
+
+      await chatService.getUserChats('u1', { cursor: 'some-cursor' });
+      expect(mockFindUserChatsByIds).not.toHaveBeenCalled();
+    });
+
+    it('passes each chat through with pinned/muted/archived merged from settings', async () => {
+      console.log('TRACE [chat.test.js]: Testing getUserChats - settings flags are merged onto each chat');
+      mockFindMemberSettingsByUser.mockResolvedValue([
+        { chat: 'c1', pinned: false, muted: true, archived: false, clearedAt: null },
+      ]);
+      mockFindChatsByUser.mockResolvedValue({
+        chats: [{ _id: 'c1', isGroup: false, participants: [{ _id: 'u1' }, { _id: 'u2' }], updatedAt: new Date() }],
+        hasMore: false,
+        nextCursor: null,
+      });
+
+      const result = await chatService.getUserChats('u1');
+      expect(result.chats[0]).toMatchObject({ pinned: false, muted: true, archived: false });
     });
   });
 });

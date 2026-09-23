@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import defaultAvatar from "../assets/default-avatar.webp";
 import defaultGroupAvatar from "../assets/default-group.svg";
 
@@ -85,7 +85,7 @@ const ForwardMessageModal = ({
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-800">
-          <h3 className="text-lg font-bold text-white tracking-tight">
+          <h3 className="text-lg font-bold text-fg tracking-tight">
             Send to
             <span className="ml-2 text-sm font-normal text-gray-400">
               ({selectedMessageCount} message{selectedMessageCount !== 1 ? "s" : ""})
@@ -94,7 +94,7 @@ const ForwardMessageModal = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-white p-1.5 rounded-xl hover:bg-gray-800 transition-colors"
+            className="text-gray-400 hover:text-fg p-1.5 rounded-xl hover:bg-gray-800 transition-colors"
           >
             <span className="material-icons text-xl">close</span>
           </button>
@@ -116,7 +116,7 @@ const ForwardMessageModal = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-3 text-gray-400 hover:text-white"
+                className="absolute right-3 text-gray-400 hover:text-fg"
               >
                 <span className="material-icons text-base">close</span>
               </button>
@@ -148,7 +148,7 @@ const ForwardMessageModal = ({
                     />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm text-white truncate">{getChatName(c)}</div>
+                    <div className="font-semibold text-sm text-fg truncate">{getChatName(c)}</div>
                     <div className="text-xs text-gray-400 truncate mt-0.5">
                       {c.isGroup ? `${c.participants?.length || 0} members` : "Direct message"}
                     </div>
@@ -162,7 +162,7 @@ const ForwardMessageModal = ({
                     }`}
                   >
                     {isSelected && (
-                      <span className="material-icons text-white text-sm leading-none">check</span>
+                      <span className="material-icons text-fg text-sm leading-none">check</span>
                     )}
                   </div>
                 </button>

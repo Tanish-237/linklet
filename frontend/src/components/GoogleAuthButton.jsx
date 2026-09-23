@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import useAuthStore from "../store/useAuthStore";
 import { loadGoogleIdentity } from "../utlis/loadGoogleIdentity";
@@ -131,10 +131,10 @@ const GoogleAuthButton = ({ mode = "signin" }) => {
         data-testid="google-fallback-btn"
         onClick={handleManualPrompt}
         disabled={isLoading}
-        className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white hover:bg-gray-100 text-gray-800 font-semibold rounded-xl transition-all duration-200 shadow-md cursor-pointer disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-surface-2 hover:bg-surface-3 border border-line-strong text-fg font-semibold rounded-xl transition-all duration-200 shadow-sm cursor-pointer disabled:opacity-50"
       >
         {isLoading ? (
-          <div className="w-5 h-5 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-5 h-5 border-2 border-fg-muted border-t-transparent rounded-full animate-spin" />
         ) : (
           <svg
             className="w-5 h-5"

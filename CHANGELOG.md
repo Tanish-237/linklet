@@ -5,11 +5,15 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-09-20
+## [2.0.0] - 2026-09-23
 
 ### Breaking
 - **Post comments moved out of the Post document into their own `postcomments` collection.** The API changed with it: `POST /posts/:id/comment`, `.../reply`, `.../upvote` and `DELETE .../comments/:id` now return the affected comment/reply (plus `commentsCount` / `repliesCount`) instead of the whole post; post payloads carry `commentsCount` instead of a `comments` array; comment votes/deletes return `{ _id, upvotes }` / `{ deletedIds, commentsCount }`. Comments are read through the new paginated `GET /posts/:postId/comments` and `GET /posts/:postId/comments/:commentId/replies`. Backend and frontend must be deployed together.
 - **Data migration required.** Run `npm run migrate:comments` (backend) once per database after deploying; use `-- --dry-run` first and take a backup. It is idempotent, preserves original comment IDs and timestamps, and only removes a post's embedded comments after verifying the copy. Until it has run, existing comments are not shown (the server logs `[MIGRATION REQUIRED]` at startup). `-- --recount` repairs the denormalized counters.
+
+### Deploy notes
+- **`REDIS_URL` is now required in production.** The server refuses to start without it (Socket.io rooms, presence and rate limits would otherwise silently become per-instance).
+- **Data migration required.** Run `npm run migrate:resource-categories` (backend) once per database — it relabels the retired `presentations` category to `lectures`. The server logs `[MIGRATION REQUIRED]` at startup until it has run.
 
 ### Added
 - Paginated comment threads: 20 comments per page with the first 3 replies inline and "View N more replies" on demand; replies can now be deleted by their author or an admin.
@@ -21,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API `Cache-Control` policy: `private, no-cache` (ETag revalidation) for GETs, short private caching for branches, forum metadata, tag cloud and stats.
 - Cloudinary delivery helpers (`f_auto,q_auto`, width caps, `srcset`) applied to feed, post and avatar images; local group avatar asset.
 - Real-database test harness (`mongodb-memory-server`) plus real-socket presence tests; frontend `npm test` script; CI caches the `mongod` binary.
+- Admins can review reported feed posts: the admin dashboard's Reports tab has a Messages / Posts switch, with a link to each reported post and Resolve / Dismiss actions.
+- Notification preferences are stored on the account (`PUT /profile/notification-preferences`) and enforced server-side: switching off forum, post or system alerts now actually stops those notifications, on every device.
+- `GET /chat/chat-settings/muted`, used by the app shell so muted chats stay silent on a new device before the chat page has been opened.
+- Chats open at the first unread message under an "N unread messages" divider (paging back through history if needed), or at the latest message when everything is read. The divider is placed once when the chat opens and doesn't move while you read.
+- Real unread counts per chat (`unreadCount`, capped at 99+) from a per-user read cursor (`lastReadAt`); reading on one tab or device clears the badge on the others (`chat read` event).
+- Persistent "Delete for me" for other people's messages (`POST /chat/message/hide`).
+- Failed messages show **Retry** and **Delete**; sending messages show a clock until the server confirms them.
+- In-chat search covers the whole conversation (server-side, partial-word, case-insensitive) with "1 of N", Enter / Shift+Enter or ↑/↓ to step through older/newer matches, and Esc to close; results older than the loaded page are loaded and highlighted.
+- Chat details → **Media & files**: paginated Media (photo/video grid by month), Docs (real filenames, type icons) and Voice tabs, each item with "Show in chat" (`GET /chat/message/media/:chatId`). New uploads keep their original filename (`fileName`).
+- Contact details show the person's real profile: year (derived from the institute email when not set), full branch name, semester/section, email and phone links, skills and join date.
+- Pinned banner shows "Pinned message N of M" and cycles through every pin.
 
 ### Changed
 - **Presence** is now correct with multiple tabs and multiple server instances: closing one tab no longer marks a user offline, "came online"/"went offline" events go only to people who share a chat with the user (previously broadcast to every connected user), and presence is refreshed when a new chat or group is created.
@@ -31,6 +46,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Emoji picker loads only when opened; Google Sign-In script loads only on screens with a Google button; `socket.io-client` loads only after sign-in; vendor libraries split into separately cached chunks.
 - Default avatar, logo and banner converted from 3.7 MB of PNG to about 140 KB of WebP; third-party icon hotlinks replaced with local assets.
 - Profile, followers/following and bookmark queries no longer load comment bodies; follower/following lists are capped at 500.
+- Rate limits are counted in Redis, so every server instance shares one budget per client (previously each instance counted separately).
+- Unexpected server errors return a generic message in production instead of the raw error text; unhandled promise rejections and uncaught exceptions are logged.
+- `PUT /posts/reports` validates the status and report id and returns 404 for unknown reports.
+- Prerendered public pages (landing, about, contact, privacy, terms) include the navbar and load their page code before React mounts, so they no longer flash to a spinner and back on first load.
+- Timetable modals load on demand, cutting the dashboard bundle from ~113 KB to ~65 KB.
+- Light mode: fixed near-invisible text on profile Student/Alumni badges, chat search highlights, the resource upload box and danger/red text; dark mode: fixed invisible comment-panel empty-state icons and forum timestamps. Status colours now come from shared `--danger-fg` / `--success-fg` / `--warning-fg` tokens.
+- First-paint background colours match the app's canvas in both themes.
+- Toasts moved from react-toastify to Sonner: stacked cards that expand on hover, swipe to dismiss, follow the light/dark theme, and use the app's colour tokens. Chat message toasts show the sender, a preview and an **Open** button.
+
+### Performance
+- Switching chats renders from an in-memory message cache kept current by the socket, and hovering a chat prefetches it.
+- Chat bubbles load bubble-sized images and video poster frames instead of full originals and live `<video>` elements.
+- Message rows are memoized with stable callbacks: typing in the composer, presence updates and new messages no longer re-render every message in the chat.
 
 ### Fixed
 - Posts feed render loop while bookmarks were loading (a `= []` default recreated every render re-triggered an effect).
@@ -39,9 +67,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WeeklyTimetableModal` test failed on Sundays (unanchored day-tab query also matched "Add Class to Sunday").
 - `post.integration.test.js` mocked a `getFeed` export the service never had, hiding the feed route from tests.
 - Prerender no longer interprets `$&`-style sequences in page content or JSON-LD.
+- `/dashboard/resources` (old link) redirects to the Resource Hub instead of 404ing.
+- Messages read while a chat was open were never saved as read, so chats came back unread after a reload and senders' ticks reverted to grey. Socket read receipts are now persisted, throttled, and only sent while the tab is visible.
+- A recipient with a chat open received every message twice (chat room + personal room); it's now one emit.
+- Deleting a chat's newest message left the sidebar showing the deleted text; the chat's last message is repointed and pushed live (`chat preview updated`).
+- Bulk delete no longer claims to delete other people's messages that then reappear — yours are deleted, theirs are hidden for you.
+- "typing…" no longer sticks when the other person closes their tab mid-message.
+- In-chat search no longer crashes on `(`, `?` and other regex characters.
+- Group messages turn blue only once every member has read them.
+- The pinned-message banner loads older history to reach a pinned message that isn't on screen.
+- Leaving the chat page no longer removes other components' socket listeners.
+- Signing out clears the access token and cached chats/messages from the browser.
+- Chat list rows are keyboard-accessible.
+
+- Pinning and unpinning update instantly (optimistic, confirmed by the server and live `message pinned`/`unpinned` events) and unpinning works; pin icons are red and readable in light mode.
+- Opening a chat no longer lands part-way up when images/videos finish loading after it was positioned.
+- Scrolling up to load older messages keeps your place instead of throwing you down the chat: the chat list now does its own scroll anchoring (the message you're reading stays put when older messages, the loading row or images above it change height), identically in Chrome and Safari.
+- The in-chat search field stretches the full width of the chat.
+- The media lightbox covers the whole screen (it was clipped to the chat area) and closes with Esc.
+- Removed the false "End-to-End Encryption" claim and the hard-coded "CSE" branch from contact details.
 
 ### Removed
 - `chart.js`, `react-chartjs-2` and `styled-components` dependencies (about 200 KB of JavaScript); the embedded comment schema (`backend/models/comment.js`); the mock-only `post.repository.test.js` (superseded by real-database tests).
+- The "Email Activity Digest — Coming Soon" setting (never implemented).
+- Uploads' temporary folder is no longer served over HTTP.
+- Dead code: unreachable `/dashboard/*` sub-views inside the dashboard page, an unused schedule trigger, the `ChatWindow` re-export, unused template assets.
 
 ## [1.7.0] - 2026-09-18
 

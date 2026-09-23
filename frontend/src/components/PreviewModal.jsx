@@ -1,20 +1,44 @@
 import React, { useState } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
+import useThemeStore from "../theme/useThemeStore";
 import "./PreviewModal.css";
 
-export const getFileIcon = (fileName, fileType) => {
-  if (fileType === "link") return { icon: "link", color: "#818cf8" };
+// Each type has a lighter/brighter `dark` shade (reads well on the app's
+// near-black surfaces) and a deliberately darker, more saturated `light`
+// shade — the same pastel otherwise washes out against a white/cream
+// background and a pale tinted chip (see Posts.css's photo/video icon pair
+// for the same fix applied elsewhere).
+const FILE_ICON_TYPES = {
+  link:  { icon: "link",            dark: "#818cf8", light: "#4338ca" },
+  image: { icon: "image",           dark: "#22d3ee", light: "#0e7490" },
+  video: { icon: "movie",           dark: "#f472b6", light: "#db2777" },
+  pdf:   { icon: "picture_as_pdf",  dark: "#f87171", light: "#dc2626" },
+  doc:   { icon: "description",     dark: "#60a5fa", light: "#1d4ed8" },
+  ppt:   { icon: "slideshow",       dark: "#fb923c", light: "#c2410c" },
+  xls:   { icon: "table_chart",     dark: "#4ade80", light: "#047857" },
+  zip:   { icon: "folder_zip",      dark: "#facc15", light: "#b45309" },
+  txt:   { icon: "article",         dark: "#a78bfa", light: "#6d28d9" },
+  other: { icon: "insert_drive_file", dark: "#94a3b8", light: "#475569" },
+};
+
+const resolveFileIconType = (fileName, fileType) => {
+  if (fileType === "link") return "link";
   const ext = (fileName?.split(".").pop() || fileType || "").toLowerCase();
-  if (["jpg","jpeg","png","gif","svg","webp"].includes(ext) || ext.includes("image")) return { icon: "image", color: "#22d3ee" };
-  if (["mp4","mkv","avi","mov","webm","ogg"].includes(ext) || ext.includes("video")) return { icon: "movie", color: "#f472b6" };
-  if (ext === "pdf") return { icon: "picture_as_pdf", color: "#f87171" };
-  if (["doc","docx"].includes(ext)) return { icon: "description", color: "#60a5fa" };
-  if (["ppt","pptx"].includes(ext)) return { icon: "slideshow", color: "#fb923c" };
-  if (["xls","xlsx","csv"].includes(ext)) return { icon: "table_chart", color: "#4ade80" };
-  if (["zip","rar","tar","gz"].includes(ext)) return { icon: "folder_zip", color: "#facc15" };
-  if (ext === "txt") return { icon: "article", color: "#a78bfa" };
-  return { icon: "insert_drive_file", color: "#94a3b8" };
+  if (["jpg","jpeg","png","gif","svg","webp"].includes(ext) || ext.includes("image")) return "image";
+  if (["mp4","mkv","avi","mov","webm","ogg"].includes(ext) || ext.includes("video")) return "video";
+  if (ext === "pdf") return "pdf";
+  if (["doc","docx"].includes(ext)) return "doc";
+  if (["ppt","pptx"].includes(ext)) return "ppt";
+  if (["xls","xlsx","csv"].includes(ext)) return "xls";
+  if (["zip","rar","tar","gz"].includes(ext)) return "zip";
+  if (ext === "txt") return "txt";
+  return "other";
+};
+
+export const getFileIcon = (fileName, fileType, theme = "dark") => {
+  const entry = FILE_ICON_TYPES[resolveFileIconType(fileName, fileType)];
+  return { icon: entry.icon, color: theme === "light" ? entry.light : entry.dark };
 };
 
 export const getPreviewUrl = (resource) => {
@@ -76,8 +100,9 @@ import useAuthStore from "../store/useAuthStore";
 
 const PreviewModal = ({ resource, onClose, onDelete }) => {
   const { user } = useAuthStore();
+  const theme = useThemeStore((s) => s.theme);
   const preview = getPreviewUrl(resource);
-  const { icon, color } = getFileIcon(resource.fileName, resource.fileType);
+  const { icon, color } = getFileIcon(resource.fileName, resource.fileType, theme);
   const [copying, setCopying] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
@@ -86,7 +111,7 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
 
   const copyLink = async () => {
     try {
-      const shareUrl = `${window.location.origin}/dashboard/global-search?preview=${resource._id}`;
+      const shareUrl = `${window.location.origin}/resource-hub?preview=${resource._id}`;
       await navigator.clipboard.writeText(shareUrl);
       setCopying(true);
       setTimeout(() => setCopying(false), 1500);
@@ -120,7 +145,7 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
                 className="gs-icon-btn gs-delete-btn"
                 title="Delete Resource"
                 onClick={() => setShowConfirmDelete(true)}
-                style={{ color: "#ef4444" }}
+                style={{ color: "rgb(var(--danger-fg))" }}
               >
                 <span className="material-icons">delete</span>
               </button>
@@ -157,7 +182,7 @@ const PreviewModal = ({ resource, onClose, onDelete }) => {
           )}
           {preview.type === "invalid" && (
             <div className="gs-preview-fallback">
-              <span className="material-icons" style={{ color: "#f87171", fontSize: 64 }}>error_outline</span>
+              <span className="material-icons" style={{ color: "rgb(var(--danger-fg))", fontSize: 64 }}>error_outline</span>
               <p>This resource's link is invalid and cannot be opened.</p>
             </div>
           )}

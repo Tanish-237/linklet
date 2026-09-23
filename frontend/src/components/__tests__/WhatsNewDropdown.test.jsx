@@ -60,12 +60,15 @@ describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () =>
     const dialog = screen.getByRole("dialog", { name: /What's New release notes/i });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText(`What's new in ${RELEASE_VERSION}`)).toBeInTheDocument();
-    expect(screen.getByText(/In-profile followers & following:/i)).toBeInTheDocument();
-    expect(screen.getByText(/WhatsApp-style double delivery ticks:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Cross-app real-time notifications:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Optimized attachments & voice notes:/i)).toBeInTheDocument();
-    expect(screen.getByText(/Instant 0ms emoji reactions:/i)).toBeInTheDocument();
-    expect(screen.getByText("GitHub release")).toBeInTheDocument();
+    expect(screen.getByText(/Chats open where you left off:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Search the whole conversation:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pins, media & contact info:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Faster, smoother chat:/i)).toBeInTheDocument();
+    expect(screen.getByText(/Light & dark, polished:/i)).toBeInTheDocument();
+    expect(screen.getByText("GitHub release").closest("a")).toHaveAttribute(
+      "href",
+      `https://github.com/Tanish-237/linklet/releases/tag/${RELEASE_VERSION}`
+    );
 
     console.log("Passed: Dropdown opens with simple, human-written release notes");
   });

@@ -12,7 +12,16 @@ export const formatMessageClock = (dateStr) => {
   }
 };
 
-export const renderDeliveryTicks = (msg, isSent, isRecipientOnline = false) => {
+// Search terms are user input — escape them before building a RegExp, or
+// typing "(" or "?" into in-chat search throws and takes the chat down.
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * `readTarget` is how many readBy entries mean "read": 2 in a DM (sender +
+ * recipient), every participant in a group — blue ticks once everyone has
+ * read it, not as soon as the first member does.
+ */
+export const renderDeliveryTicks = (msg, isSent, isRecipientOnline = false, readTarget = 2) => {
   if (!isSent) return null;
   if (msg.status === "sending") {
     return <span className="material-icons tick-sending">schedule</span>;
@@ -28,7 +37,7 @@ export const renderDeliveryTicks = (msg, isSent, isRecipientOnline = false) => {
     msg.isRead ||
     msg.status === "read" ||
     msg.status === "seen" ||
-    (msg.readBy && msg.readBy.length > 1)
+    (msg.readBy && msg.readBy.length >= Math.max(2, readTarget))
   );
   const isDelivered = Boolean(
     isRead ||
@@ -62,6 +71,7 @@ const MessageBubble = ({
   // does show the Star/Unstar toggle state.
   isStarred: _isStarred,
   isRecipientOnline = false,
+  readTarget = 2,
   searchQuery,
   audioState,
   isMenuActive,
@@ -69,7 +79,10 @@ const MessageBubble = ({
   onToggleAudioPlay,
   onSeekAudio,
   onOpenLightbox,
+  onRetryFailed,
+  onDiscardFailed,
 }) => {
+  const renderTicks = (m, sent, online) => renderDeliveryTicks(m, sent, online, readTarget);
   const hasSearchMatch =
     searchQuery &&
     msg.content &&
@@ -97,10 +110,19 @@ const MessageBubble = ({
         </button>
       )}
 
-      {/* Reply Preview */}
+      {/* Reply Preview — the bubble it sits in is either the solid accent
+          color (sent) or the theme's surface color (received), so this
+          quote needs its own contrast per case rather than one fixed
+          dark-on-dark styling that only worked on a dark canvas. */}
       {msg.replyTo && (
-        <div className="p-2 mb-1.5 rounded bg-black/20 border-l-2 border-violet-400 text-xs text-gray-300">
-          <span className="font-bold text-violet-300 block">
+        <div
+          className={`p-2 mb-1.5 rounded border-l-2 text-xs ${
+            isSent
+              ? "bg-white/15 border-white/70 text-white/90"
+              : "bg-fg/6 border-accent text-fg-secondary"
+          }`}
+        >
+          <span className={`font-bold block ${isSent ? "text-white" : "text-accent-fg"}`}>
             {msg.replyTo.sender?.username || "Replied"}
           </span>
           <span className="truncate block">
@@ -115,7 +137,7 @@ const MessageBubble = ({
         isSent={isSent}
         isRecipientOnline={isRecipientOnline}
         formatMessageClock={formatMessageClock}
-        renderDeliveryTicks={renderDeliveryTicks}
+        renderDeliveryTicks={renderTicks}
         audioState={audioState}
         onToggleAudioPlay={onToggleAudioPlay}
         onSeekAudio={onSeekAudio}
@@ -130,7 +152,7 @@ const MessageBubble = ({
               {hasSearchMatch ? (
                 <span>
                   {msg.content
-                    .split(new RegExp(`(${searchQuery})`, "gi"))
+                    .split(new RegExp(`(${escapeRegExp(searchQuery)})`, "gi"))
                     .map((part, pIdx) =>
                       part.toLowerCase() === searchQuery.toLowerCase() ? (
                         <mark key={pIdx} className="search-match-highlight">
@@ -150,7 +172,7 @@ const MessageBubble = ({
           {/* Message Metadata & Delivery Ticks (Directly at right, zero trailing space) */}
           <div className="message-meta inline-flex items-center ml-auto flex-shrink-0 select-none self-end">
             {isPinned && (
-              <span className="material-icons text-[11px] text-violet-300 mr-1" title="Pinned message">
+              <span className="material-icons msg-pin-icon" title="Pinned message" aria-label="Pinned">
                 push_pin
               </span>
             )}
@@ -164,10 +186,28 @@ const MessageBubble = ({
             </span>
             {isSent && (
               <span className="ml-1.5 flex items-center">
-                {renderDeliveryTicks(msg, isSent, isRecipientOnline)}
+                {renderTicks(msg, isSent, isRecipientOnline)}
               </span>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Failed send: say so and offer the fix, instead of a bare red icon */}
+      {isSent && msg.status === "failed" && (onRetryFailed || onDiscardFailed) && (
+        <div className="msg-failed-row" role="alert">
+          <span className="material-icons text-[14px]">error_outline</span>
+          <span>Not sent</span>
+          {onRetryFailed && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onRetryFailed(msg); }}>
+              Retry
+            </button>
+          )}
+          {onDiscardFailed && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onDiscardFailed(msg); }}>
+              Delete
+            </button>
+          )}
         </div>
       )}
     </div>

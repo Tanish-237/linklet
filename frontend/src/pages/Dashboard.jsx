@@ -1,21 +1,20 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from "react";
+import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "@tanstack/react-query";
 import AttendanceTracker from "../components/AttendanceTracker";
 import DailySchedule from "../components/DailySchedule";
-import TimetableUploadModal from "../components/TimetableUploadModal";
-import WeeklyTimetableModal from "../components/WeeklyTimetableModal";
-import SubjectInfoModal from "../components/SubjectInfoModal";
-import Resource from "./Resource";
-import HelpForum from "./HelpForum";
-import QuestionDetail from "./QuestionDetail";
 import { useAuth } from "../context/AuthContext";
 import { fetchDashboardStats } from "../api/dashboard.api";
 import { fetchTimetable } from "../api/timetable.api";
 
+// The three timetable modals are only ever opened on demand, so they're split
+// out of the Dashboard chunk and fetched the first time one is opened.
+const TimetableUploadModal = lazy(() => import("../components/TimetableUploadModal"));
+const WeeklyTimetableModal = lazy(() => import("../components/WeeklyTimetableModal"));
+const SubjectInfoModal = lazy(() => import("../components/SubjectInfoModal"));
+
 export default function Dashboard() {
-  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -44,7 +43,6 @@ export default function Dashboard() {
   const hasTimetable = dashboardData?.hasTimetable ?? null;
 
   // Triggers for child components & modals
-  const [addEventTrigger] = useState(0);
   const [scheduleRefreshTrigger, setScheduleRefreshTrigger] = useState(0);
   const [attendanceRefreshTrigger, setAttendanceRefreshTrigger] = useState(0);
 
@@ -82,20 +80,6 @@ export default function Dashboard() {
   };
 
   const renderMainContent = () => {
-    const path = location.pathname;
-
-    if (path === "/dashboard/resources") {
-      return <Resource />;
-    }
-
-    if (path.startsWith("/dashboard/help")) {
-      return <HelpForum basePath="/dashboard" />;
-    }
-
-    if (path.startsWith("/dashboard/question/")) {
-      return <QuestionDetail basePath="/dashboard" />;
-    }
-
     const metrics = stats?.metrics || {
       questionsCount: 0,
       answersCount: 0,
@@ -112,14 +96,14 @@ export default function Dashboard() {
     return (
       <div className="space-y-8 max-w-7xl mx-auto pb-12">
         {/* Top Hero Banner */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-950/70 via-gray-900 to-black p-4 sm:p-8 md:p-10 border border-violet-800/40 shadow-2xl">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 rounded-full bg-violet-600/10 blur-3xl pointer-events-none"></div>
-          <div className="absolute bottom-0 left-1/3 -mb-12 w-60 h-60 rounded-full bg-purple-600/10 blur-3xl pointer-events-none"></div>
+        <div className="relative overflow-hidden rounded-3xl bg-surface p-4 sm:p-8 md:p-10 border border-line shadow-sm">
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 w-64 h-64 rounded-full bg-accent/10 blur-3xl pointer-events-none"></div>
+          <div className="absolute bottom-0 left-1/3 -mb-12 w-60 h-60 rounded-full bg-accent/10 blur-3xl pointer-events-none"></div>
 
           <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-5 sm:gap-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-fg-muted">
                   {new Date().toLocaleDateString("en-US", {
                     weekday: "long",
                     month: "short",
@@ -129,9 +113,9 @@ export default function Dashboard() {
                 </span>
               </div>
 
-              <h1 className="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+              <h1 className="text-2xl sm:text-4xl font-extrabold text-fg tracking-tight">
                 {getTimeGreeting()},{" "}
-                <span className="text-violet-400 font-bold">
+                <span className="text-accent-fg font-bold">
                   {user?.fullName?.split(" ")[0] || user?.username || "Scholar"}
                 </span>
               </h1>
@@ -139,20 +123,20 @@ export default function Dashboard() {
               {(user?.department || user?.semester || user?.section) && (
                 <div className="flex flex-wrap items-center gap-2 mt-3">
                   {user?.department && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/70 text-gray-300 border border-gray-700/60 flex items-center gap-1.5">
-                      <span className="material-icons text-[13px] text-violet-400">school</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-surface-2 text-fg-secondary border border-line flex items-center gap-1.5">
+                      <span className="material-icons text-[13px] text-accent-fg">school</span>
                       {user.department}
                     </span>
                   )}
                   {user?.semester && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/70 text-gray-300 border border-gray-700/60 flex items-center gap-1.5">
-                      <span className="material-icons text-[13px] text-violet-400">auto_stories</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-surface-2 text-fg-secondary border border-line flex items-center gap-1.5">
+                      <span className="material-icons text-[13px] text-accent-fg">auto_stories</span>
                       Sem {user.semester}
                     </span>
                   )}
                   {user?.section && (
-                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-gray-800/70 text-gray-300 border border-gray-700/60 flex items-center gap-1.5">
-                      <span className="material-icons text-[13px] text-violet-400">groups</span>
+                    <span className="px-2.5 py-0.5 rounded-lg text-xs font-medium bg-surface-2 text-fg-secondary border border-line flex items-center gap-1.5">
+                      <span className="material-icons text-[13px] text-accent-fg">groups</span>
                       Sec {user.section}
                     </span>
                   )}
@@ -163,18 +147,18 @@ export default function Dashboard() {
             {/* Quick Action Buttons */}
             <div className="flex flex-wrap items-center gap-3">
               <button
-                onClick={() => navigate("/dashboard/help")}
-                className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 cursor-pointer"
+                onClick={() => navigate("/help")}
+                className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-on-accent px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 cursor-pointer"
               >
                 <span className="material-icons text-base">help_outline</span>
                 Ask Question
               </button>
 
               <button
-                onClick={() => navigate("/dashboard/global-search")}
-                className="flex items-center gap-2 bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 cursor-pointer"
+                onClick={() => navigate("/resource-hub")}
+                className="flex items-center gap-2 bg-surface-2 hover:bg-surface-3 text-fg-secondary border border-line px-4 py-2.5 rounded-xl text-sm font-medium shadow-sm transition-colors duration-150 cursor-pointer"
               >
-                <span className="material-icons text-base text-violet-400">cloud_upload</span>
+                <span className="material-icons text-base text-accent-fg">cloud_upload</span>
                 Upload Notes
               </button>
             </div>
@@ -190,7 +174,7 @@ export default function Dashboard() {
               count: metrics.questionsCount,
               badge: "Help Forum",
               color: "text-violet-400 border-violet-500/20 bg-violet-950/20",
-              onClick: () => navigate("/dashboard/help"),
+              onClick: () => navigate("/help"),
             },
             {
               icon: "forum",
@@ -198,7 +182,7 @@ export default function Dashboard() {
               count: metrics.answersCount,
               badge: "Contributions",
               color: "text-blue-400 border-blue-500/20 bg-blue-950/20",
-              onClick: () => navigate("/dashboard/help"),
+              onClick: () => navigate("/help"),
             },
             {
               icon: "menu_book",
@@ -206,7 +190,7 @@ export default function Dashboard() {
               count: metrics.resourcesCount,
               badge: "Uploaded",
               color: "text-emerald-400 border-emerald-500/20 bg-emerald-950/20",
-              onClick: () => navigate("/dashboard/global-search"),
+              onClick: () => navigate("/resource-hub"),
             },
             {
               icon: "bookmark",
@@ -214,7 +198,7 @@ export default function Dashboard() {
               count: metrics.bookmarksCount,
               badge: "Saved Items",
               color: "text-amber-400 border-amber-500/20 bg-amber-950/20",
-              onClick: () => navigate("/dashboard/saved"),
+              onClick: () => navigate("/saved"),
             },
           ].map(({ icon, title, count, badge, color, onClick }) => (
             <div
@@ -226,13 +210,13 @@ export default function Dashboard() {
                 <span className="material-icons text-xl sm:text-2xl group-hover:scale-110 transition-transform">
                   {icon}
                 </span>
-                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-gray-400 px-1.5 py-0.5 rounded bg-black/30">
+                <span className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-wider text-fg-muted px-1.5 py-0.5 rounded bg-surface-3">
                   {badge}
                 </span>
               </div>
               <div className="mt-3 sm:mt-4">
-                <div className="text-xl sm:text-2xl font-extrabold text-white font-mono">{count}</div>
-                <div className="text-[11px] sm:text-xs text-gray-400 font-medium mt-0.5 truncate">{title}</div>
+                <div className="text-xl sm:text-2xl font-extrabold text-fg font-mono">{count}</div>
+                <div className="text-[11px] sm:text-xs text-fg-muted font-medium mt-0.5 truncate">{title}</div>
               </div>
             </div>
           ))}
@@ -242,7 +226,7 @@ export default function Dashboard() {
         {hasTimetable === false && (
           <div
             data-testid="timetable-onboarding-banner"
-            className="relative overflow-hidden rounded-2xl bg-gray-900/60 border border-gray-800 hover:border-violet-500/30 p-5 sm:p-6 shadow-lg backdrop-blur-md transition-colors duration-200"
+            className="relative overflow-hidden rounded-2xl bg-surface border border-line hover:border-accent/30 p-5 sm:p-6 shadow-sm transition-colors duration-200"
           >
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
               <div className="flex items-start sm:items-center gap-4">
@@ -251,14 +235,14 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <h3 className="text-base sm:text-lg font-semibold text-white tracking-tight">
+                    <h3 className="text-base sm:text-lg font-semibold text-fg tracking-tight">
                       Upload your timetable to get started
                     </h3>
                     <span className="text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-md bg-violet-500/10 text-violet-400 border border-violet-500/20">
                       Quick Setup
                     </span>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-400 leading-relaxed max-w-2xl">
+                  <p className="text-xs sm:text-sm text-fg-muted leading-relaxed max-w-2xl">
                     Scan your semester timetable (PDF or image) to automatically populate your Daily Schedule with lectures, labs, and tutorials, and unlock one-tap attendance tracking and bunk safety alerts.
                   </p>
                 </div>
@@ -269,7 +253,7 @@ export default function Dashboard() {
                   type="button"
                   id="onboarding-upload-timetable-btn"
                   onClick={() => setShowUploadModal(true)}
-                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 active:bg-violet-700 text-white font-medium text-xs sm:text-sm px-5 py-2.5 sm:py-3 rounded-xl shadow-sm transition-colors duration-150 cursor-pointer"
+                  className="flex items-center gap-2 bg-accent hover:bg-accent-hover text-on-accent font-medium text-xs sm:text-sm px-5 py-2.5 sm:py-3 rounded-xl shadow-sm transition-colors duration-150 cursor-pointer"
                 >
                   <span className="material-icons text-base">upload_file</span>
                   <span>Upload Timetable</span>
@@ -280,29 +264,46 @@ export default function Dashboard() {
         )}
 
         {/* Action Bar: Subject Info and Timetable Options */}
-        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-gray-900/50 backdrop-blur-md border border-gray-800/80 shadow-lg">
+        <div className="relative z-30 flex flex-wrap items-center justify-between gap-3 sm:gap-4 p-3 sm:p-4 rounded-2xl bg-surface border border-line shadow-sm">
           <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
             <button
               id="dashboard-subject-info-btn"
               onClick={() => setShowSubjectInfoModal(true)}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-surface-2 hover:bg-surface-3 text-fg-secondary border border-line hover:border-accent/40 transition-colors cursor-pointer shadow-sm"
             >
-              <span className="material-icons text-base text-violet-400">auto_stories</span>
+              <span className="material-icons text-base text-accent-fg">auto_stories</span>
               <span>Subject Info</span>
             </button>
           </div>
 
-          {/* Timetable Options Dropdown */}
-          <div className="relative z-50" ref={timetableDropdownRef}>
+          {/* Timetable Options Dropdown. z-[60], not z-50 — the rail's own
+              bottom cluster (profile/theme/notifications) is also z-50 in
+              Layout.jsx, and since the rail is a DOM sibling of this page's
+              content (not an ancestor), a tied z-index falls back to DOM
+              order — the rail comes later in the tree, so it was always
+              winning and rendering on top of this dropdown regardless of
+              which one was actually open.
+
+              The panel itself dropped `backdrop-blur-xl` in favour of a
+              fully opaque `bg-surface` + `isolate`: combined with this
+              element's own enter animation (`animate-in slide-in-from-top-2`,
+              which drives a CSS transform), the backdrop-filter was causing
+              some browsers to blur far more of the page than this ~14rem
+              panel's own box — the rail buttons stayed sharp only because
+              they render in a separate layer on top, while everything else
+              behind them visibly blurred. `isolate` pins this dropdown to
+              its own stacking context so it can't leak into siblings either
+              way. */}
+          <div className="relative z-[60]" ref={timetableDropdownRef}>
             <button
               id="dashboard-timetable-options-btn"
               onClick={() => setIsTimetableMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-gray-800/90 hover:bg-gray-750 text-gray-200 border border-gray-700/80 hover:border-violet-500/40 transition-colors cursor-pointer shadow-sm"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-medium bg-surface-2 hover:bg-surface-3 text-fg-secondary border border-line hover:border-accent/40 transition-colors cursor-pointer shadow-sm"
             >
-              <span className="material-icons text-base text-violet-400">calendar_month</span>
+              <span className="material-icons text-base text-accent-fg">calendar_month</span>
               <span>Timetable Options</span>
               <span
-                className={`material-icons text-sm text-gray-400 transition-transform duration-200 ${
+                className={`material-icons text-sm text-fg-muted transition-transform duration-200 ${
                   isTimetableMenuOpen ? "rotate-180" : ""
                 }`}
               >
@@ -311,7 +312,7 @@ export default function Dashboard() {
             </button>
 
             {isTimetableMenuOpen && (
-              <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-2xl bg-gray-900/95 backdrop-blur-xl border border-violet-800/40 shadow-2xl z-50 py-2 divide-y divide-gray-800/80 animate-in fade-in slide-in-from-top-2 duration-150">
+              <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-2xl bg-surface isolate border border-violet-800/40 shadow-2xl z-[60] py-2 divide-y divide-line/80 animate-in fade-in slide-in-from-top-2 duration-150">
                 <div className="p-1">
                   <button
                     id="dashboard-view-timetable-option"
@@ -319,12 +320,12 @@ export default function Dashboard() {
                       setIsTimetableMenuOpen(false);
                       setShowWeeklyTimetableModal(true);
                     }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-gray-200 hover:text-white hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-fg-secondary hover:text-fg hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
                   >
                     <span className="material-icons text-base text-violet-400">calendar_view_week</span>
                     <div className="text-left">
                       <div className="font-semibold">View Timetable</div>
-                      <div className="text-[11px] text-gray-400">View & edit weekly schedule</div>
+                      <div className="text-[11px] text-fg-muted">View & edit weekly schedule</div>
                     </div>
                   </button>
 
@@ -334,12 +335,12 @@ export default function Dashboard() {
                       setIsTimetableMenuOpen(false);
                       setShowUploadWarningModal(true);
                     }}
-                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-gray-200 hover:text-white hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 text-xs sm:text-sm font-medium text-fg-secondary hover:text-fg hover:bg-violet-600/20 rounded-xl transition cursor-pointer"
                   >
                     <span className="material-icons text-base text-purple-400">upload_file</span>
                     <div className="text-left">
                       <div className="font-semibold">Upload New Timetable</div>
-                      <div className="text-[11px] text-gray-400">Scan & sync PDF timetable</div>
+                      <div className="text-[11px] text-fg-muted">Scan & sync PDF timetable</div>
                     </div>
                   </button>
                 </div>
@@ -359,7 +360,6 @@ export default function Dashboard() {
               loadStats();
               setAttendanceRefreshTrigger((prev) => prev + 1);
             }}
-            addEventTrigger={addEventTrigger}
             refreshTrigger={scheduleRefreshTrigger}
           />
           <AttendanceTracker
@@ -371,22 +371,22 @@ export default function Dashboard() {
         {/* Recent Contributions Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Recent Questions */}
-          <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 border border-gray-800">
+          <div className="bg-surface rounded-2xl p-6 border border-line">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                <span className="material-icons text-sm text-violet-400">help</span>
+              <h3 className="text-base font-bold text-fg flex items-center gap-2">
+                <span className="material-icons text-sm text-accent-fg">help</span>
                 Recent Questions Asked
               </h3>
               <button
-                onClick={() => navigate("/dashboard/help")}
-                className="text-xs text-violet-400 hover:text-violet-300 transition"
+                onClick={() => navigate("/help")}
+                className="text-xs text-accent-fg hover:text-accent-hover transition"
               >
                 View All
               </button>
             </div>
 
             {recentActivity.questions.length === 0 ? (
-              <p className="text-xs text-gray-500 py-6 text-center">
+              <p className="text-xs text-fg-subtle py-6 text-center">
                 No questions asked yet. Ask the community when in doubt!
               </p>
             ) : (
@@ -394,11 +394,11 @@ export default function Dashboard() {
                 {recentActivity.questions.map((q) => (
                   <div
                     key={q._id}
-                    onClick={() => navigate(`/dashboard/question/${q._id}`)}
-                    className="p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800/80 border border-gray-800/80 hover:border-violet-500/30 cursor-pointer transition flex items-center justify-between text-xs"
+                    onClick={() => navigate(`/help/question/${q._id}`)}
+                    className="p-3 rounded-xl bg-surface-2 hover:bg-surface-3 border border-line hover:border-accent/30 cursor-pointer transition flex items-center justify-between text-xs"
                   >
-                    <span className="font-semibold text-gray-200 truncate pr-2">{q.title}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-violet-900/40 text-violet-300 whitespace-nowrap">
+                    <span className="font-semibold text-fg-secondary truncate pr-2">{q.title}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-accent-soft text-accent-fg whitespace-nowrap">
                       {q.category || "General"}
                     </span>
                   </div>
@@ -408,22 +408,22 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Resources */}
-          <div className="bg-gray-900/50 backdrop-blur-md rounded-2xl p-6 border border-gray-800">
+          <div className="bg-surface rounded-2xl p-6 border border-line">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <h3 className="text-base font-bold text-fg flex items-center gap-2">
                 <span className="material-icons text-sm text-emerald-400">menu_book</span>
                 Recent Uploaded Resources
               </h3>
               <button
-                onClick={() => navigate("/dashboard/global-search")}
-                className="text-xs text-violet-400 hover:text-violet-300 transition"
+                onClick={() => navigate("/resource-hub")}
+                className="text-xs text-accent-fg hover:text-accent-hover transition"
               >
                 Browse
               </button>
             </div>
 
             {recentActivity.resources.length === 0 ? (
-              <p className="text-xs text-gray-500 py-6 text-center">
+              <p className="text-xs text-fg-subtle py-6 text-center">
                 No resources uploaded yet. Share notes and papers with your batch!
               </p>
             ) : (
@@ -431,10 +431,10 @@ export default function Dashboard() {
                 {recentActivity.resources.map((r) => (
                   <div
                     key={r._id}
-                    onClick={() => navigate("/dashboard/global-search")}
-                    className="p-3 rounded-xl bg-gray-800/40 hover:bg-gray-800/80 border border-gray-800/80 hover:border-emerald-500/30 cursor-pointer transition flex items-center justify-between text-xs"
+                    onClick={() => navigate("/resource-hub")}
+                    className="p-3 rounded-xl bg-surface-2 hover:bg-surface-3 border border-line hover:border-emerald-500/30 cursor-pointer transition flex items-center justify-between text-xs"
                   >
-                    <span className="font-semibold text-gray-200 truncate pr-2">{r.title}</span>
+                    <span className="font-semibold text-fg-secondary truncate pr-2">{r.title}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-800/40 uppercase font-mono">
                       {r.fileType || "doc"}
                     </span>
@@ -447,14 +447,14 @@ export default function Dashboard() {
 
         {/* Warning Confirmation Modal before Uploading New Timetable */}
         {showUploadWarningModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-            <div className="bg-gray-900 border border-amber-500/40 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl p-6 space-y-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
+            <div className="bg-surface border border-amber-500/40 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl p-6 space-y-4">
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
                   <span className="material-icons text-2xl">warning</span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-white">Upload New Timetable?</h3>
+                  <h3 className="text-lg font-bold text-fg">Upload New Timetable?</h3>
                   <p className="text-xs text-amber-400/90 font-medium">Important: Data Reset Notice</p>
                 </div>
               </div>
@@ -463,7 +463,7 @@ export default function Dashboard() {
                 <p>
                   Uploading a new timetable will <strong>permanently wipe</strong> all current <strong>Daily Schedule</strong> events and reset all <strong>Attendance Guardian</strong> records.
                 </p>
-                <p className="text-[11px] text-gray-400">
+                <p className="text-[11px] text-fg-muted">
                   This ensures a clean start with your new semester subjects and prevents conflicting schedule items.
                 </p>
               </div>
@@ -472,7 +472,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   onClick={() => setShowUploadWarningModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white hover:bg-gray-800 transition cursor-pointer"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-fg-secondary hover:text-fg hover:bg-surface-2 transition cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -482,7 +482,7 @@ export default function Dashboard() {
                     setShowUploadWarningModal(false);
                     setShowUploadModal(true);
                   }}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-900/30 transition cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-on-accent bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-900/30 transition cursor-pointer flex items-center gap-1.5"
                 >
                   <span className="material-icons text-sm">upload_file</span>
                   Proceed to Upload
@@ -492,7 +492,9 @@ export default function Dashboard() {
           </div>
         )}
 
+        <Suspense fallback={null}>
         {/* Timetable Upload & Verification Modal */}
+        {showUploadModal && (
         <TimetableUploadModal
           isOpen={showUploadModal}
           onClose={() => setShowUploadModal(false)}
@@ -504,8 +506,10 @@ export default function Dashboard() {
           userSection={user?.section}
           userSubSection={user?.subSection}
         />
+        )}
 
         {/* Full Weekly Timetable Modal */}
+        {showWeeklyTimetableModal && (
         <WeeklyTimetableModal
           isOpen={showWeeklyTimetableModal}
           onClose={() => setShowWeeklyTimetableModal(false)}
@@ -520,8 +524,10 @@ export default function Dashboard() {
             setAttendanceRefreshTrigger((prev) => prev + 1);
           }}
         />
+        )}
 
         {/* Subject Information Management Modal */}
+        {showSubjectInfoModal && (
         <SubjectInfoModal
           isOpen={showSubjectInfoModal}
           onClose={() => setShowSubjectInfoModal(false)}
@@ -531,6 +537,8 @@ export default function Dashboard() {
             setAttendanceRefreshTrigger((prev) => prev + 1);
           }}
         />
+        )}
+        </Suspense>
       </div>
     );
   };

@@ -43,6 +43,7 @@ export default function NotificationDropdown({
   isOpen: controlledIsOpen,
   onToggle: controlledOnToggle,
   onClose: controlledOnClose,
+  expanded = false,
 } = {}) {
   const [internalIsOpen, setInternalIsOpen] = useState(false);
   const isControlled = typeof controlledIsOpen === "boolean";
@@ -208,37 +209,54 @@ export default function NotificationDropdown({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      {/* Bell Trigger Button */}
+      {/* Bell Trigger Button — a full-width labelled row when the sidebar is
+          extended, otherwise a compact icon matching the theme toggle. */}
       <button
         type="button"
         id="notification-bell-btn"
         aria-label="Notifications"
         aria-expanded={isOpen}
         onClick={handleToggle}
-        className="relative p-2.5 rounded-xl hover:bg-violet-950/40 text-gray-300 hover:text-white transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-violet-500/50 group"
+        className={
+          expanded
+            ? "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-fg-secondary hover:text-fg hover:bg-surface-2 transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 group"
+            : "relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 rounded-full border border-line bg-surface-2 hover:bg-surface-3 text-fg-secondary hover:text-fg transition-colors duration-150 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 group"
+        }
       >
-        <svg
-          className="w-5 h-5 transition-transform duration-200 group-hover:scale-110"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-          <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-        </svg>
-
-        {unreadCount > 0 && (
-          <span
-            className={`absolute -top-0.5 -right-0.5 bg-violet-600 text-white font-bold text-[10px] min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-md shadow-violet-900/60 transition-transform ${
-              pulse ? "scale-125 ring-2 ring-violet-400 animate-pulse" : "scale-100"
-            }`}
+        <span className="relative flex items-center justify-center w-5 h-5 shrink-0">
+          <svg
+            className="w-5 h-5 transition-transform duration-200 group-hover:scale-110"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            {unreadCount > 9 ? "9+" : unreadCount}
-          </span>
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+          </svg>
+
+          {unreadCount > 0 && !expanded && (
+            <span
+              className={`absolute -top-1.5 -right-1.5 bg-accent text-on-accent font-bold text-[10px] min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-md transition-transform ${
+                pulse ? "scale-125 ring-2 ring-accent/50 animate-pulse" : "scale-100"
+              }`}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </span>
+        {expanded && (
+          <>
+            <span className="text-[14.5px] font-medium">Notifications</span>
+            {unreadCount > 0 && (
+              <span className="ml-auto min-w-[20px] h-5 px-1.5 flex items-center justify-center text-[11px] font-bold bg-accent text-on-accent rounded-full shrink-0">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </>
         )}
       </button>
 
@@ -247,7 +265,7 @@ export default function NotificationDropdown({
         <div
           role="dialog"
           aria-label="Notifications panel"
-          className="fixed inset-x-3 top-[76px] sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 w-auto sm:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] sm:max-h-none bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
+          className="fixed inset-x-3 bottom-[72px] md:inset-x-auto md:absolute md:bottom-0 md:left-full md:right-auto md:ml-3 w-auto md:w-96 max-w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-90px)] md:max-h-[70vh] bg-gray-900/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-800 transition-all duration-200 z-50 flex flex-col overflow-hidden animate-in fade-in zoom-in-95"
         >
           {/* Header */}
           <div className="p-4 border-b border-gray-800/80 flex items-center justify-between gap-3 bg-gray-950/50">

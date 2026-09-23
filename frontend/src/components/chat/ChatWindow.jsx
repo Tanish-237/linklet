@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
-import { toast } from "react-toastify";
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
+import { toast } from "sonner";
 import { apiClient } from "../../api/apiClient";
+import { generateClientId } from "../../utlis/clientId";
 
 // Chat Subcomponents
 import ChatHeader from "./header/ChatHeader";
@@ -17,7 +18,7 @@ import ConfirmDeleteModal from "../ConfirmDeleteModal";
 import ForwardMessageModal from "../ForwardMessageModal";
 
 // Custom Hooks
-import { useChatMessages } from "./hooks/useChatMessages";
+import { useChatMessages, upsertMessage } from "./hooks/useChatMessages";
 import { useVoiceRecorder } from "./hooks/useVoiceRecorder";
 import { useAudioPlayback } from "./hooks/useAudioPlayback";
 import { useInChatSearch } from "./hooks/useInChatSearch";
@@ -35,12 +36,18 @@ const ChatWindow = ({
   isBlocked = false,
   highlightMessageId = null,
   onClearHighlight,
+  // Tells ChatPage a chat's pins changed so the sidebar/activeChat stay in sync
+  onPinnedMessagesChange,
+  // { count, lastReadAt } for this chat at the moment it was opened — where
+  // the "N unread messages" divider goes and where the view opens.
+  unreadSnapshot = null,
 }) => {
   // Messages & Socket lifecycle hook
   const {
     messages,
     setMessages,
     loadingInitial,
+    initialFetchDone,
     loadingOlder,
     hasMore,
     typingUsers,
@@ -51,25 +58,45 @@ const ChatWindow = ({
     togglePin,
     deleteMessage,
     bulkDeleteMessages,
+    hideMessageForMe,
   } = useChatMessages({
     chat,
     currentUser,
     socket,
     onUpdateLastMessage,
+    onPinnedMessagesChange: (pinned) => applyPinned(pinned),
   });
 
-  // In-Chat Search hook
-  const {
-    isSearchOpen,
-    setIsSearchOpen,
-    searchQuery,
-    setSearchQuery,
-    matchedIndices,
-    currentMatchIndex,
-    nextMatch,
-    prevMatch,
-    closeSearch,
-  } = useInChatSearch(messages);
+  // ── Pinned messages ───────────────────────────────────────────────────
+  // Held locally so pin/unpin shows instantly (optimistic), then confirmed by
+  // the server response and the "message pinned/unpinned" broadcast (which
+  // also covers pins made by the other person). Rolled back on failure.
+  const [pinnedMessages, setPinnedMessages] = useState(() => chat.pinnedMessages || []);
+  const pinnedRef = useRef(pinnedMessages);
+  useEffect(() => {
+    pinnedRef.current = pinnedMessages;
+  }, [pinnedMessages]);
+  useEffect(() => {
+    setPinnedMessages(chat.pinnedMessages || []);
+  }, [chat.pinnedMessages]);
+
+  const onPinnedChangeRef = useRef(onPinnedMessagesChange);
+  useEffect(() => {
+    onPinnedChangeRef.current = onPinnedMessagesChange;
+  });
+
+  const applyPinned = useCallback(
+    (next) => {
+      setPinnedMessages(next);
+      onPinnedChangeRef.current?.(chat._id, next);
+    },
+    [chat._id]
+  );
+
+  const pinnedIds = useMemo(
+    () => new Set(pinnedMessages.map((p) => String(p?._id || p))),
+    [pinnedMessages]
+  );
 
   // Audio Playback hook
   const { audioPlaybackState, toggleAudioPlay, seekAudio } = useAudioPlayback();
@@ -81,6 +108,12 @@ const ChatWindow = ({
   const [replyingTo, setReplyingTo] = useState(null);
   const [editingMessage, setEditingMessage] = useState(null);
   const [isSending, setIsSending] = useState(false);
+  // Synchronous guard against a double-fire send (e.g. a fast double Enter, whose
+  // second keypress can land before the `isSending` state update from the first
+  // has re-rendered the disabled submit button). `isSending` state still drives
+  // the UI; this ref exists purely to make the very first line of the handler
+  // reject a same-tick re-entry that a stale closure over `isSending` would miss.
+  const sendInFlightRef = useRef(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
 
   // Floating Context Menu & Reaction picker state
@@ -107,6 +140,42 @@ const ChatWindow = ({
       return [];
     }
     return [];
+  });
+
+  // "Go to message" target: from the URL (Saved, notifications) or set locally
+  // (pinned banner). Same load-older-until-found flow either way.
+  const [jumpTargetId, setJumpTargetId] = useState(null);
+  const targetMessageId = highlightMessageId || jumpTargetId;
+  const highlightFromUrlRef = useRef(highlightMessageId);
+  useEffect(() => {
+    highlightFromUrlRef.current = highlightMessageId;
+  });
+  const clearTarget = useCallback(() => {
+    setJumpTargetId(null);
+    // Only touch the URL when the target actually came from it
+    if (highlightFromUrlRef.current && onClearHighlight) onClearHighlight();
+  }, [onClearHighlight]);
+
+  // In-chat search (whole history, server-side) — jumps reuse the same
+  // load-older-until-found flow as "go to message".
+  const {
+    isSearchOpen,
+    setIsSearchOpen,
+    searchQuery,
+    setSearchQuery,
+    highlightQuery,
+    matchCount,
+    currentMatchIndex,
+    activeMatchId,
+    isSearching,
+    hasSearched,
+    olderMatch,
+    newerMatch,
+    closeSearch,
+  } = useInChatSearch({
+    chatId: chat?._id,
+    messages,
+    onJumpTo: (id) => setJumpTargetId(id),
   });
 
   // Scroll to bottom & unread badge state
@@ -144,20 +213,24 @@ const ChatWindow = ({
       if (!audioFile || !chat?._id) return;
       setIsSending(true);
 
-      const optimisticId = `opt_${Date.now()}`;
+      const clientId = generateClientId();
+      const optimisticId = `opt_${clientId}`;
       const optimisticAudioMsg = {
         _id: optimisticId,
+        clientId,
         sender: currentUser,
         chat: chat._id,
         content: "",
         media: URL.createObjectURL(audioFile),
         mediaType: "audio",
         createdAt: new Date().toISOString(),
-        status: "sent",
+        status: "sending",
         readBy: [currentUser?._id],
+        // Kept on the bubble so "Retry" can resend exactly this recording
+        retryPayload: { kind: "audio", file: audioFile },
       };
 
-      setMessages((prev) => [...prev, optimisticAudioMsg]);
+      setMessages((prev) => upsertMessage(prev, optimisticAudioMsg));
 
       try {
         const formData = new FormData();
@@ -165,6 +238,7 @@ const ChatWindow = ({
         formData.append("media", audioFile);
         formData.append("file", audioFile);
         formData.append("mediaType", "audio");
+        formData.append("clientId", clientId);
 
         const res = await apiClient.post("/chat/message", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -172,9 +246,11 @@ const ChatWindow = ({
 
         if (res.data.success) {
           const confirmed = Array.isArray(res.data.data) ? res.data.data[0] : res.data.data;
-          setMessages((prev) =>
-            prev.map((m) => (m._id === optimisticId ? confirmed : m))
-          );
+          // upsertMessage matches by clientId, so this reconciles the optimistic
+          // bubble whether or not the socket broadcast (same clientId) already beat
+          // the HTTP response here and replaced it first — either order lands on
+          // exactly one message, never two.
+          setMessages((prev) => upsertMessage(prev, confirmed));
           // The server broadcasts "message received" to the chat room and every
           // participant's personal room right after persisting the message — the
           // client no longer relays this itself (see backend socket.js notifyNewMessage).
@@ -190,7 +266,7 @@ const ChatWindow = ({
         setIsSending(false);
       }
     },
-    [chat?._id, currentUser, setMessages, socket, onUpdateLastMessage]
+    [chat?._id, currentUser, setMessages, onUpdateLastMessage]
   );
 
   const {
@@ -200,6 +276,64 @@ const ChatWindow = ({
     stopAndSendAudio,
     cancelRecordingAudio,
   } = useVoiceRecorder(handleSendAudioFile);
+
+  const stickToBottomRef = useRef(true);
+
+  // ── Scroll anchoring ──────────────────────────────────────────────────
+  // Our own, instead of the browser's (disabled via overflow-anchor: none on
+  // .chat-messages): remember which message is at the top of the viewport and
+  // its offset, and after anything above it changes height — older messages
+  // prepended, the "loading older" spinner appearing, an image finishing
+  // loading — put that same message back at the same offset. Chrome's native
+  // anchoring plus a manual scrollHeight correction on prepend adjusted
+  // twice and threw the reader far down the chat; Safari has no native
+  // anchoring at all. This behaves identically everywhere.
+  const scrollAnchorRef = useRef(null); // { id, offset }
+  const anchorFrameRef = useRef(0);
+
+  const captureScrollAnchor = useCallback(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const top = container.getBoundingClientRect().top;
+    const rows = container.querySelectorAll('[id^="msg-"]');
+    for (const row of rows) {
+      const rect = row.getBoundingClientRect();
+      if (rect.bottom > top + 1) {
+        scrollAnchorRef.current = { id: row.id, offset: rect.top - top };
+        return;
+      }
+    }
+    scrollAnchorRef.current = null;
+  }, []);
+
+  const scheduleAnchorCapture = useCallback(() => {
+    if (anchorFrameRef.current) return;
+    anchorFrameRef.current = requestAnimationFrame(() => {
+      anchorFrameRef.current = 0;
+      captureScrollAnchor();
+    });
+  }, [captureScrollAnchor]);
+
+  const restoreScrollAnchor = useCallback(() => {
+    const container = chatContainerRef.current;
+    const anchor = scrollAnchorRef.current;
+    if (!container || !anchor) return;
+    const row = document.getElementById(anchor.id);
+    if (!row || !container.contains(row)) {
+      captureScrollAnchor();
+      return;
+    }
+    const offset = row.getBoundingClientRect().top - container.getBoundingClientRect().top;
+    const delta = offset - anchor.offset;
+    if (Math.abs(delta) >= 1) container.scrollTop += delta;
+  }, [captureScrollAnchor]);
+
+  useEffect(() => () => cancelAnimationFrame(anchorFrameRef.current), []);
+
+  const handleLoadOlderClick = useCallback(() => {
+    captureScrollAnchor();
+    loadOlderMessages();
+  }, [captureScrollAnchor, loadOlderMessages]);
 
   // Scroll listener: dismiss menus, show scroll-to-bottom button, infinite scroll
   const handleMessagesScroll = useCallback(
@@ -214,6 +348,8 @@ const ChatWindow = ({
 
       const distanceFromBottom =
         container.scrollHeight - container.scrollTop - container.clientHeight;
+      stickToBottomRef.current = distanceFromBottom < 80;
+      scheduleAnchorCapture();
       const isScrolledUp = distanceFromBottom > 180;
       setShowScrollBottom(isScrolledUp);
 
@@ -222,10 +358,13 @@ const ChatWindow = ({
       }
 
       if (container.scrollTop <= 40 && hasMore && !loadingOlder) {
-        loadOlderMessages(container);
+        // Pin the anchor now, not on the next frame — a fast response could
+        // otherwise prepend before the deferred capture runs.
+        captureScrollAnchor();
+        loadOlderMessages();
       }
     },
-    [activeMenuMessageId, activeReactionMessageId, hasMore, loadingOlder, loadOlderMessages]
+    [activeMenuMessageId, activeReactionMessageId, hasMore, loadingOlder, loadOlderMessages, scheduleAnchorCapture, captureScrollAnchor]
   );
 
   const scrollToBottom = useCallback((behavior = "smooth") => {
@@ -244,6 +383,43 @@ const ChatWindow = ({
     setScrolledUnreadCount(0);
   }, []);
 
+  // Images and videos finish loading AFTER the chat has been positioned and
+  // grow the content — which used to leave the view part-way up the chat
+  // ("opened from the top"). While the user is at the bottom, stay there.
+  // (Above-the-fold growth when parked at the unread divider is handled by
+  // the browser's native scroll anchoring.)
+
+
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    const onMediaLoaded = (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLImageElement || el instanceof HTMLVideoElement)) return;
+      const positioned = initialScrollDoneChatIdRef.current === chat?._id;
+      if (!positioned || stickToBottomRef.current) {
+        container.scrollTop = container.scrollHeight;
+      } else {
+        restoreScrollAnchor();
+      }
+    };
+    container.addEventListener("load", onMediaLoaded, true);
+    container.addEventListener("loadedmetadata", onMediaLoaded, true);
+    return () => {
+      container.removeEventListener("load", onMediaLoaded, true);
+      container.removeEventListener("loadedmetadata", onMediaLoaded, true);
+    };
+  }, [chat?._id, restoreScrollAnchor]);
+
+  // Keep the reader's place whenever the list re-renders above them (older
+  // page prepended, loader row toggled, reactions/edits resizing a bubble).
+  // Layout effect: corrected before the browser paints, so nothing jumps.
+  useLayoutEffect(() => {
+    if (initialScrollDoneChatIdRef.current !== chat?._id) return;
+    if (stickToBottomRef.current) return;
+    restoreScrollAnchor();
+  }, [messages, loadingOlder, hasMore, chat?._id, restoreScrollAnchor]);
+
   // Reset scroll anchoring tracking whenever active chat changes
   useEffect(() => {
     initialScrollDoneChatIdRef.current = null;
@@ -251,91 +427,133 @@ const ChatWindow = ({
     prevLastMsgIdRef.current = null;
   }, [chat?._id]);
 
-  // WhatsApp-grade instant scroll anchoring on opening a chat (zero up-to-down animation)
+  // ── Where the chat opens ──────────────────────────────────────────────
+  // Resolved once per open, from the unread snapshot ChatPage took before it
+  // cleared the badge — never from readBy, which the open chat itself is
+  // busy updating. Waits for the real fetch (not the localStorage cache,
+  // which can predate the unread messages), and pages further back if the
+  // unread run starts before the first page.
+  const MAX_UNREAD_BACKFILL = 200;
+  const unreadTarget = Math.min(unreadSnapshot?.count || 0, 100);
+  const [unreadAnchor, setUnreadAnchor] = useState(null); // { id, count }
+  const [unreadResolved, setUnreadResolved] = useState(unreadTarget === 0);
+
+  useEffect(() => {
+    if (unreadResolved || !initialFetchDone) return;
+
+    const me = currentUser?._id?.toString();
+    const fromOthers = messages.filter(
+      (m) =>
+        !String(m._id).startsWith("opt_") &&
+        (m.sender?._id || m.sender)?.toString() !== me
+    );
+    const lastReadAt = unreadSnapshot?.lastReadAt ? new Date(unreadSnapshot.lastReadAt) : null;
+    const unreadLoaded = lastReadAt
+      ? fromOthers.filter((m) => new Date(m.createdAt) > lastReadAt)
+      : fromOthers.slice(-unreadTarget);
+
+    if (unreadLoaded.length < unreadTarget && hasMore && messages.length < MAX_UNREAD_BACKFILL) {
+      if (!loadingOlder) loadOlderMessages();
+      return;
+    }
+
+    setUnreadAnchor(unreadLoaded[0] ? { id: unreadLoaded[0]._id, count: unreadSnapshot.count } : null);
+    setUnreadResolved(true);
+  }, [unreadResolved, initialFetchDone, messages, hasMore, loadingOlder, loadOlderMessages, currentUser?._id, unreadSnapshot, unreadTarget]);
+
+  // Instant (no animation) positioning when a chat opens. Until the real
+  // messages and the unread divider are settled it just holds the bottom, so
+  // cached content never flashes at the top; then it places the view once:
+  // a "go to message" target, else the unread divider, else the latest.
   useLayoutEffect(() => {
     if (!chat?._id || messages.length === 0) return;
     if (initialScrollDoneChatIdRef.current === chat._id) return;
 
     const container = chatContainerRef.current;
     if (!container) return;
+    container.style.scrollBehavior = "auto";
 
-    const anchorPosition = () => {
-      if (!container) return;
-
-      // If a specific target message is requested (e.g. from Saved starred media)
-      if (highlightMessageId) {
-        const targetElem = document.getElementById(`msg-${highlightMessageId}`);
-        if (targetElem) {
-          targetElem.scrollIntoView({ behavior: "auto", block: "center" });
-          targetElem.classList.add("highlight-target-msg");
-          setTimeout(() => targetElem.classList.remove("highlight-target-msg"), 2500);
-          initialScrollDoneChatIdRef.current = chat._id;
-          prevMessagesLengthRef.current = messages.length;
-          prevLastMsgIdRef.current = messages[messages.length - 1]?._id;
-          if (onClearHighlight) onClearHighlight();
-          return;
-        }
-      }
-
-      // Identify first unread message from another user
-      const firstUnread = messages.find((m) => {
-        const isSentByMe =
-          (m.sender?._id || m.sender)?.toString() ===
-          currentUser?._id?.toString();
-        if (isSentByMe) return false;
-        const isReadByMe = m.readBy?.some(
-          (u) => (u._id || u)?.toString() === currentUser?._id?.toString()
-        );
-        return !isReadByMe;
-      });
-
-      // Force instant positioning without smooth scrolling
-      container.style.scrollBehavior = "auto";
-
-      if (firstUnread) {
-        const unreadElem =
-          document.getElementById("unread-messages-separator") ||
-          document.getElementById(`msg-${firstUnread._id}`);
-
-        if (unreadElem) {
-          const containerRect = container.getBoundingClientRect();
-          const unreadRect = unreadElem.getBoundingClientRect();
-          const targetTop =
-            unreadRect.top - containerRect.top + container.scrollTop - 20;
-          container.scrollTop = Math.max(0, targetTop);
-          initialScrollDoneChatIdRef.current = chat._id;
-          prevMessagesLengthRef.current = messages.length;
-          prevLastMsgIdRef.current = messages[messages.length - 1]?._id;
-          return;
-        }
-      }
-
-      // If all read: instantly show most recent messages at bottom
-      container.scrollTop = container.scrollHeight;
+    const markDone = () => {
       initialScrollDoneChatIdRef.current = chat._id;
       prevMessagesLengthRef.current = messages.length;
       prevLastMsgIdRef.current = messages[messages.length - 1]?._id;
+      captureScrollAnchor();
     };
 
-    anchorPosition();
-    const rafId = requestAnimationFrame(anchorPosition);
-    return () => cancelAnimationFrame(rafId);
-  }, [chat?._id, messages, currentUser?._id, highlightMessageId]);
+    if (!initialFetchDone || !unreadResolved) {
+      container.scrollTop = container.scrollHeight;
+      return;
+    }
 
-  // Secondary effect to jump and highlight if messages loaded asynchronously
+    if (targetMessageId && messages.some((m) => m._id === targetMessageId)) {
+      const targetElem = document.getElementById(`msg-${targetMessageId}`);
+      if (targetElem) {
+        targetElem.scrollIntoView({ behavior: "auto", block: "center" });
+        targetElem.classList.add("highlight-target-msg");
+        setTimeout(() => targetElem.classList.remove("highlight-target-msg"), 2500);
+        markDone();
+        clearTarget();
+        return;
+      }
+    }
+    // A target that isn't loaded yet is handled by the backfill effect below;
+    // open at the normal position meanwhile.
+
+    const divider = unreadAnchor ? document.getElementById("unread-messages-separator") : null;
+    if (divider) {
+      const containerRect = container.getBoundingClientRect();
+      const dividerRect = divider.getBoundingClientRect();
+      container.scrollTop = Math.max(0, dividerRect.top - containerRect.top + container.scrollTop - 12);
+      stickToBottomRef.current = false;
+    } else {
+      container.scrollTop = container.scrollHeight;
+      stickToBottomRef.current = true;
+    }
+    markDone();
+  }, [chat?._id, messages, initialFetchDone, unreadResolved, unreadAnchor, targetMessageId, clearTarget, captureScrollAnchor]);
+
+  // Jump to a target once it's in the list (after the chat had already
+  // opened, e.g. the pinned banner or a "go to message" link that needed
+  // older pages loaded first).
   useEffect(() => {
-    if (!highlightMessageId || loadingInitial || messages.length === 0) return;
+    if (!targetMessageId || initialScrollDoneChatIdRef.current !== chat?._id) return;
+    if (!messages.some((m) => m._id === targetMessageId)) return;
     const timer = setTimeout(() => {
-      const el = document.getElementById(`msg-${highlightMessageId}`);
+      const el = document.getElementById(`msg-${targetMessageId}`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("highlight-target-msg");
         setTimeout(() => el.classList.remove("highlight-target-msg"), 2500);
-        if (onClearHighlight) onClearHighlight();
+        clearTarget();
       }
-    }, 250);
+    }, 50);
     return () => clearTimeout(timer);
-  }, [highlightMessageId, loadingInitial, messages.length, onClearHighlight]);
+  }, [targetMessageId, messages, chat?._id, clearTarget]);
+
+  // Only the latest page is fetched up front. For a target older than that,
+  // keep paginating backward until it's loaded or history runs out.
+  // Gated on `initialFetchDone`, not `loadingInitial`: a localStorage cache
+  // hit flips `loadingInitial` early, while `hasMore` is still a stale default.
+  const notFoundToastShownRef = useRef(false);
+  useEffect(() => {
+    if (!targetMessageId || !initialFetchDone) return;
+    if (messages.some((m) => m._id === targetMessageId)) return;
+
+    if (hasMore) {
+      if (!loadingOlder) loadOlderMessages();
+      return;
+    }
+
+    if (!notFoundToastShownRef.current) {
+      notFoundToastShownRef.current = true;
+      toast.error("Couldn't find that message — it may have been deleted.");
+      clearTarget();
+    }
+  }, [targetMessageId, initialFetchDone, messages, hasMore, loadingOlder, loadOlderMessages, clearTarget]);
+
+  useEffect(() => {
+    notFoundToastShownRef.current = false;
+  }, [targetMessageId]);
 
   // Real-time scroll handler for newly arriving or sent messages
   useEffect(() => {
@@ -388,11 +606,23 @@ const ChatWindow = ({
     );
   }, []);
 
+  // The row callbacks below read live state through refs so their identity
+  // never changes — MessageItem is memoized, and a callback that changed on
+  // every new message or menu toggle would re-render every row anyway.
+  const messagesRef = useRef(messages);
+  const activeMenuIdRef = useRef(activeMenuMessageId);
+  const activeReactionIdRef = useRef(activeReactionMessageId);
+  useEffect(() => {
+    messagesRef.current = messages;
+    activeMenuIdRef.current = activeMenuMessageId;
+    activeReactionIdRef.current = activeReactionMessageId;
+  });
+
   // Viewport-clamped menu opener (anchored directly to chevron button like WhatsApp)
   const handleOpenMenu = useCallback(
     (e, msgId) => {
       e.stopPropagation();
-      if (activeMenuMessageId === msgId) {
+      if (activeMenuIdRef.current === msgId) {
         setActiveMenuMessageId(null);
         return;
       }
@@ -407,7 +637,7 @@ const ChatWindow = ({
       const viewportHeight = window.innerHeight || 800;
       const viewportWidth = window.innerWidth || 1200;
 
-      const msg = messages.find((m) => m._id === msgId);
+      const msg = messagesRef.current.find((m) => m._id === msgId);
       const isSent =
         (msg?.sender?._id || msg?.sender)?.toString() ===
         currentUser?._id?.toString();
@@ -436,14 +666,14 @@ const ChatWindow = ({
 
       setActiveMenuMessageId(msgId);
     },
-    [activeMenuMessageId, messages, currentUser]
+    [currentUser]
   );
 
   // Viewport-clamped reaction picker opener
   const handleOpenReaction = useCallback(
     (e, msgId) => {
       e.stopPropagation();
-      if (activeReactionMessageId === msgId) {
+      if (activeReactionIdRef.current === msgId) {
         setActiveReactionMessageId(null);
         return;
       }
@@ -468,7 +698,7 @@ const ChatWindow = ({
       setReactionPosition({ top, left });
       setActiveReactionMessageId(msgId);
     },
-    [activeReactionMessageId]
+    []
   );
 
 
@@ -516,6 +746,11 @@ const ChatWindow = ({
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() && selectedFiles.length === 0) return;
+    // Synchronous re-entry guard: a fast double Enter can fire this handler twice
+    // before the `isSending` state (checked by the disabled submit button) has
+    // re-rendered. The ref updates immediately, so the second call bails here
+    // instead of issuing a second POST.
+    if (sendInFlightRef.current) return;
 
     emitStopTypingImmediate();
     setIsEmojiPickerOpen(false);
@@ -542,72 +777,94 @@ const ChatWindow = ({
     }
 
     // Send new message flow
-    setIsSending(true);
-    const tempContent = newMessage.trim();
-    const tempReplyTo = replyingTo;
-    const tempFiles = [...selectedFiles];
+    sendInFlightRef.current = true;
+    const payload = {
+      kind: "message",
+      content: newMessage.trim(),
+      replyTo: replyingTo,
+      files: [...selectedFiles],
+    };
 
     setNewMessage("");
     setReplyingTo(null);
     setSelectedFiles([]);
     setFilePreviews([]);
 
-    const optimisticId = `opt_${Date.now()}`;
+    try {
+      await sendPayload(payload);
+    } finally {
+      sendInFlightRef.current = false;
+    }
+  };
+
+  // Optimistically shows the message (clock icon), posts it, and reconciles.
+  // On failure the bubble stays with its payload attached so "Retry" can send
+  // exactly the same thing again under the same clientId (the server dedupes
+  // on clientId, so a retry after a lost response can't double-post).
+  const sendPayload = async ({ content, replyTo, files = [] }, reuseClientId = null) => {
+    setIsSending(true);
+    const clientId = reuseClientId || generateClientId();
+    const optimisticId = `opt_${clientId}`;
     const optimisticMsg = {
       _id: optimisticId,
+      clientId,
       sender: currentUser,
       chat: chat._id,
-      content: tempContent,
-      replyTo: tempReplyTo,
+      content,
+      replyTo,
       createdAt: new Date().toISOString(),
-      status: "sent",
+      status: "sending",
       readBy: [currentUser?._id],
+      retryPayload: { kind: "message", content, replyTo, files },
     };
 
-    setMessages((prev) => [...prev, optimisticMsg]);
+    setMessages((prev) => upsertMessage(prev, optimisticMsg));
     setTimeout(() => scrollToBottom("smooth"), 50);
 
     try {
       let res;
-      if (tempFiles.length > 0) {
+      if (files.length > 0) {
         const formData = new FormData();
         formData.append("chatId", chat._id);
-        if (tempContent) formData.append("content", tempContent);
-        if (tempReplyTo) formData.append("replyTo", tempReplyTo._id);
-        tempFiles.forEach((file) => formData.append("media", file));
+        if (content) formData.append("content", content);
+        if (replyTo) formData.append("replyTo", replyTo._id);
+        formData.append("clientId", clientId);
+        files.forEach((file) => formData.append("media", file));
         res = await apiClient.post("/chat/message", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
         res = await apiClient.post("/chat/message", {
           chatId: chat._id,
-          content: tempContent,
-          replyTo: tempReplyTo ? tempReplyTo._id : undefined,
+          content,
+          replyTo: replyTo ? replyTo._id : undefined,
+          clientId,
         });
       }
 
       if (res.data.success) {
         const confirmed = res.data.data;
+        // upsertMessage matches on clientId, so whichever of the HTTP response or
+        // the socket broadcast (see useChatMessages' handleMessageReceived) lands
+        // first reconciles the optimistic bubble — the other is then a no-op
+        // update instead of a second, duplicate entry.
         if (Array.isArray(confirmed)) {
-          setMessages((prev) => [
-            ...prev.filter((m) => m._id !== optimisticId),
-            ...confirmed,
-          ]);
-          // Server broadcasts "message received" for each created message.
+          setMessages((prev) => {
+            let next = prev.filter((m) => m._id !== optimisticId);
+            for (const msg of confirmed) next = upsertMessage(next, msg);
+            return next;
+          });
           if (onUpdateLastMessage && confirmed.length > 0) {
             onUpdateLastMessage(chat._id, confirmed[confirmed.length - 1]);
           }
         } else {
-          setMessages((prev) =>
-            prev.map((m) => (m._id === optimisticId ? confirmed : m))
-          );
-          // Server broadcasts "message received" after persisting the message.
+          setMessages((prev) => upsertMessage(prev, confirmed));
           if (onUpdateLastMessage) onUpdateLastMessage(chat._id, confirmed);
         }
       }
     } catch (error) {
       console.error("Failed to send message:", error.response?.data || error.message);
-      toast.error(error.response?.data?.message || "Failed to send message");
+      toast.error(error.response?.data?.message || "Message not sent");
       setMessages((prev) =>
         prev.map((m) => (m._id === optimisticId ? { ...m, status: "failed" } : m))
       );
@@ -615,6 +872,36 @@ const ChatWindow = ({
       setIsSending(false);
     }
   };
+
+  // Latest-closure refs so the memoized message rows get stable callbacks.
+  const sendPayloadRef = useRef(sendPayload);
+  const handleSendAudioFileRef = useRef(handleSendAudioFile);
+  useEffect(() => {
+    sendPayloadRef.current = sendPayload;
+    handleSendAudioFileRef.current = handleSendAudioFile;
+  });
+
+  const handleDiscardFailed = useCallback(
+    (msg) => {
+      setMessages((prev) => prev.filter((m) => m._id !== msg._id));
+      if (msg.mediaType === "audio" && msg.media?.startsWith("blob:")) URL.revokeObjectURL(msg.media);
+    },
+    [setMessages]
+  );
+
+  const handleRetryFailed = useCallback(
+    (msg) => {
+      const payload = msg.retryPayload;
+      if (!payload) return;
+      setMessages((prev) => prev.filter((m) => m._id !== msg._id));
+      if (payload.kind === "audio") {
+        handleSendAudioFileRef.current(payload.file);
+      } else {
+        sendPayloadRef.current(payload, msg.clientId);
+      }
+    },
+    [setMessages]
+  );
 
   // Forward message handler — supports multiple target chats (WhatsApp-style)
   const handleConfirmForward = async (targetChatIds) => {
@@ -658,11 +945,7 @@ const ChatWindow = ({
     ? messages.find((m) => m._id === activeMenuMessageId)
     : null;
 
-  const activeMenuIsPinned =
-    activeMenuMessage &&
-    chat?.pinnedMessages?.some(
-      (p) => (p._id || p).toString() === activeMenuMessage._id?.toString()
-    );
+  const activeMenuIsPinned = Boolean(activeMenuMessage && pinnedIds.has(String(activeMenuMessage._id)));
 
   const activeMenuIsStarred = Boolean(
     activeMenuMessage && starredMessageIds.includes(activeMenuMessage._id)
@@ -755,10 +1038,51 @@ const ChatWindow = ({
     setReportingMessage(null);
   }, [reportingMessage, chat._id]);
 
-  const pinnedMessage = chat.pinnedMessages?.[chat.pinnedMessages.length - 1];
+  // Pins may arrive as bare ids (optimistic, or an unpopulated payload) —
+  // resolve them against loaded messages so the banner can show a preview.
+  const resolvedPins = useMemo(
+    () =>
+      pinnedMessages.map((p) => {
+        const id = String(p?._id || p);
+        if (p && typeof p === "object" && (p.content || p.media)) return p;
+        return messages.find((m) => String(m._id) === id) || { _id: id };
+      }),
+    [pinnedMessages, messages]
+  );
+
+  const handleTogglePin = useCallback(
+    async (messageId, isPinned) => {
+      const previous = pinnedRef.current;
+      const msg = messagesRef.current.find((m) => m._id === messageId);
+      const optimistic = isPinned
+        ? previous.filter((p) => String(p?._id || p) !== String(messageId))
+        : [...previous.filter((p) => String(p?._id || p) !== String(messageId)), msg || { _id: messageId }];
+      applyPinned(optimistic);
+
+      const updated = await togglePin(messageId, isPinned);
+      if (updated && Array.isArray(updated.pinnedMessages)) {
+        applyPinned(updated.pinnedMessages);
+        toast.success(isPinned ? "Message unpinned" : "Message pinned", { duration: 1500 });
+      } else if (!updated) {
+        applyPinned(previous);
+      }
+    },
+    [togglePin, applyPinned]
+  );
+
+  // One boolean for the whole list instead of handing every (memoized) row
+  // the onlineUsers array, which changes on every presence event.
+  const isRecipientOnline = useMemo(() => {
+    const me = currentUser?._id?.toString();
+    return (chat?.participants || []).some((p) => {
+      const pid = (p?._id || p)?.toString();
+      return pid && pid !== me && onlineUsers.includes(pid);
+    });
+  }, [chat?.participants, onlineUsers, currentUser?._id]);
+  const readTarget = chat?.isGroup ? Math.max(2, chat.participants?.length || 2) : 2;
 
   return (
-    <div className="chat-window relative fixed inset-0 z-40 md:relative md:inset-auto md:z-auto bg-gray-950 flex flex-col h-full h-[100dvh] md:h-full">
+    <div className="chat-window relative bg-gray-950 flex flex-col h-full">
       {/* Header: Multi-Selection Bar OR Normal Header */}
       {selectedMessageIds.length > 0 ? (
         <ChatSelectionBar
@@ -777,7 +1101,7 @@ const ChatWindow = ({
           onToggleInfo={onToggleInfo}
           onBackToSidebar={onBackToSidebar}
           isSearchOpen={isSearchOpen}
-          onToggleSearch={() => setIsSearchOpen((prev) => !prev)}
+          onToggleSearch={() => (isSearchOpen ? closeSearch() : setIsSearchOpen(true))}
         />
       )}
 
@@ -786,21 +1110,20 @@ const ChatWindow = ({
         isOpen={isSearchOpen}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        matchCount={matchedIndices.length}
+        matchCount={matchCount}
         currentMatchIndex={currentMatchIndex}
-        onNextMatch={nextMatch}
-        onPrevMatch={prevMatch}
+        isSearching={isSearching}
+        hasSearched={hasSearched}
+        onOlderMatch={olderMatch}
+        onNewerMatch={newerMatch}
         onClose={closeSearch}
       />
 
       {/* Pinned Messages Banner */}
       <PinnedMessageBanner
-        pinnedMessage={pinnedMessage}
-        onJumpToPinned={() => {
-          const el = document.getElementById(`msg-${pinnedMessage._id}`);
-          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-        }}
-        onUnpin={() => togglePin(pinnedMessage._id, true)}
+        pinnedMessages={resolvedPins}
+        onJumpToPinned={(id) => setJumpTargetId(id)}
+        onUnpin={(id) => handleTogglePin(id, true)}
       />
 
       {/* Messages Feed */}
@@ -808,11 +1131,14 @@ const ChatWindow = ({
         messages={messages}
         currentUser={currentUser}
         chat={chat}
-        onlineUsers={onlineUsers}
+        isRecipientOnline={isRecipientOnline}
+        readTarget={readTarget}
+        unreadAnchorId={unreadAnchor?.id || null}
+        unreadCount={unreadAnchor?.count || 0}
         loadingInitial={loadingInitial}
         loadingOlder={loadingOlder}
         hasMore={hasMore}
-        onLoadOlder={loadOlderMessages}
+        onLoadOlder={handleLoadOlderClick}
         onScroll={handleMessagesScroll}
         chatContainerRef={chatContainerRef}
         messagesEndRef={messagesEndRef}
@@ -820,7 +1146,9 @@ const ChatWindow = ({
         starredMessageIds={starredMessageIds}
         activeMenuMessageId={activeMenuMessageId}
         activeReactionMessageId={activeReactionMessageId}
-        searchQuery={searchQuery}
+        searchQuery={highlightQuery}
+        activeMatchId={activeMatchId}
+        pinnedIds={pinnedIds}
         audioPlaybackState={audioPlaybackState}
         onToggleSelect={toggleSelectMessage}
         onOpenReaction={handleOpenReaction}
@@ -829,6 +1157,8 @@ const ChatWindow = ({
         onToggleAudioPlay={toggleAudioPlay}
         onSeekAudio={seekAudio}
         onOpenLightbox={setLightboxMedia}
+        onRetryFailed={handleRetryFailed}
+        onDiscardFailed={handleDiscardFailed}
       />
 
       {/* Floating Scroll-to-Bottom Button */}
@@ -899,7 +1229,7 @@ const ChatWindow = ({
             document.querySelector(".chat-input")?.focus();
           }, 50);
         }}
-        onTogglePin={(msgId, isPin) => togglePin(msgId, isPin)}
+        onTogglePin={handleTogglePin}
         onToggleStar={handleToggleStar}
         onForward={(msg) => {
           setSelectedMessageIds([msg._id]);
@@ -928,7 +1258,7 @@ const ChatWindow = ({
       {/* Report Confirmation Modal */}
       {reportingMessage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => setReportingMessage(null)}
         >
           <div
@@ -937,7 +1267,7 @@ const ChatWindow = ({
           >
             <div className="flex items-center gap-3 text-amber-400">
               <span className="material-icons text-2xl">report_problem</span>
-              <h3 className="text-lg font-semibold text-white">Report Message</h3>
+              <h3 className="text-lg font-semibold text-fg">Report Message</h3>
             </div>
             <p className="text-sm text-gray-300">
               Are you sure you want to report this message? The message and author will be flagged for review by moderators.
@@ -946,14 +1276,14 @@ const ChatWindow = ({
               <button
                 type="button"
                 onClick={() => setReportingMessage(null)}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-white bg-gray-800/60 hover:bg-gray-800 transition-colors"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-fg bg-gray-800/60 hover:bg-gray-800 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmReport}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-600 hover:bg-amber-500 transition-colors flex items-center gap-1.5"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-amber-700 hover:bg-amber-600 transition-colors flex items-center gap-1.5"
               >
                 <span className="material-icons text-base">flag</span>
                 Report
@@ -986,7 +1316,7 @@ const ChatWindow = ({
             }
             message={
               deletingMessageId === "BULK"
-                ? `Are you sure you want to delete ${selectedMessageIds.length} selected message(s)?`
+                ? `Delete ${selectedMessageIds.length} selected message${selectedMessageIds.length === 1 ? "" : "s"}? Yours are deleted for everyone; other people's are removed from your view only.`
                 : isDeletingSentByMe
                 ? "Are you sure you want to delete this message? This action cannot be undone."
                 : "Delete this message from your view? Other participants will still be able to see it."
@@ -1000,10 +1330,7 @@ const ChatWindow = ({
                 if (isDeletingSentByMe) {
                   deleteMessage(deletingMessageId);
                 } else {
-                  setMessages((prev) =>
-                    prev.filter((m) => m._id !== deletingMessageId)
-                  );
-                  toast.success("Message deleted for you");
+                  hideMessageForMe(deletingMessageId);
                 }
               }
               setDeletingMessageId(null);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
 import useAuthStore from "../store/useAuthStore";
 import { useAuth } from "../context/AuthContext";
@@ -89,9 +89,9 @@ export default function AcademicOnboardingModal() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="onboarding-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fadeIn"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-xl animate-fadeIn"
     >
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-gray-900/95 border border-violet-500/25 p-6 sm:p-8 shadow-2xl shadow-violet-950/50 text-white">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-gray-900/95 border border-violet-500/25 p-6 sm:p-8 shadow-2xl shadow-violet-950/50 text-fg">
         {/* Ambient background glows */}
         <div className="absolute -top-24 -right-24 w-52 h-52 bg-violet-600/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -left-24 w-52 h-52 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
@@ -111,7 +111,7 @@ export default function AcademicOnboardingModal() {
             <span className="material-icons text-2xl">school</span>
           </div>
           <div>
-            <h2 id="onboarding-modal-title" className="text-xl font-bold text-white tracking-tight">
+            <h2 id="onboarding-modal-title" className="text-xl font-bold text-fg tracking-tight">
               Select Your Academic Details
             </h2>
             <p className="text-xs sm:text-sm text-gray-300/80 mt-1 leading-relaxed">
@@ -167,13 +167,13 @@ export default function AcademicOnboardingModal() {
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 required
-                className="w-full appearance-none px-4 py-3 bg-gray-950/80 border border-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition-all text-white text-sm cursor-pointer pr-10 hover:border-gray-700"
+                className="w-full appearance-none px-4 py-3 bg-gray-950/80 border border-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition-all text-fg text-sm cursor-pointer pr-10 hover:border-gray-700"
               >
                 <option value="" disabled className="bg-gray-900 text-gray-400">
                   Select your engineering branch...
                 </option>
                 {MNNIT_DEPARTMENTS.map((dept) => (
-                  <option key={dept} value={dept} className="bg-gray-900 text-white py-1">
+                  <option key={dept} value={dept} className="bg-gray-900 text-fg py-1">
                     {dept}
                   </option>
                 ))}
@@ -200,7 +200,7 @@ export default function AcademicOnboardingModal() {
                 value={section}
                 onChange={(e) => setSection(formatSectionInput(e.target.value))}
                 maxLength={10}
-                className="w-full px-4 py-2.5 bg-gray-950/80 border border-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition-all text-white text-sm uppercase placeholder:normal-case hover:border-gray-700"
+                className="w-full px-4 py-2.5 bg-gray-950/80 border border-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition-all text-fg text-sm uppercase placeholder:normal-case hover:border-gray-700"
               />
               <p className="text-[10px] text-gray-400">Main lecture section</p>
             </div>
@@ -220,7 +220,7 @@ export default function AcademicOnboardingModal() {
                 value={subSection}
                 onChange={(e) => setSubSection(formatSectionInput(e.target.value))}
                 maxLength={10}
-                className="w-full px-4 py-2.5 bg-gray-950/80 border border-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition-all text-white text-sm uppercase placeholder:normal-case hover:border-gray-700"
+                className="w-full px-4 py-2.5 bg-gray-950/80 border border-gray-800 focus:border-violet-500 focus:ring-1 focus:ring-violet-500 rounded-xl outline-none transition-all text-fg text-sm uppercase placeholder:normal-case hover:border-gray-700"
               />
               <p className="text-[10px] text-gray-400">Lab & tutorial batch</p>
             </div>

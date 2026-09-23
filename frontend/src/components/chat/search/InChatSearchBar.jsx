@@ -1,65 +1,120 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
+/**
+ * Search strip under the chat header. Results come from the whole chat
+ * history (newest first); ↑ / Enter steps to older matches, ↓ / Shift+Enter
+ * to newer ones, Esc closes.
+ */
 const InChatSearchBar = ({
   isOpen,
   searchQuery,
   onSearchChange,
   matchCount,
   currentMatchIndex,
-  onNextMatch,
-  onPrevMatch,
+  isSearching,
+  hasSearched,
+  onOlderMatch,
+  onNewerMatch,
   onClose,
 }) => {
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
+  const hasQuery = searchQuery.trim().length > 0;
+  const canGoOlder = matchCount > 0 && currentMatchIndex < matchCount - 1;
+  const canGoNewer = matchCount > 0 && currentMatchIndex > 0;
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (e.shiftKey) onNewerMatch();
+      else onOlderMatch();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      onOlderMatch();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      onNewerMatch();
+    }
+  };
+
+  let statusText = "";
+  if (hasQuery) {
+    if (isSearching) statusText = "Searching…";
+    else if (hasSearched) statusText = matchCount > 0 ? `${currentMatchIndex + 1} of ${matchCount}` : "No results";
+  }
+
   return (
-    <div className="inchat-search-bar flex items-center justify-between px-4 py-2 bg-slate-900/95 border-b border-violet-500/20 backdrop-blur-md z-20">
-      <div className="flex items-center gap-2 flex-1 max-w-md">
-        <span className="material-icons text-violet-400 text-lg">search</span>
+    <div className="inchat-search-bar" role="search">
+      <div className="inchat-search-field">
+        <span className="material-icons inchat-search-field-icon" aria-hidden="true">search</span>
         <input
-          type="text"
-          placeholder="Search within this chat..."
+          ref={inputRef}
+          type="search"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="bg-transparent text-sm text-gray-200 outline-none w-full placeholder-gray-500"
-          autoFocus
+          onKeyDown={handleKeyDown}
+          placeholder="Search in this chat"
+          aria-label="Search messages in this chat"
+          enterKeyHint="search"
+          autoComplete="off"
         />
-      </div>
-      <div className="flex items-center gap-2">
-        {searchQuery.trim() && (
-          <span className="text-xs text-violet-300 font-medium mr-2">
-            {matchCount > 0
-              ? `${currentMatchIndex + 1} of ${matchCount}`
-              : "No matches"}
-          </span>
+        {isSearching && hasQuery ? (
+          <span className="inchat-search-spinner" aria-hidden="true" />
+        ) : (
+          hasQuery && (
+            <button
+              type="button"
+              className="inchat-search-clear"
+              onClick={() => {
+                onSearchChange("");
+                inputRef.current?.focus();
+              }}
+              aria-label="Clear search"
+              title="Clear"
+            >
+              <span className="material-icons">close</span>
+            </button>
+          )
         )}
+      </div>
+
+      <span className="inchat-search-count" aria-live="polite">
+        {statusText}
+      </span>
+
+      <div className="inchat-search-nav">
         <button
           type="button"
-          onClick={onPrevMatch}
-          disabled={matchCount === 0}
-          className="text-gray-400 hover:text-white disabled:opacity-30 cursor-pointer p-1"
-          title="Previous match"
+          onClick={onOlderMatch}
+          disabled={!canGoOlder}
+          aria-label="Older match"
+          title="Older match (Enter)"
         >
-          <span className="material-icons text-base">keyboard_arrow_up</span>
+          <span className="material-icons">keyboard_arrow_up</span>
         </button>
         <button
           type="button"
-          onClick={onNextMatch}
-          disabled={matchCount === 0}
-          className="text-gray-400 hover:text-white disabled:opacity-30 cursor-pointer p-1"
-          title="Next match"
+          onClick={onNewerMatch}
+          disabled={!canGoNewer}
+          aria-label="Newer match"
+          title="Newer match (Shift+Enter)"
         >
-          <span className="material-icons text-base">keyboard_arrow_down</span>
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-gray-400 hover:text-white cursor-pointer p-1"
-          title="Close search"
-        >
-          <span className="material-icons text-base">close</span>
+          <span className="material-icons">keyboard_arrow_down</span>
         </button>
       </div>
+
+      <button type="button" className="inchat-search-close" onClick={onClose} aria-label="Close search" title="Close (Esc)">
+        Done
+      </button>
     </div>
   );
 };

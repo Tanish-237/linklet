@@ -8,10 +8,13 @@ import mongoose from "mongoose";
  * comment on the post, and a viral post would eventually hit MongoDB's 16 MB
  * document limit. As standalone documents they can be paginated and indexed.
  *
- * One flat collection covers both levels:
+ * One flat collection covers every level of nesting:
  *  - top-level comment: `parentId` is null
- *  - reply:             `parentId` is the top-level comment's _id
- * (the UI only ever nests one level, so `parentId` never points at a reply.)
+ *  - reply:             `parentId` is the comment/reply it replies to
+ * `parentId` can point at a reply as well as a top-level comment — replies
+ * nest to arbitrary depth (the UI caps how deep it visually indents, see
+ * MAX_INDENT_DEPTH in PostCommentsPanel.jsx, but the thread itself doesn't).
+ * `repliesCount` on a node counts only its direct children, at any depth.
  */
 const postCommentSchema = new mongoose.Schema(
   {

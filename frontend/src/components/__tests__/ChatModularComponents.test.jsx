@@ -19,6 +19,10 @@ import MessageActionsToolbar from "../chat/actions/MessageActionsToolbar";
 import { formatAudioTime } from "../chat/hooks/useAudioPlayback";
 import { useInChatSearch } from "../chat/hooks/useInChatSearch";
 
+vi.mock("../../api/apiClient", () => ({
+  apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
+}));
+
 describe("Modular Chat Subcomponents & Hooks Tests", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -188,6 +192,42 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
   });
 
   describe("MessageBubble Component & WhatsApp Chevron Button", () => {
+    it("doesn't crash when the in-chat search contains regex characters", () => {
+      render(
+        <MessageBubble
+          msg={{ _id: "r1", content: "is this (really) true?", createdAt: new Date().toISOString() }}
+          isSent={false}
+          searchQuery="(really"
+          audioState={{}}
+        />
+      );
+      expect(screen.getByText("(really")).toBeInTheDocument();
+    });
+
+    it("offers Retry and Delete on a failed send", () => {
+      const onRetry = vi.fn();
+      const onDiscard = vi.fn();
+      const msg = { _id: "opt_1", content: "hello", status: "failed", createdAt: new Date().toISOString() };
+      render(
+        <MessageBubble msg={msg} isSent audioState={{}} onRetryFailed={onRetry} onDiscardFailed={onDiscard} />
+      );
+      expect(screen.getByText("Not sent")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+      fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+      expect(onRetry).toHaveBeenCalledWith(msg);
+      expect(onDiscard).toHaveBeenCalledWith(msg);
+    });
+
+    it("turns group ticks blue only once every member has read", () => {
+      const base = { _id: "g1", content: "hi all", createdAt: new Date().toISOString() };
+      const { container, rerender } = render(
+        <MessageBubble msg={{ ...base, readBy: ["me", "a"] }} isSent readTarget={4} audioState={{}} />
+      );
+      expect(container.querySelector(".tick-read")).toBeNull();
+      rerender(<MessageBubble msg={{ ...base, readBy: ["me", "a", "b", "c"] }} isSent readTarget={4} audioState={{}} />);
+      expect(container.querySelector(".tick-read")).not.toBeNull();
+    });
+
     it("formats message timestamp to clean 12-hour clock time and renders chevron button", () => {
       console.log("TRACE [ChatModularComponents.test.jsx]: Testing formatMessageClock and chevron button");
       const testDate = new Date("2026-09-11T12:16:00Z").toISOString();
@@ -395,39 +435,60 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
   });
 
   describe("useInChatSearch Hook", () => {
-    const mockMessages = [
-      { _id: "m1", content: "Hello world" },
-      { _id: "m2", content: "How are you doing?" },
-      { _id: "m3", content: "World is big" },
-    ];
-
-    it("matches query case-insensitively and allows forward/backward navigation", () => {
-      console.log("TRACE [ChatModularComponents.test.jsx]: Testing useInChatSearch filtering and navigation");
-      const { result } = renderHook(() => useInChatSearch(mockMessages));
+    it("searches the server (debounced), starts at the newest match and walks older/newer", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { apiClient } = await import("../../api/apiClient");
+      apiClient.get.mockResolvedValue({ data: { success: true, data: [{ _id: "m3" }, { _id: "m1" }] } });
+      const onJumpTo = vi.fn();
+      const { result } = renderHook(() => useInChatSearch({ chatId: "c1", messages: [], onJumpTo }));
 
       act(() => {
+        result.current.setIsSearchOpen(true);
+        result.current.setSearchQuery("wor");
+      });
+      expect(apiClient.get).not.toHaveBeenCalled(); // debounced
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(apiClient.get).toHaveBeenCalledWith("/chat/message/search/c1", { params: { query: "wor" } });
+      expect(result.current.matchCount).toBe(2);
+      expect(result.current.activeMatchId).toBe("m3");
+      expect(onJumpTo).toHaveBeenLastCalledWith("m3");
+
+      act(() => result.current.olderMatch());
+      expect(result.current.activeMatchId).toBe("m1");
+      act(() => result.current.olderMatch()); // already the oldest: stays
+      expect(result.current.activeMatchId).toBe("m1");
+      act(() => result.current.newerMatch());
+      expect(onJumpTo).toHaveBeenLastCalledWith("m3");
+
+      act(() => result.current.closeSearch());
+      expect(result.current.searchQuery).toBe("");
+      expect(result.current.matchCount).toBe(0);
+      vi.useRealTimers();
+    });
+
+    it("falls back to the loaded messages if the server search fails", async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const { apiClient } = await import("../../api/apiClient");
+      apiClient.get.mockRejectedValue(new Error("offline"));
+      const messages = [
+        { _id: "a", content: "Hello world" },
+        { _id: "b", content: "nothing" },
+        { _id: "c", content: "WORLD again" },
+      ];
+      const { result } = renderHook(() => useInChatSearch({ chatId: "c1", messages, onJumpTo: vi.fn() }));
+      act(() => {
+        result.current.setIsSearchOpen(true);
         result.current.setSearchQuery("world");
       });
-
-      expect(result.current.matchedIndices).toEqual([0, 2]);
-      expect(result.current.currentMatchIndex).toBe(1); // latest match selected initially
-
-      act(() => {
-        result.current.prevMatch();
+      await act(async () => {
+        vi.advanceTimersByTime(300);
       });
-      expect(result.current.currentMatchIndex).toBe(0);
-
-      act(() => {
-        result.current.nextMatch();
-      });
-      expect(result.current.currentMatchIndex).toBe(1);
-
-      act(() => {
-        result.current.closeSearch();
-      });
-      expect(result.current.searchQuery).toBe("");
-      expect(result.current.matchedIndices).toEqual([]);
-      console.log("TRACE [ChatModularComponents.test.jsx]: useInChatSearch matches verified successfully");
+      expect(result.current.matchCount).toBe(2);
+      expect(result.current.activeMatchId).toBe("c"); // newest first
+      vi.useRealTimers();
     });
   });
 
@@ -465,34 +526,48 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
   });
 
   describe("PinnedMessageBanner Component", () => {
-    it("renders pinned message sender, content preview, and triggers jump & unpin", () => {
-      console.log("TRACE [ChatModularComponents.test.jsx]: Testing PinnedMessageBanner");
+    it("shows a single pin, jumps to it and unpins it", () => {
       const onJump = vi.fn();
       const onUnpin = vi.fn();
-      const pinnedMsg = {
-        _id: "p1",
-        sender: { username: "bob" },
-        content: "Important pinned announcement",
-      };
-
       render(
         <PinnedMessageBanner
-          pinnedMessage={pinnedMsg}
+          pinnedMessages={[{ _id: "p1", sender: { username: "bob" }, content: "Important pinned announcement" }]}
           onJumpToPinned={onJump}
           onUnpin={onUnpin}
         />
       );
 
+      expect(screen.getByText("Pinned message")).toBeInTheDocument();
       expect(screen.getByText(/bob:/i)).toBeInTheDocument();
-      expect(screen.getByText(/Important pinned announcement/i)).toBeInTheDocument();
-
       fireEvent.click(screen.getByText(/Important pinned announcement/i));
-      expect(onJump).toHaveBeenCalledTimes(1);
+      expect(onJump).toHaveBeenCalledWith("p1");
+      fireEvent.click(screen.getByTitle("Unpin this message"));
+      expect(onUnpin).toHaveBeenCalledWith("p1");
+    });
 
-      const closeBtn = screen.getByTitle("Unpin message");
-      fireEvent.click(closeBtn);
-      expect(onUnpin).toHaveBeenCalledTimes(1);
-      console.log("TRACE [ChatModularComponents.test.jsx]: PinnedMessageBanner verified successfully");
+    it("cycles through several pins, newest first", () => {
+      const onJump = vi.fn();
+      render(
+        <PinnedMessageBanner
+          pinnedMessages={[
+            { _id: "old", content: "first pin" },
+            { _id: "new", content: "second pin" },
+          ]}
+          onJumpToPinned={onJump}
+          onUnpin={vi.fn()}
+        />
+      );
+      expect(screen.getByText("Pinned message 1 of 2")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("second pin"));
+      expect(onJump).toHaveBeenLastCalledWith("new");
+      expect(screen.getByText("Pinned message 2 of 2")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("first pin"));
+      expect(onJump).toHaveBeenLastCalledWith("old");
+    });
+
+    it("renders nothing without pins", () => {
+      const { container } = render(<PinnedMessageBanner pinnedMessages={[]} onJumpToPinned={vi.fn()} onUnpin={vi.fn()} />);
+      expect(container).toBeEmptyDOMElement();
     });
   });
 
@@ -566,7 +641,7 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
   });
 
   describe("ChatMessagesList Component & Unread Messages Separator", () => {
-    it("renders unread messages separator above the first unread incoming message", () => {
+    it("renders the unread separator at the anchor ChatWindow resolved, not from readBy", () => {
       console.log("TRACE [ChatModularComponents.test.jsx]: Testing ChatMessagesList unread separator");
       const currentUser = { _id: "me123", username: "tanish" };
       const chat = { _id: "c1", users: [currentUser, { _id: "other456", username: "alex" }] };
@@ -601,11 +676,29 @@ describe("Modular Chat Subcomponents & Hooks Tests", () => {
           chat={chat}
           selectedMessageIds={[]}
           audioPlaybackState={{}}
+          unreadAnchorId="msg_unread_1"
+          unreadCount={2}
         />
       );
       expect(screen.getByText("2 Unread Messages")).toBeInTheDocument();
       const separator = container.querySelector("#unread-messages-separator");
       expect(separator).toBeInTheDocument();
+      // Directly above the first unread message
+      expect(separator.nextElementSibling.id).toBe("msg-msg_unread_1");
+    });
+
+    it("shows no separator without an anchor, even if messages lack my readBy", () => {
+      const currentUser = { _id: "me123" };
+      const { container } = render(
+        <ChatMessagesList
+          messages={[{ _id: "live", content: "just arrived", sender: { _id: "x" }, readBy: ["x"], createdAt: new Date().toISOString() }]}
+          currentUser={currentUser}
+          chat={{ _id: "c1" }}
+          selectedMessageIds={[]}
+          audioPlaybackState={{}}
+        />
+      );
+      expect(container.querySelector("#unread-messages-separator")).toBeNull();
       console.log("TRACE [ChatModularComponents.test.jsx]: Unread separator element and id verified successfully");
     });
 

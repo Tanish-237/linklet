@@ -5,10 +5,13 @@ let redisClient;
 
 export const connectRedis = async () => {
   if (!process.env.REDIS_URL) {
-    logger.warn('REDIS_URL not found in environment variables. Falling back to in-memory store (NOT FOR PRODUCTION).');
-    // For local development without Redis, we can mock basic operations or throw an error based on preference.
-    // However, to ensure learning is smooth, we'll initialize a disconnected mock if needed, 
-    // but ideally, we want to enforce Redis for this revamp.
+    // Without Redis, Socket.io rooms, presence and rate-limit counters are
+    // per-process: fine for local dev, silently wrong as soon as production
+    // runs more than one instance. Refuse to boot rather than degrade quietly.
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('REDIS_URL is required in production.');
+    }
+    logger.warn('REDIS_URL not set — running with in-memory Socket.io adapter, cache and rate limits (development only).');
     return null;
   }
 

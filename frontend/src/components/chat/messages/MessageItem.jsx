@@ -7,13 +7,15 @@ const MessageItem = ({
   msg,
   currentUser,
   chat,
-  onlineUsers = [],
+  isRecipientOnline = false,
+  readTarget = 2,
   isSelected,
   isSelectionActive,
   isPinned,
   isStarred,
   isSameSenderAsPrev,
   searchQuery,
+  isActiveMatch = false,
   audioState,
   isMenuActive,
   isReactionActive,
@@ -24,6 +26,8 @@ const MessageItem = ({
   onToggleAudioPlay,
   onSeekAudio,
   onOpenLightbox,
+  onRetryFailed,
+  onDiscardFailed,
 }) => {
   const isSent =
     (msg.sender?._id || msg.sender)?.toString() === currentUser?._id?.toString();
@@ -31,31 +35,12 @@ const MessageItem = ({
   const activeChatId = chat?._id?.toString();
   const isMessageForThisChat = !msgChatId || !activeChatId || msgChatId === activeChatId;
 
-  // Determine if recipient is online on the website for 1-on-1 chats (or if any recipient is online in group)
-  const isRecipientOnline = React.useMemo(() => {
-    if (!chat || !onlineUsers || onlineUsers.length === 0) return false;
-    if (!chat.isGroup && Array.isArray(chat.participants)) {
-      const recipient = chat.participants.find(
-        (p) => (p._id || p)?.toString() !== currentUser?._id?.toString()
-      );
-      const recipientId = (recipient?._id || recipient)?.toString();
-      return recipientId ? onlineUsers.includes(recipientId) : false;
-    }
-    if (chat.isGroup && Array.isArray(chat.participants)) {
-      return chat.participants.some((p) => {
-        const pid = (p._id || p)?.toString();
-        return pid && pid !== currentUser?._id?.toString() && onlineUsers.includes(pid);
-      });
-    }
-    return false;
-  }, [chat, onlineUsers, currentUser?._id]);
-
   return (
     <div
       id={`msg-${msg._id}`}
       className={`flex items-center gap-3 w-full relative group ${
         isSameSenderAsPrev ? "mt-[3px] mb-0" : "mt-2.5 mb-0"
-      }`}
+      } ${isActiveMatch ? "search-active-match" : ""}`}
       onClick={() => {
         if (isSelectionActive) {
           onToggleSelect(msg._id);
@@ -98,6 +83,7 @@ const MessageItem = ({
               isPinned={isPinned}
               isStarred={isStarred}
               isRecipientOnline={isRecipientOnline}
+              readTarget={readTarget}
               searchQuery={searchQuery}
               audioState={audioState}
               isMenuActive={isMenuActive}
@@ -105,6 +91,8 @@ const MessageItem = ({
               onToggleAudioPlay={onToggleAudioPlay}
               onSeekAudio={onSeekAudio}
               onOpenLightbox={onOpenLightbox}
+              onRetryFailed={onRetryFailed}
+              onDiscardFailed={onDiscardFailed}
             />
 
             {/* Standalone Circular WhatsApp Reaction Button */}
@@ -128,4 +116,7 @@ const MessageItem = ({
   );
 };
 
-export default MessageItem;
+// Memoized: a message row re-renders only when its own props change — not on
+// every keystroke in the composer, presence update or new message elsewhere
+// in the list. Every callback passed in must therefore be referentially stable.
+export default React.memo(MessageItem);

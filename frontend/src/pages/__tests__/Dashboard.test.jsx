@@ -234,7 +234,7 @@ describe("Dashboard Component Tests", () => {
     // Test Subject Info opens SubjectInfoModal
     const subjectInfoBtn = screen.getByRole("button", { name: /Subject Info/i });
     fireEvent.click(subjectInfoBtn);
-    expect(screen.getByTestId("mock-subject-info-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("mock-subject-info-modal")).toBeInTheDocument();
 
     // Close Subject Info modal
     fireEvent.click(screen.getByText("Close Subject Info"));
@@ -250,7 +250,7 @@ describe("Dashboard Component Tests", () => {
 
     // Click View Timetable (first option)
     fireEvent.click(screen.getByText("View Timetable"));
-    expect(screen.getByTestId("mock-weekly-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("mock-weekly-modal")).toBeInTheDocument();
 
     // Close weekly modal
     fireEvent.click(screen.getByText("Close Weekly"));
@@ -266,7 +266,7 @@ describe("Dashboard Component Tests", () => {
 
     // Click Proceed to Upload
     fireEvent.click(screen.getByRole("button", { name: /Proceed to Upload/i }));
-    expect(screen.getByTestId("mock-upload-modal")).toBeInTheDocument();
+    expect(await screen.findByTestId("mock-upload-modal")).toBeInTheDocument();
   });
 
   it("handles attendance click from DailySchedule and triggers stats reload without crashing on triggerRefresh", async () => {

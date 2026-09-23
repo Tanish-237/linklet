@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 import { apiClient } from "../api/apiClient";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { useEffect } from "react";
 import "./Navbar.css";
 import linkletLogo from "../assets/linklet-logo.webp";
 import defaultAvatar from "../assets/default-avatar.webp";
+import ThemeToggle from "../theme/ThemeToggle";
+import { clearUserCaches } from "../store/useAuthStore";
 
 export const Navbar = () => {
   const { user, setUser } = useAuth();
@@ -32,6 +34,12 @@ export const Navbar = () => {
   const handleLogout = async () => {
     try {
       await apiClient.post(`/auth/logout`);
+      try {
+        window.localStorage.removeItem("accessToken");
+      } catch {
+        // Storage unavailable — nothing to remove
+      }
+      clearUserCaches();
       toast.success("Logged out successfully");
       setUser(null);
       navigate("/");
@@ -44,26 +52,14 @@ export const Navbar = () => {
     <nav id="app-navbar" className="app-nav">
       <Link
         to={user ? "/home" : "/"}
-        style={{
-          textDecoration: "none",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.75rem",
-        }}
+        className="app-nav-brand"
       >
         <img
           src={linkletLogo}
           alt="Linklet Logo"
-          style={{
-            width: "2.25rem",
-            height: "2.25rem",
-            borderRadius: "0.5rem",
-            objectFit: "contain",
-          }}
+          className="app-nav-brand-logo"
         />
-        <h2
-          style={{ color: "#f5f5f5", fontSize: "1.5rem", fontWeight: "bold" }}
-        >
+        <h2 className="app-nav-brand-name">
           Linklet
         </h2>
       </Link>
@@ -73,6 +69,7 @@ export const Navbar = () => {
           <>
             <Link to="/posts">Feed</Link>
             <Link to="/dashboard">Dashboard</Link>
+            <ThemeToggle />
             <div className="app-nav-profile" ref={profileContainerRef}>
               <button
                 id="navbar-avatar-dropdown-btn"
@@ -109,7 +106,7 @@ export const Navbar = () => {
                         id="navbar-dropdown-profile-btn"
                         onClick={() => {
                           setIsDropdownOpen(false);
-                          navigate("/dashboard/profile");
+                          navigate("/profile");
                         }}
                       >
                         <span className="material-icons">person</span>
@@ -121,7 +118,7 @@ export const Navbar = () => {
                         id="navbar-dropdown-settings-btn"
                         onClick={() => {
                           setIsDropdownOpen(false);
-                          navigate("/dashboard/settings");
+                          navigate("/settings");
                         }}
                       >
                         <span className="material-icons">settings</span>
@@ -148,6 +145,7 @@ export const Navbar = () => {
           </>
         ) : (
           <>
+            <ThemeToggle />
             <Link
               to="/login"
               className="app-nav-auth-link nav-auth-btn nav-btn-login"

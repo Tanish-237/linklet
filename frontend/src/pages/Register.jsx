@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { handleApiError } from "../utlis/ErrorHandler";
 import { Helmet } from "react-helmet-async";
@@ -10,6 +10,7 @@ import { apiClient } from "../api/apiClient";
 import GoogleAuthButton from "../components/GoogleAuthButton";
 import { isStrongPassword, PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_HINT } from "../utlis/passwordPolicy";
 import SEO from "../components/SEO";
+import ThemeToggle from "../theme/ThemeToggle";
 
 const formatSectionInput = (val) => {
   if (!val) return "";
@@ -87,7 +88,7 @@ export default function Register() {
   };
 
   return (
-    <div className="fixed inset-0 w-full h-full overflow-y-auto bg-gradient-to-b from-gray-900 via-gray-800 to-black text-white">
+    <div className="fixed inset-0 w-full h-full overflow-y-auto bg-canvas text-fg">
       {/* Sign-in screens have no search value; noindex keeps them out of results. */}
       <SEO title="Create your account | Linklet" description="Join Linklet with your official MNNIT email to connect with classmates, share resources and organise your campus life." path="/register" noindex />
       <Helmet>
@@ -95,22 +96,25 @@ export default function Register() {
       </Helmet>
 
       {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md shadow-lg">
+      <nav className="fixed top-0 left-0 right-0 z-50 bg-surface/80 backdrop-blur-md shadow-soft border-b border-line">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-3">
               <img src={linkletLogo} alt="Linklet Logo" className="h-10 w-10" />
-              <span className="text-2xl font-bold tracking-tight text-white">
+              <span className="text-2xl font-semibold tracking-tight text-fg">
                 Linklet
               </span>
             </Link>
 
-            <Link
-              to="/login"
-              className="px-4 py-2 rounded-lg hover:bg-violet-900/30 transition-all border border-violet-500/30 hover:border-violet-500"
-            >
-              Log in
-            </Link>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Link
+                to="/login"
+                className="px-4 py-2 rounded-lg hover:bg-accent-soft transition-all border border-accent/30 hover:border-accent text-fg-secondary hover:text-fg"
+              >
+                Log in
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
@@ -126,23 +130,23 @@ export default function Register() {
 
           <div className="w-full max-w-xl mx-auto">
             <div className="text-center mb-8">
-              <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight text-white">
+              <h1 className="text-3xl sm:text-4xl font-semibold mb-3 tracking-tight text-fg">
                 Join Linklet Today
               </h1>
-              <p className="text-xl text-gray-300">
+              <p className="text-xl text-fg-secondary">
                 Start your learning journey with our academic community
               </p>
             </div>
 
-            <div className="bg-black/30 backdrop-blur-md rounded-xl border border-violet-500/20 p-8">
+            <div className="bg-surface/70 backdrop-blur-md rounded-xl border border-line shadow-pop p-8">
               <GoogleAuthButton mode="signup" />
 
               <div className="relative mb-6">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-800"></div>
+                  <div className="w-full border-t border-line"></div>
                 </div>
                 <div className="relative flex justify-center">
-                  <span className="px-3 py-0.5 bg-gray-900 border border-gray-800/80 rounded-full text-xs font-medium text-gray-400 uppercase tracking-wider">
+                  <span className="px-3 py-0.5 bg-surface border border-line rounded-full text-xs font-medium text-fg-muted uppercase tracking-wider">
                     Or continue with email
                   </span>
                 </div>
@@ -150,7 +154,7 @@ export default function Register() {
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="fullName">
+                  <label className="text-sm font-medium text-fg-secondary" htmlFor="fullName">
                     Full Name <span className="text-violet-400">*</span>
                   </label>
                   <input
@@ -160,12 +164,12 @@ export default function Register() {
                     onChange={(e) => setFullName(e.target.value)}
                     required
                     disabled={step === 2}
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg disabled:opacity-50"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="email">
+                  <label className="text-sm font-medium text-fg-secondary" htmlFor="email">
                     College Email <span className="text-violet-400">*</span>
                   </label>
                   <input
@@ -175,12 +179,12 @@ export default function Register() {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     disabled={step === 2}
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg disabled:opacity-50"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="password">
+                  <label className="text-sm font-medium text-fg-secondary" htmlFor="password">
                     Password <span className="text-violet-400">*</span>
                   </label>
                   <div className="relative flex items-center">
@@ -193,13 +197,13 @@ export default function Register() {
                       minLength={8}
                       placeholder={PASSWORD_POLICY_HINT}
                       disabled={step === 2}
-                      className="w-full px-4 py-3 pr-12 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
+                      className="w-full px-4 py-3 pr-12 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg disabled:opacity-50"
                     />
                     <button
                       type="button"
                       disabled={step === 2}
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 flex items-center justify-center w-7 h-7 rounded-md text-gray-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="absolute right-3 flex items-center justify-center w-7 h-7 rounded-md text-fg-subtle hover:text-accent-fg hover:bg-accent-soft transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       aria-label="Toggle password visibility"
                     >
                       {showPassword ? (
@@ -219,7 +223,7 @@ export default function Register() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-gray-300" htmlFor="department">
+                  <label className="text-sm font-medium text-fg-secondary" htmlFor="department">
                     Branch <span className="text-violet-400">*</span>
                   </label>
                   <select
@@ -228,7 +232,7 @@ export default function Register() {
                     onChange={(e) => setDepartment(e.target.value)}
                     required
                     disabled={step === 2}
-                    className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50"
+                    className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg disabled:opacity-50"
                   >
                     <option value="">Select Branch</option>
                     <option value="Computer Science and Engineering">Computer Science and Engineering</option>
@@ -245,7 +249,7 @@ export default function Register() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-300" htmlFor="section">
+                    <label className="text-sm font-medium text-fg-secondary" htmlFor="section">
                       Class Section
                     </label>
                     <input
@@ -256,14 +260,14 @@ export default function Register() {
                       onChange={(e) => setSection(formatSectionInput(e.target.value))}
                       maxLength={10}
                       disabled={step === 2}
-                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50 uppercase placeholder:normal-case"
+                      className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg disabled:opacity-50 uppercase placeholder:normal-case"
                     />
-                    <p className="text-[11px] text-gray-400">Main lecture section</p>
+                    <p className="text-[11px] text-fg-muted">Main lecture section</p>
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-300" htmlFor="subSection">
-                      Sub-Section <span className="text-gray-400 font-normal text-xs">(Optional)</span>
+                    <label className="text-sm font-medium text-fg-secondary" htmlFor="subSection">
+                      Sub-Section <span className="text-fg-muted font-normal text-xs">(Optional)</span>
                     </label>
                     <input
                       id="subSection"
@@ -273,15 +277,15 @@ export default function Register() {
                       onChange={(e) => setSubSection(formatSectionInput(e.target.value))}
                       maxLength={10}
                       disabled={step === 2}
-                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white disabled:opacity-50 uppercase placeholder:normal-case"
+                      className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg disabled:opacity-50 uppercase placeholder:normal-case"
                     />
-                    <p className="text-[11px] text-gray-400">Tutorial or lab batch</p>
+                    <p className="text-[11px] text-fg-muted">Tutorial or lab batch</p>
                   </div>
                 </div>
 
                 {step === 2 && (
                   <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-300" htmlFor="otp">
+                    <label className="text-sm font-medium text-fg-secondary" htmlFor="otp">
                       Enter 6-digit OTP
                     </label>
                     <input
@@ -293,19 +297,19 @@ export default function Register() {
                       value={otp}
                       onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                       required
-                      className="w-full px-4 py-3 bg-gray-900/50 border border-gray-700 focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 rounded-lg outline-none transition-all text-white tracking-widest text-center text-lg font-bold"
+                      className="w-full px-4 py-3 bg-surface-2 border border-line-strong focus:border-accent focus:ring-2 focus:ring-accent/20 rounded-lg outline-none transition-all text-fg tracking-widest text-center text-lg font-bold"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Please check your email inbox ({email}).</p>
+                    <p className="text-xs text-fg-muted mt-1">Please check your email inbox ({email}).</p>
                   </div>
                 )}
 
-                <p className="text-xs text-gray-400 text-center">
+                <p className="text-xs text-fg-muted text-center">
                   By continuing, you agree to Linklet's{" "}
-                  <Link to="/terms" target="_blank" className="text-violet-400 hover:text-violet-300 underline">
+                  <Link to="/terms" target="_blank" className="text-accent-fg hover:text-accent-fg underline">
                     Terms of Service
                   </Link>{" "}
                   and{" "}
-                  <Link to="/privacy" target="_blank" className="text-violet-400 hover:text-violet-300 underline">
+                  <Link to="/privacy" target="_blank" className="text-accent-fg hover:text-accent-fg underline">
                     Privacy Policy
                   </Link>
                   .
@@ -323,7 +327,7 @@ export default function Register() {
                   <button
                     type="button"
                     onClick={() => setStep(1)}
-                    className="w-full py-2 text-sm text-gray-400 hover:text-white transition-colors"
+                    className="w-full py-2 text-sm text-fg-muted hover:text-fg transition-colors"
                   >
                     Change Details or Email
                   </button>

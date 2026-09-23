@@ -13,10 +13,11 @@ vi.mock("../../api/apiClient", () => ({
   apiClient: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
   },
 }));
 
-vi.mock("react-toastify", () => ({
+vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -112,7 +113,7 @@ describe("Settings Page Component Tests", () => {
     console.log("TRACE [Settings.test.jsx]: Password change request submitted successfully");
   });
 
-  it("switches to Preferences tab and displays active notification options and email digest", async () => {
+  it("switches to Preferences tab and displays the notification switches", async () => {
     console.log("TRACE [Settings.test.jsx]: Testing Preferences tab with notification options");
     const user = userEvent.setup();
 
@@ -127,18 +128,49 @@ describe("Settings Page Component Tests", () => {
     expect(screen.queryByText(/Attendance Guardian/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Active/i)).not.toBeInTheDocument();
 
-    // Coming Soon badge should exist for Email Activity Digest
-    expect(screen.getByText(/Coming Soon/i)).toBeInTheDocument();
+    // The unbuilt "Email Activity Digest" placeholder is gone
+    expect(screen.queryByText(/Coming Soon/i)).not.toBeInTheDocument();
 
-    // Checkboxes should exist and active ones should be toggleable
+    // chat, forum, post, system — all on by default
     const checkboxes = screen.getAllByRole("checkbox");
-    expect(checkboxes.length).toBe(5); // Added: chatAlerts (Direct & Group Chat Messages)
-    expect(checkboxes[0]).toBeChecked(); // forum alerts default true
-
-    await user.click(checkboxes[0]);
-    expect(checkboxes[0]).not.toBeChecked();
+    expect(checkboxes.length).toBe(4);
+    checkboxes.forEach((cb) => expect(cb).toBeChecked());
 
     console.log("TRACE [Settings.test.jsx]: Notification preferences and clean toggles verified without pills");
+  });
+
+  it("saves a notification switch to the account and keeps it off", async () => {
+    const setUser = vi.fn();
+    vi.spyOn(AuthContextModule, "useAuth").mockReturnValue({ user: mockUser, setUser, fetchUser: vi.fn() });
+    apiClient.put.mockResolvedValue({
+      data: { notificationPrefs: { chatAlerts: true, forumAlerts: false, postAlerts: true, systemAlerts: true } },
+    });
+    const user = userEvent.setup();
+    renderComponent();
+    await user.click(screen.getByRole("tab", { name: /Preferences & Alerts/i }));
+
+    const forumToggle = screen.getAllByRole("checkbox")[1];
+    await user.click(forumToggle);
+
+    expect(forumToggle).not.toBeChecked();
+    expect(apiClient.put).toHaveBeenCalledWith("/profile/notification-preferences", { forumAlerts: false });
+    await waitFor(() =>
+      expect(setUser).toHaveBeenCalledWith(
+        expect.objectContaining({ notificationPrefs: expect.objectContaining({ forumAlerts: false }) })
+      )
+    );
+  });
+
+  it("rolls a notification switch back if saving fails", async () => {
+    apiClient.put.mockRejectedValue(new Error("network"));
+    const user = userEvent.setup();
+    renderComponent();
+    await user.click(screen.getByRole("tab", { name: /Preferences & Alerts/i }));
+
+    const postToggle = screen.getAllByRole("checkbox")[2];
+    await user.click(postToggle);
+
+    await waitFor(() => expect(postToggle).toBeChecked());
   });
 
   it("switches to Display & App Info tab and verifies live diagnostics", async () => {

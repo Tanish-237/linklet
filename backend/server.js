@@ -13,9 +13,11 @@ import compression from "compression";
 import { connectDb } from "./src/utils/db.js";
 import { connectRedis } from "./src/utils/redis.js";
 import { hasUnmigratedPostComments } from "./src/migrations/postComments.migration.js";
+import { hasUnmigratedResourceCategories } from "./src/migrations/resourceCategories.migration.js";
 import logger from "./src/utils/logger.js";
 import apiRoutes from "./src/routes/index.js";
 import { initializeSocket } from "./socket.js";
+import { createRateLimitStore } from "./src/utils/rateLimitStore.js";
 import { fileCleanupMiddleware, cleanupRequestFiles } from "./src/middlewares/fileCleanup.middleware.js";
 
 const app = express();
@@ -33,6 +35,7 @@ const limiter = rateLimit({
   // together. This is a broad abuse backstop; the truly sensitive endpoints
   // (OTP, login) have their own much tighter limiters in auth.routes.js.
   max: 2000,
+  store: createRateLimitStore("api"),
   standardHeaders: true,
   legacyHeaders: false,
   message: "Too many requests from this IP, please try again later"
@@ -54,12 +57,14 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
-// Static Files
+// Multer's scratch directory for uploads on their way to Cloudinary. It is
+// deliberately NOT served over HTTP: it only ever holds user-supplied files of
+// any type, and exposing it would let an in-flight upload be fetched from the
+// API origin.
 const uploadDir = path.join(process.cwd(), "public", "temp");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
-app.use(express.static("public"));
 
 // Auto cleanup temporary uploaded files on finish/close
 app.use(fileCleanupMiddleware);
@@ -92,9 +97,13 @@ app.use((err, req, res, next) => {
     logger.warn(`${statusCode} - ${err.message} - ${req.originalUrl} - ${req.method}`);
   }
 
+  // 4xx messages are written for the user (AppError); 5xx messages come from
+  // whatever threw (Mongo, Cloudinary, a TypeError) and can leak internals, so
+  // they're only surfaced outside production.
+  const exposeMessage = statusCode < 500 || process.env.NODE_ENV !== "production";
   res.status(statusCode).json({
     success: false,
-    message: err.message || "Internal Server Error",
+    message: exposeMessage ? err.message || "Internal Server Error" : "Internal Server Error",
     stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
 });
@@ -123,6 +132,16 @@ const bootServer = async () => {
     } catch (err) {
       logger.warn(`Could not check for un-migrated post comments: ${err.message}`);
     }
+    try {
+      const mongoose = (await import("mongoose")).default;
+      if (await hasUnmigratedResourceCategories(mongoose.connection.db)) {
+        logger.warn(
+          "[MIGRATION REQUIRED] Some resources still use the retired \"presentations\" category. Run `npm run migrate:resource-categories` — until then they are hidden from the Lectures filter and fail validation when edited."
+        );
+      }
+    } catch (err) {
+      logger.warn(`Could not check for un-migrated resource categories: ${err.message}`);
+    }
 
     // 2. Connect Redis
     await connectRedis();
@@ -146,7 +165,7 @@ bootServer();
 // stop accepting new connections and let in-flight requests finish instead of
 // dropping them mid-response, then close the DB connection cleanly.
 let shuttingDown = false;
-const shutdown = (signal) => {
+const shutdown = (signal, exitCode = 0) => {
   if (shuttingDown) return;
   shuttingDown = true;
   logger.info(`${signal} received. Shutting down gracefully...`);
@@ -160,7 +179,7 @@ const shutdown = (signal) => {
       logger.warn(`Error closing MongoDB connection: ${err.message}`);
     }
     logger.info("Shutdown complete.");
-    process.exit(0);
+    process.exit(exitCode);
   });
 
   // Force-exit if connections don't close within a reasonable window (e.g. a
@@ -171,5 +190,17 @@ const shutdown = (signal) => {
   }, 10000).unref();
 };
 
+// A stray rejected promise or synchronous throw outside Express's error
+// pipeline would otherwise kill the process with nothing useful in the logs.
+// Rejections are logged and the server keeps serving; an uncaught exception
+// leaves the process in an unknown state, so it is logged and then shut down
+// cleanly for the platform to restart.
+process.on("unhandledRejection", (reason) => {
+  logger.error(`Unhandled promise rejection: ${reason?.stack || reason}`);
+});
+process.on("uncaughtException", (err) => {
+  logger.error(`Uncaught exception: ${err?.stack || err}`);
+  shutdown("uncaughtException", 1);
+});
 process.on("SIGTERM", () => shutdown("SIGTERM"));
 process.on("SIGINT", () => shutdown("SIGINT"));

@@ -18,6 +18,12 @@ const postSchema = new mongoose.Schema(
       default: "",
     },
     image: { type: String, required: false, default: "" },
+    mediaType: {
+      type: String,
+      enum: ["image", "video", null],
+      default: null,
+    },
+    isEdited: { type: Boolean, default: false },
 
     upvotes: [
       {

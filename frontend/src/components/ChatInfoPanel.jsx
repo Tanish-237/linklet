@@ -1,36 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/apiClient";
-import { toast } from "react-toastify";
+import { toast } from "sonner";
 import defaultAvatar from "../assets/default-avatar.webp";
 import defaultGroupAvatar from "../assets/default-group.svg";
 import { optimizeAvatar } from "../utlis/cloudinary";
+import ContactDetails from "./chat/info/ContactDetails";
+import ChatMediaGallery from "./chat/info/ChatMediaGallery";
 
-const getBranchAbbr = (b) => {
-  if (!b) return "CSE";
-  const str = typeof b === "object" ? (b.name || "") : String(b);
-  const lower = str.toLowerCase();
-  if (lower.includes("computer science") || lower.includes("cse")) return "CSE";
-  if (lower.includes("mathematics") || lower.includes("mnc")) return "MnC";
-  if (lower.includes("electronics") || lower.includes("ece")) return "ECE";
-  if (lower.includes("electrical") || lower.includes("ee")) return "EE";
-  if (lower.includes("computational mechanics") || lower.includes("ecm")) return "ECM";
-  if (lower.includes("mechanical") || lower.includes("me")) return "ME";
-  if (lower.includes("civil") || lower.includes("ce")) return "CE";
-  if (lower.includes("chemical") || lower.includes("che")) return "CHE";
-  if (lower.includes("biotech") || lower.includes("bt")) return "BT";
-  return str || "CSE";
-};
-
-const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
+const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessage }) => {
   const [addSearchQuery, setAddSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState(chat?.chatName || "");
   const [activeTab, setActiveTab] = useState("info"); // "info" | "media"
-  const [mediaItems, setMediaItems] = useState([]);
-  const [mediaLoading, setMediaLoading] = useState(false);
-  const [lightboxSrc, setLightboxSrc] = useState(null);
   const [activeMenuMemberId, setActiveMenuMemberId] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
 
@@ -55,26 +38,6 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
       document.removeEventListener("mousedown", handleOutsideClick);
     };
   }, [activeMenuMemberId]);
-
-  // Load media items when Media tab is active
-  useEffect(() => {
-    if (activeTab !== "media" || !chat?._id) return;
-    setMediaLoading(true);
-    apiClient
-      .get(`/chat/message/${chat._id}?limit=200`)
-      .then((res) => {
-        if (res.data.success) {
-          const msgs = Array.isArray(res.data.data?.messages)
-            ? res.data.data.messages
-            : Array.isArray(res.data.data)
-            ? res.data.data
-            : [];
-          setMediaItems(msgs.filter((m) => m.media && m.mediaType));
-        }
-      })
-      .catch(() => {})
-      .finally(() => setMediaLoading(false));
-  }, [activeTab, chat?._id]);
 
   if (!chat) return null;
 
@@ -251,7 +214,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
     : null;
 
   return (
-    <div className="info-panel flex flex-col h-full text-white">
+    <div className="info-panel flex flex-col h-full text-fg">
       {/* Panel Header */}
       <div className="flex justify-between items-center pb-3 border-b border-violet-500/15">
         <h3 className="text-base font-bold text-violet-400">
@@ -260,7 +223,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
         <button
           type="button"
           onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-fg hover:bg-fg/10 transition-colors cursor-pointer"
           title="Close details"
           aria-label="Close details"
         >
@@ -278,10 +241,10 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
             className={`flex-1 py-2 text-sm font-semibold capitalize transition-colors cursor-pointer ${
               activeTab === tab
                 ? "border-b-2 border-violet-500 text-violet-300"
-                : "text-gray-400 hover:text-white"
+                : "text-gray-400 hover:text-fg"
             }`}
           >
-            {tab === "info" ? (chat.isGroup ? "Overview" : "Profile") : "Media"}
+            {tab === "info" ? (chat.isGroup ? "Overview" : "Profile") : "Media & files"}
           </button>
         ))}
       </div>
@@ -335,7 +298,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                     onChange={(e) => setNewName(e.target.value)}
                     placeholder="Enter group name..."
                     autoFocus
-                    className="w-full bg-slate-900 border border-violet-500/40 px-3 py-1.5 rounded-xl text-sm text-white focus:outline-none focus:border-violet-400 text-center"
+                    className="w-full bg-slate-900 border border-violet-500/40 px-3 py-1.5 rounded-xl text-sm text-fg focus:outline-none focus:border-violet-400 text-center"
                   />
                   {isSameName && !isNameEmpty && (
                     <span className="text-[11px] text-amber-400 font-medium">
@@ -372,7 +335,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
               ) : (
                 <div className="flex flex-col items-center gap-1">
                   <div className="flex items-center justify-center gap-2">
-                    <h4 className="text-lg font-bold text-white tracking-tight">{chat.chatName}</h4>
+                    <h4 className="text-lg font-bold text-fg tracking-tight">{chat.chatName}</h4>
                     {isCurrentUserAdmin && (
                       <button
                         type="button"
@@ -392,9 +355,9 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
               )
             ) : (
               <div>
-                <h4 className="text-lg font-semibold text-white">{otherUser?.fullName}</h4>
+                <h4 className="text-lg font-semibold text-fg">{otherUser?.fullName}</h4>
                 <Link
-                  to={`/dashboard/profile/${otherUser?.username}`}
+                  to={`/profile/${otherUser?.username}`}
                   className="text-sm font-medium text-violet-400 hover:underline inline-block mt-0.5"
                 >
                   @{otherUser?.username}
@@ -422,7 +385,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                       placeholder="Add member by username..."
                       value={addSearchQuery}
                       onChange={handleSearchAdd}
-                      className="bg-transparent text-xs text-white placeholder-gray-500 focus:outline-none w-full"
+                      className="bg-transparent text-xs text-fg placeholder-gray-500 focus:outline-none w-full"
                     />
                     {addSearchQuery && (
                       <button
@@ -431,7 +394,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                           setAddSearchQuery("");
                           setSearchResults([]);
                         }}
-                        className="text-gray-400 hover:text-white"
+                        className="text-gray-400 hover:text-fg"
                       >
                         <span className="material-icons text-sm">close</span>
                       </button>
@@ -488,7 +451,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                         />
                         <div className="min-width-0 flex-1 truncate">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-semibold text-white truncate">
+                            <span className="text-xs font-semibold text-fg truncate">
                               {p.fullName || p.username}
                             </span>
                             {isCurrent && (
@@ -517,7 +480,7 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
                                 e.stopPropagation();
                                 setActiveMenuMemberId(isMenuOpen ? null : pId);
                               }}
-                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-colors cursor-pointer"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-fg hover:bg-gray-800 transition-colors cursor-pointer"
                               title="Member options"
                               aria-label={`Options for ${p.username}`}
                             >
@@ -586,34 +549,8 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
               </div>
             </div>
           ) : (
-            <div className="flex-1 overflow-y-auto space-y-4 pt-4 pr-1">
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-violet-500/15">
-                <h5 className="text-xs font-semibold text-violet-400 uppercase tracking-wider mb-1">Bio</h5>
-                <p className="text-sm text-gray-200">{otherUser?.bio || "No bio provided."}</p>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-violet-500/15 space-y-3">
-                <h5 className="text-xs font-semibold text-violet-400 uppercase tracking-wider mb-2">User Details</h5>
-                <div className="flex items-center gap-3 text-sm text-gray-300">
-                  <span className="material-icons text-violet-400 text-base">school</span>
-                  <span>Year: <strong className="text-white">{otherUser?.year || "N/A"}</strong></span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-gray-300">
-                  <span className="material-icons text-violet-400 text-base">domain</span>
-                  <span>Branch: <strong className="text-white">{getBranchAbbr(otherUser?.department || otherUser?.branch)}</strong></span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-gray-300">
-                  <span className="material-icons text-violet-400 text-base">badge</span>
-                  <span>Role: <strong className="text-violet-300">{otherUser?.userType || "Student"}</strong></span>
-                </div>
-                <div className="flex items-center gap-3 text-sm text-gray-300">
-                  <span className="material-icons text-violet-400 text-base">phone</span>
-                  <span>Phone: <strong className="text-white">{otherUser?.phoneNumber || "Not added"}</strong></span>
-                </div>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-900/60 border border-violet-500/15 flex items-center gap-3">
-                <span className="material-icons text-emerald-400 text-xl">lock</span>
-                <h6 className="text-xs font-semibold text-emerald-300">End-to-End Encryption</h6>
-              </div>
+            <div className="flex-1 overflow-y-auto pt-4 pr-1">
+              <ContactDetails participant={otherUser} />
             </div>
           )}
         </>
@@ -621,106 +558,8 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat }) => {
 
       {/* ─── Media Tab ─── */}
       {activeTab === "media" && (
-        <div className="flex-1 overflow-y-auto pt-3">
-          {mediaLoading ? (
-            <div className="flex items-center justify-center py-10 text-violet-400 text-sm gap-2 animate-pulse">
-              <span className="material-icons text-base animate-spin">sync</span>
-              Loading media...
-            </div>
-          ) : mediaItems.length === 0 ? (
-            <div className="py-10 text-center text-gray-400 text-sm">
-              <span className="material-icons text-4xl text-gray-600 block mb-2">perm_media</span>
-              No media shared yet.
-            </div>
-          ) : (
-            <div className="grid grid-cols-3 gap-0.5">
-              {mediaItems.map((m) => {
-                if (m.mediaType === "image") {
-                  return (
-                    <button
-                      key={m._id}
-                      type="button"
-                      onClick={() => setLightboxSrc(m.media)}
-                      className="aspect-square overflow-hidden group relative cursor-pointer"
-                    >
-                      <img loading="lazy" decoding="async"
-                        src={m.media}
-                        alt="media"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
-                    </button>
-                  );
-                }
-                if (m.mediaType === "video") {
-                  return (
-                    <div
-                      key={m._id}
-                      className="aspect-square overflow-hidden bg-gray-800 flex items-center justify-center relative group cursor-pointer"
-                      onClick={() => setLightboxSrc(m.media)}
-                    >
-                      <video src={m.media} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <span className="material-icons text-white text-2xl">play_circle</span>
-                      </div>
-                    </div>
-                  );
-                }
-                if (m.mediaType === "audio") {
-                  return (
-                    <div
-                      key={m._id}
-                      className="col-span-3 flex items-center gap-3 px-3 py-2.5 bg-gray-800/60 mx-1 mb-1 border border-gray-700/50 rounded-xl"
-                    >
-                      <span className="material-icons text-violet-400 flex-shrink-0">mic</span>
-                      <audio
-                        controls
-                        src={m.media}
-                        className="w-full h-8"
-                        style={{ filter: "invert(0.85) hue-rotate(240deg)" }}
-                      />
-                    </div>
-                  );
-                }
-                // Document
-                return (
-                  <a
-                    key={m._id}
-                    href={m.media}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="col-span-3 flex items-center gap-3 px-3 py-2.5 bg-gray-800/60 hover:bg-violet-600/15 mx-1 mb-1 border border-gray-700/50 rounded-xl transition-colors"
-                  >
-                    <span className="material-icons text-violet-400 flex-shrink-0">insert_drive_file</span>
-                    <span className="text-sm text-gray-200 truncate flex-1">
-                      {m.media?.split("/").pop() || "Document"}
-                    </span>
-                    <span className="material-icons text-gray-400 text-base">download</span>
-                  </a>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Lightbox */}
-      {lightboxSrc && (
-        <div
-          className="fixed inset-0 bg-black/90 z-[300] flex items-center justify-center p-4"
-          onClick={() => setLightboxSrc(null)}
-        >
-          <img loading="lazy" decoding="async"
-            src={lightboxSrc}
-            alt="media"
-            className="max-w-full max-h-full rounded-xl object-contain"
-          />
-          <button
-            type="button"
-            onClick={() => setLightboxSrc(null)}
-            className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 cursor-pointer"
-          >
-            <span className="material-icons">close</span>
-          </button>
+        <div className="flex-1 min-h-0 flex flex-col pt-3">
+          <ChatMediaGallery chatId={chat._id} onJumpToMessage={onJumpToMessage} />
         </div>
       )}
     </div>
