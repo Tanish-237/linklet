@@ -286,6 +286,12 @@
   margin-left: auto;
 }
 
+/* Transparent on desktop so the pills sit inline with sort and My Questions;
+   on mobile it becomes its own row (see the max-width: 768px block). */
+.hf-status-group {
+  display: contents;
+}
+
 /* ─── Sort Dropdown ──────────────────────────────────────────────────────────── */
 .hf-sort-wrap {
   position: relative;
@@ -769,15 +775,28 @@
 
 /* ─── Empty State ────────────────────────────────────────────────────────────── */
 .hf-empty {
-  text-align: left;
-  padding: 3rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 3rem 1rem;
   color: rgb(var(--fg-secondary));
 }
 
 .hf-empty-icon {
-  font-size: 4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
   margin-bottom: 1rem;
-  opacity: 0.4;
+  border-radius: 16px;
+  background: rgb(var(--accent) / 0.12);
+  color: rgb(var(--accent-fg));
+}
+
+.hf-empty-icon .material-icons {
+  font-size: 1.75rem;
 }
 
 .hf-empty h3 {
@@ -790,6 +809,32 @@
 .hf-empty p {
   font-size: 0.85rem;
   margin: 0;
+}
+
+.hf-empty-clear {
+  margin-top: 1rem;
+  padding: 0.45rem 1rem;
+  background: rgb(var(--surface-2));
+  border: 1.5px solid rgb(var(--line));
+  border-radius: 10px;
+  color: rgb(var(--accent-fg));
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+@media (hover: hover) {
+  .hf-empty-clear:hover {
+    border-color: rgb(var(--accent) / 0.4);
+    background: rgb(var(--accent-hover) / 0.1);
+  }
+}
+
+.hf-empty-clear:focus-visible {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 2px;
 }
 
 /* ─── Loading Skeleton ────────────────────────────────────────────────────────── */
@@ -1963,6 +2008,47 @@
   .hf-filter-btn {
     padding: 0.4rem 0.9rem;
     font-size: 0.82rem;
+  }
+
+  /* Row 1: sort + My Questions splitting the full width, row 2: status pills */
+  .hf-sort-wrap {
+    flex: 1;
+  }
+
+  .hf-sort-btn {
+    width: 100%;
+  }
+
+  .hf-sort-chevron {
+    margin-left: auto;
+  }
+
+  .hf-sort-dropdown {
+    min-width: 100%;
+  }
+
+  .hf-filter-btn-mine {
+    order: 1;
+    flex: 1;
+    justify-content: center;
+    margin-left: 0;
+  }
+
+  .hf-status-group {
+    order: 2;
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .hf-status-group::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hf-status-group .hf-filter-btn {
+    flex-shrink: 0;
   }
 
   /* ─── Question Detail Page (mobile) ─────────────────────────────────── */

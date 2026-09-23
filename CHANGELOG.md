@@ -5,6 +5,15 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-09-23
+
+### Added
+- **Unsolved** filter in the Help Forum: questions without an accepted answer (`status=unsolved` on the feed API). The status filters are now All, Solved, Unsolved, Answered and Unanswered.
+
+### Changed
+- Help Forum filters on phones: the sort dropdown and My Questions share the first row at full width; the status filters sit on their own row below and scroll sideways if they don't fit.
+- The empty Help Forum list says why it's empty (e.g. "Nothing is waiting for an answer" on Unanswered, "No results for …" on a search, "You haven't asked any questions yet" on My Questions), with a matching icon, a **Clear filters** button when any filter is on, and a centred layout.
+
 ## [2.1.2] - 2026-09-23
 
 ### Deploy notes

@@ -76,13 +76,13 @@ export const findQuestionById = async (id) => {
  * indexable path check, unlike the old `$expr: { $size }` which forced a full
  * collection scan for the "answered"/"unanswered" tabs.
  */
-// `status` (unanswered/answered/solved) and `filter` (the sort key — all/
+// `status` (unanswered/answered/solved/unsolved) and `filter` (the sort key — all/
 // oldest/views/popular) used to be the same single string, so a client could
 // never ask for e.g. "solved, sorted by most viewed" at once. `status` is now
 // the dedicated param for this; `filter` is still accepted as a fallback so
 // existing callers passing e.g. `filter: "solved"` (with no separate sort)
 // keep working exactly as before — an explicit `status` just takes priority.
-const STATUS_VALUES = ["unanswered", "answered", "solved"];
+const STATUS_VALUES = ["unanswered", "answered", "solved", "unsolved"];
 
 const buildBaseQuery = ({ category, tag, userId, status, filter }) => {
   const base = {};
@@ -97,6 +97,7 @@ const buildBaseQuery = ({ category, tag, userId, status, filter }) => {
   if (effectiveStatus === "unanswered") base["answers.0"] = { $exists: false };
   else if (effectiveStatus === "answered") base["answers.0"] = { $exists: true };
   else if (effectiveStatus === "solved") base["acceptedAnswers.0"] = { $exists: true };
+  else if (effectiveStatus === "unsolved") base["acceptedAnswers.0"] = { $exists: false };
 
   return base;
 };

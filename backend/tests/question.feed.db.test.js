@@ -153,11 +153,13 @@ describe("Help Forum feed (real MongoDB)", () => {
       const unanswered = await questionService.getQuestionsFeed({ filter: "unanswered", limit: 50 });
       const answered = await questionService.getQuestionsFeed({ filter: "answered", limit: 50 });
       const solved = await questionService.getQuestionsFeed({ filter: "solved", limit: 50 });
+      const unsolved = await questionService.getQuestionsFeed({ status: "unsolved", limit: 50 });
 
       console.log(`[TEST RESULT] unanswered=${unanswered.questions.length}, answered=${answered.questions.length}, solved=${solved.questions.length}`);
       expect(unanswered.questions).toHaveLength(2);
       expect(answered.questions).toHaveLength(4);
       expect(titles(solved)).toEqual(["question 06"]);
+      expect(unsolved.questions).toHaveLength(5);
     });
 
     test("the queries no longer contain $expr (which cannot use an index)", async () => {

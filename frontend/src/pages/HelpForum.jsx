@@ -409,9 +409,49 @@ const SORT_OPTIONS = [
 const STATUS_FILTERS = [
   { id: '', label: 'All' },
   { id: 'solved', label: 'Solved' },
-  { id: 'unanswered', label: 'Unanswered' },
+  { id: 'unsolved', label: 'Unsolved' },
   { id: 'answered', label: 'Answered' },
+  { id: 'unanswered', label: 'Unanswered' },
 ];
+
+// Empty-list copy that says which filter produced it, instead of a generic
+// "No questions found" that reads like the forum is broken.
+const STATUS_EMPTY = {
+  solved: { icon: 'task_alt', title: 'No solved questions yet', text: 'Questions show up here once the asker accepts an answer.' },
+  unsolved: { icon: 'celebration', title: 'Everything is solved', text: 'Every question here already has an accepted answer.' },
+  answered: { icon: 'forum', title: 'No answered questions yet', text: 'Questions show up here once someone replies.' },
+  unanswered: { icon: 'mark_chat_read', title: 'Nothing is waiting for an answer', text: 'Every question here has at least one reply.' },
+};
+
+const getEmptyState = ({ search, status, mineOnly, category, tag }) => {
+  const scope = [category, tag && `#${tag}`].filter(Boolean).join(' · ');
+  if (search) {
+    return {
+      icon: 'search_off',
+      title: `No results for “${search}”`,
+      text: 'Try different keywords, or clear the filters to search everything.',
+    };
+  }
+  if (mineOnly && !status) {
+    return {
+      icon: 'person',
+      title: scope ? `You haven’t asked anything in ${scope}` : 'You haven’t asked any questions yet',
+      text: 'Stuck on something? Ask the community.',
+    };
+  }
+  if (status) {
+    const s = STATUS_EMPTY[status];
+    return {
+      ...s,
+      title: mineOnly ? `None of your questions are ${status}` : s.title,
+      text: scope ? `Nothing matches in ${scope}. ${s.text}` : s.text,
+    };
+  }
+  if (scope) {
+    return { icon: 'filter_alt_off', title: `No questions in ${scope}`, text: 'Be the first to ask one here.' };
+  }
+  return { icon: 'help_outline', title: 'No questions yet', text: 'Be the first to ask a question!' };
+};
 
 const EMPTY = [];
 const DEFAULT_CATEGORIES = ['General'];
@@ -744,16 +784,18 @@ const HelpForum = () => {
               )}
             </div>
 
-            {STATUS_FILTERS.map((f) => (
-              <button
-                key={f.id || 'status-all'}
-                id={`hf-filter-${f.id || 'all'}`}
-                className={`hf-filter-btn ${status === f.id ? 'active' : ''}`}
-                onClick={() => setStatus(f.id)}
-              >
-                {f.label}
-              </button>
-            ))}
+            <div className="hf-status-group">
+              {STATUS_FILTERS.map((f) => (
+                <button
+                  key={f.id || 'status-all'}
+                  id={`hf-filter-${f.id || 'all'}`}
+                  className={`hf-filter-btn ${status === f.id ? 'active' : ''}`}
+                  onClick={() => setStatus(f.id)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
 
             {user && (
               <button
@@ -772,17 +814,40 @@ const HelpForum = () => {
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => <SkeletonCard key={i} />)
             ) : questions.length === 0 ? (
-              <div className="hf-empty">
-                <div className="hf-empty-icon">
-                  <span className="material-icons" style={{ fontSize: '4rem' }}>help_outline</span>
-                </div>
-                <h3>No questions found</h3>
-                <p>
-                  {debouncedSearch
-                    ? 'Try adjusting your search terms or filters.'
-                    : 'Be the first to ask a question!'}
-                </p>
-              </div>
+              (() => {
+                const empty = getEmptyState({
+                  search: debouncedSearch,
+                  status,
+                  mineOnly,
+                  category: selectedCategory,
+                  tag: selectedTag,
+                });
+                const hasFilters = debouncedSearch || status || mineOnly || selectedCategory || selectedTag;
+                return (
+                  <div className="hf-empty">
+                    <div className="hf-empty-icon">
+                      <span className="material-icons">{empty.icon}</span>
+                    </div>
+                    <h3>{empty.title}</h3>
+                    <p>{empty.text}</p>
+                    {hasFilters && (
+                      <button
+                        className="hf-empty-clear"
+                        onClick={() => {
+                          setSearch('');
+                          setDebouncedSearch('');
+                          setStatus('');
+                          setMineOnly(false);
+                          setSelectedCategory('');
+                          setSelectedTag('');
+                        }}
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
+                );
+              })()
             ) : (
               questions.map((q, i) => (
                 <QuestionCard
