@@ -268,7 +268,7 @@ Both projects deploy from GitHub: a push to `main` goes to production, a pull re
 
 - **Config:** `backend/vercel.json` sets no framework, the `bom1` region, and 1 GB memory with an 800 s `maxDuration` for the function, and rewrites every path to it. Fluid compute must be on (the default).
 - **WebSockets:** clients connect with `transports: ["websocket"]` only, because HTTP long-polling needs sticky sessions, which Vercel doesn't have. Vercel closes each connection when the function reaches `maxDuration`. The client reconnects on its own, rejoins its rooms, and a 5 s grace period stops contacts seeing someone go offline during that reconnect.
-- **Presence** lives in Redis (sorted sets refreshed by a heartbeat every 60 s, expiring after 150 s), not in `fetchSockets()`, because suspended function instances can't answer cross-instance queries.
+- **Presence** lives in Redis (sorted sets refreshed by a cheap heartbeat every 2 minutes, expiring after 5 minutes), not in `fetchSockets()`, because suspended function instances can't answer cross-instance queries.
 - **Uploads** go from the browser to Cloudinary (`POST /api/v1/uploads/sign`), because Vercel caps request bodies at 4.5 MB. Only timetable files (max 4 MB) pass through the API, to be parsed by Gemini.
 - **Database connections:** at most 10 per function instance, so many warm instances stay inside Atlas's connection limit.
 - **Network allow-lists:** function IPs change, so MongoDB Atlas, Redis and Brevo must not restrict by IP.

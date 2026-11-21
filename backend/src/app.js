@@ -8,7 +8,6 @@ import compression from "compression";
 import logger from "./utils/logger.js";
 import apiRoutes from "./routes/index.js";
 import { corsOriginHandler } from "./utils/cors.js";
-import { createRateLimitStore } from "./utils/rateLimitStore.js";
 import { fileCleanupMiddleware, cleanupRequestFiles } from "./middlewares/fileCleanup.middleware.js";
 import { rejectOperatorKeys } from "./middlewares/rejectOperators.middleware.js";
 import { health } from "./controllers/health.controller.js";
@@ -35,7 +34,10 @@ const limiter = rateLimit({
   // together. This is a broad abuse backstop; the truly sensitive endpoints
   // (OTP, login) have their own much tighter limiters in auth.routes.js.
   max: 2000,
-  store: createRateLimitStore("api"),
+  // Counted per server instance, not in Redis: this backstop runs on every API
+  // request, and a shared counter would cost ~5 Redis commands each (Upstash
+  // bills per command). The limits that matter (OTP, login, change password,
+  // uploads, timetable AI) stay in Redis, shared across instances.
   standardHeaders: true,
   legacyHeaders: false,
   // JSON like every other API error, so the frontend shows this text instead
