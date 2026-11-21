@@ -9,6 +9,15 @@ vi.mock("../../api/apiClient", () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
 }));
 
+// Files go straight to Cloudinary; the message request carries the results.
+vi.mock("../../api/directUpload", () => ({
+  uploadToCloudinary: vi.fn(async (file) => ({
+    public_id: file.name,
+    original_name: file.name,
+    mimetype: file.type,
+  })),
+}));
+
 // Media messages reach the sender twice — the HTTP response and the socket
 // broadcast — in either order. Each file must end up as exactly one bubble.
 
@@ -38,10 +47,10 @@ const rowIds = (container) => [...container.querySelectorAll('[id^="msg-"]')].ma
 // when a send has several files. The response is held until `respond()`.
 const mockSendEndpoint = () => {
   const pending = {};
-  apiClient.post.mockImplementation((url, formData) => {
-    const clientId = formData.get("clientId");
-    const files = [...formData.values()].filter((v) => v instanceof File);
-    const audio = formData.get("mediaType") === "audio";
+  apiClient.post.mockImplementation((url, body) => {
+    const clientId = body.clientId;
+    const files = body.mediaUpload || [];
+    const audio = body.mediaType === "audio";
     pending.msgs = files.map((file, i) => ({
       _id: `real${i}`,
       clientId: files.length > 1 ? `${clientId}:${i}` : clientId,
@@ -49,7 +58,7 @@ const mockSendEndpoint = () => {
       chat: "c1",
       media: `https://res.cloudinary.com/demo/${i}`,
       mediaType: audio ? "audio" : "document",
-      fileName: audio ? undefined : file.name,
+      fileName: audio ? undefined : file.original_name,
       createdAt: new Date().toISOString(),
     }));
     return new Promise((resolve) => {
@@ -161,8 +170,8 @@ describe("ChatWindow media sends", () => {
       fireEvent.click(await screen.findByLabelText("Send voice note"));
       await waitFor(() => expect(apiClient.post).toHaveBeenCalledTimes(1));
 
-      const formData = apiClient.post.mock.calls[0][1];
-      expect([...formData.values()].filter((v) => v instanceof File)).toHaveLength(1);
+      const body = apiClient.post.mock.calls[0][1];
+      expect(body.mediaUpload).toHaveLength(1);
 
       await act(async () => {
         server.msgs.forEach((m) => socket.fire("message received", m));

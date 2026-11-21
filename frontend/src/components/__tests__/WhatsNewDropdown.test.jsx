@@ -2,12 +2,13 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi, describe, beforeEach, it, expect } from "vitest";
-import WhatsNewDropdown, {
+import WhatsNewDropdown from "../WhatsNewDropdown";
+import {
   RELEASE_VERSION,
   STORAGE_KEY,
   isReleaseSeen,
   markReleaseSeen,
-} from "../WhatsNewDropdown";
+} from "../../utlis/whatsNew";
 
 const fakeLocalStorage = (() => {
   let store = {};
@@ -25,7 +26,7 @@ const fakeLocalStorage = (() => {
   };
 })();
 
-globalThis.localStorage = fakeLocalStorage;
+vi.stubGlobal("localStorage", fakeLocalStorage);
 
 describe("WhatsNewDropdown Component Tests (Production Rollout Behavior)", () => {
   beforeEach(() => {

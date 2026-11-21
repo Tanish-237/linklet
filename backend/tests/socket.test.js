@@ -6,6 +6,7 @@ const mockLogger = {
   info: jest.fn(),
   warn: jest.fn(),
   error: jest.fn(),
+  debug: jest.fn(),
 };
 jest.unstable_mockModule('../src/utils/logger.js', () => ({
   default: mockLogger,
@@ -415,7 +416,7 @@ describe('Socket Initialization Unit Tests', () => {
     connectionHandler(mockSocket);
 
     mockIsParticipant.mockResolvedValue(false);
-    await registeredHandlers['join chat']('secret_chat_room');
+    await registeredHandlers['join chat']('65f0000000000000000000a1');
 
     expect(mockSocket.emit).toHaveBeenCalledWith('error', {
       message: 'Unauthorized to join this chat room',
@@ -424,8 +425,30 @@ describe('Socket Initialization Unit Tests', () => {
 
     // Now test authorized member
     mockIsParticipant.mockResolvedValue(true);
-    await registeredHandlers['join chat']('allowed_chat_room');
-    expect(mockSocket.join).toHaveBeenCalledWith('allowed_chat_room');
+    await registeredHandlers['join chat']('65f0000000000000000000a2');
+    expect(mockSocket.join).toHaveBeenCalledWith('65f0000000000000000000a2');
+  });
+
+  test('join chat ignores ids that are not ObjectId strings (an object would act as a query operator)', async () => {
+    mockGetRedisClient.mockReturnValue(null);
+    const { initializeSocket } = await import('../socket.js');
+    await initializeSocket(http.createServer());
+    const connectionHandler = mockOn.mock.calls.find((call) => call[0] === 'connection')[1];
+    const registeredHandlers = {};
+    const mockSocket = {
+      id: 'socket-validate', userId: 'u1', authenticated: true,
+      join: jest.fn(), use: jest.fn(), emit: jest.fn(),
+      on: jest.fn((event, handler) => { registeredHandlers[event] = handler; }),
+    };
+    connectionHandler(mockSocket);
+    mockIsParticipant.mockClear();
+    mockIsParticipant.mockResolvedValue(true);
+
+    await registeredHandlers['join chat']({ $ne: null });
+    await registeredHandlers['join chat']('not-an-id');
+
+    expect(mockIsParticipant).not.toHaveBeenCalled();
+    expect(mockSocket.join).not.toHaveBeenCalled();
   });
 
   test('does not register client-forgeable chat mutation relays (new message, message deleted, etc.)', async () => {

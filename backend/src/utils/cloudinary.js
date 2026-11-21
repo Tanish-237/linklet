@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
+import crypto from "crypto";
 import fs from "fs";
 import logger from "./logger.js";
 
@@ -8,7 +9,20 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const uploadOnCloudinary = async (filepath) => {
+/**
+ * Upload a file to Cloudinary and return Cloudinary's response.
+ *
+ * Accepts a local path, or a multer-style file object. A file object that was
+ * already uploaded straight from the browser (see directUpload.middleware.js)
+ * carries its verified Cloudinary result in `file.cloudinary`, which is returned
+ * as-is with nothing re-uploaded.
+ */
+const uploadOnCloudinary = async (fileOrPath) => {
+  if (fileOrPath && typeof fileOrPath === "object") {
+    if (fileOrPath.cloudinary) return fileOrPath.cloudinary;
+    fileOrPath = fileOrPath.path;
+  }
+  const filepath = fileOrPath;
   try {
     if (!filepath) {
       return null;
@@ -70,4 +84,68 @@ const deleteFromCloudinary = async (publicId, resourceType = "auto") => {
   }
 };
 
-export { uploadOnCloudinary, deleteFromCloudinary };
+/**
+ * Parameters for a signed browser-to-Cloudinary upload. The browser posts the
+ * file with these fields to `uploadUrl`, so large files never pass through the
+ * API (whose host caps request bodies at 4.5 MB). The signature covers
+ * `timestamp` and `folder`, so the client can't change either, and Cloudinary
+ * rejects it after an hour.
+ */
+const createUploadSignature = (folder) => {
+  const timestamp = Math.round(Date.now() / 1000);
+  const { cloud_name, api_key, api_secret } = cloudinary.config();
+  const signature = cloudinary.utils.api_sign_request({ timestamp, folder }, api_secret);
+  return {
+    uploadUrl: `https://api.cloudinary.com/v1_1/${cloud_name}/auto/upload`,
+    apiKey: api_key,
+    timestamp,
+    folder,
+    signature,
+  };
+};
+
+const safeEqual = (a, b) => {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  return ba.length === bb.length && crypto.timingSafeEqual(ba, bb);
+};
+
+/**
+ * Check the result of a browser-to-Cloudinary upload, as the client reports it.
+ *
+ * Cloudinary's upload response includes `signature`, an HMAC of public_id and
+ * version under our API secret. A matching signature proves the asset really
+ * was uploaded to this Cloudinary account, and only the uploader ever sees it,
+ * so a client can't attach someone else's file or a forged URL. `secure_url`
+ * must point at that exact asset. `bytes`/`format` are display metadata
+ * reported by the client.
+ *
+ * Returns a normalized upload result, or null if anything doesn't check out.
+ */
+const verifyDirectUpload = (upload) => {
+  if (!upload || typeof upload !== "object") return null;
+  const { public_id: publicId, version, signature, secure_url: secureUrl, resource_type: resourceType } = upload;
+  if (typeof publicId !== "string" || publicId.length === 0 || publicId.length > 512) return null;
+  if (!/^\d{1,20}$/.test(String(version))) return null;
+  if (typeof signature !== "string" || typeof secureUrl !== "string") return null;
+  if (!["image", "video", "raw"].includes(resourceType)) return null;
+
+  const { cloud_name, api_secret } = cloudinary.config();
+  if (!cloud_name || !api_secret) return null;
+  const expected = cloudinary.utils.api_sign_request({ public_id: publicId, version }, api_secret, null, 1);
+  if (!safeEqual(signature, expected)) return null;
+
+  const prefix = `https://res.cloudinary.com/${cloud_name}/${resourceType}/upload/`;
+  if (!secureUrl.startsWith(prefix) || !secureUrl.includes(`/v${version}/${encodeURI(publicId)}`)) return null;
+
+  const bytes = Number(upload.bytes);
+  return {
+    secure_url: secureUrl,
+    public_id: publicId,
+    resource_type: resourceType,
+    format: typeof upload.format === "string" ? upload.format.slice(0, 32) : undefined,
+    bytes: Number.isFinite(bytes) && bytes > 0 ? Math.floor(bytes) : undefined,
+  };
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary, createUploadSignature, verifyDirectUpload };

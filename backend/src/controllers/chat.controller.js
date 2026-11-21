@@ -192,7 +192,7 @@ export const updateGroupImage = async (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ success: false, message: "No image file provided" });
     }
-    const chat = await chatService.updateGroupImage(chatId, req.user._id, req.file.path);
+    const chat = await chatService.updateGroupImage(chatId, req.user._id, req.file);
     await safeNotify(notifyGroupUpdated, chat);
     res.status(200).json({ success: true, data: chat });
   } catch (error) {

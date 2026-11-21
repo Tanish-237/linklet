@@ -26,7 +26,7 @@ jest.unstable_mockModule('../src/utils/blacklist.js', () => ({
 jest.unstable_mockModule('../src/repositories/chat.repository.js', () => ({
   findContactIds: jest.fn(async () => []),
   isParticipant: jest.fn().mockResolvedValue(true),
-  findChatById: jest.fn(async () => ({ _id: 'chat1', participants: ['alice', 'bob'] })),
+  findChatById: jest.fn(async () => ({ _id: '65f0000000000000000000c1', participants: ['alice', 'bob'] })),
 }));
 const mockMarkAsRead = jest.fn().mockResolvedValue({ modifiedCount: 1 });
 jest.unstable_mockModule('../src/services/chat.service.js', () => ({
@@ -95,15 +95,15 @@ describe('Chat delivery & read receipts (real Socket.IO)', () => {
   test('a recipient with the chat open receives each new message exactly once', async () => {
     const alice = await connect('alice');
     const bob = await connect('bob');
-    await setupAndJoin(alice, 'alice', 'chat1');
-    await setupAndJoin(bob, 'bob', 'chat1'); // bob is in BOTH the chat room and his personal room
+    await setupAndJoin(alice, 'alice', '65f0000000000000000000c1');
+    await setupAndJoin(bob, 'bob', '65f0000000000000000000c1'); // bob is in BOTH the chat room and his personal room
 
     let bobCount = 0;
     bob.on('message received', () => bobCount++);
 
     await notifyNewMessage({
       _id: 'm1',
-      chat: { _id: 'chat1', participants: ['alice', 'bob'] },
+      chat: { _id: '65f0000000000000000000c1', participants: ['alice', 'bob'] },
       sender: 'alice',
       content: 'hi',
     });
@@ -119,7 +119,7 @@ describe('Chat delivery & read receipts (real Socket.IO)', () => {
     const received = waitFor(bob, 'message received');
     await notifyNewMessage({
       _id: 'm2',
-      chat: { _id: 'chat1', participants: ['alice', 'bob'] },
+      chat: { _id: '65f0000000000000000000c1', participants: ['alice', 'bob'] },
       sender: 'alice',
       content: 'you there?',
     });
@@ -131,31 +131,31 @@ describe('Chat delivery & read receipts (real Socket.IO)', () => {
     const alice = await connect('alice');
     const bobTab1 = await connect('bob');
     const bobTab2 = await connect('bob');
-    await setupAndJoin(alice, 'alice', 'chat1');
-    await setupAndJoin(bobTab1, 'bob', 'chat1');
+    await setupAndJoin(alice, 'alice', '65f0000000000000000000c1');
+    await setupAndJoin(bobTab1, 'bob', '65f0000000000000000000c1');
     await setupAndJoin(bobTab2, 'bob', null);
 
     const aliceSeesRead = waitFor(alice, 'read receipt');
     const otherTabSyncs = waitFor(bobTab2, 'chat read');
-    bobTab1.emit('read receipt', { chatId: 'chat1' });
+    bobTab1.emit('read receipt', { chatId: '65f0000000000000000000c1' });
 
-    expect(await aliceSeesRead).toEqual({ chatId: 'chat1', userId: 'bob' });
-    expect(await otherTabSyncs).toEqual({ chatId: 'chat1', userId: 'bob' });
-    expect(mockMarkAsRead).toHaveBeenCalledWith('chat1', 'bob');
+    expect(await aliceSeesRead).toEqual({ chatId: '65f0000000000000000000c1', userId: 'bob' });
+    expect(await otherTabSyncs).toEqual({ chatId: '65f0000000000000000000c1', userId: 'bob' });
+    expect(mockMarkAsRead).toHaveBeenCalledWith('65f0000000000000000000c1', 'bob');
   });
 
   test('a read receipt for a chat the user is not in is dropped, not broadcast', async () => {
     mockMarkAsRead.mockRejectedValueOnce(new Error('You are not a participant in this chat'));
     const alice = await connect('alice');
     const mallory = await connect('mallory');
-    await setupAndJoin(alice, 'alice', 'chat1');
+    await setupAndJoin(alice, 'alice', '65f0000000000000000000c1');
     await setupAndJoin(mallory, 'mallory', null);
 
     let aliceGotReceipt = false;
     alice.on('read receipt', () => {
       aliceGotReceipt = true;
     });
-    mallory.emit('read receipt', { chatId: 'chat1' });
+    mallory.emit('read receipt', { chatId: '65f0000000000000000000c1' });
     await settle();
 
     expect(aliceGotReceipt).toBe(false);

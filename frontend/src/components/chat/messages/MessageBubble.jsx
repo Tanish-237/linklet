@@ -1,18 +1,8 @@
 import React from "react";
+import { formatMessageClock } from "./messageTime";
 import MessageMedia from "./MessageMedia";
 import useLongPress from "../../../hooks/useLongPress";
 import LinkifiedText from "../../LinkifiedText";
-
-export const formatMessageClock = (dateStr) => {
-  if (!dateStr) return "";
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return "";
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", hour12: true });
-  } catch {
-    return "";
-  }
-};
 
 /**
  * `readTarget` is how many readBy entries mean "read": 2 in a DM (sender +

@@ -83,11 +83,10 @@ const messageSchema = new mongoose.Schema(
 );
 
 // Ensure at least content or media is provided
-messageSchema.pre("validate", function (next) {
+// (Mongoose 9: pre hooks no longer get `next`; throwing rejects the save.)
+messageSchema.pre("validate", function () {
   if (!this.content && !this.media) {
-    next(new Error("Message must have either content or media"));
-  } else {
-    next();
+    throw new Error("Message must have either content or media");
   }
 });
 

@@ -72,10 +72,10 @@ Linklet connects students across batches and branches through real-time communic
 
 | Layer | Technologies |
 |---|---|
-| **Frontend** | React 19, Vite, Tailwind CSS v4, TanStack React Query v5, Zustand v5, React Router v7, Chart.js, Socket.IO Client |
-| **Backend** | Node.js, Express 4, Mongoose 8, Socket.IO 4, Winston, Multer, Helmet, Express Rate Limit |
-| **Data & Cache** | MongoDB (indexed cursor pagination, text search), Redis (session caching, horizontal socket adapter) |
-| **Storage & Media** | Cloudinary CDN (parallelized uploads, temporary file system unlink cleanup) |
+| **Frontend** | React 19, Vite 8, Tailwind CSS v4, TanStack React Query v5, Zustand v5, React Router v7, Chart.js, Socket.IO Client |
+| **Backend** | Node.js 24, Express 5, Mongoose 9, Socket.IO 4, Winston, Multer, Helmet, Express Rate Limit |
+| **Data & Cache** | MongoDB Atlas (indexed cursor pagination, text search), Upstash Redis (caching, rate limits, presence, Socket.IO adapter) |
+| **Storage & Media** | Cloudinary CDN (signed browser-to-Cloudinary uploads) |
 | **Authentication** | Google OAuth 2.0 (`@mnnit.ac.in` verified), JWT access + refresh token rotation |
 
 ---
@@ -131,7 +131,7 @@ Ensure you have the following installed locally:
    cp .env.example .env
    ```
 
-   The example file documents every variable the backend actually reads. At minimum for local dev you'll need `MONGO_URL`, `ACCESS_TOKEN_SECRET`, and `REFRESH_TOKEN_SECRET` set. Without `REDIS_URL` the server still starts, but Redis-backed features (OTP, sessions/logout, caching, socket.io horizontal scaling) will explicitly error rather than silently work — fine for a quick local check, not for anything resembling production. Email falls back from Brevo to Gmail SMTP if only `EMAIL_USER`/`EMAIL_PASS` are set. Cloudinary, Google OAuth, and Gemini are only needed for the specific feature each one powers (media uploads, Google sign-in, AI timetable parsing).
+   The example file documents every variable the backend actually reads. At minimum for local dev you'll need `MONGO_URL`, `ACCESS_TOKEN_SECRET`, and `REFRESH_TOKEN_SECRET` set. Without `REDIS_URL` the server still starts, but Redis-backed features (OTP, sessions/logout, caching, socket.io horizontal scaling) will explicitly error rather than silently work — fine for a quick local check, not for anything resembling production. Without `BREVO_API_KEY`, emails (such as sign-up codes) are printed to the console instead of sent. Cloudinary, Google OAuth, and Gemini are only needed for the specific feature each one powers (media uploads, Google sign-in, AI timetable parsing).
 
 3. Run the development server:
    ```bash
@@ -239,7 +239,6 @@ linklet/
 │   └── vite.config.js
 │
 ├── .github/                   # CI workflow, issue templates, PR template
-├── vercel.json                # SPA/prerender rewrites, cache & security headers
 ├── CHANGELOG.md               # Structured release history (Keep a Changelog format)
 ├── CONTRIBUTING.md
 ├── CODE_OF_CONDUCT.md
@@ -252,27 +251,42 @@ linklet/
 
 ## Deployment
 
-| Component | Host | Notes |
-|---|---|---|
-| Frontend | Vercel | Static build from `frontend/`; `vercel.json` handles rewrites, asset caching, and security headers |
-| Backend API + WebSockets | Render | `GET /health` for health checks; graceful shutdown on `SIGTERM`; logs go to stdout only in production |
-| Database | MongoDB Atlas | |
-| Cache / Pub-Sub | Redis | Required in production (OTP, sessions, caching, Socket.IO adapter) |
-| Media | Cloudinary | |
+Everything runs on Vercel (team plan: Pro), in **Mumbai (`bom1`)**, next to the MongoDB Atlas cluster and the users.
 
-Set every variable from `backend/.env.example` and `frontend/.env.example` in the respective host's environment settings.
+| Component | Where | Notes |
+|---|---|---|
+| Site | Vercel project `linklet` (root `frontend/`) | Static Vite build plus prerendered public pages. `frontend/vercel.json`: rewrites, asset caching, Content-Security-Policy and other security headers. Domain `linklet.org`. |
+| API + WebSockets | Vercel project `linklet-api` (root `backend/`) | One Vercel Function (`api/index.js`) serves REST and Socket.IO. Domain `api.linklet.org`. |
+| Database | MongoDB Atlas (Mumbai) | Production data is in the `test` database (`MONGO_DB_NAME`). Previews use `linklet_preview`. |
+| Redis | Upstash, via the Vercel Marketplace (Mumbai) | Required in production: OTP codes, logout blacklist, rate limits, caches, presence, Socket.IO fan-out. |
+| Files | Cloudinary | Uploaded straight from the browser (signed by the API). |
+| Email | Brevo | The only provider; "Authorised IPs" blocking must be off. |
+
+Both projects deploy from GitHub: a push to `main` goes to production, a pull request gets a preview. Environment variables are set per project in Vercel (see `backend/.env.example` and `frontend/.env.example`).
+
+### API on Vercel
+
+- **Config:** `backend/vercel.json` sets no framework, the `bom1` region, and 1 GB memory with an 800 s `maxDuration` for the function, and rewrites every path to it. Fluid compute must be on (the default).
+- **WebSockets:** clients connect with `transports: ["websocket"]` only, because HTTP long-polling needs sticky sessions, which Vercel doesn't have. Vercel closes each connection when the function reaches `maxDuration`. The client reconnects on its own, rejoins its rooms, and a 5 s grace period stops contacts seeing someone go offline during that reconnect.
+- **Presence** lives in Redis (sorted sets refreshed by a heartbeat every 60 s, expiring after 150 s), not in `fetchSockets()`, because suspended function instances can't answer cross-instance queries.
+- **Uploads** go from the browser to Cloudinary (`POST /api/v1/uploads/sign`), because Vercel caps request bodies at 4.5 MB. Only timetable files (max 4 MB) pass through the API, to be parsed by Gemini.
+- **Database connections:** at most 10 per function instance, so many warm instances stay inside Atlas's connection limit.
+- **Network allow-lists:** function IPs change, so MongoDB Atlas, Redis and Brevo must not restrict by IP.
+- **Health:** `GET /health` returns 200 with database and Redis state, or 503 if either is down. Point an uptime monitor at it.
+- `server.js` is the entrypoint for `npm run dev` (a long-lived Node process); production never uses it.
 
 ---
 
 ## Security
 
 - **Restricted Email Domain**: Server-side checks reject any non-`@mnnit.ac.in` domain during registration and OAuth callbacks.
-- **Authentication**: Short-lived JWT access tokens with rotating refresh tokens, and token blacklisting on logout/password change. Socket.IO handshakes are rejected unless they carry a valid, non-blacklisted token; the client transparently refreshes an expired token and reconnects.
+- **Authentication**: JWT access tokens and rotating refresh tokens in httpOnly cookies, with one session per device (up to 10). Only SHA-256 hashes of refresh tokens are stored. Logging out ends that device's session and blacklists its access token; changing or resetting the password signs out every other device. Socket.IO handshakes are rejected unless they carry a valid, non-blacklisted token; the client refreshes an expired token and reconnects.
 - **Password Policy**: Minimum 8 characters with at least one letter and one number, enforced on registration, change, and reset.
 - **Rate Limiting**: A global API limiter plus tighter limits on OTP/login endpoints and a per-user limit on the paid AI timetable-upload endpoint.
-- **Input Hardening**: Type checks against NoSQL operator injection, escaped regex in searches, URL validation on user-supplied links, and HTML escaping in outbound email.
+- **Input Hardening**: Request bodies containing MongoDB operator keys (`$ne`, `$gt`, …) are rejected (NoSQL injection), socket events accept only well-formed ids, searches escape regex, user-supplied links must be http(s), watch-together only embeds YouTube, and outbound email escapes HTML.
+- **Browser security headers**: a Content-Security-Policy that allows inline scripts only by hash (checked by a test), no framing, a Permissions-Policy that allows only the microphone (voice notes), plus nosniff and a strict referrer policy.
+- **Uploads**: the API signs each browser-to-Cloudinary upload and verifies Cloudinary's response signature before attaching a file, so nobody can attach a forged URL or someone else's file.
 - **CORS**: Explicit origin allow-list (production domains plus this project's own Vercel deployments only).
-- **Media Cleanup**: Multer uploads are removed from the server filesystem immediately after upload or error.
 - **Role-Based Access Control**: Admin-only endpoints guarded by RBAC middleware, with an audit log of admin actions.
 - **Dependencies**: `npm audit` runs in CI; Dependabot alerts are kept at zero.
 

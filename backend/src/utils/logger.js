@@ -8,21 +8,20 @@ const logFormat = winston.format.printf(({ level, message, timestamp, stack }) =
 const isProduction = process.env.NODE_ENV === 'production';
 
 const transports = [
-  // Always log to Console so cloud platforms like Render capture stdout/stderr.
+  // Always log to Console so the hosting platform (Vercel) captures stdout/stderr.
+  // Colours only in a local terminal: in Vercel's log viewer they show up as
+  // raw escape codes.
   new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      logFormat
-    ),
+    format: isProduction || process.env.VERCEL
+      ? logFormat
+      : winston.format.combine(winston.format.colorize(), logFormat),
   }),
 ];
 
-// File transports are only useful with a real, persistent disk. Render's
-// filesystem is ephemeral — it's wiped on every deploy/restart — so writing
-// unbounded log files there buys no durability and just risks filling the
-// container's disk over a long-running instance. Local dev has a real disk
-// worth writing to for offline debugging.
-if (!isProduction) {
+// File transports are only useful with a real, persistent disk. In production
+// (and on any Vercel deployment, whose filesystem is read-only) logs go to
+// stdout only. Local dev has a real disk worth writing to for offline debugging.
+if (!isProduction && !process.env.VERCEL) {
   transports.push(
     new winston.transports.File({ filename: 'logs/error.log', level: 'error' }),
     new winston.transports.File({ filename: 'logs/combined.log' })

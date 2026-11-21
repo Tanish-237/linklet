@@ -1,11 +1,16 @@
 import multer from "multer";
 import path from "path";
-
+import os from "os";
 import fs from "fs";
+
+// Scratch space for uploads on their way to Cloudinary. The OS temp dir is the
+// only writable path on Vercel (the deployment itself is read-only). It is never
+// served over HTTP.
+export const UPLOAD_TMP_DIR = path.join(os.tmpdir(), "linklet-uploads");
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    const uploadDir = path.resolve("./public/temp");
+    const uploadDir = UPLOAD_TMP_DIR;
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }

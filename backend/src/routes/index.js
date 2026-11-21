@@ -12,6 +12,7 @@ import dashboardRoutes from "./dashboard.routes.js";
 import timetableRoutes from "./timetable.routes.js";
 import contactRoutes from "./contact.routes.js";
 import notificationRoutes from "./notification.routes.js";
+import uploadRoutes from "./upload.routes.js";
 import { apiDefaultCacheControl } from "../middlewares/cacheControl.js";
 
 const router = express.Router();
@@ -31,6 +32,7 @@ router.use("/dashboard", dashboardRoutes);
 router.use("/timetable", timetableRoutes);
 router.use("/contact", contactRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/uploads", uploadRoutes);
 
 export default router;
 

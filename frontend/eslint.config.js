@@ -23,6 +23,17 @@ export default [
     rules: {
       ...js.configs.recommended.rules,
       ...reactHooks.configs.recommended.rules,
+      // eslint-plugin-react-hooks 7 added React Compiler rules. The app doesn't
+      // use the compiler, and the existing code predates these rules (setState
+      // in effects, hoisted handlers, Date.now() in render), so they're hints
+      // to clean up over time, not CI failures. The classic rules
+      // (rules-of-hooks, exhaustive-deps) keep their recommended severity.
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/static-components': 'warn',
       // `argsIgnorePattern` (separate from `varsIgnorePattern`) is needed too:
       // destructured function PARAMETERS — e.g. `({ game: GameComponent }) =>`
       // — are checked under the rule's "args" handling, not "vars", so a

@@ -80,9 +80,16 @@ const useAuthStore = create(
             try {
               await refreshAccessToken();
               response = await apiClient.get('/auth/check');
-            } catch {
-              // Refresh failed: the session is really over ("auth-expired"
-              // has already cleared local state).
+            } catch (refreshError) {
+              // Rejected (401/403): the session is really over, and
+              // "auth-expired" has already cleared local state. Anything else
+              // (offline, API unreachable) says nothing about the session:
+              // keep the cached user, as the outer catch does.
+              const status = refreshError?.response?.status;
+              if (status !== 401 && status !== 403) {
+                set({ isLoading: false });
+                return;
+              }
             }
           }
           const user = response.data?.user || null;

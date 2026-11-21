@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { apiClient } from "../../api/apiClient";
+import { uploadToCloudinary } from "../../api/directUpload";
 import { generateClientId } from "../../utlis/clientId";
 
 // Chat Subcomponents
@@ -233,17 +234,14 @@ const ChatWindow = ({
       setMessages((prev) => upsertMessage(prev, optimisticAudioMsg));
 
       try {
-        const formData = new FormData();
-        formData.append("chatId", chat._id);
         // Exactly once: the server turns every uploaded file into its own
-        // message, so a second copy under another field name was a second
-        // voice note.
-        formData.append("media", audioFile);
-        formData.append("mediaType", "audio");
-        formData.append("clientId", clientId);
-
-        const res = await apiClient.post("/chat/message", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+        // message, so a second copy would be a second voice note.
+        const upload = await uploadToCloudinary(audioFile, "chat");
+        const res = await apiClient.post("/chat/message", {
+          chatId: chat._id,
+          mediaUpload: [upload],
+          mediaType: "audio",
+          clientId,
         });
 
         if (res.data.success) {
@@ -836,14 +834,15 @@ const ChatWindow = ({
     try {
       let res;
       if (files.length > 0) {
-        const formData = new FormData();
-        formData.append("chatId", chat._id);
-        if (content) formData.append("content", content);
-        if (replyTo) formData.append("replyTo", replyTo._id);
-        formData.append("clientId", clientId);
-        files.forEach((file) => formData.append("media", file));
-        res = await apiClient.post("/chat/message", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+        // Files go straight to Cloudinary (in parallel); the message carries
+        // only the verified upload results.
+        const mediaUpload = await Promise.all(files.map((file) => uploadToCloudinary(file, "chat")));
+        res = await apiClient.post("/chat/message", {
+          chatId: chat._id,
+          content: content || undefined,
+          replyTo: replyTo ? replyTo._id : undefined,
+          clientId,
+          mediaUpload,
         });
       } else {
         res = await apiClient.post("/chat/message", {

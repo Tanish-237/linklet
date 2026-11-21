@@ -4,7 +4,6 @@ import { jest } from '@jest/globals';
 const mockFindUserByEmail = jest.fn();
 const mockFindUserByUsername = jest.fn();
 const mockCreateUser = jest.fn();
-const mockUpdateRefreshToken = jest.fn();
 const mockFindUserById = jest.fn();
 const mockFindUserWithPasswordById = jest.fn();
 
@@ -12,7 +11,12 @@ jest.unstable_mockModule('../src/repositories/user.repository.js', () => ({
   findUserByEmail: mockFindUserByEmail,
   findUserByUsername: mockFindUserByUsername,
   createUser: mockCreateUser,
-  updateRefreshToken: mockUpdateRefreshToken,
+  addSession: jest.fn(),
+  clearSessions: jest.fn(),
+  removeSession: jest.fn(),
+  rotateSession: jest.fn(),
+  migrateLegacySession: jest.fn(),
+  wasJustRotated: jest.fn(),
   findUserById: mockFindUserById,
   findUserWithPasswordById: mockFindUserWithPasswordById,
 }));
@@ -452,13 +456,19 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
         password: 'HashedOldPassword',
         matchPassword: jest.fn().mockResolvedValue(true),
         save: jest.fn().mockResolvedValue(true),
+        generateAccessToken: () => 'new_access',
+        generateRefreshToken: () => 'new_refresh',
       };
       mockFindUserWithPasswordById.mockResolvedValueOnce(mockUser);
+      const repo = await import('../src/repositories/user.repository.js');
 
       const result = await changePassword('user123', 'CorrectOldPass', 'BrandNewPass123!');
       console.log('[TEST] changePassword result:', result);
 
-      expect(result).toBe(true);
+      // Every device is signed out, then this device gets a fresh session.
+      expect(result).toEqual({ accessToken: 'new_access', refreshToken: 'new_refresh' });
+      expect(repo.clearSessions).toHaveBeenCalledWith('user123');
+      expect(repo.addSession).toHaveBeenCalledWith('user123', 'new_refresh');
       expect(mockUser.password).toBe('BrandNewPass123!');
       expect(mockUser.save).toHaveBeenCalled();
     });
@@ -516,6 +526,8 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
         _id: 'user123',
         matchPassword: jest.fn().mockResolvedValue(true),
         save: jest.fn().mockResolvedValue(true),
+        generateAccessToken: () => 'new_access',
+        generateRefreshToken: () => 'new_refresh',
       };
       mockFindUserWithPasswordById.mockResolvedValueOnce(mockUser);
 
@@ -524,6 +536,7 @@ describe('Auth Service Registration & OTP Unit Tests', () => {
         body: { currentPassword: 'OldPassword123', newPassword: 'NewPassword123' },
       };
       const res = {
+        cookie: jest.fn(),
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
       };

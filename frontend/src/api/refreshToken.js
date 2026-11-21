@@ -20,7 +20,13 @@ export const refreshAccessToken = () => {
     .post(`${API_BASE_URL}/api/v1/auth/refresh`, {}, { withCredentials: true })
     .then(() => true)
     .catch((error) => {
-      window.dispatchEvent(new Event('auth-expired'));
+      // Sign out only when the server rejected the session. A network blip
+      // (flaky mobile data, the API briefly unreachable) has no response and
+      // must not log the user out; the request just fails and can be retried.
+      const status = error?.response?.status;
+      if (status === 401 || status === 403) {
+        window.dispatchEvent(new Event('auth-expired'));
+      }
       throw error;
     })
     .finally(() => {

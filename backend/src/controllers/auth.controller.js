@@ -24,6 +24,33 @@ export const cookieOptions = {
   sameSite: "lax",
 };
 
+const UNIT_MS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+
+/** "15m" / "1d" / "3600" (seconds), as in the *_TOKEN_EXPIRY settings, to ms. */
+export const expiryToMs = (value, fallbackMs) => {
+  const match = /^(\d+)\s*([smhd]?)$/.exec(String(value ?? "").trim());
+  if (!match) return fallbackMs;
+  return Number(match[1]) * UNIT_MS[match[2] || "s"];
+};
+
+/**
+ * Set the auth cookies, each lasting as long as its token. (Without maxAge they
+ * were session cookies, so closing the browser could drop a 10-day login.)
+ * A null refreshToken (another tab just rotated it) leaves that cookie alone.
+ */
+export const setAuthCookies = (res, { accessToken, refreshToken }) => {
+  res.cookie("accesstoken", accessToken, {
+    ...cookieOptions,
+    maxAge: expiryToMs(process.env.ACCESS_TOKEN_EXPIRY, 15 * UNIT_MS.m),
+  });
+  if (refreshToken) {
+    res.cookie("refreshtoken", refreshToken, {
+      ...cookieOptions,
+      maxAge: expiryToMs(process.env.REFRESH_TOKEN_EXPIRY, 7 * UNIT_MS.d),
+    });
+  }
+};
+
 export const sendOtp = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -52,8 +79,7 @@ export const registerUser = async (req, res, next) => {
 
     const result = await authService.register(req.body);
 
-    res.cookie("accesstoken", result.accessToken, cookieOptions);
-    res.cookie("refreshtoken", result.refreshToken, cookieOptions);
+    setAuthCookies(res, result);
 
     res.status(201).json({
       success: true,
@@ -78,8 +104,7 @@ export const loginUser = async (req, res, next) => {
 
     const result = await authService.login(identifier, password);
 
-    res.cookie("accesstoken", result.accessToken, cookieOptions);
-    res.cookie("refreshtoken", result.refreshToken, cookieOptions);
+    setAuthCookies(res, result);
 
     res.status(200).json({
       success: true,
@@ -95,7 +120,7 @@ export const logoutUser = async (req, res, next) => {
   try {
     const accessToken = req.cookies?.accesstoken || req.header("Authorization")?.replace("Bearer ", "");
     
-    await authService.logout(req.user._id, accessToken);
+    await authService.logout(req.user._id, accessToken, req.cookies?.refreshtoken);
 
     res.clearCookie("accesstoken", cookieOptions);
     res.clearCookie("refreshtoken", cookieOptions);
@@ -115,8 +140,7 @@ export const refreshAccessToken = async (req, res, next) => {
 
     const result = await authService.refresh(incomingRefreshToken);
 
-    res.cookie("accesstoken", result.accessToken, cookieOptions);
-    res.cookie("refreshtoken", result.refreshToken, cookieOptions);
+    setAuthCookies(res, result);
 
     res.status(200).json({
       success: true,
@@ -160,7 +184,8 @@ export const changePassword = async (req, res, next) => {
       return res.status(400).json({ success: false, message: PASSWORD_POLICY_MESSAGE });
     }
 
-    await authService.changePassword(req.user._id, currentPassword, newPassword);
+    const tokens = await authService.changePassword(req.user._id, currentPassword, newPassword);
+    setAuthCookies(res, tokens);
 
     res.status(200).json({
       success: true,
@@ -212,8 +237,7 @@ export const googleAuth = async (req, res, next) => {
 
     const result = await authService.authenticateWithGoogle(credential);
 
-    res.cookie("accesstoken", result.accessToken, cookieOptions);
-    res.cookie("refreshtoken", result.refreshToken, cookieOptions);
+    setAuthCookies(res, result);
 
     res.status(200).json({
       success: true,

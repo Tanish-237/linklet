@@ -5,7 +5,7 @@ import { vi, describe, beforeEach, it, expect } from "vitest";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Layout from "../Layout";
-import { RELEASE_VERSION } from "../../components/WhatsNewDropdown";
+import { RELEASE_VERSION } from "../../utlis/whatsNew";
 import * as AuthContextModule from "../../context/AuthContext";
 import { apiClient } from "../../api/apiClient";
 
@@ -61,7 +61,7 @@ const fakeLocalStorage = (() => {
     },
   };
 })();
-globalThis.localStorage = fakeLocalStorage;
+vi.stubGlobal("localStorage", fakeLocalStorage);
 
 const mockSocketListeners = {};
 const mockSocket = {

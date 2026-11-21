@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import defaultAvatar from "../assets/default-avatar.webp";
 import { apiClient } from "../api/apiClient";
+import { uploadToCloudinary } from "../api/directUpload";
 
 const CreatePost = () => {
   const { user } = useAuth();
@@ -70,21 +71,8 @@ const CreatePost = () => {
     try {
       setIsSubmitting(true);
 
-      const formData = new FormData();
-      formData.append("caption", caption);
-      if (image) {
-        formData.append("image", image);
-      }
-
-      const response = await apiClient.post(
-        `/posts`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          }
-        }
-      );
+      const imageUpload = image ? await uploadToCloudinary(image, "post") : undefined;
+      const response = await apiClient.post(`/posts`, { caption, imageUpload });
 
       if (response.data.success) {
         toast.success("Post created successfully!");

@@ -5,14 +5,18 @@ import { AppError } from '../src/utils/error.js';
 const mockFindUserByEmail = jest.fn();
 const mockFindUserByUsername = jest.fn();
 const mockCreateUser = jest.fn();
-const mockUpdateRefreshToken = jest.fn();
 const mockFindUserById = jest.fn();
 
 jest.unstable_mockModule('../src/repositories/user.repository.js', () => ({
   findUserByEmail: mockFindUserByEmail,
   findUserByUsername: mockFindUserByUsername,
   createUser: mockCreateUser,
-  updateRefreshToken: mockUpdateRefreshToken,
+  addSession: jest.fn(),
+  clearSessions: jest.fn(),
+  removeSession: jest.fn(),
+  rotateSession: jest.fn(),
+  migrateLegacySession: jest.fn(),
+  wasJustRotated: jest.fn(),
   findUserById: mockFindUserById,
 }));
 
@@ -109,10 +113,8 @@ describe('Google OAuth & Account Linking Tests', () => {
 
     expect(mockExistingUser.googleId).toBe(googleSub);
     expect(mockExistingUser.save).toHaveBeenCalled();
-    expect(mockUpdateRefreshToken).toHaveBeenCalledWith(
-      'user_mongo_id_1',
-      'mock_refresh_token'
-    );
+    const repo = await import('../src/repositories/user.repository.js');
+    expect(repo.addSession).toHaveBeenCalledWith('user_mongo_id_1', 'mock_refresh_token');
     expect(result.accessToken).toBe('mock_access_token');
     expect(result.user.email).toBe('tanish@mnnit.ac.in');
     console.log('[TEST] Successfully linked Google ID to existing user and issued tokens');

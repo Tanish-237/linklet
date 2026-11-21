@@ -4,9 +4,11 @@ import { Link, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
+import { uploadToCloudinary } from "../api/directUpload";
 import useAuthStore from "../store/useAuthStore";
 import useThemeStore from "../theme/useThemeStore";
-import PreviewModal, { getFileIcon } from "../components/PreviewModal";
+import PreviewModal from "../components/PreviewModal";
+import { getFileIcon } from "../utlis/fileIcons";
 import ConfirmDeleteModal from "../components/ConfirmDeleteModal";
 import { isSafeHttpUrl, safeOpenUrl } from "../utlis/safeUrl";
 import { downloadFile } from "../utlis/download";
@@ -120,11 +122,11 @@ const UploadModal = ({ onClose, onSuccess, user }) => {
       fd.append("semester", formData.semester);
       fd.append("subject", formData.subject.trim());
       if (uploadType === "file") {
-        fd.append("document", selectedFile);
+        fd.append("documentUpload", JSON.stringify(await uploadToCloudinary(selectedFile, "resource")));
       } else {
         fd.append("linkUrl", linkUrl);
       }
-      const res = await apiClient.post("/resources", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const res = await apiClient.post("/resources", fd);
       if (res.status === 201) {
         toast.success("Resource shared successfully!");
         onSuccess();

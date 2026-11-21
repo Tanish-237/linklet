@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import { AppError } from "./error.js";
 import logger from "./logger.js";
 import { DEFAULT_CONTACT_EMAIL } from "../config/constants.js";
@@ -18,75 +17,72 @@ const escapeHtml = (value = "") =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const getTransporter = () => {
-  const user = (process.env.EMAIL_USER || "").trim().replace(/^["']|["']$/g, "");
-  const pass = (process.env.EMAIL_PASS || "").trim().replace(/^["']|["']$/g, "").replace(/\s+/g, "");
+const clean = (value) => (value || "").trim().replace(/^["']|["']$/g, "");
 
-  if (!user || !pass) {
-    logger.error("EMAIL_USER or EMAIL_PASS environment variable is missing in deployment settings!");
-  }
+/** "someone@mnnit.ac.in" -> "so***@mnnit.ac.in", so logs don't collect addresses. */
+const maskEmail = (email = "") => {
+  const [user, domain] = String(email).split("@");
+  return domain ? `${user.slice(0, 2)}***@${domain}` : "***";
+};
 
-  return nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true, // Use SSL for reliable cloud deployment
-    auth: {
-      user,
-      pass,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+/** Verified Brevo sender address (EMAIL_USER is the older name for the same setting). */
+const senderAddress = () => clean(process.env.EMAIL_FROM || process.env.EMAIL_USER) || DEFAULT_CONTACT_EMAIL;
+
+const isLocalDev = () => process.env.NODE_ENV !== "production" && !process.env.VERCEL;
+
+/**
+ * Send one email through Brevo's transactional API (HTTPS, so no SMTP port is
+ * needed). Brevo is the only provider: a failure throws, and the caller turns
+ * it into a user-facing error. Returns Brevo's response ({ messageId }).
+ */
+const sendViaBrevo = async (message) => {
+  const apiKey = clean(process.env.BREVO_API_KEY);
+  if (!apiKey) throw new Error("BREVO_API_KEY is not set");
+
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: { "api-key": apiKey, "Content-Type": "application/json", accept: "application/json" },
+    body: JSON.stringify(message),
+    signal: AbortSignal.timeout(10_000),
   });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // Brevo's message names the problem, e.g. an unauthorised IP or sender.
+    throw new Error(`Brevo HTTP ${res.status}: ${data.message || data.code || "unknown error"}`);
+  }
+  return data;
 };
 
 /**
- * Sends an email via Brevo HTTPS API (Port 443 - works reliably on Render Free Tier)
- * or falls back to Nodemailer SMTP if BREVO_API_KEY is not configured.
+ * Send a verification-code email (sign-up, password reset).
  * @param {string} to - Recipient email
  * @param {string} subject - Email subject
- * @param {string} text - Email body text
+ * @param {string} text - Plain-text body; its 6-digit code is shown large in the HTML
  * @param {{ intro?: string }} [options] - `intro` is the trusted HTML line shown
- *   above the code in the Brevo template (it used to always say "registering",
- *   even on password-reset emails).
+ *   above the code ("registering" vs. "resetting your password").
  */
 export const sendEmail = async (to, subject, text, { intro = "Your <strong>Linklet</strong> verification code is:" } = {}) => {
-  const brevoApiKey = (
-    process.env.BREVO_API_KEY ||
-    process.env.BRAVO_API_KEY ||
-    process.env.BREVO_KEY ||
-    ""
-  ).trim().replace(/^["']|["']$/g, "");
+  // Local development without a Brevo key: print instead of sending, so sign-up
+  // can be tested offline. Never happens on Vercel or in production.
+  if (!clean(process.env.BREVO_API_KEY) && isLocalDev()) {
+    logger.warn(`[EMAIL] BREVO_API_KEY not set; not sending "${subject}" to ${to}. Body: ${text}`);
+    return { messageId: "local-dev" };
+  }
 
-  logger.info(`[EMAIL DISPATCH] Dispatching to ${to}. Brevo Key detected: ${!!brevoApiKey}`);
-
-  // 1. Primary: Use Brevo HTTPS API (port 443 - never blocked by Render)
-  if (brevoApiKey) {
-    try {
-      const senderEmail = (process.env.EMAIL_USER || DEFAULT_CONTACT_EMAIL).trim().replace(/^["']|["']$/g, "");
-      const otpCode = text.match(/\d{6}/)?.[0] || "";
-
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": brevoApiKey,
-          "Content-Type": "application/json",
-          "accept": "application/json",
-        },
-        body: JSON.stringify({
-          sender: {
-            name: "Linklet",
-            email: senderEmail,
-          },
-          to: [{ email: to }],
-          subject,
-          htmlContent: `
+  const otpCode = text.match(/\d{6}/)?.[0] || "";
+  try {
+    const data = await sendViaBrevo({
+      sender: { name: "Linklet", email: senderAddress() },
+      to: [{ email: to }],
+      subject,
+      textContent: text,
+      htmlContent: `
             <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; border: 1px solid #e5e7eb; border-radius: 12px; background: #ffffff;">
               <h2 style="color: #7c3aed; margin-top: 0; margin-bottom: 12px; font-size: 22px;">Linklet Verification</h2>
               <p style="color: #374151; font-size: 15px; margin-bottom: 8px;">Hello,</p>
               <p style="color: #374151; font-size: 15px; margin-bottom: 20px;">${intro}</p>
               <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #111827; margin: 24px 0;">
-                ${otpCode || text}
+                ${escapeHtml(otpCode || text)}
               </div>
               <p style="color: #6b7280; font-size: 13px; margin-bottom: 24px;">This code is valid for 10 minutes. If you did not request this, you can safely ignore this email.</p>
               <div style="border-top: 1px solid #e5e7eb; padding-top: 16px; font-size: 12px; color: #9ca3af; text-align: center;">
@@ -94,42 +90,11 @@ export const sendEmail = async (to, subject, text, { intro = "Your <strong>Linkl
               </div>
             </div>
           `,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        logger.error(`[BREVO API ERROR] HTTP ${res.status}: ${JSON.stringify(data)}`);
-        throw new Error(data.message || `Brevo API returned status ${res.status}`);
-      }
-
-      logger.info(`[BREVO SUCCESS] Email successfully sent to ${to} via Brevo (MessageId: ${data.messageId})`);
-      return data;
-    } catch (err) {
-      logger.error(`[EMAIL FAILED VIA BREVO]: ${err.message}`);
-      throw new AppError("Failed to send verification email. Please try again later.", 500);
-    }
-  }
-
-  logger.info("[EMAIL FALLBACK] No BREVO_API_KEY found, attempting Nodemailer SMTP fallback...");
-
-  // 2. Secondary / Local fallback: Nodemailer SMTP
-  try {
-    const user = (process.env.EMAIL_USER || "").trim().replace(/^["']|["']$/g, "");
-    const transporter = getTransporter();
-
-    const mailOptions = {
-      from: `"Linklet" <${user}>`,
-      to,
-      subject,
-      text,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(`Email sent successfully to ${to} via SMTP (MessageId: ${info.messageId})`);
-    return info;
-  } catch (error) {
-    logger.error(`Error sending email to ${to}:`, error);
+    });
+    logger.info(`[EMAIL] Sent "${subject}" to ${maskEmail(to)} (Brevo ${data.messageId})`);
+    return data;
+  } catch (err) {
+    logger.error(`[EMAIL] Failed to send "${subject}" to ${maskEmail(to)}: ${err.message}`);
     throw new AppError("Failed to send verification email. Please try again later.", 500);
   }
 };
@@ -140,23 +105,8 @@ export const sendEmail = async (to, subject, text, { intro = "Your <strong>Linkl
  * @param {Object} data - Contact form data { name, email, category, subject, message }
  */
 export const sendContactFormEmail = async ({ name, email, category, subject, message }) => {
-  const receiverEmail = (
-    process.env.CONTACT_RECEIVER_EMAIL ||
-    process.env.FOUNDER_EMAIL ||
-    DEFAULT_CONTACT_EMAIL
-  ).trim().replace(/^["']|["']$/g, "");
-
-  const brevoApiKey = (
-    process.env.BREVO_API_KEY ||
-    process.env.BRAVO_API_KEY ||
-    process.env.BREVO_KEY ||
-    ""
-  ).trim().replace(/^["']|["']$/g, "");
-
-  const senderEmail = (
-    process.env.EMAIL_USER ||
-    DEFAULT_CONTACT_EMAIL
-  ).trim().replace(/^["']|["']$/g, "");
+  const receiverEmail =
+    clean(process.env.CONTACT_RECEIVER_EMAIL || process.env.FOUNDER_EMAIL) || DEFAULT_CONTACT_EMAIL;
 
   const emailSubject = `[Linklet Contact] [${category || "General Inquiry"}] ${subject || "New Message from " + name}`;
 
@@ -223,67 +173,24 @@ export const sendContactFormEmail = async ({ name, email, category, subject, mes
 
   const textContent = `New Contact Form Submission on Linklet\n\nFrom: ${name} (${email})\nCategory: ${category}\nSubject: ${subject || "N/A"}\n\nMessage:\n${message}\n\n--\nHit Reply to respond to ${email}`;
 
-  logger.info(`[CONTACT EMAIL DISPATCH] Dispatching contact form notification to ${receiverEmail} (Reply-To: ${email}). Brevo Key: ${!!brevoApiKey}`);
-
-  // 1. Primary: Brevo HTTPS API
-  if (brevoApiKey) {
-    try {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
-        method: "POST",
-        headers: {
-          "api-key": brevoApiKey,
-          "Content-Type": "application/json",
-          "accept": "application/json",
-        },
-        body: JSON.stringify({
-          sender: {
-            name: "Linklet Contact Form",
-            email: senderEmail,
-          },
-          to: [{ email: receiverEmail, name: "Linklet Founders" }],
-          replyTo: {
-            email,
-            name,
-          },
-          subject: emailSubject,
-          htmlContent,
-          textContent,
-        }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        logger.error(`[BREVO CONTACT EMAIL ERROR] HTTP ${res.status}: ${JSON.stringify(data)}`);
-        throw new Error(data.message || `Brevo API returned status ${res.status}`);
-      }
-
-      logger.info(`[BREVO CONTACT SUCCESS] Notification delivered to ${receiverEmail} via Brevo (MessageId: ${data.messageId})`);
-      return { success: true, messageId: data.messageId, provider: "brevo" };
-    } catch (err) {
-      logger.error(`[BREVO CONTACT EMAIL FAILED]: ${err.message}`);
-      // Let it fall through to SMTP fallback or rethrow if desired
-    }
+  if (!clean(process.env.BREVO_API_KEY) && isLocalDev()) {
+    logger.warn(`[CONTACT EMAIL] BREVO_API_KEY not set; not sending. ${textContent}`);
+    return { success: true, messageId: "local-dev", provider: "none" };
   }
 
-  // 2. Secondary: SMTP Fallback
   try {
-    const transporter = getTransporter();
-    const mailOptions = {
-      from: `"Linklet Contact Form" <${senderEmail}>`,
-      to: receiverEmail,
-      // Object form lets nodemailer encode the name, so quotes or commas in a
-      // submitted name can't break the Reply-To header.
-      replyTo: { name, address: email },
+    const data = await sendViaBrevo({
+      sender: { name: "Linklet Contact Form", email: senderAddress() },
+      to: [{ email: receiverEmail, name: "Linklet Founders" }],
+      replyTo: { email, name },
       subject: emailSubject,
-      text: textContent,
-      html: htmlContent,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info(`Contact email sent to ${receiverEmail} via SMTP (MessageId: ${info.messageId})`);
-    return { success: true, messageId: info.messageId, provider: "smtp" };
-  } catch (error) {
-    logger.error(`Error sending contact email to ${receiverEmail} via SMTP:`, error);
+      htmlContent,
+      textContent,
+    });
+    logger.info(`[CONTACT EMAIL] Delivered to ${maskEmail(receiverEmail)} (Brevo ${data.messageId})`);
+    return { success: true, messageId: data.messageId, provider: "brevo" };
+  } catch (err) {
+    logger.error(`[CONTACT EMAIL] Failed: ${err.message}`);
     throw new AppError("Failed to dispatch contact email", 500);
   }
 };

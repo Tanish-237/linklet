@@ -1,0 +1,12 @@
+# Never upload local secrets or build/dependency folders with `vercel deploy`
+# (Git deployments only see committed files anyway).
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/coverage
+**/logs
+frontend/dist
+frontend/dist-ssr
+.claude
+FUTURE_SCOPE.md

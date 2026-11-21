@@ -32,7 +32,7 @@ export const createResource = async (req, res, next) => {
     if (req.file) {
       // Upload to Cloudinary
       logger.info(`Uploading resource file for user ${req.user._id}`);
-      const cloudinaryResponse = await uploadOnCloudinary(req.file.path);
+      const cloudinaryResponse = await uploadOnCloudinary(req.file);
 
       if (!cloudinaryResponse) {
         throw new AppError("Failed to upload document to cloud", 500);

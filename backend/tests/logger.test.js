@@ -13,7 +13,7 @@ const importLoggerWithEnv = async (nodeEnv) => {
 };
 
 describe('logger — environment-gated file transports', () => {
-  test('in production, only logs to Console — Render\'s disk is ephemeral, so file transports would just leak unbounded log growth with zero durability benefit', async () => {
+  test('in production, only logs to Console — the server disk is ephemeral (read-only on Vercel), so file transports buy no durability', async () => {
     console.log('[TEST] logger › production has no File transports');
     const logger = await importLoggerWithEnv('production');
 

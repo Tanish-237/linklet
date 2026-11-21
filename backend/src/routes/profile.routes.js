@@ -3,6 +3,7 @@ import * as profileController from "../controllers/profile.controller.js";
 import * as collectionController from "../controllers/collection.controller.js";
 import { isLoggedIn } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/multer.middleware.js";
+import { acceptDirectUploads } from "../middlewares/directUpload.middleware.js";
 
 const router = express.Router();
 
@@ -12,7 +13,7 @@ router.get("/me/bookmark-ids", isLoggedIn, profileController.getMyBookmarkIds);
 router.post("/bookmarks/:resourceId", isLoggedIn, profileController.toggleBookmark);
 router.post("/follow/:targetUserId", isLoggedIn, profileController.toggleFollowUser);
 router.post("/block/:targetUserId", isLoggedIn, profileController.toggleBlockUser);
-router.put("/edit", isLoggedIn, upload.single("avatar"), profileController.updateProfile);
+router.put("/edit", isLoggedIn, upload.single("avatar"), acceptDirectUploads("avatar"), profileController.updateProfile);
 router.put("/notification-preferences", isLoggedIn, profileController.updateNotificationPrefs);
 
 // Collection routes

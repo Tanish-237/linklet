@@ -1,7 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 
-export const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+import { QUICK_REACTIONS } from "./quickReactions";
 
 const ReactionPickerBar = ({
   activeMessageId,

@@ -122,7 +122,7 @@ export const updateProfile = async (req, res, next) => {
     }
 
     if (req.file) {
-      const avatarUpload = await uploadOnCloudinary(req.file.path);
+      const avatarUpload = await uploadOnCloudinary(req.file);
       if (!avatarUpload) throw new AppError("Failed to upload image to Cloudinary", 500);
       updates.avatar = avatarUpload.secure_url ?? avatarUpload.url;
     } else if (typeof req.body.avatarUrl === "string" && req.body.avatarUrl.trim() !== "") {

@@ -4,6 +4,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { toast } from "sonner";
 import { apiClient } from "../api/apiClient";
+import { uploadToCloudinary } from "../api/directUpload";
 import defaultAvatar from "../assets/default-avatar.webp";
 import defaultBanner from "../assets/mnnit-banner.webp";
 import { Helmet } from "react-helmet-async";
@@ -268,7 +269,7 @@ const Profile = () => {
         formData.append("username", editUsername);
       }
       if (avatarFile) {
-        formData.append("avatar", avatarFile);
+        formData.append("avatarUpload", JSON.stringify(await uploadToCloudinary(avatarFile, "avatar")));
       } else if (selectedAvatarUrl) {
         formData.append("avatarUrl", selectedAvatarUrl);
       }

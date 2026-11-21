@@ -68,7 +68,7 @@ export const generateAndSendOtp = async (email) => {
   }
   await redisClient.setEx(otpKey(email), OTP_TTL_SECONDS, otp);
 
-  // Never log the OTP itself — anyone with log access (Render dashboard, a
+  // Never log the OTP itself — anyone with log access (Vercel dashboard, a
   // teammate, a misconfigured log drain) could otherwise reset any account.
   logger.info(`[REGISTRATION OTP] Generated OTP for ${email}`);
 
@@ -166,7 +166,7 @@ export const register = async (userData) => {
   const accessToken = user.generateAccessToken();
   const refreshToken = user.generateRefreshToken();
 
-  await userRepository.updateRefreshToken(user._id, refreshToken);
+  await userRepository.addSession(user._id, refreshToken);
 
   const userWithoutPassword = await userRepository.findUserById(user._id);
 
@@ -192,14 +192,14 @@ export const login = async (emailOrUsername, password) => {
   const accessToken = user.generateAccessToken();
   const refreshToken = user.generateRefreshToken();
 
-  await userRepository.updateRefreshToken(user._id, refreshToken);
+  await userRepository.addSession(user._id, refreshToken);
   
   const userWithoutPassword = await userRepository.findUserById(user._id);
 
   return { user: userWithoutPassword, accessToken, refreshToken };
 };
 
-export const logout = async (userId, accessToken) => {
+export const logout = async (userId, accessToken, refreshToken) => {
   // Blacklist the current access token
   if (accessToken) {
     await blacklistToken(accessToken);
@@ -210,10 +210,16 @@ export const logout = async (userId, accessToken) => {
     await invalidateUserCache(userId);
   }
 
-  // Remove refresh token from DB
-  await userRepository.updateRefreshToken(userId, null);
+  // End this device's session only; the user's other devices stay signed in.
+  await userRepository.removeSession(userId, refreshToken);
 };
 
+/**
+ * Exchange a refresh token for a new access token and a new refresh token
+ * (rotation). Returns `refreshToken: null` when the incoming token was rotated
+ * moments ago by another tab: the browser already holds the new refresh cookie,
+ * so only a fresh access token is issued.
+ */
 export const refresh = async (incomingRefreshToken) => {
   if (!incomingRefreshToken) {
     throw new AppError("Unauthorized request", 401);
@@ -231,20 +237,20 @@ export const refresh = async (incomingRefreshToken) => {
     throw new AppError("Invalid refresh token", 401);
   }
 
-  // Check if the token in DB matches
-  // Note: Need to fetch the full user with refreshToken from DB since findUserById excludes it
-  const fullUser = await userRepository.findUserByUsername(user.username);
-  
-  if (incomingRefreshToken !== fullUser.refreshToken) {
-    throw new AppError("Refresh token is expired or used", 401);
+  const accessToken = user.generateAccessToken();
+  const newRefreshToken = user.generateRefreshToken();
+
+  if (await userRepository.rotateSession(user._id, incomingRefreshToken, newRefreshToken)) {
+    return { accessToken, refreshToken: newRefreshToken };
   }
-
-  const accessToken = fullUser.generateAccessToken();
-  const newRefreshToken = fullUser.generateRefreshToken();
-
-  await userRepository.updateRefreshToken(user._id, newRefreshToken);
-
-  return { accessToken, refreshToken: newRefreshToken };
+  // A login from before per-device sessions existed: carry it over.
+  if (await userRepository.migrateLegacySession(user._id, incomingRefreshToken, newRefreshToken)) {
+    return { accessToken, refreshToken: newRefreshToken };
+  }
+  if (await userRepository.wasJustRotated(user._id, incomingRefreshToken)) {
+    return { accessToken, refreshToken: null };
+  }
+  throw new AppError("Refresh token is expired or used", 401);
 };
 
 export const changePassword = async (userId, currentPassword, newPassword) => {
@@ -259,13 +265,16 @@ export const changePassword = async (userId, currentPassword, newPassword) => {
   }
 
   user.password = newPassword;
-  // Revoke the refresh token: a device that already had a session (and any
-  // attacker who had stolen one) is signed out everywhere the moment the
-  // password changes, not just on this device.
-  user.refreshToken = null;
   await user.save();
+  // Sign out every device (including any attacker holding a stolen session)
+  // the moment the password changes, then start a fresh session for the
+  // device that made the change so it stays signed in.
+  await userRepository.clearSessions(userId);
   await invalidateUserCache(userId);
-  return true;
+  const accessToken = user.generateAccessToken();
+  const refreshToken = user.generateRefreshToken();
+  await userRepository.addSession(userId, refreshToken);
+  return { accessToken, refreshToken };
 };
 
 export const forgotPasswordSendOtp = async (email) => {
@@ -335,8 +344,8 @@ export const resetPassword = async (email, otp, newPassword) => {
   }
 
   user.password = newPassword;
-  user.refreshToken = null; // sign out every existing session on reset
   await user.save();
+  await userRepository.clearSessions(user._id); // sign out every device on reset
 
   await redisClient.del(resetOtpKey(email));
   await invalidateUserCache(user._id);
@@ -422,7 +431,7 @@ export const authenticateWithGoogle = async (credential) => {
   const accessToken = user.generateAccessToken();
   const refreshToken = user.generateRefreshToken();
 
-  await userRepository.updateRefreshToken(user._id, refreshToken);
+  await userRepository.addSession(user._id, refreshToken);
 
   const userWithoutPassword = await userRepository.findUserById(user._id);
 

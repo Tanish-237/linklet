@@ -371,7 +371,7 @@ export const parseTimetablePdf = async (fileBuffer, userProfile = {}, providedMi
     ? (providedMimeType.toLowerCase() === "image/jpg" ? "image/jpeg" : providedMimeType.toLowerCase())
     : detectMimeType(fileBuffer);
 
-  let rawExtractedClasses = [];
+  let rawExtractedClasses;
   let detectedMetadata = {
     branch: userProfile.department || "Computer Science & Engineering",
     semester: userProfile.semester || 4,

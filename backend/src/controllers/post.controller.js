@@ -8,7 +8,7 @@ export const createPost = async (req, res, next) => {
     let imageUrl = req.body.image || "";
     let mediaType = null;
     if (req.file) {
-      const uploadResult = await uploadOnCloudinary(req.file.path);
+      const uploadResult = await uploadOnCloudinary(req.file);
       if (uploadResult) {
         imageUrl = uploadResult.secure_url;
         mediaType = req.file.mimetype?.startsWith("video/") ? "video" : "image";

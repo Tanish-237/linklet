@@ -1,7 +1,8 @@
 import React, { useContext } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
-import { SocketContext, SocketProvider } from "../SocketContext";
+import { SocketProvider } from "../SocketContext";
+import { SocketContext } from "../socket";
 import { io } from "socket.io-client";
 import { useAuth } from "../AuthContext";
 import * as refreshTokenModule from "../../api/refreshToken";

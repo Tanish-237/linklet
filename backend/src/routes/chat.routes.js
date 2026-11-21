@@ -38,6 +38,7 @@ import {
   archiveChat,
   deleteChatForUser,
 } from "../controllers/chat.controller.js";
+import { acceptDirectUploads } from "../middlewares/directUpload.middleware.js";
 
 const router = express.Router();
 
@@ -68,7 +69,7 @@ router.route("/group/promote").put(promoteToAdmin);
 router.route("/group/demote").put(demoteAdmin);
 router
   .route("/group/image")
-  .put(fileCleanupMiddleware, documentUploadMiddleware.single("media"), updateGroupImage);
+  .put(fileCleanupMiddleware, documentUploadMiddleware.single("media"), acceptDirectUploads("media"), updateGroupImage);
 
 // Message endpoints
 // Note: Literal sub-routes MUST precede parameterized routes (/:chatId, /:messageId)
@@ -88,7 +89,7 @@ router.route("/message/media/:chatId").get(getChatMedia);
 
 router
   .route("/message")
-  .post(fileCleanupMiddleware, documentUploadMiddleware.any(), sendMessage)
+  .post(fileCleanupMiddleware, documentUploadMiddleware.any(), acceptDirectUploads("media", { multiple: true }), sendMessage)
   .put(editMessage)
   .delete(deleteMessage);
 

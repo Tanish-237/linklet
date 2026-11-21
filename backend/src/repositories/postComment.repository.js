@@ -21,6 +21,8 @@ const toObjectId = (id) => new mongoose.Types.ObjectId(id);
 const decrementField = (field) => [
   { $set: { [field]: { $max: [0, { $subtract: [`$${field}`, 1] }] } } },
 ];
+// Mongoose 9 only accepts an array (pipeline) update with this option.
+const PIPELINE = { updatePipeline: true };
 
 const populateAuthors = (docs) =>
   PostComment.populate(docs, { path: "userId", select: AUTHOR_FIELDS });
@@ -128,7 +130,7 @@ export const createComment = async ({ postId, userId, text }) => {
     created = await PostComment.create({ postId, userId, text, parentId: null });
   } catch (err) {
     // Keep the counter honest if the insert itself failed after the bump.
-    await Post.findByIdAndUpdate(postId, decrementField("commentsCount"));
+    await Post.findByIdAndUpdate(postId, decrementField("commentsCount"), PIPELINE);
     throw err;
   }
 
@@ -161,7 +163,7 @@ export const createReply = async ({ postId, parentId, userId, text, replyToUsern
       replyToUsername: replyToUsername || null,
     });
   } catch (err) {
-    await PostComment.findByIdAndUpdate(parentId, decrementField("repliesCount"));
+    await PostComment.findByIdAndUpdate(parentId, decrementField("repliesCount"), PIPELINE);
     throw err;
   }
 
@@ -242,12 +244,12 @@ export const deleteComment = async (comment) => {
   if (isReply) {
     // Replies never count toward the post's top-level commentsCount — only
     // the immediate parent's direct-children counter needs adjusting.
-    await PostComment.findByIdAndUpdate(comment.parentId, decrementField("repliesCount"));
+    await PostComment.findByIdAndUpdate(comment.parentId, decrementField("repliesCount"), PIPELINE);
     const post = await Post.findById(comment.postId).select("commentsCount").lean();
     return { deletedIds: deletedIds.map((id) => id.toString()), commentsCount: post?.commentsCount ?? 0 };
   }
 
-  const post = await Post.findByIdAndUpdate(comment.postId, decrementField("commentsCount"), { new: true })
+  const post = await Post.findByIdAndUpdate(comment.postId, decrementField("commentsCount"), { ...PIPELINE, new: true })
     .select("commentsCount")
     .lean();
 

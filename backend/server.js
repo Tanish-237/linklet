@@ -1,162 +1,22 @@
+// Long-running Node entrypoint: `npm run dev` locally, or any host that runs a
+// persistent process. Production on Vercel uses api/index.js instead.
 import "dotenv/config";
-import express from "express";
-import cors from "cors";
-import cookieParser from "cookie-parser";
-import fs from "fs";
-import path from "path";
 import http from "http";
-import helmet from "helmet";
-import rateLimit from "express-rate-limit";
-import compression from "compression";
+import mongoose from "mongoose";
 
-// Architecture Imports
-import { connectDb } from "./src/utils/db.js";
-import { connectRedis } from "./src/utils/redis.js";
-import { hasUnmigratedPostComments } from "./src/migrations/postComments.migration.js";
-import { hasUnmigratedResourceCategories } from "./src/migrations/resourceCategories.migration.js";
-import logger from "./src/utils/logger.js";
-import apiRoutes from "./src/routes/index.js";
+import app from "./src/app.js";
+import { connectServices } from "./src/bootstrap.js";
 import { initializeSocket } from "./socket.js";
-import { createRateLimitStore } from "./src/utils/rateLimitStore.js";
-import { fileCleanupMiddleware, cleanupRequestFiles } from "./src/middlewares/fileCleanup.middleware.js";
+import logger from "./src/utils/logger.js";
 
-const app = express();
-
-// Trust reverse proxy (Render, Cloudflare) for accurate client IP and secure cookies
-app.set("trust proxy", 1);
-
-// Security & Optimization Middlewares
-app.use(helmet());
-app.use(compression());
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  // A hostel/campus Wi-Fi network puts hundreds of students behind a handful of
-  // NAT IPs, so a low per-IP ceiling here risks rate-limiting the whole hostel
-  // together. This is a broad abuse backstop; the truly sensitive endpoints
-  // (OTP, login) have their own much tighter limiters in auth.routes.js.
-  max: 2000,
-  store: createRateLimitStore("api"),
-  standardHeaders: true,
-  legacyHeaders: false,
-  // JSON like every other API error, so the frontend shows this text instead
-  // of a generic "Error 429: Something went wrong".
-  message: { success: false, message: "Too many requests from your network. Please wait a few minutes and try again." },
-});
-app.use("/api", limiter); // Apply rate limiting to all /api routes
-
-// Standard Middlewares
-
-import { corsOriginHandler } from "./src/utils/cors.js";
-
-app.use(
-  cors({
-    origin: corsOriginHandler,
-    credentials: true,
-  })
-);
-
-// File uploads are multipart and go through multer (with its own 25 MB/file
-// limit), so these only cover JSON/form bodies, none of which come close to 1 MB.
-app.use(express.urlencoded({ extended: true, limit: "1mb" }));
-app.use(express.json({ limit: "1mb" }));
-app.use(cookieParser());
-
-// Multer's scratch directory for uploads on their way to Cloudinary. It is
-// deliberately NOT served over HTTP: it only ever holds user-supplied files of
-// any type, and exposing it would let an in-flight upload be fetched from the
-// API origin.
-const uploadDir = path.join(process.cwd(), "public", "temp");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Auto cleanup temporary uploaded files on finish/close
-app.use(fileCleanupMiddleware);
-
-// Health Check Endpoint (Render zero-downtime deploys & uptime monitoring)
-app.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-    uptime: Math.floor(process.uptime()),
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Central API Router
-app.use("/api/v1", apiRoutes);
-
-// 404 Handler
-app.use((req, res, next) => {
-  res.status(404).json({ success: false, message: "API Route Not Found" });
-});
-
-// Global Error Handler
-app.use((err, req, res, next) => {
-  cleanupRequestFiles(req);
-  const statusCode = err.statusCode || 500;
-
-  if (statusCode >= 500) {
-    logger.error(err.stack);
-  } else {
-    logger.warn(`${statusCode} - ${err.message} - ${req.originalUrl} - ${req.method}`);
-  }
-
-  // 4xx messages are written for the user (AppError); 5xx messages come from
-  // whatever threw (Mongo, Cloudinary, a TypeError) and can leak internals, so
-  // they're only surfaced outside production.
-  const exposeMessage = statusCode < 500 || process.env.NODE_ENV !== "production";
-  res.status(statusCode).json({
-    success: false,
-    message:
-      err.type === "entity.too.large"
-        ? "That request is too large." // body-parser's default is "request entity too large"
-        : exposeMessage ? err.message || "Internal Server Error" : "Internal Server Error",
-    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
-  });
-});
-
-// Server Initialization
 const PORT = process.env.PORT || 5001;
 const server = http.createServer(app);
 
-// Boot sequence
 const bootServer = async () => {
   try {
-    // 1. Connect MongoDB
-    await connectDb();
-    logger.info("MongoDB connected successfully");
-
-    // Post comments moved out of the Post document into their own collection.
-    // Until `npm run migrate:comments` has run, old comments are invisible —
-    // make that impossible to miss in the logs instead of a silent data gap.
-    try {
-      const mongoose = (await import("mongoose")).default;
-      if (await hasUnmigratedPostComments(mongoose.connection.db)) {
-        logger.warn(
-          "[MIGRATION REQUIRED] Some posts still have embedded comments. Run `npm run migrate:comments` (see CHANGELOG) — until then those comments will not appear."
-        );
-      }
-    } catch (err) {
-      logger.warn(`Could not check for un-migrated post comments: ${err.message}`);
-    }
-    try {
-      const mongoose = (await import("mongoose")).default;
-      if (await hasUnmigratedResourceCategories(mongoose.connection.db)) {
-        logger.warn(
-          "[MIGRATION REQUIRED] Some resources still use the retired \"presentations\" category. Run `npm run migrate:resource-categories` — until then they are hidden from the Lectures filter and fail validation when edited."
-        );
-      }
-    } catch (err) {
-      logger.warn(`Could not check for un-migrated resource categories: ${err.message}`);
-    }
-
-    // 2. Connect Redis
-    await connectRedis();
-
-    // 3. Initialize Socket.io (Requires Redis to be connected first!)
+    // MongoDB + Redis first: Socket.io's Redis adapter needs Redis connected.
+    await connectServices();
     await initializeSocket(server);
-
-    // 4. Start HTTP Server
     server.listen(PORT, () => {
       logger.info(`Server is running on port ${PORT}`);
     });
@@ -168,9 +28,9 @@ const bootServer = async () => {
 
 bootServer();
 
-// Graceful shutdown: on a platform redeploy/restart (Render sends SIGTERM),
-// stop accepting new connections and let in-flight requests finish instead of
-// dropping them mid-response, then close the DB connection cleanly.
+// Graceful shutdown: on SIGTERM/SIGINT stop accepting new connections and let
+// in-flight requests finish instead of dropping them mid-response, then close
+// the DB connection cleanly.
 let shuttingDown = false;
 const shutdown = (signal, exitCode = 0) => {
   if (shuttingDown) return;
@@ -179,7 +39,6 @@ const shutdown = (signal, exitCode = 0) => {
 
   server.close(async () => {
     try {
-      const mongoose = (await import("mongoose")).default;
       await mongoose.connection.close();
       logger.info("MongoDB connection closed.");
     } catch (err) {
@@ -199,9 +58,6 @@ const shutdown = (signal, exitCode = 0) => {
 
 // A stray rejected promise or synchronous throw outside Express's error
 // pipeline would otherwise kill the process with nothing useful in the logs.
-// Rejections are logged and the server keeps serving; an uncaught exception
-// leaves the process in an unknown state, so it is logged and then shut down
-// cleanly for the platform to restart.
 process.on("unhandledRejection", (reason) => {
   logger.error(`Unhandled promise rejection: ${reason?.stack || reason}`);
 });

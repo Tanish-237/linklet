@@ -25,7 +25,7 @@ Instead, report it privately using one of these:
 
 ## Scope
 
-This policy covers the Linklet codebase in this repository and its production deployment at [linklet.org](https://linklet.org). It does not cover third-party services Linklet depends on (MongoDB Atlas, Cloudinary, Render, Vercel, Google OAuth) — please report issues in those directly to the respective vendor.
+This policy covers the Linklet codebase in this repository and its production deployment at [linklet.org](https://linklet.org). It does not cover third-party services Linklet depends on (MongoDB Atlas, Redis, Cloudinary, Vercel, Google OAuth) — please report issues in those directly to the respective vendor.
 
 ## Supported versions
 

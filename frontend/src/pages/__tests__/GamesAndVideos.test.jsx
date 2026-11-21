@@ -34,7 +34,7 @@ const fakeLocalStorage = (() => {
     clear: () => { store = {}; },
   };
 })();
-globalThis.localStorage = fakeLocalStorage;
+vi.stubGlobal("localStorage", fakeLocalStorage);
 
 describe("GamesAndVideos Component Tests", () => {
   const mockSocket = {

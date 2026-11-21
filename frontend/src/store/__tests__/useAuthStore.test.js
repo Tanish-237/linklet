@@ -26,7 +26,7 @@ const fakeLocalStorage = {
   }),
 };
 
-globalThis.localStorage = fakeLocalStorage;
+vi.stubGlobal("localStorage", fakeLocalStorage);
 
 describe("useAuthStore Zustand Store Tests", () => {
   beforeEach(() => {
@@ -152,11 +152,22 @@ describe("useAuthStore Zustand Store Tests", () => {
   it("signs out when the refresh token is also no longer valid", async () => {
     useAuthStore.setState({ user: { _id: "u123" }, isAuthenticated: true, isLoading: false });
     apiClient.get.mockResolvedValueOnce({ data: { user: null } });
-    refreshAccessToken.mockRejectedValueOnce(new Error("refresh expired"));
+    refreshAccessToken.mockRejectedValueOnce(Object.assign(new Error("refresh expired"), { response: { status: 401 } }));
 
     await useAuthStore.getState().checkAuth();
 
     expect(useAuthStore.getState().user).toBeNull();
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it("keeps the signed-in user when the refresh fails only because the network is down", async () => {
+    useAuthStore.setState({ user: { _id: "u123" }, isAuthenticated: true, isLoading: true });
+    apiClient.get.mockResolvedValueOnce({ data: { user: null } });
+    refreshAccessToken.mockRejectedValueOnce(new Error("Network Error"));
+
+    await useAuthStore.getState().checkAuth();
+
+    expect(useAuthStore.getState().user).toEqual({ _id: "u123" });
+    expect(useAuthStore.getState().isLoading).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import useConfirm from "../hooks/useConfirm";
 import { Link } from "react-router-dom";
 import { apiClient } from "../api/apiClient";
+import { uploadToCloudinary } from "../api/directUpload";
 import { toast } from "sonner";
 import defaultAvatar from "../assets/default-avatar.webp";
 import defaultGroupAvatar from "../assets/default-group.svg";
@@ -206,15 +207,10 @@ const ChatInfoPanel = ({ chat, currentUser, onClose, onUpdateChat, onJumpToMessa
   const handleImageFileSelected = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const formData = new FormData();
-    formData.append("chatId", chat._id);
-    formData.append("media", file);
-
     try {
       setIsUploadingImage(true);
-      const res = await apiClient.put("/chat/group/image", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const mediaUpload = await uploadToCloudinary(file, "group");
+      const res = await apiClient.put("/chat/group/image", { chatId: chat._id, mediaUpload });
       if (res.data.success) {
         toast.success("Group icon updated!");
         onUpdateChat(res.data.data);

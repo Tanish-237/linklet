@@ -3,8 +3,11 @@ import logger from './logger.js';
 
 let redisClient;
 
+// REDIS_URL, or KV_URL as the Vercel Marketplace's Upstash integration names it.
+const redisUrl = () => process.env.REDIS_URL || process.env.KV_URL;
+
 export const connectRedis = async () => {
-  if (!process.env.REDIS_URL) {
+  if (!redisUrl()) {
     // Without Redis, Socket.io rooms, presence and rate-limit counters are
     // per-process: fine for local dev, silently wrong as soon as production
     // runs more than one instance. Refuse to boot rather than degrade quietly.
@@ -16,7 +19,7 @@ export const connectRedis = async () => {
   }
 
   redisClient = createClient({
-    url: process.env.REDIS_URL
+    url: redisUrl(),
   });
 
   redisClient.on('error', (err) => logger.error('Redis Client Error', err));

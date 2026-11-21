@@ -3,9 +3,11 @@ import * as notificationService from "../services/notification.service.js";
 export const getNotifications = async (req, res, next) => {
   try {
     const { page, limit, unreadOnly } = req.query;
+    // Clamped: an unbounded limit returned every notification at once, and a
+    // page below 1 made a negative skip, which MongoDB rejects (500).
     const result = await notificationService.getUserNotifications(req.user._id, {
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 15,
+      page: Math.max(1, parseInt(page, 10) || 1),
+      limit: Math.min(50, Math.max(1, parseInt(limit, 10) || 15)),
       unreadOnly: unreadOnly === "true",
     });
 

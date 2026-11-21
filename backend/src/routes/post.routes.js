@@ -3,6 +3,7 @@ import * as postController from "../controllers/post.controller.js";
 import { isLoggedIn } from "../middlewares/auth.middleware.js";
 import { requireRole } from "../middlewares/rbac.js";
 import { upload } from "../middlewares/multer.middleware.js";
+import { acceptDirectUploads } from "../middlewares/directUpload.middleware.js";
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get("/:postId", postController.getPost);
 router.get("/:postId/comments", postController.getComments);
 router.get("/:postId/comments/:commentId/replies", postController.getReplies);
 
-router.post("/", isLoggedIn, upload.single("image"), postController.createPost);
+router.post("/", isLoggedIn, upload.single("image"), acceptDirectUploads("image"), postController.createPost);
 router.patch("/:postId", isLoggedIn, postController.updatePost);
 router.delete("/:postId", isLoggedIn, postController.deletePost);
 router.post("/:postId/report", isLoggedIn, postController.reportPost);

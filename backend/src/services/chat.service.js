@@ -373,7 +373,7 @@ export const deleteChatForUser = async (userId, chatId) => {
 /**
  * Update a group's image.
  */
-export const updateGroupImage = async (chatId, userId, filePath) => {
+export const updateGroupImage = async (chatId, userId, file) => {
   const chat = await chatRepo.findChatById(chatId);
   if (!chat) throw new AppError("Chat not found", 404);
   if (!chat.isGroup) throw new AppError("Cannot set image for a 1:1 chat", 400);
@@ -381,7 +381,7 @@ export const updateGroupImage = async (chatId, userId, filePath) => {
     throw new AppError("Only the group admin can update the group image", 403);
   }
 
-  const uploadResult = await uploadOnCloudinary(filePath);
+  const uploadResult = await uploadOnCloudinary(file);
   if (!uploadResult) throw new AppError("Failed to upload image", 500);
 
   const updated = await chatRepo.updateChat(chatId, { groupImage: uploadResult.secure_url });
@@ -493,7 +493,7 @@ export const sendMessage = async (
 
   // If there are files, upload files concurrently and create messages in bulk
   const uploadPromises = files.map(async (file, i) => {
-    const uploadResult = await uploadOnCloudinary(file.path);
+    const uploadResult = await uploadOnCloudinary(file);
     if (!uploadResult) throw new AppError("Failed to upload media", 500);
 
     const messageData = {

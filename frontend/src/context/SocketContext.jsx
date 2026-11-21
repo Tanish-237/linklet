@@ -1,11 +1,10 @@
-import { createContext, useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
+import { SocketContext } from "./socket";
 import { useAuth } from "./AuthContext";
 import { API_BASE_URL } from "../config";
 import { refreshAccessToken, isAuthHandshakeError } from "../api/refreshToken";
 
 const AWAY_GRACE_MS = 10_000;
-
-export const SocketContext = createContext();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
@@ -40,6 +39,10 @@ export const SocketProvider = ({ children }) => {
       // (withCredentials), which the refresh flow keeps current.
       newSocket = io(API_BASE_URL, {
         withCredentials: true,
+        // WebSocket only. The API runs as Vercel Functions with no sticky
+        // sessions, so HTTP long-polling (Socket.IO's default first transport)
+        // would spread one session's requests across instances and fail.
+        transports: ["websocket"],
       });
 
       let retriedAuthRefresh = false;

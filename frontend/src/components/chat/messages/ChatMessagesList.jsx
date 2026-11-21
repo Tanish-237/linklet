@@ -1,6 +1,7 @@
 import React from "react";
 import MessageItem from "./MessageItem";
-import DateSeparator, { formatMessageDate } from "./DateSeparator";
+import DateSeparator from "./DateSeparator";
+import { formatMessageDate } from "./messageTime";
 
 // Shared default so memoized rows don't see a brand-new object every render.
 const IDLE_AUDIO_STATE = Object.freeze({ isPlaying: false, currentTime: 0, duration: 0 });

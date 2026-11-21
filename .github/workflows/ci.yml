@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24" # same as Vercel (package.json engines)
           cache: "npm"
           cache-dependency-path: backend/package-lock.json
 
@@ -57,7 +57,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: "24" # same as Vercel (package.json engines)
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 

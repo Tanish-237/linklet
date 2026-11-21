@@ -5,6 +5,40 @@ All notable changes to the Linklet platform will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-11-22
+
+### Changed
+- **The API now runs on Vercel Functions instead of Render.** One function (`backend/api/index.js`) serves the REST API and Socket.IO over WebSockets. The client connects over WebSocket only (no HTTP long-polling), and reconnects on its own when Vercel closes a connection at the function's time limit.
+- **Files upload straight from the browser to Cloudinary.** The API signs each upload (`POST /api/v1/uploads/sign`), then verifies Cloudinary's response signature before attaching the file to a post, message, avatar, group icon or resource. Large files no longer pass through the API, which on Vercel can't accept request bodies over 4.5 MB. Multipart file uploads still work for API clients.
+- Timetable uploads (parsed by Gemini on the server) are limited to 4 MB, down from 15 MB.
+- "Who's online" is tracked in Redis (expires if a server stops refreshing it) instead of by asking every server instance, which suspended Vercel instances can't answer.
+- Contacts aren't shown someone going offline during a quick reconnect (5-second grace period on Vercel).
+- Upgraded Express 4 → 5, Mongoose 8 → 9, Vite 6 → 8, Vitest 4 → 5, ESLint 9 → 10, nodemailer 9 → 10, plus minor updates throughout. React Compiler lint rules (from eslint-plugin-react-hooks 7) report as warnings.
+
+- **Everything runs in Mumbai.** The API moved from Render's Oregon region to Vercel's `bom1`, next to the MongoDB cluster: every database query used to cross the Pacific twice.
+- **Signed in on several devices at once.** Each device has its own session (up to 10), so signing in on a phone no longer logs out the laptop. Two tabs refreshing at the same moment no longer sign each other out. Changing the password signs out every other device and keeps this one signed in. Existing logins carry over.
+- Logins survive closing the browser: the cookies now last as long as their tokens.
+- A network blip no longer logs you out; only a rejected session does.
+- Watch-together and game rooms survive reconnects (players are tracked by account, and the page rejoins its room).
+- Email is sent through Brevo only; the Gmail SMTP fallback (and nodemailer) is gone. Locally, without a Brevo key, emails are printed to the console.
+- `GET /health` reports database and Redis state and returns 503 when either is down.
+- At most 10 database connections per API instance; database name set explicitly (`MONGO_DB_NAME`).
+- Production logs are plain text (no colour codes), and per-connection socket messages are debug-level.
+- Node 24 everywhere (`engines`, CI, `.nvmrc`); Dependabot opens weekly grouped update PRs.
+
+### Security
+- Fixed known vulnerabilities in dependencies (proxy-addr, nodemailer, qs, undici, vite, among others). `npm audit` reports none in production dependencies.
+- **Watch-together could run code in other people's browsers.** Any URL a room member entered was embedded as an iframe for everyone in the room, including `javascript:` URLs. Only YouTube is embedded now, checked on both the client and the server.
+- Request bodies containing MongoDB operator keys (`$ne`, `$gt`, …) are rejected, closing NoSQL injection through any field that reaches a query. Socket events accept only well-formed chat and room ids.
+- Refresh tokens are stored as SHA-256 hashes, never in plain text.
+- Content-Security-Policy on the site (inline scripts allowed only by hash, checked by a test), plus Permissions-Policy (microphone only, for voice notes).
+- Email logs no longer contain recipients' full addresses.
+- Notification paging is clamped: an unbounded `limit` returned everything, and `page=0` caused a server error.
+
+### Removed
+- Gmail SMTP fallback (`EMAIL_PASS`); set `EMAIL_FROM` for the Brevo sender.
+- Unused repository-root `vercel.json` (the site uses `frontend/vercel.json`).
+
 ## [2.2.0] - 2026-09-24
 
 ### Added

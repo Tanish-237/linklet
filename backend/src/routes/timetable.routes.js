@@ -7,7 +7,9 @@ import { isLoggedIn } from "../middlewares/auth.middleware.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max
+  // Parsed in memory (sent to Gemini), so the file passes through the API:
+  // keep it under the 4.5 MB request-body cap of the Vercel Function.
+  limits: { fileSize: 4 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedMimes = [
       "application/pdf",

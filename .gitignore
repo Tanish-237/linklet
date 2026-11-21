@@ -8,3 +8,9 @@ docs/
 # macOS
 .DS_Store
 **/.DS_Store
+
+# Vercel CLI link (linklet-api project)
+.vercel
+
+# Private planning notes (not published)
+FUTURE_SCOPE.md

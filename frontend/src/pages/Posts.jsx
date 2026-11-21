@@ -5,6 +5,7 @@ import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-quer
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useInView } from "react-intersection-observer";
 import { apiClient } from "../api/apiClient";
+import { uploadToCloudinary } from "../api/directUpload";
 import { deletePost, getFeed } from "../api/post.api";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
@@ -109,12 +110,8 @@ const CreatePostModal = ({ isOpen, onClose, user, onPostCreated, initialMediaFil
     if (!caption.trim() && !image) { toast.error("Please add a caption or image"); return; }
     try {
       setIsSubmitting(true);
-      const formData = new FormData();
-      formData.append("caption", caption);
-      if (image) formData.append("image", image);
-      const response = await apiClient.post(`/posts`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      const imageUpload = image ? await uploadToCloudinary(image, "post") : undefined;
+      const response = await apiClient.post(`/posts`, { caption, imageUpload });
       if (response.data.success) {
         toast.success("Post created successfully!");
         setCaption(""); setImage(null); setImagePreview(null); setMediaKind(null);

@@ -15,6 +15,11 @@ const GamesAndVideos = () => {
   const [selectedGame, setSelectedGame] = useState(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [roomId, setRoomId] = useState("");
+  // Read by the socket's "connect" handler to rejoin after a reconnect.
+  const roomIdRef = useRef("");
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
   const [isHost, setIsHost] = useState(false);
   const [players, setPlayers] = useState([]);
   const [socket, setSocket] = useState(null);
@@ -88,6 +93,10 @@ const GamesAndVideos = () => {
 
     newSocket.on("connect", () => {
       retriedAuthRefresh = false;
+      // "connect" also fires after a reconnect (on Vercel the server closes
+      // every connection at least every ~13 minutes). A new connection isn't in
+      // any room yet, so rejoin the one this player is in.
+      if (roomIdRef.current) newSocket.emit("join-room", roomIdRef.current);
     });
 
     newSocket.on("connect_error", async (error) => {
@@ -123,7 +132,7 @@ const GamesAndVideos = () => {
       setRoomId(room);
       setIsHost(true);
       setIsCreatingRoom(false);
-      setPlayers([newSocket.id]); // Initialize players array with host
+      setPlayers([userId]); // Players are tracked by user id
     });
 
     newSocket.on("player-joined", (players) => {
@@ -169,8 +178,10 @@ const GamesAndVideos = () => {
         : "";
     }
 
-    // Handle other video platforms if needed
-    return url;
+    // Only YouTube is embedded. Anything else (above all a `javascript:` URL,
+    // which runs on this page when used as an iframe src) is refused: room
+    // members' URLs are relayed to everyone in the room.
+    return "";
   };
 
   const createRoom = async () => {

@@ -13,7 +13,7 @@ const fakeLocalStorage = (() => {
     clear: () => { store = {}; },
   };
 })();
-globalThis.localStorage = fakeLocalStorage;
+vi.stubGlobal("localStorage", fakeLocalStorage);
 
 describe("refreshToken utilities", () => {
   beforeEach(() => {
@@ -57,9 +57,9 @@ describe("refreshToken utilities", () => {
       expect(result).toBe(true);
     });
 
-    it("fires auth-expired when the refresh request fails", async () => {
-      console.log("[TEST] refreshAccessToken › failure dispatches auth-expired");
-      axios.post.mockRejectedValueOnce(new Error("refresh token invalid"));
+    it("fires auth-expired when the server rejects the session (401)", async () => {
+      console.log("[TEST] refreshAccessToken › 401 dispatches auth-expired");
+      axios.post.mockRejectedValueOnce(Object.assign(new Error("refresh token invalid"), { response: { status: 401 } }));
 
       const listener = vi.fn();
       window.addEventListener("auth-expired", listener);
@@ -67,6 +67,19 @@ describe("refreshToken utilities", () => {
       await expect(refreshAccessToken()).rejects.toThrow("refresh token invalid");
 
       expect(listener).toHaveBeenCalledTimes(1);
+      window.removeEventListener("auth-expired", listener);
+    });
+
+    it("does not sign the user out on a network error", async () => {
+      console.log("[TEST] refreshAccessToken › network failure keeps the session");
+      axios.post.mockRejectedValueOnce(new Error("Network Error"));
+
+      const listener = vi.fn();
+      window.addEventListener("auth-expired", listener);
+
+      await expect(refreshAccessToken()).rejects.toThrow("Network Error");
+
+      expect(listener).not.toHaveBeenCalled();
       window.removeEventListener("auth-expired", listener);
     });
   });

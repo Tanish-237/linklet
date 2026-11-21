@@ -39,7 +39,7 @@ const fakeLocalStorage = (() => {
     clear: () => { store = {}; },
   };
 })();
-globalThis.localStorage = fakeLocalStorage;
+vi.stubGlobal("localStorage", fakeLocalStorage);
 
 describe("Saved Page", () => {
   beforeEach(() => {

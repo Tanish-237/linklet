@@ -51,8 +51,8 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
       toast.error("Only PDF and image (PNG, JPG, WEBP) timetable files are supported.");
       return;
     }
-    if (selected.size > 15 * 1024 * 1024) {
-      toast.error("File too large. Maximum 15MB.");
+    if (selected.size > 4 * 1024 * 1024) {
+      toast.error("File too large. Maximum 4 MB.");
       return;
     }
     setFile(selected);
@@ -273,7 +273,7 @@ export default function TimetableUploadModal({ isOpen, onClose, onTimetableSynce
                     </span>{" "}
                     <span className="text-sm text-fg-muted">or drag and drop your timetable PDF or Image</span>
                   </div>
-                  <p className="text-xs text-fg-subtle">Official MNNIT Timetable (PDF, PNG, JPG, WEBP) • Max 15 MB</p>
+                  <p className="text-xs text-fg-subtle">Official MNNIT Timetable (PDF, PNG, JPG, WEBP) • Max 4 MB</p>
                 </label>
               </div>
 

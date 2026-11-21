@@ -7,12 +7,14 @@ import ChatSelectionBar from "../chat/header/ChatSelectionBar";
 import PinnedMessageBanner from "../chat/header/PinnedMessageBanner";
 import AttachmentPreviewTray from "../chat/composer/AttachmentPreviewTray";
 import VoiceNoteRecordingTray from "../chat/composer/VoiceNoteRecordingTray";
-import MessageBubble, { formatMessageClock } from "../chat/messages/MessageBubble";
-import DateSeparator, { formatMessageDate } from "../chat/messages/DateSeparator";
+import MessageBubble from "../chat/messages/MessageBubble";
+import DateSeparator from "../chat/messages/DateSeparator";
+import { formatMessageDate, formatMessageClock } from "../chat/messages/messageTime";
 import ChatMessagesList from "../chat/messages/ChatMessagesList";
 import AudioMessagePlayer from "../chat/messages/AudioMessagePlayer";
 import MessageContextMenu from "../chat/actions/MessageContextMenu";
-import ReactionPickerBar, { QUICK_REACTIONS } from "../chat/actions/ReactionPickerBar";
+import ReactionPickerBar from "../chat/actions/ReactionPickerBar";
+import { QUICK_REACTIONS } from "../chat/actions/quickReactions";
 import MessageActionsToolbar from "../chat/actions/MessageActionsToolbar";
 
 // Hooks

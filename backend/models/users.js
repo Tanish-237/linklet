@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import { calculateAcademicYear, calculateDefaultSemester } from "../src/utils/academicYear.js";
 
 const userSchema = new mongoose.Schema(
@@ -121,8 +122,28 @@ const userSchema = new mongoose.Schema(
       systemAlerts: { type: Boolean, default: true },
       _id: false,
     },
+    // Legacy single refresh token (one device at a time). Read only to migrate
+    // a still-valid login into `sessions` on its next refresh; never written.
     refreshToken: {
       type: String,
+    },
+    // One entry per signed-in device: the SHA-256 of its current refresh token
+    // (never the token itself). Rotated on every refresh; the previous hash is
+    // kept briefly so two tabs refreshing at once don't sign each other out.
+    // Not loaded unless asked for (`+sessions`).
+    sessions: {
+      type: [
+        {
+          tokenHash: { type: String, required: true },
+          prevTokenHash: String,
+          rotatedAt: Date,
+          createdAt: { type: Date, default: Date.now },
+          lastUsedAt: { type: Date, default: Date.now },
+          _id: false,
+        },
+      ],
+      select: false,
+      default: undefined,
     },
     lastSeen: {
       type: Date,
@@ -167,12 +188,12 @@ userSchema.index({ email: 1, isBanned: 1 });
 
 //here we are hashing the password before saving it to the database
 
-userSchema.pre("save", async function (next) {
+// Mongoose 9: pre hooks no longer get `next`; an async hook just returns.
+userSchema.pre("save", async function () {
   if (this.isModified("password") && this.password) {
     // Hash only if the password is modified
     this.password = await bcrypt.hash(this.password, 12);
   }
-  next();
 });
 
 //we use methods to create a method for the schema
@@ -208,6 +229,9 @@ userSchema.methods.generateRefreshToken = function () {
     process.env.REFRESH_TOKEN_SECRET,
     {
       expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
+      // Unique per token: two devices signing in within the same second would
+      // otherwise get byte-identical tokens (same payload and iat).
+      jwtid: crypto.randomUUID(),
     }
   );
 };
