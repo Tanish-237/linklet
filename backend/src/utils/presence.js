@@ -22,10 +22,15 @@ import * as chatRepo from "../repositories/chat.repository.js";
  * `fetchSockets()` is exact and is used instead.
  */
 
-// One heartbeat a minute per open socket (each is a few Redis commands, which
-// Upstash bills per command); an entry outlives two missed heartbeats.
-export const PRESENCE_TTL_MS = 150_000;
-export const PRESENCE_HEARTBEAT_MS = 60_000;
+// Upstash's free plan allows 500K commands a month, so presence is frugal: a
+// heartbeat every 2 minutes per open socket is 1-2 ZADDs (no MULTI/EXEC, no
+// EXPIRE), and an entry outlives two missed heartbeats.
+export const PRESENCE_TTL_MS = 5 * 60_000;
+export const PRESENCE_HEARTBEAT_MS = 2 * 60_000;
+// The per-user keys themselves expire a day after the last full update, so
+// users who stop visiting leave nothing behind. socket.js does a full update
+// on setup, on every presence change and once an hour.
+const KEY_TTL_MS = 24 * 60 * 60_000;
 
 const allKey = (uid) => `presence:all:${uid}`;
 const activeKey = (uid) => `presence:active:${uid}`;
@@ -52,21 +57,25 @@ export const getContactIds = async (userId) => {
 /**
  * Record (or refresh) a registered socket in the Redis presence registry,
  * reflecting its current foreground/background state. Call on setup, on every
- * presence change, and periodically as a heartbeat. No-op without Redis.
+ * presence change, and periodically. `{ heartbeat: true }` only pushes the
+ * expiry forward (1-2 commands). No-op without Redis.
+ * Commands are sent together (node-redis pipelines concurrent calls), not in
+ * MULTI/EXEC, which would add two billed commands each time.
  */
-export const trackSocket = async (socket) => {
+export const trackSocket = async (socket, { heartbeat = false } = {}) => {
   const redis = readyRedis();
   const uid = socket?.data?.userId;
   if (!redis || !uid) return;
   const member = { score: Date.now() + PRESENCE_TTL_MS, value: socket.id };
+  const active = !socket.data.away;
   try {
-    const tx = redis.multi().zAdd(allKey(uid), member).pExpire(allKey(uid), PRESENCE_TTL_MS);
-    if (socket.data.away) {
-      tx.zRem(activeKey(uid), socket.id);
-    } else {
-      tx.zAdd(activeKey(uid), member).pExpire(activeKey(uid), PRESENCE_TTL_MS);
+    const ops = [redis.zAdd(allKey(uid), member)];
+    if (active) ops.push(redis.zAdd(activeKey(uid), member));
+    if (!heartbeat) {
+      if (!active) ops.push(redis.zRem(activeKey(uid), socket.id));
+      ops.push(redis.pExpire(allKey(uid), KEY_TTL_MS), redis.pExpire(activeKey(uid), KEY_TTL_MS));
     }
-    await tx.exec();
+    await Promise.all(ops);
   } catch (err) {
     logger.warn(`Presence: could not record socket ${socket.id}: ${err.message}`);
   }
@@ -78,7 +87,7 @@ export const untrackSocket = async (socket) => {
   const uid = socket?.data?.userId;
   if (!redis || !uid) return;
   try {
-    await redis.multi().zRem(allKey(uid), socket.id).zRem(activeKey(uid), socket.id).exec();
+    await Promise.all([redis.zRem(allKey(uid), socket.id), redis.zRem(activeKey(uid), socket.id)]);
   } catch (err) {
     logger.warn(`Presence: could not remove socket ${socket.id}: ${err.message}`);
   }
@@ -88,9 +97,8 @@ export const untrackSocket = async (socket) => {
 const redisCounts = async (redis, userIds, activeOnly) => {
   const now = Date.now();
   const keyFor = activeOnly ? activeKey : allKey;
-  const tx = redis.multi();
-  userIds.forEach((uid) => tx.zCount(keyFor(uid), now, "+inf"));
-  return (await tx.exec()).map(Number);
+  const counts = await Promise.all(userIds.map((uid) => redis.zCount(keyFor(uid), now, "+inf")));
+  return counts.map(Number);
 };
 
 /**

@@ -21,6 +21,7 @@ const commands = {
 };
 const fakeRedis = {
   isReady: true,
+  ...Object.fromEntries(Object.entries(commands).map(([name, fn]) => [name, async (...args) => fn(...args)])),
   multi() {
     const queued = [];
     const tx = {
@@ -102,5 +103,17 @@ describe('Redis presence registry', () => {
     await trackSocket(sock('s1', 'alice'));
     const objectIdLike = { toString: () => 'alice' };
     expect(await filterOnlineUsers(io, [objectIdLike, 'alice'])).toEqual(['alice']);
+  });
+
+  it('a heartbeat costs at most two commands (Upstash free plan budget)', async () => {
+    const calls = [];
+    const spies = ['zAdd', 'zRem', 'pExpire', 'zCount'].map((name) => {
+      const original = fakeRedis[name];
+      fakeRedis[name] = (...args) => { calls.push(name); return original(...args); };
+      return () => { fakeRedis[name] = original; };
+    });
+    await trackSocket(sock('s1', 'alice'), { heartbeat: true });
+    spies.forEach((restore) => restore());
+    expect(calls).toEqual(['zAdd', 'zAdd']);
   });
 });

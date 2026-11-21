@@ -199,7 +199,13 @@ export const initializeSocket = async (server) => {
       // fresh while the connection lives (entries expire if heartbeats stop).
       await trackSocket(socket);
       clearInterval(heartbeat);
-      heartbeat = setInterval(() => trackSocket(socket), PRESENCE_HEARTBEAT_MS);
+      // A cheap refresh each beat, and a full one hourly (renews key expiry).
+      let beats = 0;
+      const fullEvery = Math.round((60 * 60_000) / PRESENCE_HEARTBEAT_MS);
+      heartbeat = setInterval(
+        () => trackSocket(socket, { heartbeat: ++beats % fullEvery !== 0 }),
+        PRESENCE_HEARTBEAT_MS
+      );
       heartbeat.unref?.();
 
       // Presence is scoped to the people who share a chat with this user — not
