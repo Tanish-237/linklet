@@ -257,7 +257,9 @@ describe("Signup with OTP and contact form (real routes + MongoDB)", () => {
         const r = await agent().post("/api/v1/auth/login").send({ email: signup.email, password: signup.password });
         expect(r.status).toBe(200);
       }
-    });
+      // 12 real logins, each a bcrypt (cost 12) check plus a session write:
+      // a few seconds on a shared CI runner.
+    }, 30_000);
 
     test("change password allows 5 wrong current passwords, then blocks", async () => {
       const cookies = await createAccount();
